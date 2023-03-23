@@ -34,7 +34,7 @@ $ curl -sSL https://ffmpeg-free.optimizethis.net | bash
 
 This command downloads the build script and automatically starts the build process.
 
-### Common installation (macOS, Linux)
+### Common installation (Linux)
 
 ```bash
 $ git clone https://github.com/slyfox1186/ffmpeg-build-script.git
@@ -104,7 +104,7 @@ If Python is available, the script will build a ffmpeg binary with lv2 plugin su
 
 ## Continuous Integration
 
-ffmpeg-build-script is very stable. Every commit runs against Linux and macOS
+ffmpeg-build-script is very stable. Every commit runs against Linux
 with https://github.com/markus-perl/ffmpeg-build-script/actions to make sure everything works as expected.
 
 ## Requirements
@@ -166,11 +166,11 @@ statically linked binary inside Docker, just run the following command:
 $ sudo -E docker build --tag=ffmpeg:cuda-static --output type=local,dest=build -f full-static.dockerfile .
 ```
 
-### Run with Docker (macOS, Linux)
+### Run with Docker (Linux)
 
 You can also run the FFmpeg directly inside a Docker container.
 
-#### Default - Without CUDA (macOS, Linux)
+#### Default - Without CUDA (Linux)
 
 If CUDA is not required, a dockerized FFmpeg build can be executed with the following command:
 
