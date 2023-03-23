@@ -98,11 +98,6 @@ $ ./build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
     * Encoders
         * H264 `h264_amf` 
 
-
-### Apple M1 (Apple Silicon) Support
-
-The script also builds FFmpeg on a new MacBook with an Apple Silicon M1 processor.
-
 ### LV2 Plugin Support
 
 If Python is available, the script will build a ffmpeg binary with lv2 plugin support.
@@ -114,10 +109,6 @@ with https://github.com/markus-perl/ffmpeg-build-script/actions to make sure eve
 
 ## Requirements
 
-### macOS
-
-* XCode 10.x or greater
-
 ### Linux
 
 * Debian >= Buster, Ubuntu => Focal Fossa, other Distributions might work too
@@ -127,9 +118,6 @@ with https://github.com/markus-perl/ffmpeg-build-script/actions to make sure eve
 ```bash
 # Debian and Ubuntu
 $ sudo apt install build-essential curl
-
-# Fedora
-$ sudo dnf install @development-tools curl
 ```
 
 ### Build in Docker (Linux)
@@ -203,27 +191,13 @@ $ sudo docker build --tag=ffmpeg:cuda -f cuda-ubuntu.dockerfile .
 $ sudo docker run --gpus all ffmpeg-cuda -hwaccel cuvid -c:v h264_cuvid -i https://files.coconut.co.s3.amazonaws.com/test.mp4 -c:v hevc_nvenc -vf scale_npp=-1:1080 - > test.mp4
 ```
 
-### Common build (macOS, Linux)
-
-If you want to enable CUDA, please refer to [these](#Cuda-installation) and install the SDK.
-
-If you want to enable Vaapi, please refer to [these](#Vaapi-installation) and install the driver.
-
-```bash
-$ ./build-ffmpeg --build
-```
-
 ## Cuda installation
 
 CUDA is a parallel computing platform developed by NVIDIA. To be able to compile ffmpeg with CUDA support, you first
-need a compatible NVIDIA GPU.
+need a compatible NVIDIA GPU. The script will detect if nvcc is already installed on your system and ask you what you wish to do regarding installation of the cuda-sdk-toolkit.
 
 - Ubuntu: To install the CUDA toolkit on Ubuntu, run "sudo apt install nvidia-cuda-toolkit"
-- Other Linux distributions: Once you have the GPU and display driver installed, you can follow the
-  [official instructions](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
-  or [this blog](https://www.pugetsystems.com/labs/hpc/How-To-Install-CUDA-10-1-on-Ubuntu-19-04-1405/)
-  to setup the CUDA toolkit.
-
+- 
 ## Vaapi installation
 
 You will need the libva driver, so please install it below.
@@ -268,17 +242,11 @@ Options:
 - The libnpp in the CUDA SDK cannot be statically linked.
 - Vaapi cannot be statically linked.
 
-Contact
--------
-
-* Github: [http://www.github.com/markus-perl/](https://github.com/markus-perl/ffmpeg-build-script)
-
 Tested on
 ---------
 
-* MacOS 10.15
-* Debian 10
-* Ubuntu 20.04
+* Debian 10 & 11
+* Ubuntu 20.04 & 22.04
 
 Example
 -------
