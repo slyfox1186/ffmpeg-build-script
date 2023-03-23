@@ -39,7 +39,7 @@ This command downloads the build script and automatically starts the build proce
 ```bash
 $ git clone https://github.com/markus-perl/ffmpeg-build-script.git
 $ cd ffmpeg-build-script
-$ ./build-ffmpeg --build
+$ ./build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
 ```
 
 ## Supported Codecs
