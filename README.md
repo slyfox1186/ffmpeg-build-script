@@ -25,12 +25,11 @@ other than Debian, because I don't have the resources or time to maintain differ
 Open your command line and run (curl needs to be installed):
 
 ```bash
+# With GPL and non-free codes, see https://ffmpeg.org/legal.html 
+$ curl -sSL https://ffmpeg.optimizethis.net | bash
 
 # Without GPL and non-free codes, see https://ffmpeg.org/legal.html 
-$ bash <(curl -s "https://raw.githubusercontent.com/markus-perl/ffmpeg-build-script/master/web-install.sh?v1")
-
-# With GPL and non-free codes, see https://ffmpeg.org/legal.html 
-$ bash <(curl -s "https://raw.githubusercontent.com/markus-perl/ffmpeg-build-script/master/web-install-gpl-and-non-free.sh?v1")
+$ curl -sSL https://ffmpeg-free.optimizethis.net | bash
 ```
 
 This command downloads the build script and automatically starts the build process.
