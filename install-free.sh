@@ -53,4 +53,4 @@ echo 'Now we download and execute the build script'
 echo '============================================'
 echo
 
-bash <(curl -s 'https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/build-ffmpeg') --build --latest
+bash <(curl -s 'https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/build-ffmpeg.sh') --build --latest
