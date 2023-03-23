@@ -62,6 +62,8 @@ $ ./build-ffmpeg --build
 * `webp`: Image format both lossless and lossy
 * `harfbuzz`: Text shaping image processor
 * `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format.
+* `libbluray`: An open-source library designed for Blu-Ray Discs playback
+* `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
 
 ### HardwareAccel
 
