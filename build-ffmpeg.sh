@@ -635,11 +635,15 @@ if ! command_exists 'jq'; then
 fi
 
 if ! command_exists 'cargo'; then
-    fail_pkg_fn 'cargo'
+    echo 'The '\''cargo'\'' command was not found.'
+    echo
+    echo 'The rav1e encoder will not be available.'
 fi
 
 if ! command_exists 'python3'; then
-    fail_pkg_fn 'python3'
+    echo 'The '\''python3'\'' command was not found.'
+    echo
+    echo 'The '\''Lv2'\'' filter and '\''dav1d'\'' decoder will not be available.'
 fi
 
 cuda_fn()
