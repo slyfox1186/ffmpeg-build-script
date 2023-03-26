@@ -589,7 +589,7 @@ mkdir -p "$packages"
 mkdir -p "$workspace"
 
 # set global variables
-JAVA_HOME='/usr/lib/jvm/java-19-openjdk-amd64/bin'
+JAVA_HOME='/usr/lib/jvm/java-17-openjdk-amd64/bin'
 export JAVA_HOME
 
 # libbluray requries that this variable be set
@@ -729,7 +729,7 @@ build_pkgs_fn()
     pkgs=(ant g++ gcc gtk-doc-tools help2man javacc jq junit \
           libcairo2-dev libcdio-paranoia-dev libcurl4-gnutls-dev \
           libglib2.0-dev libmusicbrainz5-dev libtinyxml2-dev \
-          libudfread-dev openjdk-19-jdk pkg-config ragel)
+          libudfread-dev openjdk-17-jdk pkg-config ragel)
 
     for pkg in ${pkgs[@]}
     do
