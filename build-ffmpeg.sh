@@ -38,7 +38,7 @@ fi
 
 script_ver='3.2'
 progname="${0:2}"
-ffmpeg_ver='6.0'
+ffmpeg_ver='n5.1.3'
 cuda_ver='12.1'
 packages="$PWD"/packages
 workspace="$PWD"/workspace
@@ -1622,7 +1622,7 @@ fi
 
 # CLONE FFMPEG FROM THE LATEST GIT RELEASE
 build 'ffmpeg' "$ffmpeg_ver"
-download "https://github.com/FFmpeg/FFmpeg/archive/refs/heads/release/$ffmpeg_ver.tar.gz" "FFmpeg-release-$ffmpeg_ver.tar.gz"
+download "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/$ffmpeg_ver.tar.gz" "FFmpeg-$ffmpeg_ver.tar.gz"
 ./configure \
     "${cnf_ops[@]}" \
     --disable-debug \
