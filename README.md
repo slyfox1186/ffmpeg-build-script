@@ -26,11 +26,11 @@ Open your command line and run (curl needs to be installed):
 
 # With GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
-$ curl -sSL https://ffmpeg.optimizethis.net | bash
+curl -sSL https://ffmpeg.optimizethis.net | bash
 ```
 # Without GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
-$ curl -sSL https://ffmpeg-free.optimizethis.net | bash
+curl -sSL https://ffmpeg-free.optimizethis.net | bash
 ```
 
 This command downloads the build script and automatically starts the build process.
