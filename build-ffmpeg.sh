@@ -269,7 +269,13 @@ git_1_fn()
     # SCRAPE GITHUB WEBSITE FOR LATEST REPO VERSION
     github_repo="$1"
     github_url="$2"
-    curl_cmd=$(curl -m "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1")
+    curl_cmd=$(curl \
+        -m "$net_timeout" \
+        --request GET \
+        --url "https://api.github.com/slyfox1186" \
+        --header "Authorization: Bearer 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" \
+        --header "X-GitHub-Api-Version: 2022-11-28" \
+        -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1")
     if [ "$?" -eq '0' ]; then
         g_ver=$(echo "$curl_cmd" | jq -r '.[0].name')
         g_ver=${g_ver#v}
@@ -347,7 +353,7 @@ git_ver_fn()
 
     v_url="$1"
     v_tag="$2"
- 
+
     if [ -n "$3" ]; then
         v_flag="$3"
     fi
@@ -358,7 +364,7 @@ git_ver_fn()
 
         return 0
     fi
-    
+
 
     if [  "$v_flag" = 'T' ] && [  "$v_tag" = '1' ]; then
         url_tag='git_1_fn' gv_url='tags'
@@ -381,7 +387,7 @@ git_ver_fn()
         7)          url_tag='git_7_fn';;
     esac
 
-    case "$v_tag" in 
+    case "$v_tag" in
         2)          url_tag='git_2_fn';;
         3)          url_tag='git_3_fn';;
         4)          url_tag='git_4_fn';;
@@ -615,7 +621,7 @@ $workspace/lib/pkgconfig:\
 "
 export PKG_CONFIG_PATH
 
-LD_LIBRARY_PATH="$workspace\lib\pkgconfig"
+LD_LIBRARY_PATH="$workspace/lib/pkgconfig"
 export LD_LIBRARY_PATH
 
 if ! command_exists 'make'; then
@@ -788,7 +794,7 @@ cuda_add_fn()
 install_cuda_fn()
 {
     local cuda_ans cuda_choice
-    
+
     iscuda="$(sudo find /usr/local/ -type f -name nvcc)"
     cudaPATH="$(sudo find /usr/local/ -type f -name nvcc | grep -Eo '^.*\/bi[n]?')"
 
@@ -1020,7 +1026,7 @@ if command_exists 'python3'; then
         if build 'dav1d' "$videolan_sver"; then
             download "https://code.videolan.org/videolan/dav1d/-/archive/$videolan_ver/$videolan_ver.tar.gz" "dav1d-$videolan_sver.tar.gz"
             make_dir build
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'dav1d' "$videolan_sver"
@@ -1033,7 +1039,8 @@ git_ver_fn '24327400' '4'
 if build 'svtav1' "$gitlab_ver"; then
     download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$gitlab_ver/SVT-AV1-v$gitlab_ver.tar.bz2" "SVT-AV1-$gitlab_ver.tar.bz2"
     cd "$PWD/Build/linux" || exit 1
-    execute cmake -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' ../.. -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE='Release' -DENABLE_EXAMPLES='OFF'
+    execute cmake -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' \
+        ../.. -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE='Release' -DENABLE_EXAMPLES='OFF'
     execute make "-j$cpus"
     execute make install
     execute cp 'SvtAv1Enc.pc' "$workspace"/lib/pkgconfig/
@@ -1108,7 +1115,9 @@ EOF
 
         execute make install
 
-        if [ -n "$LDEXEFLAGS" ]; then sed -i.backup 's/-lgcc_s/-lgcc_eh/g' "$workspace"/lib/pkgconfig/x265.pc; fi
+        if [ -n "$LDEXEFLAGS" ]; then
+            sed -i.backup 's/-lgcc_s/-lgcc_eh/g' "$workspace"/lib/pkgconfig/x265.pc
+        fi
 
         build_done 'x265' "${gitlab_ver:0:7}"
     fi
@@ -1122,7 +1131,7 @@ if build 'SVT-HEVC' "$g_ver"; then
     cd "$PWD"/Build || exit 1
     execute cmake .. -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' -DCMAKE_BUILD_TYPE='Release'
     execute make "-j$cpus"
-    execute make install    
+    execute make install
     build_done 'SVT-HEVC' "$g_ver"
 fi
 
@@ -1195,9 +1204,9 @@ cnf_ops+=('--enable-libzimg')
 git_ver_fn 'AOMediaCodec/libavif' '1' 'R'
 if build 'avif' "$g_ver"; then
     download "$g_url" "avif-$g_ver.tar.gz"
-    execute cmake -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_INSTALL_LIBDIR='lib' -DCMAKE_INSTALL_BINDIR='bin' \
-        -DCMAKE_INSTALL_INCLUDEDIR='include' -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' -DENABLE_STATIC='ON' -DAVIF_ENABLE_WERROR='OFF' \
-        -DAVIF_CODEC_DAV1D='ON' "$avif_tag" -DAVIF_CODEC_AOM='ON' -DAVIF_BUILD_APPS='ON'
+    execute cmake -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' \
+        -DENABLE_STATIC='ON' -DAVIF_ENABLE_WERROR='OFF' -DAVIF_CODEC_DAV1D='ON' -DAVIF_CODEC_AOM='ON' \
+        -DAVIF_BUILD_APPS='ON' "$avif_tag"
     execute make "-j$cpus"
     execute make install
     build_done 'avif' "$g_ver"
@@ -1212,7 +1221,7 @@ if command_exists 'python3'; then
         git_ver_fn 'lv2/lv2' '1' 'T'
         if build 'lv2' "$g_ver"; then
             download "$g_url" "lv2-$g_ver.tar.gz"
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'lv2' "$g_ver"
@@ -1223,7 +1232,7 @@ if command_exists 'python3'; then
         fi
         if build 'serd' '61d53637'; then
             download 'https://gitlab.com/drobilla/serd/-/archive/61d53637dc62d15f9b3d1fa9e69891313c465c35/serd-61d53637dc62d15f9b3d1fa9e69891313c465c35.tar.bz2' 'serd-61d53637.tar.bz2'
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'serd' '61d53637'
@@ -1237,21 +1246,21 @@ if command_exists 'python3'; then
         fi
         if build 'zix' '262d4a15'; then
             download 'https://gitlab.com/drobilla/zix/-/archive/262d4a1522c38be0588746e874159da5c7bb457d/zix-262d4a1522c38be0588746e874159da5c7bb457d.tar.bz2' 'zix-262d4a15.tar.gz'
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'zix' '262d4a15'
         fi
         if build 'sord' '0.16.14'; then
             download 'http://download.drobilla.net/sord-0.16.14.tar.xz' 'sord-0.16.14.tar.gz'
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'sord' '0.16.14'
         fi
         if build 'sratom' 'b1643412'; then
             download 'https://gitlab.com/lv2/sratom/-/archive/b1643412ef03f41fc174f076daff39ade0999bf2/sratom-b1643412ef03f41fc174f076daff39ade0999bf2.tar.bz2'  'sratom-b1643412.tar.bz2'
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'sratom' 'b1643412'
@@ -1259,7 +1268,7 @@ if command_exists 'python3'; then
         git_ver_fn '11853176' '4'
         if build 'lilv' "$gitlab_ver"; then
             download "https://gitlab.com/lv2/lilv/-/archive/v0.24.20/lilv-v0.24.20.tar.gz" "lilv-0.24.20.tar.gz"
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+            execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute ninja -C build install
             build_done 'lilv' "$gitlab_ver"
@@ -1456,7 +1465,7 @@ if command_exists 'meson'; then
     if build 'harfbuzz' "$g_ver"; then
         download "$g_url" "harfbuzz-$g_ver.tar.gz"
         execute ./autogen.sh
-        execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+        execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
         execute ./configure --prefix="$workspace" --disable-shared --enable-static
         execute ninja -C build
         execute ninja -C build install
@@ -1478,7 +1487,7 @@ if build 'fribidi' "$g_ver"; then
     download "$g_url" "fribidi-$g_ver.tar.gz"
     execute ./autogen.sh
     make_dir build
-    execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
+    execute meson setup build --prefix="$workspace" --buildtype='Release' --default-library='static' --libdir="$workspace"/lib
         execute ninja -C build
         execute ninja -C build install
     build_done 'fribidi' "$g_ver"
