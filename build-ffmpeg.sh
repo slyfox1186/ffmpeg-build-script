@@ -265,7 +265,12 @@ git_1_fn()
     # SCRAPE GITHUB WEBSITE FOR LATEST REPO VERSION
     github_repo="$1"
     github_url="$2"
-    curl_cmd=$(curl -m "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1")
+    curl_cmd=$(curl -m "$net_timeout" \
+        --request GET \
+        --url "https://api.github.com/slyfox1186" \
+        --header "Authorization: Bearer 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" \
+        --header "X-GitHub-Api-Version: 2022-11-28" \
+        -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1")
     if [ "$?" -eq '0' ]; then
         g_ver=$(echo "$curl_cmd" | jq -r '.[0].name')
         g_ver=${g_ver#v}
@@ -589,7 +594,7 @@ mkdir -p "$packages"
 mkdir -p "$workspace"
 
 # set global variables
-JAVA_HOME='/usr/lib/jvm/java-17-openjdk-amd64/bin'
+JAVA_HOME='/usr/lib/jvm/java-17-openjdk-amd64'
 export JAVA_HOME
 
 # libbluray requries that this variable be set
@@ -1407,6 +1412,16 @@ cnf_ops+=('--enable-libwebp')
 ##
 ## other libraries
 ##
+
+git_ver_fn '363' '2'
+if build 'udfread' "$videolan_sver"; then
+    download "https://code.videolan.org/videolan/libudfread/-/archive/$videolan_ver/libudfread-$videolan_ver.tar.bz2" "udfread-$videolan_sver.tar.bz2"
+    execute autoreconf -fiv
+    execute ./configure --prefix="$workspace" --disable-shared --enable-static
+    execute make "-j$cpus"
+    execute make install
+    build_done 'udfread' "$videolan_sver"
+fi
 
 git_ver_fn '206' '2'
 if build 'libbluray' "$videolan_sver"; then
