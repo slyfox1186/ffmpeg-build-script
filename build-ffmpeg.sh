@@ -729,7 +729,7 @@ build_pkgs_fn()
     pkgs=(ant g++ gcc gtk-doc-tools help2man javacc jq junit \
           libcairo2-dev libcdio-paranoia-dev libcurl4-gnutls-dev \
           libglib2.0-dev libmusicbrainz5-dev libtinyxml2-dev \
-          libudfread-dev openjdk-17-jdk pkg-config ragel)
+          openjdk-17-jdk pkg-config ragel)
 
     for pkg in ${pkgs[@]}
     do
@@ -741,10 +741,14 @@ build_pkgs_fn()
     if [ -n "$missing_pkgs" ]; then
         for pkg in "$missing_pkgs"
         do
-            sudo apt install $pkg
+            if sudo apt install $pkg; then
+                echo 'The required development packages were installed.'
+            else
+                echo 'The required development packages failed to install'
+                echo
+                exit 1
+            fi
         done
-        echo 'The required development packages were installed.'
-    else
         echo 'The required development packages are already installed.'
     fi
 }
