@@ -1364,17 +1364,6 @@ if build 'libtiff' "$gitlab_ver"; then
     build_done 'libtiff' "$gitlab_ver"
 fi
 
-git_ver_fn '7950' '5'
-if build 'freetype' "$gitlab_ver"; then
-    download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/$gitlab_ver/freetype-$gitlab_ver.tar.bz2" "freetype-$gitlab_ver.tar.bz2"
-    execute ./autogen.sh
-    make_dir build
-    execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
-    execute ninja -C build
-    execute ninja -C build install
-    build_done 'freetype' "$gitlab_ver"
-fi
-
 if build 'libpng' "$g_ver"; then
     download "$g_url" "libpng-$g_ver.tar.gz"
     export LDFLAGS="$LDFLAGS"
