@@ -113,7 +113,6 @@ with https://github.com/markus-perl/ffmpeg-build-script/actions to make sure eve
 ### Linux
 
 * Debian >= Buster, Ubuntu => Focal Fossa, other Distributions might work too
-* Rocky Linux 8
 * A development environment and curl is required
 
 ```bash
@@ -197,8 +196,6 @@ $ sudo docker run --gpus all ffmpeg-cuda -hwaccel cuvid -c:v h264_cuvid -i https
 CUDA is a parallel computing platform developed by NVIDIA. To be able to compile ffmpeg with CUDA support, you first
 need a compatible NVIDIA GPU. The script will detect if nvcc is already installed on your system and ask you what you wish to do regarding installation of the cuda-sdk-toolkit.
 
-- Ubuntu: To install the CUDA toolkit on Ubuntu, run "sudo apt install nvidia-cuda-toolkit"
-- 
 ## Vaapi installation
 
 You will need the libva driver, so please install it below.
@@ -247,7 +244,7 @@ Tested on
 ---------
 
 * Debian 10 & 11
-* Ubuntu 20.04 & 22.04
+* Ubuntu 18.04 & 20.04 & 22.04
 
 Example
 -------
