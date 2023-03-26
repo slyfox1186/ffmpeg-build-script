@@ -85,6 +85,14 @@ fail_fn()
     exit 1
 }
 
+fail_pkg_fn()
+{
+    echo
+    echo "The '$1' package is not installed. It is required for this script to run."
+    echo
+    exit 1
+}
+
 cleanup_fn()
 {
     echo '=========================================='
@@ -182,11 +190,7 @@ download()
                 echo
                 echo "The script failed to download \"$1\" two times and will exit the build"
                 echo
-                echo 'Please create a support ticket'
-                echo
-                echo 'https://github.com/slyfox1186/script-repo/issues'
-                echo
-                exit 1
+                fail_fn
             fi
         fi
         echo 'Download Completed'
@@ -201,13 +205,13 @@ download()
         if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" &>/dev/null; then
             echo "Failed to extract $dl_file"
             echo
-            exit 1
+            fail_fn
         fi
     else
         if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" --strip-components 1 &>/dev/null; then
             echo "Failed to extract $dl_file"
             echo
-            exit 1
+            fail_fn
         fi
     fi
 
@@ -218,7 +222,7 @@ download()
         echo
         echo "Unable to change the working directory to $target_dir"
         echo
-        exit 1
+        fail_fn
     )
 }
 
@@ -398,7 +402,7 @@ execute()
         echo
         echo "Failed to Execute $*" >&2
         echo
-        exit 1
+        fail_fn
     fi
 }
 
@@ -557,7 +561,7 @@ while (($# > 0)); do
     *)
         usage
         echo
-        exit 1
+        fail_fn
         ;;
     esac
 done
@@ -565,8 +569,6 @@ done
 if [ -z "$bflag" ]; then
     if [ -z "$cflag" ]; then
         usage
-        echo
-        exit 1
     fi
     exit 0
 fi
@@ -617,35 +619,27 @@ LD_LIBRARY_PATH="$workspace\lib\pkgconfig"
 export LD_LIBRARY_PATH
 
 if ! command_exists 'make'; then
-    echo 'The '\''make'\'' package is not installed. It is required for this script to run.'
-    echo
-    exit 1
+    fail_pkg_fn 'make'
 fi
 
 if ! command_exists 'g++'; then
-    echo 'The '\''g++'\'' package is not installed. It is required for this script to run.'
-    echo
-    exit 1
+    fail_pkg_fn 'g++'
 fi
 
 if ! command_exists 'curl'; then
-    echo 'The '\''curl'\'' package is not installed. It is required for this script to run.'
-    echo
-    exit 1
+    fail_pkg_fn 'curl'
 fi
 
 if ! command_exists 'jq'; then
-    echo 'The '\''jq'\'' package is not installed. It is required for this script to run.'
-    echo
-    exit 1
+    fail_pkg_fn 'jq'
 fi
 
 if ! command_exists 'cargo'; then
-    echo 'The '\''cargo'\'' command was not found. rav1e encoder will not be available.'
+    fail_pkg_fn 'cargo'
 fi
 
 if ! command_exists 'python3'; then
-    echo 'The '\''python3'\'' command was not found. The '\''Lv2'\'' filter and '\''dav1d'\'' decoder will not be available.'
+    fail_pkg_fn 'python3'
 fi
 
 cuda_fn()
