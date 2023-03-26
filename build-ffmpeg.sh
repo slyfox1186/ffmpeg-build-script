@@ -708,6 +708,9 @@ cuda_fn()
     sudo apt -y install cuda
 
     # CHECK IF THE CUDA FOLDER EXISTS TO ENSURE IT WAS INSTALLED
+    iscuda="$(sudo find /usr/local/ -type f -name nvcc)"
+    cudaPATH="$(sudo find /usr/local/ -type f -name nvcc | grep -Eo '^.*\/bi[n]?')"
+
     if [ -z "$cudaPATH" ]; then
         cuda_fail_fn
     else
