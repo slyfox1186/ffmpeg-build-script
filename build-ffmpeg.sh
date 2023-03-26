@@ -708,10 +708,10 @@ cuda_fn()
     sudo apt -y install cuda
 
     # CHECK IF THE CUDA FOLDER EXISTS TO ENSURE IT WAS INSTALLED
-    if [ ! -d "/usr/local/cuda-$cuda_ver/bin" ]; then
+    if [ -z "$cudaPATH" ]; then
         cuda_fail_fn
     else
-        PATH="$PATH:/usr/local/cuda-$cuda_ver/bin"
+        PATH="$PATH:$cudaPATH"
         export PATH
     fi
 }
@@ -783,8 +783,11 @@ cuda_add_fn()
 install_cuda_fn()
 {
     local cuda_ans cuda_choice
+    
+    iscuda="$(sudo find /usr/local/ -type f -name nvcc)"
+    cudaPATH="$(sudo find /usr/local/ -type f -name nvcc | grep -Eo '^.*\/bi[n]?')"
 
-    if ! which 'nvcc' &>/dev/null ; then
+    if [ -z "$iscuda" ]; then
         echo
         echo 'The cuda-sdk-toolkit isn'\''t installed or it is not in $PATH'
         echo '==============================================================='
@@ -802,7 +805,7 @@ install_cuda_fn()
             cuda_add_fn
         elif [[ "$cuda_ans" -eq '2' ]]; then
             if [ -d '/usr/local/cuda-12.1/bin' ]; then
-                PATH="$PATH:/usr/local/cuda-12.1/bin"
+                PATH="$PATH:$cudaPATH"
                 export PATH
             else
                 echo 'The script was unable to add cuda to your $PATH because the required folder was not found: /usr/local/cuda-12.1/bin'
@@ -835,6 +838,8 @@ install_cuda_fn()
             cuda_fn
             cuda_add_fn
         elif [[ "$cuda_choice" -eq '2' ]]; then
+            PATH="$PATH:$cudaPATH"
+            export PATH
             echo 'Continuing the build...'
         else
             echo
