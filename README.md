@@ -24,12 +24,12 @@ other than Debian based OS's, because I don't have the resources or time to main
 
 Open your command line and run (curl needs to be installed):
 
-```bash
 # With GPL and non-free software, see https://ffmpeg.org/legal.html 
+```bash
 $ curl -sSL https://ffmpeg.optimizethis.net | bash
 ```
-```bash
 # Without GPL and non-free software, see https://ffmpeg.org/legal.html 
+```bash
 $ curl -sSL https://ffmpeg-free.optimizethis.net | bash
 ```
 
