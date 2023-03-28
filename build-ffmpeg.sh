@@ -261,41 +261,6 @@ download_git()
     )
 }
 
-download_aria2()
-{
-    dl_path="$packages"
-    dl_url="$1"
-    dl_file="$2"
-    target_dir="$dl_path/$dl_file"
-
-    # first download attempt
-    if [ ! -d "$target_dir" ]; then
-        echo "Downloading $dl_file"
-        if ! aria2c -X16 -J16 -s16 --no-conf --out="$target_dir" "$dl_url"; then
-            echo
-            echo "The script failed to download \"$dl_file\" and will try again in 10 seconds"
-            sleep 10
-            echo
-            if ! aria2c -X16 -J16 -s16 --no-conf  --out="$target_dir" "$dl_url"; then
-                echo
-                echo "The script failed to download \"$dl_file\" two times and will exit the build"
-                fail_fn
-            fi
-        fi
-        echo 'Download Complete'
-        echo
-    else
-        echo "$dl_file is already downloaded"
-    fi
-
-    cd "$target_dir" || (
-        echo 'Script error!'
-        echo
-        echo "Unable to change the working directory to $target_dir"
-        fail_fn
-    )
-}
-
 download()
 {
     dl_path="$packages"
@@ -1763,7 +1728,7 @@ fi
 
 git_ver_fn 'GPUOpen-LibrariesAndSDKs/AMF' '1' 'T'
 if build 'amf' "$g_ver"; then
-    download_aria2 "$g_url" "AMF-$g_ver.tar.gz"
+    download "$g_url" "AMF-$g_ver.tar.gz"
     execute rm -rf "$workspace"/include/AMF
     execute mkdir -p "$workspace"/include/AMF
     execute cp -fr "$packages"/AMF-"$g_ver"/amf/public/include/* "$workspace"/include/AMF/
