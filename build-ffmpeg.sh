@@ -284,6 +284,7 @@ git_2_fn()
 git_3_fn()
 {
     gitlab_repo="$1"
+    
     if curl_cmd=$(curl -m "$net_timeout" -sSL "https://gitlab.com/api/v4/projects/$gitlab_repo/repository/branches?"); then
         gitlab_ver0=$(echo "$curl_cmd" | jq -r '.[0].commit.id')
         gitlab_ver0=${gitlab_ver0#v}
@@ -343,7 +344,7 @@ git_9_fn()
     # SCRAPE GITHUB WEBSITE FOR LATEST REPO VERSION
     github_repo="$1"
     github_url="$2"
-    if curl_cmd=$(curl -m "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1"); then
+        if curl_cmd=$(curl -m "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1"); then
         g_ver=$(echo "$curl_cmd" | jq -r '.[0].name')
         g_url=$(echo "$curl_cmd" | jq -r '.[0].tarball_url')
     fi
@@ -380,7 +381,7 @@ git_ver_fn()
         url_tag='git_1_fn' gv_url='tags'
     elif [ "$v_flag" = 'T' ] && [  "$v_tag" = '2' ]; then
         url_tag='git_2_fn' gv_url='tags'
-    elif [ "$v_flag" = 'T' ] && [  "$v_tag" = '11' ]; then
+    elif [ "$v_flag" = 'T' ] && [  "$v_tag" = '9' ]; then
         url_tag='git_9_fn' gv_url='tags'
     fi
 
@@ -482,7 +483,13 @@ gpu_arch_fn()
 {
     local gpu_name gpu_type
 
-    gpu_name="$(nvidia-smi --query-gpu=gpu_name --format=csv | sort -r | head -n 1)"
+    is_wsl="$(echo $(uname -a) | grep -Eo 'WSL2')"
+    
+    if [ -n "$is_wsl" ]; then
+        sudo apt -q -y install nvidia-utils-525
+    fi
+    
+    gpu_name="$(nvidia-smi --query-gpu=gpu_name --format=csv | sort | head -n 1)"
 
     case "$gpu_name" in
         'NVIDIA GeForce GT 1010')         gpu_type='1';;
@@ -944,7 +951,7 @@ if build 'yasm' "$g_ver"; then
     execute make install
     build_done 'yasm' "$g_ver"
 fi
-git_ver_fn 'netwide-assembler/nasm' '9' 'T'
+
 if build 'nasm' '2.16.01'; then
     download 'https://www.nasm.us/pub/nasm/releasebuilds/2.16.01/nasm-2.16.01.tar.xz'
     execute sh ./autogen.sh
@@ -956,7 +963,7 @@ fi
 
 git_ver_fn 'madler/zlib' '1' 'T'
 if build 'zlib' "$g_ver"; then
-    download "$g_url" "zlib-$g_ver"
+    download "$g_url" "zlib-$g_ver.tar.gz"
     execute ./configure --static --prefix="$workspace"
     execute make -j "$cpu_threads"
     execute make install
@@ -1189,7 +1196,7 @@ if build 'SVT-VP9' "$g_ver"; then
     build_done 'SVT-VP9' "$g_ver"
 fi
 
-git_ver_fn 'webmproject/libvpx' '9' 'T'
+git_ver_fn 'webmproject/libvpx' '1' 'T'
 if build 'libvpx' "$g_ver"; then
     download "$g_url" "libvpx-$g_ver.tar.gz"
     execute ./configure --prefix="$workspace" --disable-unit-tests --disable-shared --disable-examples --as='yasm'
@@ -1200,8 +1207,8 @@ fi
 cnf_ops+=('--enable-libvpx')
 
 if $nonfree; then
-    if build 'xvidcore' 'git'; then
-        download_git 'https://github.com/gpac-buildbot/xvidcore.git' 'xvidcore-git'
+    if build 'xvidcore' '1.3.7'; then
+        download 'https://downloads.xvid.com/downloads/xvidcore-1.3.7.tar.bz2' 'xvidcore-1.3.7.tar.bz2'
         cd 'build/generic' || exit 1
         execute ./configure --prefix="$workspace" --disable-shared --enable-static
         execute make -j "$cpu_threads"
@@ -1215,7 +1222,7 @@ if $nonfree; then
             execute rm "$workspace"/lib/libxvidcore.so*
         fi
 
-        build_done 'xvidcore' 'git'
+        build_done 'xvidcore' '1.3.7'
     fi
     cnf_ops+=('--enable-libxvid')
 fi
@@ -1556,13 +1563,13 @@ if command_exists 'meson'; then
     fi
 fi
 
-if build 'c2man' 'current'; then
+if build 'c2man' '2.0'; then
     download_git 'https://github.com/fribidi/c2man.git' 'c2man'
     execute ./Configure -des
     execute make depend
     execute make -j "$cpu_threads"
-    execute make install
-    build_done 'c2man' 'current'
+    execute sudo make install
+    build_done 'c2man' '2.0'
 fi
 
 git_ver_fn 'fribidi/fribidi' '1' 'R'
@@ -1571,8 +1578,8 @@ if build 'fribidi' "$g_ver"; then
     execute ./autogen.sh
     make_dir build
     execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
-        execute ninja -C build
-        execute ninja -C build install
+    execute ninja -C build
+    execute ninja -C build install
     build_done 'fribidi' "$g_ver"
 fi
 cnf_ops+=('--enable-libfribidi')
@@ -1687,7 +1694,7 @@ git_ver_fn 'GPUOpen-LibrariesAndSDKs/AMF' '1' 'T'
 if build 'amf' "$g_ver"; then
     download "$g_url" "AMF-$g_ver.tar.gz"
     execute rm -rf "$workspace"/include/AMF
-    execute mkdir -p "$workspace"/include/AMF
+    make_dir "$workspace"/include/AMF
     execute cp -fr "$packages"/AMF-"$g_ver"/amf/public/include/* "$workspace"/include/AMF/
     build_done 'amf' "$g_ver"
 fi
