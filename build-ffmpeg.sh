@@ -29,7 +29,7 @@
 ## define variables
 ##
 
-script_ver='3.2'
+script_ver='3.4'
 progname="${0:2}"
 ffmpeg_ver='n5.0.3'
 cuda_ver='12.1'
