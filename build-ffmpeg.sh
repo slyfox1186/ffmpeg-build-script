@@ -19,9 +19,9 @@
 ##           the user will be prompted by the script to install them so that
 ##           hardware acceleration is enabled when compiling FFmpeg
 ##
-##  Updated: 03.23.29
+##  Updated: 04.10.23
 ##
-##  Version: 3.3
+##  Version: 3.4
 ##
 #################################################################################
 
@@ -31,7 +31,7 @@
 
 script_ver='3.2'
 progname="${0:2}"
-ffmpeg_ver='n5.1.3'
+ffmpeg_ver='n5.0.3'
 cuda_ver='12.1'
 packages="$PWD"/packages
 workspace="$PWD"/workspace
@@ -257,7 +257,7 @@ git_1_fn()
     # SCRAPE GITHUB WEBSITE FOR LATEST REPO VERSION
     github_repo="$1"
     github_url="$2"
-    if curl_cmd=$(curl -m "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1"); then
+    if curl_cmd=$(curl -m  "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1"); then
         g_ver=$(echo "$curl_cmd" | jq -r '.[0].name')
         g_ver=${g_ver#v}
         g_ver_ssl=$(echo "$curl_cmd" | jq -r '.[0].name')
@@ -344,7 +344,7 @@ git_9_fn()
     # SCRAPE GITHUB WEBSITE FOR LATEST REPO VERSION
     github_repo="$1"
     github_url="$2"
-        if curl_cmd=$(curl -m "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1"); then
+        if curl_cmd=$(curl -m  "$net_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url?per_page=1"); then
         g_ver=$(echo "$curl_cmd" | jq -r '.[0].name')
         g_url=$(echo "$curl_cmd" | jq -r '.[0].tarball_url')
     fi
@@ -481,15 +481,13 @@ cuda_fail_fn()
 
 gpu_arch_fn()
 {
-    local gpu_name gpu_type
-
     is_wsl="$(echo $(uname -a) | grep -Eo 'WSL2')"
     
     if [ -n "$is_wsl" ]; then
         sudo apt -q -y install nvidia-utils-525
     fi
     
-    gpu_name="$(nvidia-smi --query-gpu=gpu_name --format=csv | sort | head -n 1)"
+    gpu_name="$(nvidia-smi --query-gpu=gpu_name --format=csv | sort -r | head -n 1)"
 
     case "$gpu_name" in
         'NVIDIA GeForce GT 1010')         gpu_type='1';;
@@ -560,6 +558,8 @@ usage()
     echo '                                                                 Note: Because of the NSS (Name Service Switch), glibc does not recommend static links.'
     echo
 }
+
+clear
 
 echo "ffmpeg-build-script v$script_ver"
 echo '======================================'
@@ -1720,7 +1720,7 @@ if build 'vvdec' "$g_ver"; then
 fi
 cnf_ops+=('--enable-nvdec')
 
-if which 'nvcc' &>/dev/null ; then
+if which 'nvcc'; then
     git_ver_fn 'FFmpeg/nv-codec-headers' '1' 'T'
     if build 'nv-codec' "$g_ver"; then
         download "$g_url" "nv-codec-$g_ver.tar.gz"
