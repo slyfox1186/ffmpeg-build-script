@@ -200,11 +200,11 @@ download()
     make_dir "$dl_path/$target_dir"
 
     if [ -n "$3" ]; then
-        if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" 2>/dev/null >/dev/null; then
+        if ! tar -xvf "$dl_path/$dl_file" -C "$dl_path/$target_dir" @>/dev/null; then
             fail_fn "Failed to extract $dl_file"
         fi
     else
-        if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" --strip-components 1 2>/dev/null >/dev/null; then
+        if ! tar -xvf "$dl_path/$dl_file" -C "$dl_path/$target_dir" --strip-components 1 @>/dev/null; then
             fail_fn "Failed to extract $dl_file"
         fi
     fi
@@ -285,33 +285,15 @@ git_1_fn()
         -m "$curl_timeout" \
         --request GET \
         --url "https://api.github.com/slyfox1186" \
-        --header "Authorization: Bearer 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" \
+        --header "Authorization: Bearer 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" \
         --header "X-GitHub-Api-Version: 2022-11-28" \
         -sSL "https://api.github.com/repos/$github_repo/$github_url")"; then
-
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
-        g_ver_jq="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_jq="${g_ver_jq#jq-}"
-        g_ver_lcsm2="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_lcsm2="${g_ver_lcsm2#Little CMS }"
-        g_ver_ssl="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_ssl="${g_ver_ssl#OpenSSL }"
-        g_ver_pkg="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_pkg="${g_ver_pkg#pkg-config-}"
-        g_ver_zimg="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_zimg="${g_ver_zimg#release-}"
-        g_ver_libva="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_libva="${g_ver_libva#Libva }"
-        g_ver_llvm="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_llvm="${g_ver_llvm#LLVM }"
-        g_ver_ltd="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_ltd="${g_ver_llvm#libltdl-}"
-        g_ver_mp4box="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver_mp4box="${g_ver_mp4box#GPAC }"
-        g_ver_gpdl="${g_ver#Ghostscript/GhostPDL }"
-        g_url_gpdl="$(echo "$curl_cmd" | jq -r '.[0].assets[3].browser_download_url')"
-        g_url_gs="$(echo "$curl_cmd" | jq -r '.[0].assets[5].browser_download_url')"
+        g_ssl="$(echo "$curl_cmd" | jq -r '.[0].name')"
+        g_ssl="${g_ssl#OpenSSL }"
+        g_pkg="$(echo "$curl_cmd" | jq -r '.[0].name')"
+        g_pkg="${g_pkg#pkg-config-}"
         g_url="$(echo "$curl_cmd" | jq -r '.[0].tarball_url')"
     fi
 }
@@ -388,9 +370,7 @@ git_ver_fn()
     v_url="$1"
     v_tag="$2"
 
-    if [ -n "$3" ]; then
-        v_flag="$3"
-    fi
+    if [ -n "$3" ]; then v_flag="$3"; fi
 
     if [ "$v_flag" = 'B' ] && [  "$v_tag" = '2' ]; then
         url_tag='git_2_fn' gv_url='branches'
@@ -490,7 +470,7 @@ cuda_fail_fn()
     echo '                    Script error:'
     echo '======================================================'
     echo
-    echo "Unable to locate directory: /usr/local/cuda-$cuda_ver/bin/"
+    echo "Unable to locate directory: /usr/local/cuda-12.1/bin/"
     echo
     read -p 'Press enter to exit.'
     clear
@@ -702,58 +682,67 @@ fi
 
 cuda_fn()
 {
-    echo
-    echo 'Pick your Linux distro from the list below:'
-    echo
-    echo 'Supported architecture: x86_x64'
-    echo
-    echo '[1] Debian 10'
-    echo '[2] Debian 11'
-    echo '[3] Ubuntu 18.04'
-    echo '[4] Ubuntu 20.04'
-    echo '[5] Ubuntu 22.04'
-    echo '[6] Ubuntu Windows (WSL)'
-    echo '[7] Skip this'
-    echo
-    read -p 'Your choices are (1 to 7): ' cuda_dist
-    echo
-    if [[ "$cuda_dist" -eq '1' ]]; then
-        wget --show progress -cqO "cuda-$cuda_ver.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-debian10-12-1-local_12.1.0-530.30.02-1_amd64.deb'
-        sudo dpkg -i "cuda-$cuda_ver.deb"
-        sudo cp /var/cuda-repo-debian10-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
-        sudo add-apt-repository contrib
-       elif [[ "$cuda_dist" -eq '2' ]]; then
-        wget --show progress -cqO "cuda-$cuda_ver.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-debian11-12-1-local_12.1.0-530.30.02-1_amd64.deb'
-        sudo dpkg -i "cuda-$cuda_ver.deb"
-        sudo cp /var/cuda-repo-debian11-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
-        sudo add-apt-repository contrib
-    elif [[ "$cuda_dist" -eq '3' ]]; then
-        wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin'
-        sudo mv 'cuda-ubuntu1804.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
-        wget --show progress -cqO "cuda-$cuda_ver.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-ubuntu1804-12-1-local_12.1.0-530.30.02-1_amd64.deb'
-        sudo dpkg -i "cuda-$cuda_ver.deb"
-        sudo cp /var/cuda-repo-ubuntu1804-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
-    elif [[ "$cuda_dist" -eq '4' ]]; then
-        wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin'
-        sudo mv 'cuda-ubuntu2004.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
-        wget --show progress -cqO "cuda-$cuda_ver.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-ubuntu2004-12-1-local_12.1.0-530.30.02-1_amd64.deb'
-        sudo dpkg -i "cuda-$cuda_ver.deb"
-        sudo cp /var/cuda-repo-ubuntu2004-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
-    elif [[ "$cuda_dist" -eq '5' ]]; then
-        wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin'
-        sudo mv 'cuda-ubuntu2204.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
-        wget --show progress -cqO "cuda-$cuda_ver.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-ubuntu2204-12-1-local_12.1.0-530.30.02-1_amd64.deb'
-        sudo dpkg -i "cuda-$cuda_ver.deb"
-        sudo cp /var/cuda-repo-ubuntu2204-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
-    elif [[ "$cuda_dist" -eq '6' ]]; then
-        wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-wsl-ubuntu.pin'
-        sudo mv 'cuda-wsl-ubuntu.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
-        wget --show progress -cqO "cuda-$cuda_ver.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-wsl-ubuntu-12-1-local_12.1.0-1_amd64.deb'
-        sudo dpkg -i "cuda-$cuda_ver.deb"
-        sudo cp /var/cuda-repo-wsl-ubuntu-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
-    elif [[ "$cuda_dist" -eq '7' ]]; then
-        return 0
-    fi
+    printf "\n%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n" \
+        'Pick your Linux distro from the list below:' \
+        'Supported architecture: x86_x64' \
+        '[1] Debian 10' \
+        '[2] Debian 11' \
+        '[3] Ubuntu 18.04' \
+        '[4] Ubuntu 20.04' \
+        '[5] Ubuntu 22.04' \
+        '[6] Ubuntu Windows (WSL)' \
+        '[7] Skip this'
+
+    read -p 'Your choices are (1 to 7): ' c_dist
+
+    case "$c_dist" in
+        1)
+            wget --show progress -cqO "cuda-12.1.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-debian10-12-1-local_12.1.0-530.30.02-1_amd64.deb'
+            sudo dpkg -i "cuda-12.1.deb"
+            sudo cp /var/cuda-repo-debian10-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
+            sudo add-apt-repository contrib
+            ;;
+        2)
+            wget --show progress -cqO "cuda-12.1.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-debian11-12-1-local_12.1.0-530.30.02-1_amd64.deb'
+            sudo dpkg -i "cuda-12.1.deb"
+            sudo cp /var/cuda-repo-debian11-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
+            sudo add-apt-repository contrib
+            ;;
+        3)
+            wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin'
+            sudo mv 'cuda-ubuntu1804.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
+            wget --show progress -cqO "cuda-12.1.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-ubuntu1804-12-1-local_12.1.0-530.30.02-1_amd64.deb'
+            sudo dpkg -i "cuda-12.1.deb"
+            sudo cp /var/cuda-repo-ubuntu1804-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
+            ;;
+        4)
+            wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin'
+            sudo mv 'cuda-ubuntu2004.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
+            wget --show progress -cqO "cuda-12.1.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-ubuntu2004-12-1-local_12.1.0-530.30.02-1_amd64.deb'
+            sudo dpkg -i "cuda-12.1.deb"
+            sudo cp /var/cuda-repo-ubuntu2004-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
+            ;;
+        5)
+            wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin'
+            sudo mv 'cuda-ubuntu2204.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
+            wget --show progress -cqO "cuda-12.1.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-ubuntu2204-12-1-local_12.1.0-530.30.02-1_amd64.deb'
+            sudo dpkg -i "cuda-12.1.deb"
+            sudo cp /var/cuda-repo-ubuntu2204-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
+            ;;
+        6)
+            wget --show progress -cq 'https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-wsl-ubuntu.pin'
+            sudo mv 'cuda-wsl-ubuntu.pin' '/etc/apt/preferences.d/cuda-repository-pin-600'
+            wget --show progress -cqO "cuda-12.1.deb" 'https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda-repo-wsl-ubuntu-12-1-local_12.1.0-1_amd64.deb'
+            sudo dpkg -i "cuda-12.1.deb"
+            sudo cp /var/cuda-repo-wsl-ubuntu-12-1-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
+            ;;
+        7)
+            exit_fn
+            ;;
+        *)
+            fail_fn 'Bad User Input. Run the script again.'
+            ;;
+    esac
 
     # UPDATE THE APT PACKAGES THEN INSTALL THE CUDA-SDK-TOOLKIT
     sudo apt update
@@ -766,7 +755,7 @@ cuda_fn()
     if [ -z "$cudaPATH" ]; then
         cuda_fail_fn
     else
-        PATH="$PATH:$cudaPATH"
+        PATH="$cudaPATH:$PATH"
         export PATH
     fi
 }
@@ -805,6 +794,7 @@ build_pkgs_fn()
                 exit 1
             fi
         done
+    else
         echo 'The required development packages are already installed.'
     fi
 }
@@ -884,7 +874,7 @@ install_cuda_fn()
         fi
     else
         echo
-        echo "The cuda-sdk-toolkit v$cuda_ver is already installed."
+        echo "The cuda-sdk-toolkit v12.1 is already installed."
         echo '================================================='
         echo
         echo 'Do you want to update/reinstall it?'
@@ -950,12 +940,12 @@ if build 'giflib' '5.2.1'; then
 fi
 
 git_ver_fn 'freedesktop/pkg-config' '1' 'T'
-if build 'pkg-config' "$g_ver_pkg"; then
+if build 'pkg-config' "$g_pkg"; then
     download "https://pkgconfig.freedesktop.org/releases/$g_ver.tar.gz" "$g_ver.tar.gz"
     execute ./configure --silent --prefix="$workspace" --with-pc-path="$workspace"/lib/pkgconfig/ --with-internal-glib
     execute make -j "$cpu_threads"
     execute make install
-    build_done 'pkg-config' "$g_ver_pkg"
+    build_done 'pkg-config' "$g_pkg"
 fi
 
 git_ver_fn 'yasm/yasm' '1' 'T'
@@ -1018,12 +1008,12 @@ fi
 
 if $nonfree_and_gpl; then
     git_ver_fn 'openssl/openssl' '1' 'R'
-    if build 'openssl' "$g_ver_ssl"; then
-        download "$g_url" "openssl-$g_ver_ssl.tar.gz"
+    if build 'openssl' "$g_ssl"; then
+        download "$g_url" "openssl-$g_ssl.tar.gz"
         execute ./config --prefix="$workspace" --openssldir="$workspace" --with-zlib-include="$workspace"/include/ --with-zlib-lib="$workspace"/lib no-shared zlib
         execute make -j "$cpu_threads"
         execute make install_sw
-        build_done 'openssl' "$g_ver_ssl"
+        build_done 'openssl' "$g_ssl"
     fi
     cnf_ops+=('--enable-openssl')
 else
@@ -1476,11 +1466,11 @@ if build 'libpng' "$g_ver"; then
     build_done 'libpng' "$g_ver"
 fi
 
-if build 'libwebp' '761f49c'; then
+if build 'libwebp' 'git'; then
     # libwebp can fail to compile on ubuntu if cflags are set
     # version 1.3.0, 1.2.4, and 1.2.3 fail to build successfully
     CPPFLAGS=
-    download 'https://chromium.googlesource.com/webm/libwebp/+archive/761f49c3ab1c91b8e911840a4f6f246308b7c242.tar.gz' 'libwebp-761f49c.tar.gz'
+    download_git 'https://chromium.googlesource.com/webm/libwebp' 'libwebp-git'
     execute ./autogen.sh
     make_dir build
     cd build || exit 1
@@ -1488,7 +1478,7 @@ if build 'libwebp' '761f49c'; then
         -DCMAKE_INSTALL_BINDIR='bin' -DCMAKE_INSTALL_INCLUDEDIR='include' -DENABLE_SHARED='OFF' -DENABLE_STATIC='ON' -DWEBP_BUILD_CWEBP='ON' -DWEBP_BUILD_DWEBP='ON' ../
     execute make -j "$cpu_threads"
     execute sudo make install
-    build_done 'libwebp' '761f49c'
+    build_done 'libwebp' 'git'
 fi
 cnf_ops+=('--enable-libwebp')
 
