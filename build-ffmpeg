@@ -200,11 +200,11 @@ download()
     make_dir "$dl_path/$target_dir"
 
     if [ -n "$3" ]; then
-        if ! tar -xvf "$dl_path/$dl_file" -C "$dl_path/$target_dir" @>/dev/null; then
+        if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" @>/dev/null; then
             fail_fn "Failed to extract $dl_file"
         fi
     else
-        if ! tar -xvf "$dl_path/$dl_file" -C "$dl_path/$target_dir" --strip-components 1 @>/dev/null; then
+        if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" --strip-components 1 @>/dev/null; then
             fail_fn "Failed to extract $dl_file"
         fi
     fi
@@ -281,7 +281,13 @@ git_1_fn()
     github_repo="$1"
     github_url="$2"
 
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://api.github.com/repos/$github_repo/$github_url")"; then
+    if curl_cmd="$(curl \
+        -m "$curl_timeout" \
+        --request GET \
+        --url "https://api.github.com/slyfox1186" \
+        --header "Authorization: Bearer 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" \
+        --header "X-GitHub-Api-Version: 2022-11-28" \
+        -sSL "https://api.github.com/repos/$github_repo/$github_url")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
         g_ssl="$(echo "$curl_cmd" | jq -r '.[0].name')"
@@ -1547,13 +1553,21 @@ if command_exists 'meson'; then
     fi
 fi
 
-if build 'c2man' 'current'; then
+if build 'c2man' 'git'; then
     download_git 'https://github.com/fribidi/c2man.git' 'c2man-git'
-    execute ./Configure -des
+    execute ./Configure -desO -D prefix="$workspace" -D bin="$workspace/bin" -D bash='/bin/bash' -D cc='/usr/lib/ccache/cc' \
+        -D d_gnu='/usr/lib/x86_64-linux-gnu' -D find='/usr/bin/find' -D gcc='/usr/lib/ccache/gcc' -D gzip='/usr/bin/gzip' \
+        -D installmansrc="$workspace/share/man" -D ldflags=" -L $workspace/lib -L/usr/local/lib" -D less='/usr/bin/less' \
+        -D libpth="$workspace/lib /usr/local/lib /lib /usr/lib" \
+        -D locincpth="$workspace/include /usr/local/include /opt/local/include /usr/gnu/include /opt/gnu/include /usr/GNU/include /opt/GNU/include" \
+        -D yacc='/usr/bin/yacc' -D loclibpth="$workspace/lib /usr/local/lib /opt/local/lib /usr/gnu/lib /opt/gnu/lib /usr/GNU/lib /opt/GNU/lib" \
+        -D make='/usr/bin/make' -D more='/usr/bin/more' -D osname='Ubuntu' -D perl='/usr/bin/perl' -D privlib="$workspace/lib/c2man" \
+        -D privlibexp="$workspace/lib/c2man" -D sleep='/usr/bin/sleep' -D tail='/usr/bin/tail' -D tar='/usr/bin/tar' -D uuname='Linux' \
+        -D vi='/usr/bin/vi' -D zip='/usr/bin/zip'
     execute make depend
     execute make -j "$cpu_threads"
     execute sudo make install
-    build_done 'c2man' 'current'
+    build_done 'c2man' 'git'
 fi
 
 git_ver_fn 'fribidi/fribidi' '1' 'R'
@@ -1691,22 +1705,13 @@ if build 'vvdec' "$g_ver"; then
 fi
 cnf_ops+=('--enable-nvdec')
 
-if build 'opengl' 'current'; then
-    download_git 'https://chromium.googlesource.com/angle/angle' 'opengl-git'
-    execute ./Configure -des
-    execute make depend
-    execute make -j "$cpu_threads"
-    execute sudo make install
-    build_done 'opengl' 'current'
-fi
-
 if which 'nvcc' &>/dev/null ; then
     git_ver_fn 'FFmpeg/nv-codec-headers' '1' 'T'
-    if build 'nv-codec' "$g_ver"; then
-        download "$g_url" "nv-codec-$g_ver.tar.gz"
+    if build 'nv-codec' 'git'; then
+        download_git 'https://github.com/FFmpeg/nv-codec-headers.git' "nv-codec-git"
         execute make PREFIX="$workspace"
         execute make install PREFIX="$workspace"
-        build_done 'nv-codec' "$g_ver"
+        build_done 'nv-codec' 'git'
     fi
     CFLAGS+=" -I/usr/local/cuda-12.1/targets/x86_64-linux/include -I/usr/local/cuda-12.1/include -I$workspace/usr/include -I$packages/nv-codec-n12.0.16.0/include"
     export CFLAGS
