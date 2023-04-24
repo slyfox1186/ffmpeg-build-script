@@ -26,7 +26,7 @@ Open your command line and run (curl needs to be installed):
 
 #### With GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
-bash <(curl -sSL https://ffmpeg.optimizethis.net)
+wget -qO ff.sh https://ffmpeg.optimizethis.net; bash ff.sh
 ```
 #### Without GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
