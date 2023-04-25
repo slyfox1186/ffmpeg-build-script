@@ -168,7 +168,8 @@ Download Completed
 
 File extracted: pkgconf-1.9.4.tar.gz
 $ ./autogen.sh
-$ ./configure --silent --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-pc-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig/ --with-internal-glib
+$ ./configure --silent --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    --with-pc-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig/ --with-internal-glib
 $ make -j 32
 $ sudo make install
 
@@ -249,7 +250,8 @@ Downloading https://github.com/openssl/openssl/archive/refs/heads/master.tar.gz 
 Download Completed
 
 File extracted: openssl-3.1.0.tar.gz
-$ ./config --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --openssldir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-zlib-include=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --with-zlib-lib=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib no-shared zlib
+$ ./config --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --openssldir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    --with-zlib-include=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --with-zlib-lib=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib no-shared zlib
 $ make -j 32
 $ sudo make install_sw
 
@@ -269,7 +271,8 @@ Downloading https://code.videolan.org/videolan/dav1d/-/archive/9593e625b75d498d1
 Download Completed
 
 File extracted: dav1d-9593e625.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --strip
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release \
+    --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --strip
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -279,7 +282,8 @@ Downloading https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.4.1/SVT-AV1-v1.
 Download Completed
 
 File extracted: SVT-AV1-1.4.1.tar.bz2
-$ cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DBUILD_SHARED_LIBS=OFF ../.. -GUnix Makefiles -DCMAKE_BUILD_TYPE=Release
+$ cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    -DBUILD_SHARED_LIBS=OFF ../.. -GUnix Makefiles -DCMAKE_BUILD_TYPE=Release
 $ make -j 32
 $ sudo make install
 $ sudo cp SvtAv1Enc.pc /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig/
@@ -312,13 +316,16 @@ Download Completed
 
 File extracted: x265-3.5.tar.gz
 $ making 12bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DHIGH_BIT_DEPTH=ON -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF -DENABLE_CLI=OFF -DMAIN12=ON
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DHIGH_BIT_DEPTH=ON -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF -DENABLE_CLI=OFF -DMAIN12=ON
 $ make -j 32
 $ making 10bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DHIGH_BIT_DEPTH=ON -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF -DENABLE_CLI=OFF
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DHIGH_BIT_DEPTH=ON -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF -DENABLE_CLI=OFF
 $ make -j 32
 $ making 8bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DEXTRA_LIB=x265_main10.a;x265_main12.a;-ldl -DEXTRA_LINK_FLAGS=-L. -DLINKED_10BIT=ON -DLINKED_12BIT=ON
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DEXTRA_LIB=x265_main10.a;x265_main12.a;-ldl -DEXTRA_LINK_FLAGS=-L. -DLINKED_10BIT=ON -DLINKED_12BIT=ON
 $ make -j 32
 $ ar -M
 $ sudo make install
@@ -370,7 +377,8 @@ Downloading https://aomedia.googlesource.com/aom/+archive/5711b50eebe392119defd2
 Download Completed
 
 File extracted: av1.tar.gz
-$ cmake -S . -DENABLE_TESTS=0 -DENABLE_EXAMPLES=0 -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DCMAKE_INSTALL_LIBDIR=lib /home/jman/tmp/ffmpeg/ffmpeg-build/packages/av1
+$ cmake -S . -DENABLE_TESTS=0 -DENABLE_EXAMPLES=0 -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+      -DCMAKE_INSTALL_LIBDIR=lib /home/jman/tmp/ffmpeg/ffmpeg-build/packages/av1
 $ make -j 32
 $ sudo make install
 
@@ -403,7 +411,8 @@ Downloading https://github.com/AOMediaCodec/libavif/archive/refs/tags/v0.11.1.ta
 Download Completed
 
 File extracted: avif-0.11.1.tar.gz
-$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_DAV1D=ON -DAVIF_CODEC_RAV1E=ON -DAVIF_CODEC_SVT=ON -DBUILD_SHARED_LIBS=OFF -GNinja
+$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DAVIF_CODEC_AOM=ON \
+    -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_DAV1D=ON -DAVIF_CODEC_RAV1E=ON -DAVIF_CODEC_SVT=ON -DBUILD_SHARED_LIBS=OFF -GNinja
 $ ninja
 $ ninja install
 
@@ -424,7 +433,8 @@ Downloading https://github.com/lv2/lv2/archive/refs/heads/master.tar.gz as lv2-1
 Download Completed
 
 File extracted: lv2-1.18.10.tar.gz
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release \
+    --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -441,7 +451,8 @@ Downloading https://gitlab.com/drobilla/serd/-/archive/v0.30.16/serd-v0.30.16.ta
 Download Completed
 
 File extracted: serd-0.30.16.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
+    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -462,7 +473,8 @@ Downloading https://gitlab.com/drobilla/zix/-/archive/9e966d0f5a11bb43d17a56aab1
 Download Completed
 
 File extracted: zix-9e966d0f.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --backend ninja --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release \
+    --default-library=static --backend ninja --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -472,7 +484,8 @@ Downloading https://gitlab.com/drobilla/sord/-/archive/v0.16.14/sord-v0.16.14.ta
 Download Completed
 
 File extracted: sord-0.16.14.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
+    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -482,7 +495,8 @@ Downloading https://gitlab.com/lv2/sratom/-/archive/v0.6.14/sratom-v0.6.14.tar.b
 Download Completed
 
 File extracted: sratom-0.6.14.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
+    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -492,7 +506,8 @@ Downloading https://gitlab.com/lv2/lilv/-/archive/v0.24.20/lilv-v0.24.20.tar.bz2
 Download Completed
 
 File extracted: lilv-0.24.20.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
+    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -523,7 +538,8 @@ Download Completed
 
 File extracted: opus-1.4.tar.gz
 $ ./autogen.sh
-$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DENABLE_STATIC=ON -GUnix Makefiles
+$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF \
+    -DBUILD_SHARED_LIBS=OFF -DENABLE_STATIC=ON -GUnix Makefiles
 $ make -j 32
 $ sudo make install
 
@@ -545,7 +561,8 @@ Download Completed
 
 File extracted: libvorbis-1.3.7.tar.gz
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-ogg-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --with-ogg-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include --enable-static --disable-shared --disable-oggtest
+$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-ogg-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib \
+    --with-ogg-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include --enable-static --disable-shared --disable-oggtest
 $ make -j 32
 $ sudo make install
 
@@ -556,7 +573,10 @@ Download Completed
 
 File extracted: libtheora-1.0.tar.gz
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-ogg-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --with-ogg-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --with-vorbis-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --with-vorbis-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --enable-static --disable-shared --disable-oggtest --disable-vorbistest --disable-examples --disable-asm --disable-spec
+$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-ogg-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib \
+    --with-ogg-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --with-vorbis-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib \
+    --with-vorbis-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --enable-static --disable-shared --disable-oggtest --disable-vorbistest \
+    --disable-examples --disable-asm --disable-spec
 $ make -j 32
 $ sudo make install
 
@@ -659,7 +679,16 @@ building c2man - version git
 Downloading c2man-git
 Download Complete
 
-$ ./Configure -desO -D prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -D bin=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/bin -D bash=/bin/bash -D cc=/usr/lib/ccache/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D find=/usr/bin/find -D gcc=/usr/lib/ccache/gcc -D gzip=/usr/bin/gzip -D installmansrc=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/share/man -D ldflags= -L /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib -L/usr/local/lib -D less=/usr/bin/less -D libpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib /usr/local/lib /lib /usr/lib -D locincpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include /usr/local/include /opt/local/include /usr/gnu/include /opt/gnu/include /usr/GNU/include /opt/GNU/include -D yacc=/usr/bin/yacc -D loclibpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib /usr/local/lib /opt/local/lib /usr/gnu/lib /opt/gnu/lib /usr/GNU/lib /opt/GNU/lib -D make=/usr/bin/make -D more=/usr/bin/more -D osname=Ubuntu -D perl=/usr/bin/perl -D privlib=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/c2man -D privlibexp=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/c2man -D sleep=/usr/bin/sleep -D tail=/usr/bin/tail -D tar=/usr/bin/tar -D uuname=Linux -D vi=/usr/bin/vi -D zip=/usr/bin/zip
+$ ./Configure -desO -D prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -D bin=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/bin \
+    -D bash=/bin/bash -D cc=/usr/lib/ccache/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D find=/usr/bin/find -D gcc=/usr/lib/ccache/gcc \
+    -D gzip=/usr/bin/gzip -D installmansrc=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/share/man \
+    -D ldflags= -L /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib -L/usr/local/lib -D less=/usr/bin/less \
+    -D libpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib /usr/local/lib /lib /usr/lib \
+    -D locincpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include /usr/local/include /opt/local/include /usr/gnu/include /opt/gnu/include /usr/GNU/include /opt/GNU/include \
+    -D yacc=/usr/bin/yacc -D loclibpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib /usr/local/lib /opt/local/lib /usr/gnu/lib /opt/gnu/lib /usr/GNU/lib /opt/GNU/lib \
+    -D make=/usr/bin/make -D more=/usr/bin/more -D osname=Ubuntu -D perl=/usr/bin/perl -D privlib=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/c2man \
+    -D privlibexp=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/c2man -D sleep=/usr/bin/sleep -D tail=/usr/bin/tail -D tar=/usr/bin/tar -D uuname=Linux \
+    -D vi=/usr/bin/vi -D zip=/usr/bin/zip
 $ make depend
 $ make -j 32
 $ sudo make install
@@ -670,7 +699,10 @@ Downloading https://github.com/fribidi/fribidi/archive/refs/heads/master.tar.gz 
 Download Completed
 
 File extracted: fribidi-1.0.12.tar.gz
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/workspace --strip --backend ninja --optimization 3 --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib64/pkgconfig--buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/workspace/lib
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg/workspace --strip --backend ninja --optimization 3 \
+    --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:\
+    /usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib64/pkgconfig \
+    --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/workspace/lib
 $ ninja -C build
 $ sudo ninja -C build install
 
@@ -692,7 +724,8 @@ Download Completed
 
 File extracted: fontconfig-2.14.2.tar.bz2
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --sysconfdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/etc/ --mandir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/share/man/
+$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --sysconfdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/etc/ \
+    --mandir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/share/man/
 $ make -j 32
 $ sudo make install
 
@@ -703,7 +736,9 @@ Download Completed
 
 File extracted: freetype-VER-2-13-0.tar.bz2
 $ ./autogen.sh
-$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release -Dharfbuzz=disabled -Dpng=disabled -Dbzip2=disabled -Dbrotli=disabled -Dzlib=disabled -Dtests=disabled
+$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+    -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release -Dharfbuzz=disabled \
+    -Dpng=disabled -Dbzip2=disabled -Dbrotli=disabled -Dzlib=disabled -Dtests=disabled
 $ cmake --build build/release-static -j 32
 
 building libsdl - version 2.26.5
@@ -723,7 +758,9 @@ Downloading https://github.com/Haivision/srt/archive/refs/heads/master.tar.gz as
 Download Completed
 
 File extracted: srt-rc.1.tar.gz
-$ cmake . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_BINDIR=bin -DCMAKE_INSTALL_INCLUDEDIR=include -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DENABLE_APPS=OFF -DUSE_STATIC_LIBSTDCXX=ON
+$ cmake . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DCMAKE_INSTALL_LIBDIR=lib \
+  -DCMAKE_INSTALL_BINDIR=bin -DCMAKE_INSTALL_INCLUDEDIR=include -DENABLE_SHARED=OFF -DENABLE_STATIC=ON \
+  -DENABLE_APPS=OFF -DUSE_STATIC_LIBSTDCXX=ON
 $ make -j 32
 $ sudo make install
 
@@ -752,7 +789,8 @@ Downloading https://github.com/fraunhoferhhi/vvenc/archive/refs/heads/master.tar
 Download Completed
 
 File extracted: vvenc-1.8.0.tar.gz
-$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release
+$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+  -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build/release-static -j 32
 
 building vvdec - version rc1
@@ -760,7 +798,8 @@ building vvdec - version rc1
 Downloading vvdec-rc1
 Download Complete
 
-$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release
+$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+  -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build/release-static -j 32
 
 building nv-codec - version n12.0.16.0
