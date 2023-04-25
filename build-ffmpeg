@@ -691,10 +691,6 @@ if ! command_exists 'curl'; then
     fail_pkg_fn 'curl'
 fi
 
-if ! command_exists 'jq'; then
-    fail_pkg_fn 'jq'
-fi
-
 if ! command_exists 'cargo'; then
     echo 'The '\''cargo'\'' command was not found.'
     echo
