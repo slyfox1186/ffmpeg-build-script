@@ -22,7 +22,7 @@ other than Debian based OS's, because I don't have the resources or time to main
 
 ### Quick install and run
 
-Open your command line and run (curl needs to be installed):
+Open your command line and run (wget needs to be installed):
 
 #### With GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
