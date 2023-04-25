@@ -509,7 +509,18 @@ ffplay:  /usr/bin/ffplay
 
 ffmpeg version 5.1.git Copyright (c) 2000-2023 the FFmpeg developers
 built with gcc 11 (Ubuntu 11.3.0-1ubuntu1~22.04)
-configuration: --enable-nonfree --enable-gpl --enable-openssl --enable-libdav1d --enable-libsvtav1 --enable-librav1e --enable-libx264 --enable-libx265 --enable-libvpx --enable-libxvid --enable-libvidstab --enable-libaom --enable-libzimg --enable-libkvazaar --enable-lv2 --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libtheora --enable-libfdk-aac --enable-libwebp --enable-libbluray --enable-libfribidi --enable-libass --enable-libfontconfig --enable-libfreetype --enable-libsrt --enable-opencl --enable-amf --enable-nvenc --enable-nvdec --enable-cuda-nvcc --enable-cuvid --enable-cuda-llvm --enable-libnpp --nvccflags='-gencode arch=compute_86,code=sm_86' --arch=x86_64 --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-debug --disable-doc --disable-shared --enable-pthreads --enable-static --enable-small --enable-version3 --enable-ffnvcodec --cpu=16 --extra-cflags='-I/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include -I/usr/local -I/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/lilv-0 -DLIBXML_STATIC_FOR_DLL -DNOLIBTOOL -I/usr/local/cuda-12.1/targets/x86_64-linux/include -I/usr/local/cuda-12.1/include -I/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/usr/include -I/home/jman/tmp/ffmpeg/ffmpeg-build/packages/nv-codec-n12.0.16.0/include' --extra-ldexeflags= --extra-ldflags='-L/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib -L/usr/local/cuda-12.1/targets/x86_64-linux/lib -L/usr/local/cuda-12.1/lib64' --extra-libs='-ldl -lpthread -lm -lz' --pkgconfigdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig --pkg-config-flags=--static
+configuration: --enable-nonfree --enable-gpl --enable-openssl --enable-libdav1d --enable-libsvtav1 --enable-librav1e --enable-libx264 \
+--enable-libx265 --enable-libvpx --enable-libxvid --enable-libvidstab --enable-libaom --enable-libzimg --enable-libkvazaar --enable-lv2 \
+--enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libtheora \
+--enable-libfdk-aac --enable-libwebp --enable-libbluray --enable-libfribidi --enable-libass --enable-libfontconfig --enable-libfreetype \
+--enable-libsrt --enable-opencl --enable-amf --enable-nvenc --enable-nvdec --enable-cuda-nvcc --enable-cuvid --enable-cuda-llvm \
+--enable-libnpp --nvccflags='-gencode arch=compute_86,code=sm_86' --arch=x86_64 --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
+--disable-debug --disable-doc --disable-shared --enable-pthreads --enable-static --enable-small --enable-version3 --enable-ffnvcodec \
+--cpu=16 --extra-cflags='-I/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include -I/usr/local -I/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/lilv-0 \
+-DLIBXML_STATIC_FOR_DLL -DNOLIBTOOL -I/usr/local/cuda-12.1/targets/x86_64-linux/include -I/usr/local/cuda-12.1/include \
+-I/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/usr/include -I/home/jman/tmp/ffmpeg/ffmpeg-build/packages/nv-codec-n12.0.16.0/include' \
+--extra-ldexeflags= --extra-ldflags='-L/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib -L/usr/local/cuda-12.1/targets/x86_64-linux/lib -L/usr/local/cuda-12.1/lib64' \
+--extra-libs='-ldl -lpthread -lm -lz' --pkgconfigdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig --pkg-config-flags=--static
 libavutil      58.  6.100 / 58.  6.100
 libavcodec     60. 10.100 / 60. 10.100
 libavformat    60.  5.100 / 60.  5.100
