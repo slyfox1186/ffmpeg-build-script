@@ -1771,6 +1771,7 @@ fi
 build 'FFmpeg' 'git'
 download 'https://github.com/FFmpeg/FFmpeg/archive/refs/heads/master.tar.gz' 'FFmpeg-git.tar.gz'
 execute ./configure \
+        --arch='x86_64' \
         "${cnf_ops[@]}" \
         --arch="$(uname -m)" \
         --prefix="$workspace" \
