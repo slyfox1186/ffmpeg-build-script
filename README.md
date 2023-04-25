@@ -621,7 +621,7 @@ $ rm -rf /app/workspace/include/AMF
 $ mkdir -p /app/workspace/include/AMF
 $ cp -r /app/packages/AMF-1.4.29/AMF-1.4.29/amf/public/include/components /app/packages/AMF-1.4.29/AMF-1.4.29/amf/public/include/core /app/workspace/include/AMF/
 ```
-___________________
+
 ```
 building FFmpeg - version git
 ====================================
