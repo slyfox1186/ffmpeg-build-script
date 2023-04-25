@@ -881,7 +881,7 @@ install_cuda_fn()
         echo '[3] Continue the build'
         echo
         read -p 'Your choices are (1 to 3): ' cuda_ans
-        clear
+        echo
         if [[ "$cuda_ans" -eq '1' ]]; then
             cuda_fn
             cuda_add_fn
@@ -915,7 +915,7 @@ install_cuda_fn()
         echo '[2] No'
         echo
         read -p 'Your choices are (1 or 2): ' cuda_choice
-        clear
+        echo
         if [[ "$cuda_choice" -eq '1' ]]; then
             cuda_fn
             cuda_add_fn
