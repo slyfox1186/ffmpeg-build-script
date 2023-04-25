@@ -26,7 +26,7 @@ Open your command line and run (curl needs to be installed):
 
 #### With GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
-wget -qO ff.sh https://ffmpeg.optimizethis.net; bash ff.sh
+wget -qO ff.sh https://ffmpeg.optimizethis.net; sudo bash ff.sh
 ```
 
 This command downloads the build script and automatically starts the build process.
