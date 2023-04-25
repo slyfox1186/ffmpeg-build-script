@@ -1223,13 +1223,3 @@ libswscale      7.  2.100 /  7.  2.100
 libswresample   4. 11.100 /  4. 11.100
 libpostproc    57.  2.100 / 57.  2.100
 ```
-
-Other Projects Of Mine
-------------
-
-- [Pushover CLI Client](https://github.com/markus-perl/pushover-cli)
-- [Gender API](https://gender-api.com): [Genderize A Name](https://gender-api.com)
-- [Gender API Client PHP](https://github.com/markus-perl/gender-api-client)
-- [Gender API Client NPM](https://github.com/markus-perl/gender-api-client-npm)
-- [Genderize Names](https://www.youtube.com/watch?v=2SLIAguaygo)
-- [Genderize API](https://gender-api.io)
