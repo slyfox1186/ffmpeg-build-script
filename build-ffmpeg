@@ -17,9 +17,9 @@
 ##           the user will be prompted by the script to install them so that
 ##           hardware acceleration is enabled when compiling FFmpeg
 ##
-##  Updated: 04.25.23
+##  Updated: 04.26.23
 ##
-##  Version: 4.0
+##  Version: 4.1
 ##
 #################################################################################
 
@@ -29,7 +29,7 @@
 
 # FFmpeg version: Whatever the latest Git pull from: https://git.ffmpeg.org/gitweb/ffmpeg.git
 progname="${0:2}"
-script_ver='4.0'
+script_ver='4.1'
 cuda_ver='12.1.1'
 packages="$PWD"/packages
 workspace="$PWD"/workspace
@@ -224,10 +224,11 @@ download_git()
     dl_args="$3"
     target_dir="$dl_path/$dl_file"
 
-    # first download attempt
     if [ -d "$target_dir" ]; then
-        sudo rm -fr "$target_dir"
-    else
+        remove_dir "$target_dir"
+    fi
+
+    if [ ! -d "$target_dir" ]; then
         echo "Downloading $dl_file"
         if ! git clone -q "$dl_url" "$target_dir"; then
             echo
@@ -802,7 +803,7 @@ build_pkgs_fn()
           libnuma-dev libperl-dev libpstoedit-dev libraqm-dev libraw-dev librsvg2-dev librust-jemalloc-sys-dev \
           librust-malloc-buf-dev libsox-dev libsoxr-dev libssl-dev libtalloc-dev libtbbmalloc2 libtinyxml2-dev \
           libtool libtool-bin libyuv-dev libzstd-dev libzzip-dev lsb-core lshw lvm2 lzma-dev make man-db mercurial \
-          meson nano ninja-build openjdk-17-jdk pkg-config python3 python3-pip ragel scons sox texi2html texinfo yasm)
+          meson nano ninja-build openjdk-17-jdk pkg-config python3 python3-pip ragel scons sox texi2html texinfo xmlto yasm)
 
     for pkg in ${pkgs[@]}
     do
@@ -967,7 +968,7 @@ fi
 
 pre_check_ver 'pkgconf/pkgconf' '1' 'T'
 if build 'pkg-config' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "pkgconf-$g_ver.tar.gz"
+    download "https://codeload.github.com/pkgconf/pkgconf/tar.gz/refs/tags/pkgconf-$g_ver" "pkgconf-$g_ver.tar.gz"
     execute ./autogen.sh
     execute ./configure --silent --prefix="$workspace" --with-pc-path="$workspace"/lib/pkgconfig/ --with-internal-glib
     execute make -j "$cpu_threads"
@@ -977,9 +978,8 @@ fi
 
 pre_check_ver 'yasm/yasm' '1' 'T'
 if build 'yasm' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "yasm-$g_ver.tar.gz"
-    execute ./autogen.sh
-    execute ./configure --prefix="$workspace"
+    download "https://codeload.github.com/yasm/yasm/tar.gz/refs/tags/v$g_ver" "yasm-$g_ver.tar.gz"
+    execute cmake -S . -DBUILD_SHARED_LIBS='OFF' -DCMAKE_INSTALL_PREFIX="$workspace" -DUSE_OMP='OFF' -DENABLE_SHARED='OFF' .
     execute make -j "$cpu_threads"
     execute make install
     build_done 'yasm' "$g_ver"
@@ -1037,7 +1037,7 @@ fi
 if $nonfree_and_gpl; then
     pre_check_ver 'openssl/openssl' '1' 'R'
     if build 'openssl' "$g_ver"; then
-        download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "openssl-$g_ver.tar.gz"
+        download "https://codeload.github.com/openssl/openssl/tar.gz/refs/tags/openssl-$g_ver" "openssl-$g_ver.tar.gz"
         execute ./config --prefix="$workspace" --openssldir="$workspace" --with-zlib-include="$workspace"/include/ --with-zlib-lib="$workspace"/lib no-shared zlib
         execute make -j "$cpu_threads"
         execute make install_sw
@@ -1102,8 +1102,7 @@ if command_exists 'python3'; then
             download "https://code.videolan.org/videolan/dav1d/-/archive/$g_ver/$g_ver.tar.bz2" "dav1d-$g_sver.tar.bz2"
             CFLAGSBACKUP="$CFLAGS"
             make_dir build
-            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' \
-                --libdir="$workspace"/lib --strip
+            execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --strip
             execute ninja -C build
             execute sudo ninja -C build install
             build_done 'dav1d' "$g_sver"
@@ -1114,13 +1113,13 @@ fi
 
 git_ver_fn '24327400' '3' 'T'
 if build 'svtav1' "$g_ver"; then
-    download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$g_ver/SVT-AV1-v$g_ver.tar.bz2" "SVT-AV1-$g_ver.tar.bz2"
+    download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$g_ver/SVT-AV1-v$g_ver.tar.bz2" "SVT-AV1-$g_sver.tar.bz2"
     execute cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_SHARED_LIBS='OFF' ../.. -G'Unix Makefiles' -DCMAKE_BUILD_TYPE='Release'
     cd Build/linux || exit 1
     execute make -j "$cpu_threads"
     execute make install
-    execute sudo cp 'SvtAv1Enc.pc' "$workspace"/lib/pkgconfig/
-    execute sudo cp 'SvtAv1Dec.pc' "$workspace"/lib/pkgconfig/
+    execute cp 'SvtAv1Enc.pc' "$workspace"/lib/pkgconfig/
+    execute cp 'SvtAv1Dec.pc' "$workspace"/lib/pkgconfig/
     build_done 'svtav1' "$g_ver"
 fi
 cnf_ops+=('--enable-libsvtav1')
@@ -1200,7 +1199,7 @@ fi
 
 pre_check_ver 'openvisualcloud/svt-hevc' '1' 'R'
 if build 'SVT-HEVC' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "SVT-HEVC-$g_ver.tar.gz"
+    download "https://codeload.github.com/OpenVisualCloud/SVT-HEVC/tar.gz/refs/tags/v$g_ver" "SVT-HEVC-$g_ver.tar.gz"
     make_dir Build
     cd "$PWD"/Build || exit 1
     execute cmake .. -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' -DCMAKE_BUILD_TYPE='Release'
@@ -1211,7 +1210,7 @@ fi
 
 pre_check_ver 'webmproject/libvpx' '1' 'T'
 if build 'libvpx' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "libvpx-$g_ver.tar.gz"
+    download "https://codeload.github.com/webmproject/libvpx/tar.gz/refs/tags/v$g_ver" "libvpx-$g_ver.tar.gz"
     execute ./configure --prefix="$workspace" --disable-unit-tests --disable-shared --disable-examples --as='yasm'
     execute make -j "$cpu_threads"
     execute make install
@@ -1243,7 +1242,7 @@ fi
 if $nonfree_and_gpl; then
     pre_check_ver 'georgmartius/vid.stab' '1' 'T'
     if build 'vid_stab' "$g_ver"; then
-        download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "vid.stab-$g_ver.tar.gz"
+        download "https://codeload.github.com/georgmartius/vid.stab/tar.gz/refs/tags/v$g_ver" "vid.stab-$g_ver.tar.gz"
         execute cmake -S . -DBUILD_SHARED_LIBS='OFF' -DCMAKE_INSTALL_PREFIX="$workspace" -DUSE_OMP='OFF' -DENABLE_SHARED='OFF' .
         execute make -j "$cpu_threads"
         execute make install
@@ -1301,7 +1300,7 @@ fi
 
 pre_check_ver 'ultravideo/kvazaar' '1' 'T'
 if build 'kvazaar' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "kvazaar-$g_ver.tar.gz"
+    download "https://codeload.github.com/ultravideo/kvazaar/tar.gz/refs/tags/v$g_ver" "kvazaar-$g_ver.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --enable-static --disable-shared
     execute make -j "$cpu_threads"
@@ -1318,7 +1317,7 @@ if command_exists 'python3'; then
     if command_exists 'meson'; then
         pre_check_ver 'lv2/lv2' '1' 'T'
         if build 'lv2' "$g_ver"; then
-            download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "lv2-$g_ver.tar.gz"
+            download "https://codeload.github.com/lv2/lv2/tar.gz/refs/tags/v$g_ver" "lv2-$g_ver.tar.gz"
             execute meson setup build --prefix="$workspace" --buildtype='release' --default-library='static' --libdir="$workspace"/lib
             execute ninja -C build
             execute sudo ninja -C build install
@@ -1342,7 +1341,7 @@ if command_exists 'python3'; then
 
         pre_check_ver 'pcre2project/pcre2' '1' 'T'
         if build 'pcre2' "$g_ver"; then
-            download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "pcre2-$g_ver.tar.gz"
+            download "https://codeload.github.com/PCRE2Project/pcre2/tar.gz/refs/tags/pcre2-$g_ver" "pcre2-$g_ver.tar.gz"
             execute ./autogen.sh
             execute ./configure --prefix="$workspace" --disable-shared --enable-static
             execute make -j "$cpu_threads"
@@ -1426,7 +1425,7 @@ cnf_ops+=('--enable-libopus')
 
 pre_check_ver 'xiph/ogg' '1' 'T'
 if build 'libogg' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "libogg-$g_ver.tar.gz"
+    download "https://codeload.github.com/xiph/ogg/tar.gz/refs/tags/v$g_ver" "libogg-$g_ver.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-shared --enable-static
     execute make -j "$cpu_threads"
@@ -1562,7 +1561,7 @@ fi
 
 pre_check_ver 'MediaArea/MediaInfo' '1' 'T'
 if build 'MediaInfoCLI' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "MediaInfoCLI-$g_ver.tar.gz"
+    download "https://codeload.github.com/MediaArea/MediaInfo/tar.gz/refs/tags/v$g_ver" "MediaInfoCLI-$g_ver.tar.gz"
     cd "$PWD"/Project/GNU/CLI || exit 1
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --enable-staticlibs
@@ -1594,7 +1593,7 @@ if build 'c2man' 'git'; then
         -D vi='/usr/bin/vi' -D zip='/usr/bin/zip'
     execute make depend
     execute make -j "$cpu_threads"
-    execute make install
+    execute sudo make install
     build_done 'c2man' 'git'
 fi
 
@@ -1603,7 +1602,7 @@ if build 'fribidi' "$g_ver"; then
     if [ -f "fribidi-$g_ver.tar.gz" ]; then
         sudo rm "fribidi-$g_ver.tar.gz"
     fi
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "fribidi-$g_ver.tar.gz"
+    download "https://codeload.github.com/fribidi/fribidi/tar.gz/refs/tags/v$g_ver" "fribidi-$g_ver.tar.gz"
     execute meson setup build --prefix="/home/jman/tmp/ffmpeg/workspace" --strip --backend ninja --optimization 3 \
         --pkg-config-path="$PKG_CONFIG_PATH"--buildtype='release' --default-library='static' --libdir="/home/jman/tmp/ffmpeg/workspace"/lib
     execute ninja -C build
@@ -1614,7 +1613,7 @@ cnf_ops+=('--enable-libfribidi')
 
 pre_check_ver 'libass/libass' '1' 'T'
 if build 'libass' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "libass-$g_ver.tar.gz"
+    download "https://codeload.github.com/libass/libass/tar.gz/refs/tags/$g_ver" "libass-$g_ver.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-shared --enable-static
     execute make -j "$cpu_threads"
@@ -1630,7 +1629,7 @@ if build 'fontconfig' "$g_ver"; then
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --sysconfdir="$workspace"/etc/ --mandir="$workspace"/share/man/
     execute make -j "$cpu_threads"
-    execute make install
+    execute sudo make install
     build_done 'fontconfig' "$g_ver"
 fi
 cnf_ops+=('--enable-libfontconfig')
@@ -1685,7 +1684,7 @@ fi
 pre_check_ver 'khronosgroup/opencl-headers' '1' 'T'
 if build 'opencl' "$g_ver"; then
     CFLAGS+=" -DLIBXML_STATIC_FOR_DLL -DNOLIBTOOL"
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "opencl-$g_ver.tar.gz"
+    download "https://codeload.github.com/KhronosGroup/OpenCL-Headers/tar.gz/refs/tags/v$g_ver" "opencl-$g_ver.tar.gz"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace"
     execute cmake --build build --target install
     build_done 'opencl' "$g_ver"
@@ -1705,7 +1704,7 @@ fi
 
 pre_check_ver 'GPUOpen-LibrariesAndSDKs/AMF' '1' 'T'
 if build 'amf' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "AMF-$g_ver.tar.gz"
+    download "https://codeload.github.com/GPUOpen-LibrariesAndSDKs/AMF/tar.gz/refs/tags/v$g_ver" "AMF-$g_ver.tar.gz"
     execute rm -fr "$workspace"/include/AMF
     execute mkdir -p "$workspace"/include/AMF
     execute cp -fr "$packages"/AMF-"$g_ver"/amf/public/include/* "$workspace"/include/AMF/
@@ -1713,30 +1712,10 @@ if build 'amf' "$g_ver"; then
 fi
 cnf_ops+=('--enable-amf')
 
-pre_check_ver 'fraunhoferhhi/vvenc' '1' 'T'
-if build 'vvenc' "$g_ver"; then
-    download "https://github.com/$github_repo/archive/refs/heads/master.tar.gz" "vvenc-$g_ver.tar.gz"
-    execute cmake -B 'build/release-static' -DCMAKE_INSTALL_PREFIX="$workspace" \
-        -DVVDEC_ENABLE_LINK_TIME_OPT='OFF' -DCMAKE_VERBOSE_MAKEFILE='OFF' -DCMAKE_BUILD_TYPE='Release'
-    execute cmake --build 'build/release-static' -j "$cpu_threads"
-    build_done 'vvenc' "$g_ver"
-fi
-cnf_ops+=('--enable-nvenc')
-
-pre_check_ver 'fraunhoferhhi/vvdec' '1' 'T'
-if build 'vvdec' "$g_ver"; then
-    download_git 'https://github.com/fraunhoferhhi/vvdec.git' "vvdec-$g_ver"
-    execute cmake -B 'build/release-static' -DCMAKE_INSTALL_PREFIX="$workspace" \
-        -DVVDEC_ENABLE_LINK_TIME_OPT='OFF' -DCMAKE_VERBOSE_MAKEFILE='OFF' -DCMAKE_BUILD_TYPE='Release'
-    execute cmake --build 'build/release-static' -j "$cpu_threads"
-    build_done 'vvdec' "$g_ver"
-fi
-cnf_ops+=('--enable-nvdec')
-
 if which 'nvcc' &>/dev/null ; then
     pre_check_ver 'FFmpeg/nv-codec-headers' '1' 'T'
     if build 'nv-codec' "$g_ver"; then
-        download_git 'https://github.com/FFmpeg/nv-codec-headers.git' "nv-codec-$g_ver"
+        download "https://codeload.github.com/FFmpeg/nv-codec-headers/tar.gz/refs/tags/$g_ver" "nv-codec-$g_ver.tar.gz"
         execute make PREFIX="$workspace" -j "$cpu_threads"
         execute make install PREFIX="$workspace"
         build_done 'nv-codec' "$g_ver"
@@ -1762,15 +1741,11 @@ fi
 ## BUILD FFMPEG
 ##
 
-# REMOVE ANY FILES FROM PRIOR RUNS
-if [ -d "$packages/FFmpeg-git" ]; then
-    rm -fr "$packages/FFmpeg-git"
-fi
-
 # CLONE FFMPEG FROM THE LATEST GIT RELEASE
 build 'FFmpeg' 'git'
-download 'https://github.com/FFmpeg/FFmpeg/archive/refs/heads/master.tar.gz' 'FFmpeg-git.tar.gz'
-execute ./configure \
+download_git 'https://git.ffmpeg.org/ffmpeg.git' 'FFmpeg-git'
+echo '$ ./configure'
+./configure \
         --arch='x86_64' \
         "${cnf_ops[@]}" \
         --arch="$(uname -m)" \
