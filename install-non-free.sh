@@ -6,8 +6,8 @@ clear
 
 # VERIFY THE SCRIPT DOES NOT HAVE ROOT ACCESS BEFORE CONTINUING
 # THIS CAN CAUSE ISSUES USING THE 'IF WHICH' COMMANDS IF RUN AS ROOT
-if [ "${EUID}" -ne '0' ]; then
-    echo 'You must run this script WITH root/sudo'
+if [ "${EUID}" -eq '0' ]; then
+    echo 'You must run this script WITHOUT root/sudo'
     echo
     exit 1
 fi
@@ -58,7 +58,7 @@ echo
 wget -qO 'build-ffmpeg' 'https://raw.githubusercontent.com/slyfox1186/script-repo/main/shell/ffmpeg/build-ffmpeg'
 
 if [ -f build-ffmpeg ]; then
-    sudo bash build-ffmpeg -b --enable-gpl-and-non-free --latest
+    bash build-ffmpeg -b --enable-gpl-and-non-free --latest
 else
     echo 'file not found: build-ffmpeg'
 fi
