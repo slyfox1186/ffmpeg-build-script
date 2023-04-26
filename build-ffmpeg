@@ -230,12 +230,12 @@ download_git()
 
     if [ ! -d "$target_dir" ]; then
         echo "Downloading $dl_file"
-        if ! git clone -q "$dl_url" "$target_dir"; then
+        if ! git clone "$dl_url" "$target_dir" 2>/dev/null; then
             echo
             echo "The script failed to download \"$dl_file\" and will try again in 10 seconds"
             sleep 10
             echo
-            if ! git clone -q "$dl_url" "$target_dir"; then
+            if ! git clone -"$dl_url" "$target_dir" 2>/dev/null; then
                 fail_fn "The script failed to download \"$dl_file\" two times and will exit the build"
             fi
         fi
@@ -323,8 +323,8 @@ git_4_fn()
 git_5_fn()
 {
     gitlab_repo="$1"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL 'https://bitbucket.org/!api/2.0/repositories/multicoreware/x265_git/effective-branching-model')"; then
-        g_ver="$(echo "$curl_cmd" | jq '.development.branch.target' | grep -Eo '[0-9a-z][0-9a-z]+' | sort | head -n 1)"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL 'https://bitbucket.org/!api/2.0/repositories/multicoreware/x265_git/refs/branches/master')"; then
+        g_ver="$(echo "$curl_cmd" | jq -r '.target.hash')"
         g_sver="${g_ver::7}"
     fi
 }
@@ -794,7 +794,7 @@ build_pkgs_fn()
           clang-tools cmake cmake-curses-gui cmake-extras cmake-qt-gui curl dbus dbus-x11 dos2unix flex \
           flexc++ freeglut3-dev g++ g++-11 g++-12 gawk gcc gcc-11 gcc-12 gh git-all gnustep-gui-runtime \
           golang gtk-doc-tools help2man javacc jfsutils jq junit libbz2-dev libcairo2-dev libcdio-paranoia-dev \
-          libcurl4-gnutls-dev libdmalloc-dev libglib2.0-dev libgvc6 libheif-dev libjemalloc-dev liblz-dev \
+          libcurl4-gnutls-dev libdevil-dev libdmalloc-dev libglib2.0-dev libgvc6 libheif-dev libjemalloc-dev liblz-dev \
           liblzma-dev liblzo2-dev libmimalloc-dev libmusicbrainz5-dev libncurses5-dev libnet-nslookup-perl \
           libnuma-dev libperl-dev libpstoedit-dev libraqm-dev libraw-dev librsvg2-dev librust-jemalloc-sys-dev \
           librust-malloc-buf-dev libsox-dev libsoxr-dev libssl-dev libtalloc-dev libtbbmalloc2 libtinyxml2-dev \
@@ -1149,8 +1149,8 @@ fi
 
 if $nonfree_and_gpl; then
     git_ver_fn 'x265_git' '5' 'X'
-    if build 'x265' '3.5'; then
-        download 'https://github.com/videolan/x265/archive/Release_3.5.tar.gz' 'x265-3.5.tar.gz'
+    if build 'x265' "$g_sver"; then
+        download_git 'https://bitbucket.org/multicoreware/x265_git.git' "x265-$g_sver"
         cd 'build/linux' || exit 1
         rm -fr {8,10,12}bit 2>/dev/null
         mkdir -p {8,10,12}bit
@@ -1188,7 +1188,7 @@ EOF
             sed -i.backup 's/-lgcc_s/-lgcc_eh/g' "$workspace/lib/pkgconfig/x265.pc"
         fi
 
-        build_done 'x265' '3.5'
+        build_done 'x265' "$g_sver"
     fi
     cnf_ops+=('--enable-libx265')
 fi
@@ -1509,6 +1509,16 @@ cnf_ops+=('--enable-libwebp')
 ##
 ## other libraries
 ##
+
+pre_check_ver 'avisynth/avisynthplus' '1' 'T'
+if build 'avisynth' "$g_ver"; then
+    download_git 'https://github.com/AviSynth/AviSynthPlus.git' "avisynth-$g_ver"
+    execute cmake -S . -DCMAKE_INSTALL_PREFIX:PATH="$workspace" -G'Ninja'
+    execute ninja
+    execute ninja install
+    build_done 'avisynth' "$g_ver"
+fi
+cnf_ops+=('--enable-avisynth')
 
 git_ver_fn '363' '2' 'T'
 if build 'udfread' "$g_ver1"; then
