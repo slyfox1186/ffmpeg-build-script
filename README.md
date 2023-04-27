@@ -36,7 +36,7 @@ This command downloads the build script and automatically starts the build proce
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd ffmpeg-build-script || exit 1
-sudo bash build-ffmpeg --build --enable-gpl-and-non-free --latest
+bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 ```
 
 ## Supported Codecs
