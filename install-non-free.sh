@@ -6,7 +6,7 @@ clear
 
 # VERIFY THE SCRIPT DOES NOT HAVE ROOT ACCESS BEFORE CONTINUING
 # THIS CAN CAUSE ISSUES USING THE 'IF WHICH' COMMANDS IF RUN AS ROOT
-if [ "${EUID}" -eq '0' ]; then
+if [ $EUID -eq 0 ]; then
     echo 'You must run this script WITHOUT root/sudo'
     echo
     exit 1
@@ -14,9 +14,9 @@ fi
 
 make_dir()
 {
-    if [ ! -d "${1}" ]; then
-        if ! mkdir "${1}"; then            
-            printf '\nFailed to create directory: %s' "${1}";
+    if [ ! -d "$1" ]; then
+        if ! mkdir "$1"; then            
+            printf '\nFailed to create directory: %s' "$1";
             exit 1
         fi
     fi    
@@ -24,41 +24,43 @@ make_dir()
 
 command_exists()
 {
-    if ! [[ -x $(command -v "${1}") ]]; then
+    if ! [[ -x $(command -v "$1") ]]; then
         return 1
     fi
 
     return 0
 }
 
-build_dir="${PWD}/ffmpeg-build"
+build_dir="$PWD/ffmpeg-build"
 
 if ! command_exists 'curl'; then
-    echo 'curl command not installed.'
+    echo 'FATAL: The curl command is not installed.'
     echo
     exit 1
 fi
 
-echo 'ffmpeg-build-script-downloader v0.1'
+echo 'This is the ffmpeg-build-script-helper v1.0'
 echo '============================================='
 echo
 
-echo 'First we create the ffmpeg build directory'
-echo '=============================================='
+echo 'Creating the FFmpeg build directory'
+echo '============================================='
 echo
 
-make_dir "${build_dir}"
+make_dir "$build_dir"
 
-cd "${build_dir}" || exit 1
+cd "$build_dir" || exit 1
 
-echo 'Now we download and execute the build script'
-echo '=============================================='
+echo 'Downloading and executing the build script'
+echo '============================================='
 echo
 
-wget -qO 'build-ffmpeg' 'https://raw.githubusercontent.com/slyfox1186/script-repo/main/shell/ffmpeg/build-ffmpeg'
+wget -qO 'build-ffmpeg' 'https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/build-ffmpeg'
 
 if [ -f build-ffmpeg ]; then
-    bash build-ffmpeg -b --enable-gpl-and-non-free --latest
+    bash 'build-ffmpeg' --build --enable-gpl-and-non-free --latest
 else
-    echo 'file not found: build-ffmpeg'
+    echo 'FATAL: File not found: build-ffmpeg'
+    echo
+    exit 1
 fi
