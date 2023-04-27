@@ -1638,7 +1638,7 @@ cnf_ops+=('--enable-frei0r')
 pre_check_ver 'avisynth/avisynthplus' '1' 'T'
 if build 'avisynth' "$g_ver"; then
     download_git 'https://github.com/AviSynth/AviSynthPlus.git' "avisynth-$g_ver"
-    execute cmake -S . -DCMAKE_INSTALL_PREFIX:PATH="$workspace" -G'Ninja'
+    execute cmake -S . -DCMAKE_INSTALL_PREFIX:PATH="$workspace" -G 'Ninja'
     execute ninja
     execute ninja install
     build_done 'avisynth' "$g_ver"
