@@ -1600,7 +1600,7 @@ git_ver_fn '1665' '6' 'T'
 if build 'xml2' "$g_ver"; then
     download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$g_ver/libxml2-v$g_ver.tar.bz2" "xml2-$g_ver.tar.bz2"
     make_dir build
-    execute cmake -B build -DBUILD_SHARED_LIBS='OFF' -DCMAKE_EXPORT_COMPILE_COMMANDS='OFF' -DCMAKE_INSTALL_PREFIX:PATH="/home/jman/tmp/ff1/workspace" \
+    execute cmake -B build -DBUILD_SHARED_LIBS='OFF' -DCMAKE_EXPORT_COMPILE_COMMANDS='OFF' -DCMAKE_INSTALL_PREFIX:PATH="$workspace" \
         -DCMAKE_VERBOSE_MAKEFILE='OFF' -DCPACK_BINARY_DEB='ON' -DCPACK_BINARY_FREEBSD='ON' -DCPACK_BINARY_IFW='ON' -DCPACK_BINARY_NSIS='ON' \
         -DCPACK_BINARY_RPM='ON' -DCPACK_BINARY_TBZ2='ON' -DCPACK_BINARY_TXZ='ON' -DCPACK_SOURCE_RPM='ON' -DCPACK_SOURCE_ZIP='ON' \
         -DHWY_LIBRARY:FILEPATH="/usr/lib/x86_64-linux-gnu/libhwy.so" -DOPENGL_opengl_LIBRARY:FILEPATH="/usr/lib/x86_64-linux-gnu/libglut.a" -G 'Ninja'
@@ -1734,8 +1734,8 @@ if build 'fribidi' "$g_ver"; then
         sudo rm "fribidi-$g_ver.tar.gz"
     fi
     download "https://codeload.github.com/fribidi/fribidi/tar.gz/refs/tags/v$g_ver" "fribidi-$g_ver.tar.gz"
-    execute meson setup build --prefix="/home/jman/tmp/ffmpeg/workspace" --strip --backend ninja --optimization 3 \
-        --pkg-config-path="$PKG_CONFIG_PATH"--buildtype='release' --default-library='static' --libdir="/home/jman/tmp/ffmpeg/workspace"/lib
+    execute meson setup build --prefix="$workspace" --strip --backend ninja --optimization 3 \
+        --pkg-config-path="$PKG_CONFIG_PATH"--buildtype='release' --default-library='static' --libdir="$workspace"/lib
     execute ninja -C build
     execute sudo ninja -C build install
     build_done 'fribidi' "$g_ver"
