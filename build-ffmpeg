@@ -184,7 +184,6 @@ download()
             fi
         fi
         echo 'Download Completed'
-        echo
     else
         echo "$dl_file is already downloaded"
     fi
@@ -202,6 +201,7 @@ download()
     fi
 
     echo "File extracted: $dl_file"
+    echo
 
     cd "$dl_path/$target_dir" || fail_fn "Unable to change the working directory to $target_dir"
 }
@@ -230,9 +230,11 @@ download_git()
             fi
         fi
         echo 'Download Complete'
-        echo
     fi
- 
+
+    echo "File extracted: $dl_file"
+    echo
+
     cd "$target_dir" || fail_fn "Unable to change the working directory to $target_dir"
 }
 
