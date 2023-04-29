@@ -1,13 +1,11 @@
 # Required because these files existed before makeing this file.
 git rm --cached LICENSE
 git rm --cached run-scripts/
-git rm --cached /install-free.sh
-
-# ignore the LICENSE file
-LICENSE
+git rm --cached install-free.sh
 
 # ignore folders
 run-scripts/
 
 # ignore files
-/install-free.sh
+LICENSE
+install-free.sh
