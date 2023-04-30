@@ -1750,25 +1750,25 @@ if build 'zenLib' "$g_ver"; then
     execute make install
     build_done 'zenLib' "$g_ver"
 fi
-
-pre_check_ver 'MediaArea/MediaInfoLib' '1' 'L'
+pre_check_ver 'MediaArea/MediaInfoLib' '1' 'T'
 if build 'MediaInfoLib' "$g_ver"; then
-    download "$g_url" "MediaInfoLib-$g_ver.tar.gz"
-    cd Project/CMake || exit 1
-    execute cmake . -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_INSTALL_LIBDIR='lib' -DCMAKE_INSTALL_BINDIR='bin' \
-        -DCMAKE_INSTALL_INCLUDEDIR='include' -DBUILD_SHARED_LIBS='1' -DENABLE_APPS='OFF' \
-        -DUSE_STATIC_LIBSTDCXX='ON' -DBUILD_ZLIB='OFF' -DBUILD_ZENLIB='OFF'
+    download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$g_ver.tar.gz" "MediaInfoLib-$g_ver.tar.gz"
+    cd 'Project/GNU/Library' || exit 1
+    execute ./autogen.sh
+    execute ./configure --prefix="$workspace" --enable-static --disable-shared
     execute make "-j$cpu_threads"
     execute make install
     build_done 'MediaInfoLib' "$g_ver"
 fi
 
-pre_check_ver 'MediaArea/MediaInfo' '1' 'L'
+pre_check_ver 'MediaArea/MediaInfo' '1' 'T'
 if build 'MediaInfoCLI' "$g_ver"; then
-    download "$g_url" "MediaInfoCLI-$g_ver.tar.gz"
-    cd "$PWD"/Project/GNU/CLI || exit 1
+    download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$g_ver.tar.gz" "MediaInfo-$g_ver.tar.gz"
+    cd 'Project/GNU/CLI' || exit 1
     execute ./autogen.sh
-    execute ./configure --prefix="$workspace" --enable-staticlibs
+    execute ./configure --prefix="$workspace" --enable-static --disable-shared
+    execute make "-j$cpu_threads"
+    execute make install
     build_done 'MediaInfoCLI' "$g_ver"
 fi
 
