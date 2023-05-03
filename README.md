@@ -58,24 +58,16 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `srt`: Secure Reliable Transport
 * `webp`: Image format both lossless and lossy
 * `harfbuzz`: Text shaping image processor
-* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format.
+* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
 * `libbluray`: An open-source library designed for Blu-Ray Discs playback
 * `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
-* `nvdec`: The Fraunhofer Versatile Video Decoder (VVdeC) is a fast H.266/VVC software decoder implementation.
-  - All features of the VVC Main10 profile are supported by VVdeC.
-* `nvenc`: The Fraunhofer Versatile Video Encoder (VVenC) is a fast and efficient H.266/VVC encoder implementation with the following main features:
-  - Easy to use encoder implementation with five predefined quality/speed presets;
-  - Perceptual optimization to improve subjective video quality, based on the XPSNR visual model;
-  - Extensive frame-level and task-based parallelization with very good scaling;
-  - Frame-level single-pass and two-pass rate control supporting variable bit-rate (VBR) encoding;
-  - Expert mode encoder interface available, allowing fine-grained control of the encoding process.
-* `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs.
+* `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs
 * `aom`: Alliance for Open Media
 * `fontconfig`: Font configuration and customization library
-* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format. It is mostly compatible with VSFilter.
+* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format. It is mostly compatible with VSFilter
 * `libkvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
-* `libfribidi`: The Free Implementation of the Unicode Bidirectional Algorithm.
-
+* `libfribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
+* `libsrt`: Secure Reliable Transport (SRT) is a transport protocol for ultra low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
 ### HardwareAccel
 
 * `nv-codec`: [NVIDIA's GPU accelerated video codecs](https://devblogs.nvidia.com/nvidia-ffmpeg-transcoding-guide/).
