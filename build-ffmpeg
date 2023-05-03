@@ -885,8 +885,8 @@ install_cuda_fn()
 
     if [ -z "$iscuda" ]; then
         echo
-        echo "The cuda-sdk-toolkit current version is: v$cuda_ver"
-        echo '======================================================='
+        echo "The latest cuda-sdk-toolkit version is: v$cuda_ver"
+        echo '====================================================='
         echo
         echo 'What do you want to do next?'
         echo
@@ -920,8 +920,8 @@ install_cuda_fn()
         fi
     else
         echo
-        echo "The cuda-sdk-toolkit currently installed is: v$cuda_ver"
-        echo '============================================================'
+        echo "The latest cuda-sdk-toolkit version is: v$cuda_ver"
+        echo '====================================================='
         echo
         echo 'Do you want to update/reinstall it?'
         echo
