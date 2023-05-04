@@ -7,7 +7,7 @@
 build-ffmpeg
 ==========
 
-The FFmpeg build script provides an easy way to build a **static** FFmpeg on **Linux Debian** based systems with optional **non-free and GPL codecs** (--enable-gpl-and-non-free, see https://ffmpeg.org/legal.html) included.
+The FFmpeg build script provides an easy way to build a **static** FFmpeg on **Linux Ubuntu 22.04.02** based systems with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included.
 
 ## Disclaimer And Data Privacy Notice
 
@@ -16,7 +16,7 @@ These sources are out of control by the developers of this script. Also, this sc
 By downloading and using this script, you are fully aware of this.
 
 Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems
-other than Debian based OS's, because I don't have the resources or time to maintain different systems.
+other than Debian based OS's.
 
 ## Installation
 
