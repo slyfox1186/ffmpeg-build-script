@@ -47,6 +47,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `aom`: AV1 Video Codec (Experimental and very slow!)
 * `librav1e`: rust based AV1 encoder (only available if [`cargo` is installed](https://doc.rust-lang.org/cargo/getting-started/installation.html)) 
 * `libdav1d`: Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities and sponsored by the AOMedia (only available if `meson` and `ninja` are installed)
+* `faac`: FAAC is based on the ISO MPEG-4 reference code.
 * `fdk_aac`: Fraunhofer FDK AAC Codec
 * `xvidcore`: MPEG-4 video coding standard
 * `VP8/VP9/webm`: VP8 / VP9 Video Codec for the WebM video file format
@@ -68,6 +69,8 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `libkvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
 * `libfribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
 * `libsrt`: Secure Reliable Transport (SRT) is a transport protocol for ultra low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
+* `avisynth: A powerful tool for video post-production.
+
 ### HardwareAccel
 
 * `nv-codec`: [NVIDIA's GPU accelerated video codecs](https://devblogs.nvidia.com/nvidia-ffmpeg-transcoding-guide/).
