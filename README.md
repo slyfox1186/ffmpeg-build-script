@@ -74,6 +74,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `libsdl`: A cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
 * `openjpeg`: OpenJPEG is an open-source JPEG 2000 codec written in C language
 * `MediaInfoCLI`: MediaInfo is a convenient unified display of the most relevant technical and tag data for video and audio files
+* `xml2`: XML parser and toolkit
 
 ### HardwareAccel
 
