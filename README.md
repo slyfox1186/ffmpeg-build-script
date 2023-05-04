@@ -57,6 +57,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `fdk_aac`: Fraunhofer FDK AAC Codec
 * `opus`: Lossy audio coding format
 * `mp3`: MPEG-1 or MPEG-2 Audio Layer III
+* `flac`: Free Lossless Audio Codec is open source software that can reduce the amount of storage space needed to store digital audio signals without needing to remove information in doing so
 * `ogg`: Free, open container format
 * `vorbis`: Lossy audio compression format
 * `theora`: Free lossy video compression format
