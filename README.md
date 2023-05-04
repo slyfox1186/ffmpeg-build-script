@@ -45,6 +45,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `x265`: H.265 Video Codec (HEVC)
 * `libkvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
 * `avisynth`: A powerful tool for video post-production
+* `frei0r` A collection of free and open source video effects plugins that can be used with a variety of video editing and processing software
 * `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
 * `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
 * `libsvtav1`: SVT-AV1 Encoder and Decoder
