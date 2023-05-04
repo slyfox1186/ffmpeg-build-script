@@ -69,7 +69,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `libkvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
 * `libfribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
 * `libsrt`: Secure Reliable Transport (SRT) is a transport protocol for ultra low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
-* `avisynth: A powerful tool for video post-production.
+* `avisynth`: A powerful tool for video post-production.
 
 ### HardwareAccel
 
