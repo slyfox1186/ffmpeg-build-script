@@ -7,7 +7,7 @@
 build-ffmpeg
 ==========
 
-The FFmpeg build script provides an easy way to build a **static** FFmpeg on **Linux Ubuntu 22.04.02** based systems with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included.
+The FFmpeg build script provides an easy way to build a **static** FFmpeg on **Linux Ubuntu 22.04** based systems with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included.
 
 ## Disclaimer And Data Privacy Notice
 
