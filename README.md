@@ -75,7 +75,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `openjpeg`: OpenJPEG is an open-source JPEG 2000 codec written in C language
 * `MediaInfoCLI`: MediaInfo is a convenient unified display of the most relevant technical and tag data for video and audio files
 * `xml2`: XML parser and toolkit
-* `libtiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
+* `tiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
 
 ### HardwareAccel
 
