@@ -76,6 +76,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `MediaInfoCLI`: MediaInfo is a convenient unified display of the most relevant technical and tag data for video and audio files
 * `xml2`: XML parser and toolkit
 * `tiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
+* `opencore-amr`: Adaptive Multi Rate (AMR) speech codec library implementation
 
 ### HardwareAccel
 
