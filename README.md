@@ -43,41 +43,40 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 
 * `x264`: H.264 Video Codec (MPEG-4 AVC)
 * `x265`: H.265 Video Codec (HEVC)
-* `libkvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
-* `avisynth`: A powerful tool for video post-production
 * `frei0r` A collection of free and open source video effects plugins that can be used with a variety of video editing and processing software
 * `cuda` : Hardware acceleration for Nvidia graphics cards
 * `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
 * `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
-* `libsvtav1`: SVT-AV1 Encoder and Decoder
+* `avisynth`: A powerful tool for video post-production
+* `kvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
 * `aom`: AV1 Video Codec (Experimental and very slow!)
-* `librav1e`: rust based AV1 encoder (only available if [`cargo` is installed](https://doc.rust-lang.org/cargo/getting-started/installation.html)) 
-* `libdav1d`: Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities and sponsored by the AOMedia (only available if `meson` and `ninja` are installed)
-* `xvidcore`: MPEG-4 video coding standard
+* `svtav1`: SVT-AV1 Encoder and Decoder
+* `rav1e`: rust based AV1 encoder
+* `dav1d`: Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities and sponsored by the AOMedia (only available if `meson` and `ninja` are installed)
 * `VP8/VP9/webm`: VP8 / VP9 Video Codec for the WebM video file format
-* `faac`: FAAC is based on the ISO MPEG-4 reference code.
+* `webp`: Image format both lossless and lossy
+* `xvidcore`: MPEG-4 video coding standard
+* `theora`: Free lossy video compression format
+* `faac`: Is based on the ISO MPEG-4 reference code.
 * `fdk_aac`: Fraunhofer FDK AAC Codec
 * `opus`: Lossy audio coding format
 * `mp3`: MPEG-1 or MPEG-2 Audio Layer III
 * `flac`: Free Lossless Audio Codec is open source software that can reduce the amount of storage space needed to store digital audio signals without needing to remove information in doing so
 * `ogg`: Free, open container format
+* `opencore-amr`: Adaptive Multi Rate (AMR) speech codec library implementation
 * `vorbis`: Lossy audio compression format
-* `theora`: Free lossy video compression format
 * `srt`: Secure Reliable Transport (SRT) is a transport protocol for ultra low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
-* `webp`: Image format both lossless and lossy
 * `harfbuzz`: Text shaping image processor
-* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
-* `libbluray`: An open-source library designed for Blu-Ray Discs playback
 * `fontconfig`: Font configuration and customization library
 * `freetype`: A freely available software library to render fonts
-* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format. It is mostly compatible with VSFilter
-* `libfribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
-* `libsdl`: A cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
-* `openjpeg`: OpenJPEG is an open-source JPEG 2000 codec written in C language
-* `MediaInfoCLI`: MediaInfo is a convenient unified display of the most relevant technical and tag data for video and audio files
+* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
+* `bluray`: An open-source library designed for Blu-Ray Discs playback
+* `fribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
+* `sdl`: A cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
+* `openjpeg`: Is an open-source JPEG 2000 codec written in C language
+* `mediainfo`: A convenient unified display of the most relevant technical and tag data for video and audio files
 * `xml2`: XML parser and toolkit
 * `tiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
-* `opencore-amr`: Adaptive Multi Rate (AMR) speech codec library implementation
 
 ### HardwareAccel
 
