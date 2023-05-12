@@ -2,10 +2,10 @@
 git rm --cached LICENSE
 git rm --cached run-scripts/
 git rm --cached install-free.sh
+git rm --cached .gitignore
 
 # ignore folders
-run-scripts/
+git rm --cached run-scripts/
 
 # ignore files
-LICENSE
-install-free.sh
+git rm --cached LICENSE
