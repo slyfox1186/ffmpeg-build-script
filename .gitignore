@@ -1,11 +1,6 @@
-# Required because these files existed before makeing this file.
-git rm --cached LICENSE
-git rm --cached run-scripts/
-git rm --cached install-free.sh
-git rm --cached .gitignore
-
 # ignore folders
-git rm --cached run-scripts/
+run-scripts/
 
 # ignore files
-git rm --cached LICENSE
+.gitignore
+LICENSE
