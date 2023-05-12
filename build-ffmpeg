@@ -701,12 +701,6 @@ if ! command_exists 'curl'; then
     fail_pkg_fn 'curl'
 fi
 
-if ! command_exists 'cargo'; then
-    echo 'The '\''cargo'\'' command was not found.'
-    echo
-    echo 'The rav1e encoder will not be available.'
-fi
-
 if ! command_exists 'python3'; then
     echo 'The '\''python3'\'' command was not found.'
     echo
@@ -823,7 +817,7 @@ build_pkgs_fn()
     echo 'Installing required development packages'
     echo '=========================================='
 
-    pkgs=(ant autogen binutils bison build-essential cabal-install ccache checkinstall curl flex freeglut3-dev \
+    pkgs=(ant autogen binutils bison build-essential cabal-install cargo ccache checkinstall curl flex freeglut3-dev \
           g++-12 gawk gcc-12 git gnustep-gui-runtime gperf gtk-doc-tools help2man jq junit libavif-dev libbz2-dev libcairo2-dev \
           libcdio-paranoia-dev libcurl4-gnutls-dev libdmalloc-dev libglib2.0-dev libgvc6 libheif-dev libjemalloc-dev \
           liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmimalloc-dev libmusicbrainz5-dev libncurses5-dev libnuma-dev \
