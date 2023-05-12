@@ -19,7 +19,7 @@
 ##
 ##  Updated: 05.12.23
 ##
-##  Version: 5.4
+##  Version: 5.5
 ##
 #################################################################################
 
@@ -29,7 +29,7 @@
 
 # FFmpeg version: Whatever the latest Git pull from: https://git.ffmpeg.org/gitweb/ffmpeg.git
 progname="${0:2}"
-script_ver='5.4'
+script_ver='5.5'
 cuda_ver='12.1.1'
 packages="$PWD"/packages
 workspace="$PWD"/workspace
@@ -154,35 +154,30 @@ download()
     dl_path="$packages"
     dl_url="$1"
     dl_file="${2:-"${1##*/}"}"
+    tar_file="$dl_path/$dl_file"
 
-    if [ -f "$dl_path/$dl_file" ]; then
-        remove_file "$dl_path/$dl_file"
+    if [ -f "$tar_file" ]; then
+        remove_file "$tar_file"
     fi
 
     if [[ "$dl_file" =~ tar. ]]; then
-        target_dir="${dl_file%.*}"
-        target_dir="${3:-"${target_dir%.*}"}"
+        output_dir="${dl_file%.*}"
+        output_dir="${3:-"${output_dir%.*}"}"
     else
-        target_dir="${3:-"${dl_file%.*}"}"
+        output_dir="${3:-"${dl_file%.*}"}"
     fi
 
-    if [ -d "$dl_path/$target_dir" ]; then
-        remove_dir "$dl_path/$target_dir"
-    fi
+    target_dir="$dl_path/$output_dir"
 
-    if [ ! -f "$dl_path/$dl_file" ]; then
+    if [ ! -f "$tar_file" ]; then
         echo "Downloading $dl_url as $dl_file"
-        url_down_test="$dl_url"
-        if ! curl -Lso "$dl_path/$dl_file" "$dl_url"; then
-            echo
-            echo "The script failed to download \"$dl_url\" and will try again in 10 seconds"
+        if ! curl -Lso "$tar_file" "$dl_url"; then
+            printf "\n%s\n\n%s\n\n" \
+                "The script failed to clone the git repository: $dl_url" \
+                'Sleeping for 10 seconds before trying one more time.'
             sleep 10
-            echo
-            if ! curl -Lso "$dl_path/$dl_file" "$dl_url"; then
-                echo
-                echo "The script failed to download \"$dl_url\" two times and will exit the build"
-                echo
-                fail_fn
+            if ! curl -Lso "$tar_file" "$dl_url"; then
+                fail_fn "The script failed to download \"$dl_url\" twice and will now exit the build."
             fi
         fi
         echo 'Download Completed'
@@ -192,14 +187,14 @@ download()
         remove_dir "$target_dir"
     fi
 
-    make_dir "$dl_path/$target_dir"
+    make_dir "$target_dir"
 
     if [ -n "$3" ]; then
-        if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" 2>/dev/null >/dev/null; then
+        if ! tar -xf "$tar_file" -C "$target_dir" 2>/dev/null >/dev/null; then
             fail_fn "Failed to extract $dl_file"
         fi
     else
-        if ! tar -xf "$dl_path/$dl_file" -C "$dl_path/$target_dir" --strip-components 1 2>/dev/null >/dev/null; then
+        if ! tar -xf "$tar_file" -C "$target_dir" --strip-components 1 2>/dev/null >/dev/null; then
             fail_fn "Failed to extract $dl_file"
         fi
     fi
@@ -207,7 +202,7 @@ download()
     echo "File extracted: $dl_file"
     echo
 
-    cd "$dl_path/$target_dir" || fail_fn "Unable to change the working directory to $target_dir"
+    cd "$target_dir" || fail_fn "Unable to change the working directory to: $target_dir"
 }
 
 download_git()
@@ -221,27 +216,14 @@ download_git()
         remove_dir "$target_dir"
     fi
 
-    if [ ! -d "$target_dir" ]; then
-        echo "Downloading $dl_url as $dl_file"
-        url_down_test="$dl_url"
-        is_down="$(curl -LIs "$url_down_test")"
-        if [ -z "$is_down" ]; then
-            echo 'The git server was unresponsive.'
-            echo
-            echo 'Sleeping for 10 seconds before attempting to clone.'
-            sleep 10
-            echo
-        fi
+    echo "Downloading $dl_url as $dl_file"
+    if ! git clone -q "$dl_url" "$target_dir"; then
+        printf "\n%s\n\n%s\n\n" \
+            "The script failed to clone the git repository: $dl_file" \
+            'Sleeping for 10 seconds before trying one more time.'
+        sleep 10
         if ! git clone -q "$dl_url" "$target_dir"; then
-            echo
-            echo "The script failed to clone the git repository: $dl_file"
-            echo
-            echo 'Sleeping for 10 seconds before trying one more time.'
-            sleep 10
-            echo
-            if ! git clone -q "$dl_url" "$target_dir"; then
-                fail_fn "The script failed to download \"$dl_file\" two times and will exit the build"
-            fi
+            fail_fn "The script failed to download \"$dl_file\" twice and will now exit the build."
         fi
         echo 'Download Completed'
     fi
@@ -249,7 +231,7 @@ download_git()
     echo "File extracted: $dl_file"
     echo
 
-    cd "$target_dir" || fail_fn "Unable to change the working directory to $target_dir"
+    cd "$target_dir" || fail_fn "Unable to change the working directory to: $target_dir"
 }
 
 # create txt files to check versions
@@ -823,7 +805,7 @@ build_pkgs_fn()
           liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmimalloc-dev libmusicbrainz5-dev libncurses5-dev libnuma-dev \
           libopencv-dev libperl-dev libpstoedit-dev libraqm-dev libraw-dev librsvg2-dev librust-jemalloc-sys-dev librust-malloc-buf-dev \
           libssl-dev libtalloc-dev libtbbmalloc2 libyuv-dev libzstd-dev libzzip-dev lsb-core lshw lvm2 lzma-dev make mercurial \
-          meson ninja-build openjdk-17-jdk-headless pandoc python3 python3-pip ragel scons texi2html texinfo xmlto yasm)
+          meson ninja-build openjdk-17-jdk-headless pandoc python3 python3-pip ragel scons texi2html texinfo xmlto yasm libsdl-image1.2-dev libsdl2-dev)
 
     for pkg in ${pkgs[@]}
     do
@@ -1072,9 +1054,9 @@ fi
 pre_check_ver 'kitware/cmake' '1' 'T'
 if build 'cmake' "$g_ver" "$packages/$1.done"; then
     download "https://codeload.github.com/Kitware/CMake/tar.gz/refs/tags/v$g_ver" "cmake-$g_ver.tar.gz"
-    execute ./configure --prefix="$workspace" --parallel="$cpu_threads" --enable-ccache -- -DCMAKE_USE_OPENSSL='OFF'
-    execute make "-j$cpu_threads"
-    execute make install
+    execute ./configure --prefix="$workspace" --parallel="$cpu_threads" --enable-ccache --generator='Ninja' -- -DCMAKE_USE_OPENSSL='OFF'
+    execute ninja "-j$cpu_threads"
+    execute ninja "-j$cpu_threads" install
     build_done 'cmake' "$g_ver"
 fi
 
@@ -1099,7 +1081,7 @@ fi
 pre_check_ver 'madler/zlib' '1' 'T'
 if build 'zlib' "$g_ver"; then
     download "https://github.com/madler/zlib/releases/download/v$g_ver/zlib-$g_ver.tar.gz" "zlib-$g_ver.tar.gz"
-    execute ./configure --prefix="$workspace" --includedir="$workspace"/include --libdir="$workspace"/lib --static --64
+    execute ./configure --prefix="$workspace" --static --64
     execute make "-j$cpu_threads"
     execute make install
     build_done 'zlib' "$g_ver"
@@ -1568,8 +1550,8 @@ ffmpeg_modules+=('--enable-libmp3lame')
 pre_check_ver 'xiph/opus' '1' 'T'
 if build 'opus' "$g_ver"; then
     download "https://codeload.github.com/xiph/opus/tar.gz/refs/tags/v$g_ver" "opus-$g_ver.tar.gz"
-    make_dir 'build'
     execute autoreconf -fi
+    make_dir 'build'
     execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_SHARED_LIBS='OFF' -DCMAKE_C_FLAGS_DEBUG='-g' \
         -DCPACK_SOURCE_ZIP='OFF' -G 'Ninja' -Wno-dev
     execute ninja "-j$cpu_threads" -C 'build'
@@ -1581,8 +1563,8 @@ ffmpeg_modules+=('--enable-libopus')
 pre_check_ver 'xiph/ogg' '1' 'T'
 if build 'libogg' "$g_ver"; then
     download "https://codeload.github.com/xiph/ogg/tar.gz/refs/tags/v$g_ver" "libogg-$g_ver.tar.gz"
-    execute mkdir -p 'm4' 'build'
     execute autoreconf -fi
+    execute mkdir -p 'm4' 'build'
     execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace"  -DCMAKE_BUILD_TYPE='Release' -DBUILD_SHARED_LIBS='ON' \
         -DCPACK_BINARY_DEB='OFF' -DBUILD_TESTING='OFF'-DCPACK_SOURCE_ZIP='OFF' -DBUILD_SHARED_LIBS='OFF' -G 'Ninja' -Wno-dev
     execute ninja "-j$cpu_threads" -C 'build'
@@ -1593,8 +1575,8 @@ fi
 pre_check_ver 'xiph/vorbis' '1' 'T'
 if build 'libvorbis' "$g_ver"; then
     download "https://codeload.github.com/xiph/vorbis/tar.gz/refs/tags/v$g_ver" "libvorbis-$g_ver.tar.gz"
-    make_dir 'build'
     execute ./autogen.sh
+    make_dir 'build'
     execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_SHARED_LIBS='OFF' -G 'Ninja' -Wno-dev
     execute ninja "-j$cpu_threads" -C 'build'
     execute ninja "-j$cpu_threads" -C 'build' install
@@ -1612,9 +1594,8 @@ if build 'libtheora' "$g_ver1"; then
     execute rm 'config.guess'
     execute curl -Lso 'config.guess' 'https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess'
     chmod +x 'config.guess'
-    execute ./configure --prefix="$workspace" --with-ogg-libraries="$workspace"/lib --with-ogg-includes="$workspace"/include \
-        --with-vorbis-libraries="$workspace"/lib --with-vorbis-includes="$workspace"/include --enable-static --disable-shared \
-        --disable-oggtest --disable-vorbistest --disable-examples --disable-asm --disable-spec
+    execute ./configure --prefix="$workspace" --with-ogg="$workspace" --with-vorbis="$workspace" --with-sdl-prefix="$workspace" \
+        --enable-static --disable-shared --disable-oggtest --disable-vorbistest --disable-sdltest --disable-examples --disable-spec
     execute make "-j$cpu_threads"
     execute make install
     build_done 'libtheora' "$g_ver1"
@@ -1676,16 +1657,27 @@ if build 'libtiff' "$g_ver"; then
     build_done 'libtiff' "$g_ver"
 fi
 
+pre_check_ver 'libsdl-org/sdl' '1' 'T'
+if build 'libsdl' "$g_ver"; then
+    download "https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-$g_ver" "libsdl-$g_ver.tar.gz"
+    execute ./autogen.sh
+    execute ./configure --prefix="$workspace" --disable-shared --enable-static
+    execute make "-j$cpu_threads"
+    execute make install
+    build_done 'libsdl' "$g_ver"
+fi
+
 if build 'libwebp' 'git'; then
     download_git 'https://chromium.googlesource.com/webm/libwebp' 'libwebp-git'
     execute autoreconf -fi
     make_dir 'build'
-    execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DZLIB_INCLUDE_DIR="$workspace/include" -DBUILD_SHARED_LIBS='OFF' \
-        -DCMAKE_BUILD_TYPE='Release' -DWEBP_BUILD_EXTRAS='OFF' -DWEBP_BUILD_LIBWEBPMUX='OFF' -DWEBP_LINK_STATIC='OFF' \
-        -DWEBP_BUILD_GIF2WEBP='OFF' -DWEBP_BUILD_IMG2WEBP='OFF' -DCMAKE_EXPORT_COMPILE_COMMANDS='OFF' -DWEBP_BUILD_DWEBP='ON' \
-        -DWEBP_BUILD_CWEBP='ON' -DWEBP_BUILD_ANIM_UTILS='OFF' -DWEBP_BUILD_WEBPMUX='OFF' -DWEBP_ENABLE_SWAP_16BIT_CSP='OFF' \
-        -DWEBP_BUILD_WEBPINFO='OFF' -DWEBP_BUILD_VWEBP='OFF' -G 'Ninja' -Wno-dev
-    execute ninja "-j$cpu_threads" -C 'build' all
+    execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_INSTALL_INCLUDEDIR="$workspace/include" -DCMAKE_BUILD_TYPE='Release' \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS='OFF' -DZLIB_INCLUDE_DIR="$workspace/include" -DBUILD_SHARED_LIBS='OFF' -DWEBP_BUILD_ANIM_UTILS='ON' \
+        -DWEBP_BUILD_CWEBP='ON' -DWEBP_BUILD_DWEBP='ON' -DWEBP_BUILD_EXTRAS='ON' -DWEBP_BUILD_GIF2WEBP='ON' -DWEBP_BUILD_IMG2WEBP='ON' \
+        -DWEBP_BUILD_LIBWEBPMUX='ON' -DWEBP_BUILD_VWEBP='ON' -DWEBP_BUILD_WEBPINFO='ON' -DWEBP_BUILD_WEBPMUX='ON' -DWEBP_BUILD_WEBPMUX='ON' \
+        -DWEBP_ENABLE_SIMD='ON' -DWEBP_ENABLE_SWAP_16BIT_CSP='ON' -DWEBP_LINK_STATIC='ON' -DWEBP_NEAR_LOSSLESS='ON' -DWEBP_USE_THREAD='ON' \
+        -DPNG_LIBRARY_RELEASE="$workspace/lib/libpng.a" -G 'Ninja' -Wno-dev
+    execute ninja "-j$cpu_threads" -C 'build'
     execute ninja "-j$cpu_threads" -C 'build' install
     build_done 'libwebp' 'git'
 fi
@@ -1889,16 +1881,6 @@ if build 'freetype' "$g_ver"; then
 fi
 ffmpeg_modules+=('--enable-libfreetype')
 
-pre_check_ver 'libsdl-org/sdl' '1' 'T'
-if build 'libsdl' "$g_ver"; then
-    download "https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-$g_ver" "libsdl-$g_ver.tar.gz"
-    execute ./autogen.sh
-    execute ./configure --prefix="$workspace" --disable-shared --enable-static
-    execute make "-j$cpu_threads"
-    execute make install
-    build_done 'libsdl' "$g_ver"
-fi
-
 if $nonfree_and_gpl; then
     pre_check_ver 'Haivision/srt' '1' 'T'
     if build 'srt' '1.5.1'; then
@@ -1929,6 +1911,7 @@ pre_check_ver 'khronosgroup/opencl-headers' '1' 'T'
 if build 'opencl' "$g_ver"; then
     CFLAGS+=" -DLIBXML_STATIC_FOR_DLL -DNOLIBTOOL"
     download "https://codeload.github.com/KhronosGroup/OpenCL-Headers/tar.gz/refs/tags/v$g_ver" "opencl-$g_ver.tar.gz"
+    make_dir 'build'
     execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace"
     execute cmake --build build --target install
     build_done 'opencl' "$g_ver"
