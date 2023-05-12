@@ -1,5 +1,6 @@
 # ignore folders
 run-scripts/
+.git/
 
 # ignore files
 .gitignore
