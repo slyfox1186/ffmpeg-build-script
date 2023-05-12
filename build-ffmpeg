@@ -1927,15 +1927,6 @@ if $nonfree_and_gpl; then
     ffmpeg_modules+=('--enable-libsrt')
 fi
 
-if build 'texinfo' '7.0.3'; then
-    download 'https://ftp.gnu.org/gnu/texinfo/texinfo-7.0.3.tar.xz' 'texinfo-7.0.3.tar.xz'
-    execute autoreconf -fi
-    execute ./configure --prefix="$workspace" --enable-threads='posix' 
-    execute make "-j$cpu_threads"
-    execute make install
-    build_done 'texinfo' '7.0.3'
-fi
-
 #####################
 ## HWaccel library ##
 #####################
