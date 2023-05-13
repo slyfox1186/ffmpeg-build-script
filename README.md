@@ -83,7 +83,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 
 * `nv-codec`: [NVIDIA's GPU accelerated video codecs](https://devblogs.nvidia.com/nvidia-ffmpeg-transcoding-guide/).
   These encoders/decoders will only be available if a CUDA installation was found while building the binary.
-  Follow [these](#Cuda-installation) instructions for installation. Supported codecs in nvcodec:
+  Follow the script's instructions to install the latest CUDA SDK-TOOLKIT.
     * Decoders
         * H264 `h264_cuvid`
         * H265 `hevc_cuvid`
