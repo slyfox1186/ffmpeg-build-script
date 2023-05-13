@@ -82,9 +82,9 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 ### HardwareAccel
 
 * `nv-codec`: [CUDA SDK Toolkit Download](https://developer.nvidia.com/cuda-downloads/).
-  These encoders/decoders will only be available if a CUDA installation was found while building the binary.
-  Follow the script's instructions to install the latest CUDA SDK-TOOLKIT.
-    * Decoders
+  Follow the script's instructions to install the latest updates.
+  These encoders/decoders will only be available if a CUDA installation was found while building the binary so install the kit to unlock hardware acceleration!.
+   * Decoders
         * H264 `h264_cuvid`
         * H265 `hevc_cuvid`
         * Motion JPEG `mjpeg_cuvid`
