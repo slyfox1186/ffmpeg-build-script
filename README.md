@@ -81,7 +81,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 
 ### HardwareAccel
 
-* `nv-codec`: [NVIDIA's GPU accelerated video codecs](https://devblogs.nvidia.com/nvidia-ffmpeg-transcoding-guide/).
+* `nv-codec`: [Nvidia's CUDA SDK Toolkit Download Site](https://developer.nvidia.com/cuda-downloads/).
   These encoders/decoders will only be available if a CUDA installation was found while building the binary.
   Follow the script's instructions to install the latest CUDA SDK-TOOLKIT.
     * Decoders
