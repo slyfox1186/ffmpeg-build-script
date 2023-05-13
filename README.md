@@ -43,7 +43,6 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 
 * `x264`: H.264 Video Codec (MPEG-4 AVC)
 * `x265`: H.265 Video Codec (HEVC)
-* `openh264`: OpenH264 is a codec library which supports H.264 encoding and decoding. It is suitable for use in real time applications such as WebRTC
 * `frei0r` A collection of free and open source video effects plugins that can be used with a variety of video editing and processing software
 * `cuda` : Hardware acceleration for Nvidia graphics cards
 * `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
@@ -78,6 +77,7 @@ bash build-ffmpeg --build --enable-gpl-and-non-free --latest
 * `mediainfo`: A convenient unified display of the most relevant technical and tag data for video and audio files
 * `xml2`: XML parser and toolkit
 * `tiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
+* `mp4box/gpac`: Modular Multimedia framework for packaging, streaming and playing your favorite content, see http://netflix.gpac.io
 
 ### HardwareAccel
 
