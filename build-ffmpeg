@@ -1289,19 +1289,19 @@ if $nonfree_and_gpl; then
         mkdir -p {8,10,12}bit
         cd '12bit' || exit 1
         echo '$ making 12bit binaries'
-        execute cmake -S '../../../source' -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' -DCMAKE_REQUIRED_LIBRARIES='numa' \
+        execute cmake -S '../../../source' -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_SHARED_LIBS='OFF' -DCMAKE_REQUIRED_LIBRARIES='numa' \
             -DHIGH_BIT_DEPTH='ON' -DENABLE_HDR10_PLUS='ON' -DEXPORT_C_API='OFF' -DENABLE_CLI='OFF' -DMAIN12='ON' -G 'Ninja' -Wno-dev
         execute ninja "-j$cpu_threads"
         echo '$ making 10bit binaries'
         cd '../10bit' || exit 1
-        execute cmake -S '../../../source' -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' -DCMAKE_REQUIRED_LIBRARIES='numa' \
+        execute cmake -S '../../../source' -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_SHARED_LIBS='OFF' -DCMAKE_REQUIRED_LIBRARIES='numa' \
             -DHIGH_BIT_DEPTH='ON' -DENABLE_HDR10_PLUS='ON' -DEXPORT_C_API='OFF' -DENABLE_CLI='OFF' -G 'Ninja' -Wno-dev
         execute ninja "-j$cpu_threads"
         echo '$ making 8bit binaries'
         cd '../8bit' || exit 1
         ln -sf '../10bit/libx265.a' 'libx265_main10.a'
         ln -sf '../12bit/libx265.a' 'libx265_main12.a'
-        execute cmake -S '../../../source' -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_SHARED='OFF' -DBUILD_SHARED_LIBS='OFF' -DCMAKE_REQUIRED_LIBRARIES='numa' \
+        execute cmake -S '../../../source' -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_SHARED_LIBS='OFF' -DCMAKE_REQUIRED_LIBRARIES='numa' \
             -DEXTRA_LIB='x265_main10.a;x265_main12.a;-ldl' -DEXTRA_LINK_FLAGS='-L.' -DLINKED_10BIT='ON' -DLINKED_12BIT='ON' -G 'Ninja' -Wno-dev
         execute ninja "-j$cpu_threads"
         mv 'libx265.a' 'libx265_main.a'
@@ -1897,7 +1897,7 @@ if $nonfree_and_gpl; then
         export OPENSSL_LIB_DIR="$workspace"/lib
         export OPENSSL_INCLUDE_DIR="$workspace"/include
         make_dir 'build'
-        execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_STATIC='ON' -DENABLE_SHARED='OFF' -G 'Ninja' -Wno-dev
+        execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_STATIC='ON' -G 'Ninja' -Wno-dev
         execute ninja "-j$cpu_threads" -C 'build'
         execute ninja "-j$cpu_threads" -C 'build' install
 
