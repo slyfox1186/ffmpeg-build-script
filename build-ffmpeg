@@ -266,8 +266,8 @@ git_1_fn()
         g_ver="${g_ver#pkgconf.}"
         g_ver="${g_ver#release.}"
         g_ver="${g_ver#lcms}"
+        g_ver1="${g_ver1#nasm-}"
         g_pcre2_ver="${g_pcre2#pcre}"
-        g_ver="${g_ver#ver.}"
         g_ver="${g_ver#v}"
         g_ver1="${g_ver1#v}"
         g_ver3="${g_ver3#v}"
@@ -1086,12 +1086,15 @@ if build 'yasm' "$g_ver"; then
     build_done 'yasm' "$g_ver"
 fi
 
-if build 'nasm' '2.16.02rc1'; then
-    download "https://www.nasm.us/pub/nasm/releasebuilds/2.16.02rc1/nasm-2.16.02rc1.tar.xz" "nasm-2.16.02rc1.tar.xz"
-    execute ./configure --prefix="$workspace" --disable-shared --enable-static
-    execute make "-j$cpu_threads"
+git_ver_fn 'netwide-assembler/nasm' '1' 'T'
+if build 'nasm' "$g_ver1"; then
+    download "https://codeload.github.com/netwide-assembler/nasm/tar.gz/refs/tags/nasm-$g_ver1" "nasm-$g_ver1.tar.gz"
+    execute ./autogen.sh
+    execute ./configure --prefix="$workspace" --enable-ccache --disable-pedantic CXXFLAGS="$CXX_NAT"
+    execute make "-j$cpu_threads" everything
+    execute make strip
     execute make install
-    build_done 'nasm' '2.16.02rc1'
+    build_done 'nasm' "$g_ver1"
 fi
 
 pre_check_ver 'madler/zlib' '1' 'T'
