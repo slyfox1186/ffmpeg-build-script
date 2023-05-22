@@ -11,7 +11,7 @@ The FFmpeg build script provides an easy way to build a **static** FFmpeg on **L
 
 ## Disclaimer And Data Privacy Notice
 
-This script will download different packages with different licenses from various sources, which may track your usage. This includes prompt the user on wether to install the CUDA SDK Toolkit.
+This script will download different packages with different licenses from various sources, which may track your usage. This includes prompting the user on wether to install the CUDA SDK Toolkit.
 These sources are out of control by the developers of this script. Also, this script can create a non-free and unredistributable binary.
 By downloading and using this script, you are fully aware of this.
 
