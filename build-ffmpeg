@@ -245,6 +245,7 @@ fi
 
 # PULL THE LATEST VERSIONS OF EACH PACKAGE FROM THE WEBSITE API
 curl_timeout='10'
+git_token='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'
 
 git_1_fn()
 {
@@ -254,7 +255,13 @@ git_1_fn()
     github_repo="$1"
     github_url="$2"
 
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL https://api.github.com/repos/$github_repo/$github_url)"; then
+    if curl_cmd="$(curl \
+                        -m "$curl_timeout" \
+                        --request GET \
+                        --url "https://api.github.com/slyfox1186" \
+                        --header "Authorization: Bearer $git_token" \
+                        --header "X-GitHub-Api-Version: 2022-11-28" \
+                        -sSL https://api.github.com/repos/$github_repo/$github_url)"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name' 2>/dev/null | sed 's/\-/\./g' | sed 's/\_/\./g')"
         g_pcre2="$(echo "$curl_cmd" | jq -r '.[0].name' 2>/dev/null)"
         g_faac1="$(echo "$curl_cmd" | jq -r '.[0].tag_name' 2>/dev/null | sed 's/\-/\./g' | sed 's/\_/\./g')"
@@ -267,8 +274,8 @@ git_1_fn()
         g_ver="${g_ver#pkgconf.}"
         g_ver="${g_ver#release.}"
         g_ver="${g_ver#lcms}"
-        g_ver1="${g_ver1#nasm-}"
         g_pcre2_ver="${g_pcre2#pcre}"
+        g_ver="${g_ver#ver.}"
         g_ver="${g_ver#v}"
         g_ver1="${g_ver1#v}"
         g_ver3="${g_ver3#v}"
@@ -428,8 +435,8 @@ pre_check_ver()
 execute()
 {
     echo "$ $*"
-
-    if ! output=$("$@" 2>&1); then
+# 2>&1
+    if ! output=$("$@"); then
         fail_fn "Failed to Execute $*"
     fi
 }
@@ -1044,11 +1051,31 @@ git_test()
 ## SET COMPILER
 ##
 
-my_gcc="$(which gcc-12)"
-my_gpp="$(which g++-12)"
-my_clang="$(which clang)"
-my_clangpp="$(which clang++)"
-export CC="$my_gcc" CXX="$my_gpp"
+# find the highest gcc version you have installed and set it as your CC compiler
+if which 'gcc-13' &>/dev/null; then
+    export CC='gcc-13'
+elif which 'gcc-12' &>/dev/null; then
+    export CC='gcc-12'
+elif which 'gcc-11' &>/dev/null; then
+    export CC='gcc-11'
+elif which 'gcc' &>/dev/null; then
+    export CC='gcc'
+else
+    printf "\n%s\n\n" \
+      'You must have gcc or some high version of it installed. Please do so to take advantage of .bashrc'\''s settings.'
+fi
+
+# find the highest g++ version you have installed and set it as your CXX compiler
+if which 'g++-12' &>/dev/null; then
+    export CXX='g++-12'
+elif which 'g++-11' &>/dev/null; then
+    export CXX='g++-11'
+elif which 'g++' &>/dev/null; then
+    export CXX='g++'
+else
+    printf "\n%s\n\n" \
+      'You must have gcc or some high version of it installed. Please do so to take advantage of .bashrc'\''s settings.'
+fi
 
 if build 'giflib' '5.2.1'; then
     download 'https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.1.tar.gz' 'giflib-5.2.1.tar.gz'
@@ -1087,15 +1114,12 @@ if build 'yasm' "$g_ver"; then
     build_done 'yasm' "$g_ver"
 fi
 
-git_ver_fn 'netwide-assembler/nasm' '1' 'T'
-if build 'nasm' "$g_ver1"; then
-    download "https://codeload.github.com/netwide-assembler/nasm/tar.gz/refs/tags/nasm-$g_ver1" "nasm-$g_ver1.tar.gz"
-    execute ./autogen.sh
-    execute ./configure --prefix="$workspace" --enable-ccache --disable-pedantic CXXFLAGS="$CXX_NAT"
-    execute make "-j$cpu_threads" everything
-    execute make strip
+if build 'nasm' '2.16.02rc1'; then
+    download "https://www.nasm.us/pub/nasm/releasebuilds/2.16.02rc1/nasm-2.16.02rc1.tar.xz" "nasm-2.16.02rc1.tar.xz"
+    execute ./configure --prefix="$workspace" --disable-shared --enable-static
+    execute make "-j$cpu_threads"
     execute make install
-    build_done 'nasm' "$g_ver1"
+    build_done 'nasm' '2.16.02rc1'
 fi
 
 pre_check_ver 'madler/zlib' '1' 'T'
@@ -1893,31 +1917,28 @@ if build 'libsdl' "$g_ver"; then
     build_done 'libsdl' "$g_ver"
 fi
 
-if $nonfree_and_gpl; then
-    pre_check_ver 'Haivision/srt' '1' 'T'
-    if build 'srt' '1.5.2-rc.2'; then
-        download 'https://codeload.github.com/Haivision/srt/tar.gz/refs/tags/v1.5.2-rc.2' 'srt-1.5.2-rc.2.tar.gz'
-        export OPENSSL_ROOT_DIR="$workspace"
-        export OPENSSL_LIB_DIR="$workspace"/lib
-        export OPENSSL_INCLUDE_DIR="$workspace"/include
-        make_dir 'build'
-        execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="$workspace" -DENABLE_STATIC='ON' -G 'Ninja' -Wno-dev
-        execute ninja "-j$cpu_threads" -C 'build'
-        execute ninja "-j$cpu_threads" -C 'build' install
+if build 'srt' '1.5.1'; then
+    download 'https://github.com/Haivision/srt/archive/v1.5.1.tar.gz' 'srt-1.5.1.tar.gz'
+    export OPENSSL_ROOT_DIR="${workspace}"
+    export OPENSSL_LIB_DIR="${workspace}"/lib
+    export OPENSSL_INCLUDE_DIR="${workspace}"/include
+    execute cmake -B 'build' -DCMAKE_INSTALL_PREFIX="${workspace}" -DCMAKE_INSTALL_LIBDIR='lib' -DCMAKE_INSTALL_BINDIR='bin' -DCMAKE_INSTALL_INCLUDEDIR='include' \
+        -DENABLE_SHARED='OFF' -DENABLE_STATIC='ON' -DENABLE_APPS='OFF' -DUSE_STATIC_LIBSTDCXX='ON' -G 'Ninja'
+    execute ninja "-j$cpu_threads" -C 'build'
+    execute ninja "-j$cpu_threads" -C 'build' install
 
-        if [ -n "$LDEXEFLAGS" ]; then
-            sed -i.backup 's/-lgcc_s/-lgcc_eh/g' "$workspace"/lib/pkgconfig/srt.pc
-        fi
-
-        build_done 'srt' '1.5.2-rc.2'
+    if [ -n "$LDEXEFLAGS" ]; then
+        sed -i.backup 's/-lgcc_s/-lgcc_eh/g' "${workspace}"/lib/pkgconfig/srt.pc
     fi
-     ffmpeg_libraries+=('--enable-libsrt')
+
+    build_done 'srt' '1.5.1'
 fi
+ffmpeg_libraries+=('--enable-libsrt')
 
 pre_check_ver 'gpac/gpac' '1' 'T'
 if build 'gpac' "$g_ver"; then
     download "https://codeload.github.com/gpac/gpac/tar.gz/refs/tags/v$g_ver" "gpac-$g_ver.tar.gz"
-    execute ./configure --prefix="$workspace" --static-build --static-bin --cc="$my_gcc" --cxx="$my_gpp" --cpu='x86_64' --static-modules
+    execute ./configure --prefix="$workspace" --static-build --static-bin --cc="$CC" --cxx="$CXX" --cpu='x86_64' --static-modules
     execute make "-j$cpu_threads"
     execute make install
     build_done 'gpac' "$g_ver"
@@ -1997,8 +2018,8 @@ if build 'ffmpeg' "$ff_ver"; then
     ./configure \
             --prefix="$workspace" \
             --cpu="$cpu_cores" \
-            --cc="$my_gcc" \
-            --cxx="$my_gpp" \
+            --cc="$CC" \
+            --cxx="$CXX" \
             "${ffmpeg_enable[@]}" \
             "${ffmpeg_disable[@]}" \
             --extra-cflags="-I$workspace/include" \
