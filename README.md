@@ -26,7 +26,7 @@ Open your command line and run (wget needs to be installed):
 
 #### With GPL and non-free software, see https://ffmpeg.org/legal.html 
 ```bash
-bash <(curl -sSL https://ffmpeg.optimizethis.net) --build --latest
+bash <(curl -sSL https://ffmpeg.optimizethis.net) --build --enable-gpl-and-non-free --latest
 ```
 
 This command downloads the build script and automatically starts the build process.
