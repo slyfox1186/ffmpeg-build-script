@@ -42,7 +42,7 @@ ffmpeg_libraries=()
 nonfree_and_gpl='false'
 latest='false'
 install_dir='/usr/bin'
-repo='https://github.com/slyfox1186/script-repo'
+repo='https://github.com/slyfox1186/ffmpeg-build-script'
 
 # CREATE THE OUTPUT DIRECTORIES
 mkdir -p "$packages" "$workspace"
