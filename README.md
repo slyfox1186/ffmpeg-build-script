@@ -14,6 +14,22 @@
 
 The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary on **<ins>Debian based systems</ins>** with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
 
+**Be aware** that without using a precreated API Token from GitHub, you are limited to ***50 API calls a day***. This is imporant because the script has ***44 repositories*** with API calls during the build and if you stop the script in the middle and restart (protentially over and over) you will eventually eat up the 50 call limit and be forced to wait to continue the build UNLESS you change the curl code under `git_1_fn` and put in your own [Token](https://github.com/settings/tokens?type=beta). SO if you start the build ***<ins>let it finish</ins>***.
+
+See the below example on how to put your own token into the script.
+
+```
+    git_token='github_pat_blahblahblahblah'
+
+    if curl_cmd="$(curl \
+                        -m "$curl_timeout" \
+                        --request GET \
+                        --url "https://api.github.com/slyfox1186" \
+                        --header "Authorization: Bearer $git_token" \
+                        --header "X-GitHub-Api-Version: 2022-11-28" \
+                        -sSL "https://api.github.com/repos/$github_repo/$github_url")"; then
+```
+
 ## Disclaimer And Data Privacy Notice
 
 This script will download different packages with different licenses from various sources, which may track your usage. This includes the CUDA SDK Toolkit.
