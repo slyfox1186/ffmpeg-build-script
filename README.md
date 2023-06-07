@@ -4,34 +4,36 @@
 
 ### If you like the script, please "★" this project!
 
-build-ffmpeg
-==========
+## Install [FFmpeg](https://ffmpeg.org/download.html)
+  - **Compiles the latest updates from souce code by issuing API calls to each repositories backend**
+  - **The CUDA SDK Toolkit which unlocks Hardware Acceleration is available during the install to make things as easy as possible**
+  - **Supported OS:**
+    - Debian - 10 / 11
+    - Ubuntu - 18.04 / 20.04 / 22.04
+    - Other debian style distros may work as well
 
 The FFmpeg build script provides an easy way to build a **static** FFmpeg on **Linux Ubuntu 22.04** based systems with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
 
 ## Disclaimer And Data Privacy Notice
 
-This script will download different packages with different licenses from various sources, which may track your usage. This includes prompting the user on wether to install the CUDA SDK Toolkit.
-These sources are out of control by the developers of this script. Also, this script can create a non-free and unredistributable binary.
-By downloading and using this script, you are fully aware of this.
+This script will download different packages with different licenses from various sources, which may track your usage. This includes the CUDA SDK Toolkit.
+These sources are in control of the developers of each script which I have no control over.
+
+**Importantly**, this script creates a <ins>**non-free**</ins> and unredistributable binary at its end AND by downloading and using this script, you are <ins>**fully aware of this**</ins>.
 
 Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems
 other than Debian based OS's.
 
-## Installation
-
-### Quick install and run
-
-Open your command line and run (wget needs to be installed):
-
+### Quick installion
 #### With GPL and non-free software, see https://ffmpeg.org/legal.html 
+
+This command downloads the build script and automatically starts the build process.
+
 ```bash
 bash <(curl -sSL https://ffmpeg.optimizethis.net) --build --latest
 ```
 
-This command downloads the build script and automatically starts the build process.
-
-### Common installation (Linux)
+### Manual installation
 
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
