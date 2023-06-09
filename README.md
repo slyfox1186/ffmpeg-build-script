@@ -92,7 +92,7 @@ bash build-ffmpeg --build --latest
 * `harfbuzz`: Text shaping image processor
 * `fontconfig`: Font configuration and customization library
 * `freetype`: A freely available software library to render fonts
-* `ass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
+* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
 * `libbluray`: An open-source library designed for Blu-Ray Discs playback
 * `fribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
 * `sdl`: A cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
