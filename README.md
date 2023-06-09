@@ -68,6 +68,7 @@ bash build-ffmpeg --build --latest
 * `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
 * `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
 * `avisynth`: A powerful tool for video post-production
+* `vapoursynth`: An application for video manipulation.
 * `kvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
 * `aom`: AV1 Video Codec (Experimental and very slow!)
 * `svtav1`: SVT-AV1 Encoder and Decoder
