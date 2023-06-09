@@ -147,8 +147,6 @@ bash build-ffmpeg --build --latest
   - All required packages will be made available to download by the user's choice.
     - The packages are required for a successful build.
 
-### Tested on Ubuntu 22.04.2
-
 Example Output
 -------
 
@@ -844,6 +842,7 @@ Download Complete
 $ make PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -j 32
 $ sudo make install PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
 ```
+-------
 
 ```bash
 building FFmpeg - version 5.1.3
@@ -893,15 +892,15 @@ perl enabled              yes
 pod2man enabled           yes
 makeinfo enabled          yes
 makeinfo supports HTML    yes
-xmllint enabled           no
+xmllint enabled           yes
 
 External libraries:
-alsa                    libaom                  libfreetype             libopencore_amrwb       libtheora               libx265                 lv2                     zlib
-avisynth                libass                  libfribidi              libopenjpeg             libvidstab              libxcb                  lzma
+alsa                    libaom                  libfreetype             libopencore_amrwb       libtheora               libx265                 lv2                     xlib
+avisynth                libass                  libfribidi              libopenjpeg             libvidstab              libxcb                  lzma                    zlib
 bzlib                   libbluray               libjxl                  libopus                 libvorbis               libxcb_shm              openssl
 frei0r                  libdav1d                libkvazaar              librav1e                libvpx                  libxml2                 sdl2
 iconv                   libfdk_aac              libmp3lame              libsrt                  libwebp                 libxvid                 sndio
-lcms2                   libfontconfig           libopencore_amrnb       libsvtav1               libx264                 libzimg                 xlib
+lcms2                   libfontconfig           libopencore_amrnb       libsvtav1               libx264                 libzimg                 vapoursynth
 
 External libraries providing hardware acceleration:
 amf                     cuda_llvm               cuvid                   libnpp                  nvenc                   v4l2_m2m
@@ -1029,35 +1028,35 @@ ace                     bintext                 flv                     image_jp
 acm                     bit                     fourxm                  image_pam_pipe          lxf                     ogg                     sami                    v210
 act                     bitpacked               frm                     image_pbm_pipe          m4v                     oma                     sap                     v210x
 adf                     bmv                     fsb                     image_pcx_pipe          matroska                paf                     sbc                     vag
-adp                     boa                     fwse                    image_pfm_pipe          mca                     pcm_alaw                sbg                     vc1
-ads                     brstm                   g722                    image_pgm_pipe          mcc                     pcm_f32be               scc                     vc1t
-adx                     c93                     g723_1                  image_pgmyuv_pipe       mgsts                   pcm_f32le               scd                     vividas
-aea                     caf                     g726                    image_pgx_pipe          microdvd                pcm_f64be               sdp                     vivo
-afc                     cavsvideo               g726le                  image_phm_pipe          mjpeg                   pcm_f64le               sdr2                    vmd
-aiff                    cdg                     g729                    image_photocd_pipe      mjpeg_2000              pcm_mulaw               sds                     vobsub
-aix                     cdxl                    gdv                     image_pictor_pipe       mlp                     pcm_s16be               sdx                     voc
-alp                     cine                    genh                    image_png_pipe          mlv                     pcm_s16le               segafilm                vpk
-amr                     codec2                  gif                     image_ppm_pipe          mm                      pcm_s24be               ser                     vplayer
-amrnb                   codec2raw               gsm                     image_psd_pipe          mmf                     pcm_s24le               sga                     vqf
-amrwb                   concat                  gxf                     image_qdraw_pipe        mods                    pcm_s32be               shorten                 w64
-anm                     dash                    h261                    image_qoi_pipe          moflex                  pcm_s32le               siff                    wav
-apc                     data                    h263                    image_sgi_pipe          mov                     pcm_s8                  simbiosis_imx           wc3
-ape                     daud                    h264                    image_sunrast_pipe      mp3                     pcm_u16be               sln                     webm_dash_manifest
-apm                     dcstr                   hca                     image_svg_pipe          mpc                     pcm_u16le               smacker                 webvtt
-apng                    derf                    hcom                    image_tiff_pipe         mpc8                    pcm_u24be               smjpeg                  wsaud
-aptx                    dfa                     hevc                    image_vbn_pipe          mpegps                  pcm_u24le               smush                   wsd
-aptx_hd                 dfpwm                   hls                     image_webp_pipe         mpegts                  pcm_u32be               sol                     wsvqa
-aqtitle                 dhav                    hnm                     image_xbm_pipe          mpegtsraw               pcm_u32le               sox                     wtv
-argo_asf                dirac                   ico                     image_xpm_pipe          mpegvideo               pcm_u8                  spdif                   wv
-argo_brp                dnxhd                   idcin                   image_xwd_pipe          mpjpeg                  pcm_vidc                srt                     wve
-argo_cvg                dsf                     idf                     imf                     mpl2                    pjs                     stl                     xa
-asf                     dsicin                  iff                     ingenient               mpsub                   pmp                     str                     xbin
-asf_o                   dss                     ifv                     ipmovie                 msf                     pp_bnk                  subviewer               xmv
-ass                     dts                     ilbc                    ipu                     msnwc_tcp               pva                     subviewer1              xvag
-ast                     dtshd                   image2                  ircam                   msp                     pvf                     sup                     xwma
-au                      dv                      image2_alias_pix        iss                     mtaf                    qcp                     svag                    yop
-av1                     dvbsub                  image2_brender_pix      iv8                     mtv                     r3d                     svs                     yuv4mpegpipe
-avi                     dvbtxt                  image2pipe              ivf                     musx                    rawvideo                swf
+adp                     boa                     fwse                    image_pfm_pipe          mca                     pcm_alaw                sbg                     vapoursynth
+ads                     brstm                   g722                    image_pgm_pipe          mcc                     pcm_f32be               scc                     vc1
+adx                     c93                     g723_1                  image_pgmyuv_pipe       mgsts                   pcm_f32le               scd                     vc1t
+aea                     caf                     g726                    image_pgx_pipe          microdvd                pcm_f64be               sdp                     vividas
+afc                     cavsvideo               g726le                  image_phm_pipe          mjpeg                   pcm_f64le               sdr2                    vivo
+aiff                    cdg                     g729                    image_photocd_pipe      mjpeg_2000              pcm_mulaw               sds                     vmd
+aix                     cdxl                    gdv                     image_pictor_pipe       mlp                     pcm_s16be               sdx                     vobsub
+alp                     cine                    genh                    image_png_pipe          mlv                     pcm_s16le               segafilm                voc
+amr                     codec2                  gif                     image_ppm_pipe          mm                      pcm_s24be               ser                     vpk
+amrnb                   codec2raw               gsm                     image_psd_pipe          mmf                     pcm_s24le               sga                     vplayer
+amrwb                   concat                  gxf                     image_qdraw_pipe        mods                    pcm_s32be               shorten                 vqf
+anm                     dash                    h261                    image_qoi_pipe          moflex                  pcm_s32le               siff                    w64
+apc                     data                    h263                    image_sgi_pipe          mov                     pcm_s8                  simbiosis_imx           wav
+ape                     daud                    h264                    image_sunrast_pipe      mp3                     pcm_u16be               sln                     wc3
+apm                     dcstr                   hca                     image_svg_pipe          mpc                     pcm_u16le               smacker                 webm_dash_manifest
+apng                    derf                    hcom                    image_tiff_pipe         mpc8                    pcm_u24be               smjpeg                  webvtt
+aptx                    dfa                     hevc                    image_vbn_pipe          mpegps                  pcm_u24le               smush                   wsaud
+aptx_hd                 dfpwm                   hls                     image_webp_pipe         mpegts                  pcm_u32be               sol                     wsd
+aqtitle                 dhav                    hnm                     image_xbm_pipe          mpegtsraw               pcm_u32le               sox                     wsvqa
+argo_asf                dirac                   ico                     image_xpm_pipe          mpegvideo               pcm_u8                  spdif                   wtv
+argo_brp                dnxhd                   idcin                   image_xwd_pipe          mpjpeg                  pcm_vidc                srt                     wv
+argo_cvg                dsf                     idf                     imf                     mpl2                    pjs                     stl                     wve
+asf                     dsicin                  iff                     ingenient               mpsub                   pmp                     str                     xa
+asf_o                   dss                     ifv                     ipmovie                 msf                     pp_bnk                  subviewer               xbin
+ass                     dts                     ilbc                    ipu                     msnwc_tcp               pva                     subviewer1              xmv
+ast                     dtshd                   image2                  ircam                   msp                     pvf                     sup                     xvag
+au                      dv                      image2_alias_pix        iss                     mtaf                    qcp                     svag                    xwma
+av1                     dvbsub                  image2_brender_pix      iv8                     mtv                     r3d                     svs                     yop
+avi                     dvbtxt                  image2pipe              ivf                     musx                    rawvideo                swf                     yuv4mpegpipe
 avisynth                dxa                     image_bmp_pipe          ivr                     mv                      realtext                tak
 avr                     ea                      image_cri_pipe          jacosub                 mvi                     redspark                tedcaptions
 avs                     ea_cdata                image_dds_pipe          jv                      mxf                     rl2                     thp
