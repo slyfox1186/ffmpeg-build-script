@@ -25,7 +25,7 @@
 ##    - will be prompted by the script to install them so that hardware acceleration is
 ##    - enabled when compiling FFmpeg
 ##
-##  Last Update: 06.10.23
+##  Last Update: 06.09.23
 ##
 ##    - Added vapoursynth library
 ##
@@ -1787,10 +1787,10 @@ if build 'av1' 'd192cdf'; then
     download 'https://aomedia.googlesource.com/aom/+archive/d192cdfc229d3d4edf6a0acd2e5b71fb4880d28e.tar.gz' 'av1-d192cdf.tar.gz' 'av1'
     mkdir -p "$packages"/aom_build
     cd "$packages"/aom_build || exit 1
-    execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_INSTALL_LIBDIR="$workspace"/lib -DCMAKE_BUILD_TYPE=Release -DCONFIG_ACCOUNTING='0' \
-        -DCONFIG_ANALYZER='0' -DCONFIG_AV1_DECODER='1' -DCONFIG_AV1_ENCODER='1' -DCONFIG_AV1_HIGHBITDEPTH='1' -DCONFIG_AV1_TEMPORAL_DENOISING='0' -DCONFIG_BIG_ENDIAN='0' \
-        -DCONFIG_COLLECT_RD_STATS='0' -DCONFIG_DENOISE='1' -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8='1' -DCONFIG_ENTROPY_STATS='0' -DBUILD_SHARED_LIBS=OFF -DENABLE_CCACHE='1' \
-        -DENABLE_EXAMPLES='0' -DENABLE_TESTS='0' "$packages"/av1 -G 'Ninja' "$packages"/av1
+    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="$workspace",INSTALL_LIBDIR="$workspace"/lib,BUILD_TYPE=Release} \
+        -DCONFIG_{ANALYZER,AV1_TEMPORAL_DENOISING,BIG_ENDIAN,COLLECT_RD_STATS,ENTROPY_STATS}=0 \
+        -DCONFIG_{AV1_DECODER,AV1_ENCODER,AV1_HIGHBITDEPTH,DENOISE,DISABLE_FULL_PIXEL_SPLIT_8X8}=1 \
+        -DBUILD_SHARED_LIBS=OFF -DENABLE_{CCACHE=1,{EXAMPLES,TESTS}=0} "$packages"/av1 -G 'Ninja' "$packages"/av1
     execute ninja "-j$cpu_threads" -C build
     execute ninja "-j$cpu_threads" -C build install
     build_done 'av1' 'd192cdf'
@@ -1892,8 +1892,8 @@ fi
 pre_check_ver 'AOMediaCodec/libavif' '1' 'T'
 if build 'avif' "$g_ver"; then
     download "$g_url" "avif-$g_ver.tar.gz"
-    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="$workspace",BUILD_TYPE=Release} -DBUILD_SHARED_LIBS=OFF -DAVIF_ENABLE_GTEST=ON -DAVIF_ENABLE_WERROR=OFF \
-        -DAVIF_CODEC_AOM_ENCODE=ON -DAVIF_CODEC_AOM_DECODE=ON -G 'Ninja' -Wno-dev
+    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="$workspace",BUILD_TYPE=Release} -DBUILD_SHARED_LIBS=OFF \
+        -DAVIF_{CODEC_AOM_ENCODE,AOM_DECODE}=ON -DAVIF_ENABLE_{GTEST=ON,WERROR=OFF} -G 'Ninja' -Wno-dev
     execute ninja "-j$cpu_threads" -C build
     execute ninja "-j$cpu_threads" -C build install
     build_done 'avif' "$g_ver"
@@ -1921,6 +1921,7 @@ if build 'sdl' "$g_ver"; then
     build_done 'sdl' "$g_ver"
 fi
 CFLAGS+=" -I$workspace/include/SDL2"
+
 
 git_ver_fn '76' '2' 'T'
 if build 'libdvdread' "$g_ver1"; then
