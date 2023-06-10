@@ -66,6 +66,7 @@ bash build-ffmpeg --build --latest
 * `kvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
 * `cuda` : Hardware acceleration for Nvidia graphics cards
 * `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
+* `cyanrip`: Fully featured CD ripping program able to take out most of the tedium. Fully accurate, has advanced features most rippers don't, yet has no bloat and is cross-platform.
 * `vpx`: VP8 / VP9 Video Codec for the WebM video file format
 * `frei0r` A collection of free and open source video effects plugins that can be used with a variety of video editing and processing software
 * `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
