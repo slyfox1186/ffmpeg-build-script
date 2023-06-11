@@ -3,9 +3,9 @@
 
 ############################################################################################
 ##
-##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
+##  GitHub: 
 ##
-##  Supported Distro:
+##  Supported Distro: https://github.com/slyfox1186/ffmpeg-build-script
 ##
 ##    - Ubuntu 18.04 | 20.04 | 22.04
 ##    - Debian 10 | 11
@@ -759,7 +759,7 @@ cuda_download_fn()
 
     cuda_ver="$(cat '/usr/local/cuda/version.json' | jq -r '.cuda.version')"
 
-    if [ -z "$cuda_path" ]; then
+    if [ -z "$cuda_ver" ]; then
         cuda_fail_fn
     else
         export PATH="$PATH:$cuda_path"
