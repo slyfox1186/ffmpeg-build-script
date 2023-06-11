@@ -3,7 +3,7 @@
 
 ############################################################################################
 ##
-##  GitHub: https://github.com/slyfox1186/script-repo
+##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
 ##  Supported Distros
 ##
@@ -55,7 +55,7 @@ EXTRALIBS='-ldl -lpthread -lm -lz'
 ffmpeg_libraries=()
 latest='false'
 install_dir='/usr/local/bin'
-repo='https://github.com/slyfox1186/script-repo'
+repo='https://github.com/slyfox1186/ffmpeg-build-script'
 
 #
 # SET C++ LINKER OPTIMIZATION FLAGS TO TUNE THE BUILD FOR THE SPECIFIC COMPUTER THAT IS RUNNING THIS SCRIPT
