@@ -5,16 +5,18 @@
 ### If you like the script, please "★" this project!
 
 ## Install [FFmpeg](https://ffmpeg.org/download.html)
-  - **Compiles the latest updates from souce code by issuing API calls to each repositories backend**
+The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary on **<ins>Debian based systems</ins>** with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
+
+- **Compiles the latest updates from souce code by issuing API calls to each repositories backend**
   - **The CUDA SDK Toolkit which unlocks Hardware Acceleration is available during the install to make things as easy as possible**
   - **Supported OS:**
     - Debian - 10 / 11
     - Ubuntu - 18.04 / 20.04 / 22.04
     - Other debian style distros may work as well
 
-## Imporant GitHub API info
-The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary on **<ins>Debian based systems</ins>** with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
 
+
+## Imporant GitHub API info
 **Be aware** that without using a pre-created API Token from GitHub, you are limited to ***50 API calls a day***. This is imporant because the script has ***44 repositories*** with API calls during the build and if you stop the script in the middle and restart (protentially over and over) you will eventually eat up the 50 call limit and be forced to wait to continue the build ***unless*** you change the curl code under `git_1_fn` and put in your own [Token](https://github.com/settings/tokens?type=beta).
 
 ### If you start the build ***<ins>let it finish</ins>***
