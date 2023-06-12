@@ -56,7 +56,7 @@ This command downloads the build script and automatically starts the build proce
 bash <(curl -sSL https://ffmpeg.optimizethis.net) --build --latest
 ```
 
-### Manual installation
+These commands clone the build script and start the build.
 
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
