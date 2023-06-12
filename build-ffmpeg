@@ -1215,14 +1215,14 @@ if build 'yasm' "$g_ver"; then
     build_done 'yasm' "$g_ver"
 fi
 
-if build 'nasm' '2.16.02rc1'; then
-    download "https://www.nasm.us/pub/nasm/releasebuilds/2.16.02rc1/nasm-2.16.02rc1.tar.xz" "nasm-2.16.02rc1.tar.xz"
+if build 'nasm' '2.16.01'; then
+    download 'https://www.nasm.us/pub/nasm/stable/nasm-2.16.01.tar.xz' 'nasm-2.16.01.tar.xz'
     execute autoupdate
     execute ./configure --prefix="$workspace"
     execute make "-j$cpu_threads"
     execute make install
     execute make distclean
-    build_done 'nasm' '2.16.02rc1'
+    build_done 'nasm' '2.16.01'
 fi
 
 # UBUNTU BIONIC FAILS TO BUILD XML2
