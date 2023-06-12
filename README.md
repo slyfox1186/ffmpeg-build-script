@@ -26,7 +26,7 @@ See the below example on how to put your own token into the script.
     if curl_cmd="$(curl \
                         -m "$curl_timeout" \
                         --request GET \
-                        --url "https://api.github.com/slyfox1186" \
+                        --url "https://api.github.com/<username here>" \
                         --header "Authorization: Bearer $git_token" \
                         --header "X-GitHub-Api-Version: 2022-11-28" \
                         -sSL "https://api.github.com/repos/$github_repo/$github_url")"; then
