@@ -1077,7 +1077,7 @@ fi
 if build 'make' '4.4.1'; then
     download 'https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz'
     execute autoreconf -fi
-    execute ./configure --prefix="$workspace" --with-{dmalloc,guile}
+    execute ./configure --prefix="$workspace" --with-dmalloc --without-guile
     execute make "-j$(($cpu_threads-1))"
     execute make install
     execute make distclean
