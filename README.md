@@ -1,5 +1,3 @@
-[![build test](https://github.com/markus-perl/ffmpeg-build-script/workflows/build%20test/badge.svg?branch=master)](https://github.com/markus-perl/ffmpeg-build-script/actions)
-
 # FFmpeg Build Script
 
 ### If you like the script, please "★" this project!
