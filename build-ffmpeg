@@ -53,13 +53,14 @@ cwd="$PWD"/ffmpeg-build-script
 packages="$cwd"/packages
 workspace="$cwd"/workspace
 install_prefix=/usr/local
-CFLAGS="-I$workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/include/libopenmpt-g -O3 -march=native"
-CXXFLAGS='-g -O3 -march=native'
+CFLAGS="-I$workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2"
+CFLAGS+=' -g -O2 -flto -ffunction-sections -fdata-sections -pipe -march=native'
+CXXFLAGS='-g -O2 -flto -ffunction-sections -fdata-sections -pipe -march=native'
 LDFLAGS="-L$workspace/lib64 -L$workspace/lib -L$workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/local/cuda/nvvm/lib64"
-LDFLAGS+=' -L/usr/local/cuda/targets/x86_64-linux/lib -L/usr/lib -L/usr/lib/x86_64-linux-gnu -L/lib/x86_64-linux-gnu -L/lib'
+LDFLAGS+=' -L/usr/local/cuda/targets/x86_64-linux/lib -L/usr/lib64 -L/usr/lib -L/usr/lib/x86_64-linux-gnu -L/lib/x86_64-linux-gnu -L/lib64 -L/lib'
 CPPFLAGS="-I$workspace/include -I/usr/local/include -I/usr/include"
 LDEXEFLAGS=
-EXTRALIBS="-ldl -lpthread -lm -lz $(pkg-config --libs sdl2)"
+EXTRALIBS='-ldl -lpthread -lm -lz'
 ffmpeg_libraries=()
 latest=false
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
@@ -263,9 +264,9 @@ git_1_fn()
 
 git_2_fn()
 {
-    videolan_repo="$1"
-    videolan_url="$2"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://code.videolan.org/api/v4/projects/$videolan_repo/repository/$videolan_url")"; then
+    repo="$1"
+    url="$2"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://code.videolan.org/api/v4/projects/$repo/repository/$url")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].commit.id')"
         g_sver="$(echo "$curl_cmd" | jq -r '.[0].commit.short_id')"
         g_sver="${g_sver::7}"
@@ -276,9 +277,9 @@ git_2_fn()
 
 git_3_fn()
 {
-    gitlab_repo="$1"
-    gitlab_url="$2"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.com/api/v4/projects/$gitlab_repo/repository/$gitlab_url")"; then
+    repo="$1"
+    url="$2"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.com/api/v4/projects/$repo/repository/$url")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
         g_ver1="$(echo "$curl_cmd" | jq -r '.[0].commit.id')"
@@ -290,8 +291,8 @@ git_3_fn()
 
 git_4_fn()
 {
-    gitlab_repo="$1"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.freedesktop.org/api/v4/projects/$gitlab_repo/repository/tags")"; then
+    repo="$1"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.freedesktop.org/api/v4/projects/$repo/repository/tags")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#pkg-config-}"
         g_ver="${g_ver#VER-}"
@@ -300,7 +301,7 @@ git_4_fn()
 
 git_5_fn()
 {
-    gitlab_repo="$1"
+    repo="$1"
     if curl_cmd="$(curl -m "$curl_timeout" -sSL 'https://bitbucket.org/!api/2.0/repositories/multicoreware/x265_git/effective-branching-model')"; then
         g_sver="$(echo "$curl_cmd" | jq '.development.branch.target' | grep -Eo '[0-9a-z][0-9a-z]+' | sort | head -n 1)"
         g_ver="${g_sver::7}"
@@ -309,8 +310,8 @@ git_5_fn()
 
 git_6_fn()
 {
-    gitlab_repo="$1"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.gnome.org/api/v4/projects/$gitlab_repo/repository/tags")"; then
+    repo="$1"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
     fi
@@ -318,8 +319,8 @@ git_6_fn()
 
 git_7_fn()
 {
-    gitlab_repo="$1"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://git.archive.org/api/v4/projects/$gitlab_repo/repository/tags")"; then
+    repo="$1"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://git.archive.org/api/v4/projects/$repo/repository/tags")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
     fi
@@ -327,8 +328,8 @@ git_7_fn()
 
 git_8_fn()
 {
-    gitlab_repo="$1"
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.kitware.com/api/v4/projects/$gitlab_repo/repository/tags")"; then
+    repo="$1"
+    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.kitware.com/api/v4/projects/$repo/repository/tags")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
     fi
@@ -445,7 +446,10 @@ library_exists()
     return 0
 }
 
-build_done() { echo "$2" > "$packages/$1.done"; }
+build_done()
+{
+    echo "$2" > "$packages/$1.done"
+}
 
 installed() { return $(dpkg-query -W -f '${Status}\n' "$1" 2>&1 | awk '/ok installed/{print 0;exit}{print 1}'); }
 
@@ -464,54 +468,56 @@ gpu_arch_fn()
     fi
 
     case "$gpu_name" in
-        'NVIDIA GeForce GT 1010') gpu_type=1;;
-        'NVIDIA GeForce GTX 1030') gpu_type=1;;
-        'NVIDIA GeForce GTX 1050') gpu_type=1;;
-        'NVIDIA GeForce GTX 1060') gpu_type=1;;
-        'NVIDIA GeForce GTX 1070') gpu_type=1;;
-        'NVIDIA GeForce GTX 1080') gpu_type=1;;
-        'NVIDIA TITAN Xp') gpu_type=1;;
-        'NVIDIA Tesla P40') gpu_type=1;;
-        'NVIDIA Tesla P4') gpu_type=1;;
-        'NVIDIA GeForce GTX 1180') gpu_type=2;;
+        'NVIDIA GeForce GT 1010')     gpu_type=1;;
+        'NVIDIA GeForce GTX 1030')    gpu_type=1;;
+        'NVIDIA GeForce GTX 1050')    gpu_type=1;;
+        'NVIDIA GeForce GTX 1060')    gpu_type=1;;
+        'NVIDIA GeForce GTX 1070')    gpu_type=1;;
+        'NVIDIA GeForce GTX 1080')    gpu_type=1;;
+        'NVIDIA TITAN Xp')            gpu_type=1;;
+        'NVIDIA Tesla P40')           gpu_type=1;;
+        'NVIDIA Tesla P4')            gpu_type=1;;
+        'NVIDIA GeForce GTX 1180')    gpu_type=2;;
         'NVIDIA GeForce GTX Titan V') gpu_type=2;;
-        'NVIDIA Quadro GV100') gpu_type=2;;
-        'NVIDIA Tesla V100') gpu_type=2;;
+        'NVIDIA Quadro GV100')        gpu_type=2;;
+        'NVIDIA Tesla V100')          gpu_type=2;;
         'NVIDIA GeForce GTX 1660 Ti') gpu_type=3;;
-        'NVIDIA GeForce RTX 2060') gpu_type=3;;
-        'NVIDIA GeForce RTX 2070') gpu_type=3;;
-        'NVIDIA GeForce RTX 2080') gpu_type=3;;
-        'NVIDIA Quadro RTX 4000') gpu_type=3;;
-        'NVIDIA Quadro RTX 5000') gpu_type=3;;
-        'NVIDIA Quadro RTX 6000') gpu_type=3;;
-        'NVIDIA Quadro RTX 8000') gpu_type=3;;
-        'NVIDIA T1000') gpu_type=3;;
-        'NVIDIA T2000') gpu_type=3;;
-        'NVIDIA Tesla T4') gpu_type=3;;
-        'NVIDIA GeForce RTX 3050') gpu_type=4;;
-        'NVIDIA GeForce RTX 3060') gpu_type=4;;
-        'NVIDIA GeForce RTX 3070') gpu_type=4;;
-        'NVIDIA GeForce RTX 3080') gpu_type=4;;
+        'NVIDIA GeForce RTX 2060')    gpu_type=3;;
+        'NVIDIA GeForce RTX 2070')    gpu_type=3;;
+        'NVIDIA GeForce RTX 2080')    gpu_type=3;;
+        'NVIDIA Quadro RTX 4000')     gpu_type=3;;
+        'NVIDIA Quadro RTX 5000')     gpu_type=3;;
+        'NVIDIA Quadro RTX 6000')     gpu_type=3;;
+        'NVIDIA Quadro RTX 8000')     gpu_type=3;;
+        'NVIDIA T1000')               gpu_type=3;;
+        'NVIDIA T2000')               gpu_type=3;;
+        'NVIDIA Tesla T4')            gpu_type=3;;
+        'NVIDIA GeForce RTX 3050')    gpu_type=4;;
+        'NVIDIA GeForce RTX 3060')    gpu_type=4;;
+        'NVIDIA GeForce RTX 3070')    gpu_type=4;;
+        'NVIDIA GeForce RTX 3080')    gpu_type=4;;
         'NVIDIA GeForce RTX 3080 Ti') gpu_type=4;;
-        'NVIDIA GeForce RTX 3090') gpu_type=4;;
-        'NVIDIA RTX A2000') gpu_type=4;;
-        'NVIDIA RTX A3000') gpu_type=4;;
-        'NVIDIA RTX A4000') gpu_type=4;;
-        'NVIDIA RTX A5000') gpu_type=4;;
-        'NVIDIA RTX A6000') gpu_type=4;;
-        'NVIDIA GeForce RTX 4080') gpu_type=5;;
-        'NVIDIA GeForce RTX 4090') gpu_type=5;;
-        'NVIDIA H100') gpu_type='6';;
+        'NVIDIA GeForce RTX 3090')    gpu_type=4;;
+        'NVIDIA RTX A2000')           gpu_type=4;;
+        'NVIDIA RTX A3000')           gpu_type=4;;
+        'NVIDIA RTX A4000')           gpu_type=4;;
+        'NVIDIA RTX A5000')           gpu_type=4;;
+        'NVIDIA RTX A6000')           gpu_type=4;;
+        'NVIDIA GeForce RTX 4080')    gpu_type=5;;
+        'NVIDIA GeForce RTX 4090')    gpu_type=5;;
+        'NVIDIA H100')                gpu_type=6;;
+        *)                            fail_fn 'Unable to define the variable "gpu_type" in the function "gpu_arch_fn".';;
     esac
 
     if [ -n "$gpu_type" ]; then
         case "$gpu_type" in
-            1) gpu_arch=compute_61,code=sm_61;;
-            2) gpu_arch=compute_70,code=sm_70;;
-            3) gpu_arch=compute_75,code=sm_75;;
-            4) gpu_arch=compute_86,code=sm_86;;
-            5) gpu_arch=compute_89,code=sm_89;;
-            6) gpu_arch=compute_90,code=sm_90;;
+            1)      gpu_arch=compute_61,code=sm_61;;
+            2)      gpu_arch=compute_70,code=sm_70;;
+            3)      gpu_arch=compute_75,code=sm_75;;
+            4)      gpu_arch=compute_86,code=sm_86;;
+            5)      gpu_arch=compute_89,code=sm_89;;
+            6)      gpu_arch=compute_90,code=sm_90;;
+            *)      fail_fn 'Unable to define the variable "gpu_arch" in the function "gpu_arch_fn".';;
         esac
     else
         fail_fn 'Failed to find the variable: gpu_type'
@@ -572,8 +578,8 @@ do
     esac
 done
 
-if [ -z "$bflag" ]; then
-    if [ -z "$cflag" ]; then
+if [ -z "${bflag}" ]; then
+    if [ -z "${cflag}" ]; then
         usage
         echo
         exit 1
@@ -581,8 +587,8 @@ if [ -z "$bflag" ]; then
     exit 0
 fi
 
-if [ -n "$LDEXEFLAGS" ]; then
-    echo 'The script has been configured to run in full static mode.'
+if [ -n "${LDEXEFLAGS}" ]; then
+    printf "%s\n\n" 'The script has been configured to run in full static mode.'
 fi
 
 #
@@ -590,15 +596,13 @@ fi
 #
 
 find_java="$(sudo find /usr/lib/jvm -type d -name java-*-openjdk-*)"
-JAVA_HOME="$find_java"
+JAVA_HOME="${find_java}"
 export JAVA_HOME
 
 #
 # SET THE PATH VARIABLE
 #
 
-path_fn()
-{
 PATH="\
 /usr/lib/ccache:\
 $workspace/bin:\
@@ -614,8 +618,6 @@ $HOME/.local/bin:\
 /snap/bin\
 "
 export PATH
-}
-path_fn
 
 PKG_CONFIG_PATH="\
 $workspace/lib64/pkgconfig:\
@@ -643,7 +645,7 @@ cuda_download_fn()
 {
     clear
 
-    local cuda_dist_choice cuda_url
+    local cuda_choice cuda_url
 
      mkdir -p "$packages/nvidia-cuda"
 
@@ -657,13 +659,13 @@ cuda_download_fn()
         '[5] Ubuntu WSL' \
         '[6] Skip this'
 
-    read -p 'Your choices are (1 to 7): ' cuda_dist_choice
+    read -p 'Your choices are (1 to 7): ' cuda_choice
     clear
 
     cuda_url='https://developer.download.nvidia.com/compute/cuda'
 
-    case "$cuda_dist_choice" in
-        1)cuda_dist_choice
+    case "$cuda_choice" in
+        1)
             wget --show progress -cqO "$packages/nvidia-cuda/cuda-$cuda_ver.deb" "$cuda_url/$cuda_ver/local_installers/cuda-repo-debian10-12-2-local_12.2.1-535.86.10-1_amd64.deb"
             sudo dpkg -i "$packages/nvidia-cuda/cuda-$cuda_ver.deb"
             sudo cp -f /var/cuda-repo-debian10-12-2-local/cuda-*-keyring.gpg /usr/share/keyrings/
@@ -701,7 +703,7 @@ cuda_download_fn()
             clear
             fail_fn 'Bad user input. Resetting script...'
             sleep 2
-            unset cuda_dist_choice
+            unset cuda_choice
             clear
             cuda_download_fn
             ;;
@@ -779,7 +781,7 @@ pkgs_fn()
         'Installing the required APT packages' \
         '=============================================='
 
-    pkgs=("$1" ant apt asciidoc autoconf automake autopoint binutils bison build-essential cargo ccache
+    pkgs=("$1" ant apt asciidoc autoconf autoconf-archive automake autopoint binutils bison build-essential cargo ccache
           checkinstall clang cmake curl doxygen fcitx-libs-dev flex flite1-dev freeglut3-dev frei0r-plugins-dev
           gawk gettext git gnome-desktop-testing gnustep-gui-runtime google-perftools gperf gtk-doc-tools
           guile-3.0-dev help2man jq junit ladspa-sdk libasound2-dev libass-dev libaudio-dev libavfilter-dev
@@ -1330,7 +1332,7 @@ if build 'libwebp' 'git'; then
     download_git 'https://chromium.googlesource.com/webm/libwebp' 'libwebp-git'
     execute autoreconf -fi
     execute cmake -B build -DCMAKE_{INSTALL_PREFIX="$workspace",INSTALL_INCLUDEDIR="$workspace"/include,BUILD_TYPE=Release} \
-        -DZLIB_INCLUDE_DIR="$workspace"/include -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS_RELEASE='-g -O3 -DNDEBUG -march=native' \
+        -DZLIB_INCLUDE_DIR="$workspace"/include -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS_RELEASE='-g -O2 -flto -ffunction-sections -fdata-sections -pipe -march=native' \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF -DWEBP_{BUILD_CWEBP,BUILD_DWEBP}=ON -G Ninja -Wno-dev \
         -DWEBP_{BUILD_ANIM_UTILS,BUILD_EXTRAS,BUILD_GIF2WEBP,BUILD_IMG2WEBP,BUILD_LIBWEBPMUX}=OFF \
         -DWEBP_{BUILD_VWEBP,BUILD_WEBPINFO,BUILD_WEBPMUX,ENABLE_SWAP_16BIT_CSP,LINK_STATIC}=OFF
@@ -1914,7 +1916,7 @@ ffmpeg_libraries+=('--enable-amf')
 pre_check_ver 'gpac/gpac' '1' 'T'
 if build 'gpac' "$g_ver"; then
     download "https://codeload.github.com/gpac/gpac/tar.gz/refs/tags/v$g_ver" "gpac-$g_ver.tar.gz"
-    execute ./configure --prefix="$workspace" --enable-gprof --static-{bin,modules} --extra-cflags="$CFLAGS"
+    execute ./configure --prefix="$workspace" --enable-gprof --static-{bin,modules} --extra-cflags="${cflag}S"
     execute make "-j$cpu_threads"
     execute make install
     execute make distclean
@@ -1993,7 +1995,7 @@ EOF
 
     execute ninja "-j$cpu_threads" install
 
-    if [ -n "$LDEXEFLAGS" ]; then
+    if [ -n "${LDEXEFLAGS}" ]; then
         sed -i.backup 's/lgcc_s/lgcc_eh/g' "$workspace"/lib/pkgconfig/x265.pc
     fi
 
@@ -2011,7 +2013,7 @@ fi
 ffmpeg_libraries+=('--enable-libx265')
 
 # Vaapi doesn't work well with static links FFmpeg.
-if [ -z "$LDEXEFLAGS" ]; then
+if [ -z "${LDEXEFLAGS}" ]; then
     # If the libva development SDK is installed, enable vaapi.
     if library_exists 'libva'; then
         if build 'vaapi' '1'; then
@@ -2032,7 +2034,7 @@ if [ -n "$iscuda" ]; then
     LDFLAGS+=' -L/usr/local/cuda/lib64'
     ffmpeg_libraries+=(--enable-{cuda-nvcc,cuda-llvm,cuvid,nvenc})
 
-    if [ -z "$LDEXEFLAGS" ]; then
+    if [ -z "${LDEXEFLAGS}" ]; then
         ffmpeg_libraries+=('--enable-libnpp')
     fi
 
@@ -2052,7 +2054,7 @@ if build 'srt' "$g_ver"; then
         -DENABLE_{APPS=OFF,SHARED=OFF,STATIC=ON} -DUSE_STATIC_LIBSTDCXX=ON -G Ninja -Wno-dev
     execute ninja -C build "-j$cpu_threads"
     execute ninja -C build "-j$cpu_threads" install
-    if [ -n "$LDEXEFLAGS" ]; then
+    if [ -n "${LDEXEFLAGS}" ]; then
         sed -i.backup 's/-lgcc_s/-lgcc_eh/g' "$workspace"/lib/pkgconfig/srt.pc
     fi
     build_done 'srt' "$g_ver"
@@ -2230,9 +2232,9 @@ if build 'ffmpeg' "$ffmpeg_ver"; then
         --enable-small                            \
         --enable-static                           \
         --enable-version3                         \
-        --extra-cflags="$CFLAGS"                  \
+        --extra-cflags="${cflag}S"                  \
         --extra-cxxflags="$CXXFLAGS"              \
-        --extra-ldexeflags="$LDEXEFLAGS"          \
+        --extra-ldexeflags="${LDEXEFLAGS}"          \
         --extra-ldflags="$LDFLAGS"                \
         --extra-libs="$EXTRALIBS"                 \
         --extra-version="$EXTRA_VERSION"          \
