@@ -25,7 +25,8 @@ See the below example on how to put your own token into the script.
     git_token='github_pat_blahblahblahblah'
 
     if curl_cmd="$(curl \
-                        -m "$curl_timeout" \
+                        -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36' \
+                        -m 10 \
                         --request GET \
                         --url "https://api.github.com/<username here>" \
                         --header "Authorization: Bearer $git_token" \
