@@ -27,7 +27,7 @@
 ##    - will be prompted by the script to install them so that hardware acceleration is
 ##    - enabled when compiling FFmpeg
 ##
-##  Last Update: 08.31.23
+##  Last Update: 09.07.23
 ##
 ##  Added: Debian OS Support for Bookworm (12)
 ##  Added: cyanrip
@@ -606,7 +606,7 @@ fi
 # SET GLOBAL VARIABLES
 #
 
-find_java="$(sudo find /usr/lib/jvm -type d -name java-*-openjdk-*)"
+find_java="$(sudo find /usr/lib/jvm -type d -name java-*-openjdk-* | head -n1)"
 JAVA_HOME="${find_java}"
 export JAVA_HOME
 
@@ -845,7 +845,7 @@ ffmpeg_install_test()
             printf "\n%s\n\n%s\n\n%s\n\n" \
                 "Unable to locate the binary file: ${workspace}/bin/${i}" \
                 "Please report this at:" \
-                "${repo}/issues"
+                "${web_repo}/issues"
             read -p 'You can press enter to continue, however, please consider creating an issue report.'
             clear
         fi
@@ -958,7 +958,8 @@ ubuntu_os_version()
     jammy_lunar_pkgs+=' libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libde265-dev'
 
     case "${VER}" in
-        23.04|22.04)    pkgs_fn "${jammy_lunar_pkgs}";;
+        23.04|22.10)    pkgs_fn "${jammy_lunar_pkgs} librist-dev";;
+        22.04)          pkgs_fn "${jammy_lunar_pkgs}";;
         20.04)          pkgs_fn "${focal_pkgs}";;
         18.04)          pkgs_fn "${bionic_pkgs}";;
         *)              fail_fn 'Could not detect the Ubuntu version.';;
@@ -1091,15 +1092,15 @@ if build 'autoconf' 'latest'; then
     build_done 'autoconf' 'latest'
 fi
 
-if build 'libtool' '2.4.7'; then
-    download 'https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.xz'
+if build 'libtool' '2.4.6'; then
+    download 'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz'
     execute ./configure --prefix="${workspace}"     \
                         --{build,host}="${pc_type}" \
                         --with-pic \
                         M4="${workspace}"/bin/m4
     execute make "-j${cpu_threads}"
     execute make install
-    build_done 'libtool' '2.4.7'
+    build_done 'libtool' '2.4.6'
 fi
 
 if build 'pkg-config' '0.29.2'; then
@@ -1353,7 +1354,7 @@ if build 'libwebp' 'git'; then
     execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} \
         -DWEBP_{BUILD_ANIM_UTILS,BUILD_EXTRAS,BUILD_GIF2WEBP,BUILD_IMG2WEBP,BUILD_LIBWEBPMUX}=OFF \
         -DWEBP_{BUILD_VWEBP,BUILD_WEBPINFO,BUILD_WEBPMUX,ENABLE_SWAP_16BIT_CSP,LINK_STATIC}=OFF \
-        -DWEBP_{BUILD_CWEBP,BUILD_DWEBP}=ON -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR=/usr/include \
+        -DWEBP_{BUILD_CWEBP,BUILD_DWEBP}=ON -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR="${workspace}" \
         -G Ninja -Wno-dev
     execute ninja "-j${cpu_threads}" -C build
     execute ninja "-j${cpu_threads}" -C build install
@@ -1844,7 +1845,13 @@ git_ver_fn '206' '2' 'T'
 if build 'libbluray' "${g_ver1}"; then
     download "https://code.videolan.org/videolan/libbluray/-/archive/${g_ver1}/${g_ver1}.tar.gz" "libbluray-${g_ver1}.tar.gz"
     execute autoreconf -fi
-    execute ./configure --prefix="${workspace}" --disable-shared --without-libxml2
+    execute ./bootstrap
+    execute ./configure --prefix="${workspace}"            \
+                        --disable-extra-warnings           \
+                        --disable-shared                   \
+                        --disable-werror                   \
+                        --without-libxml2                  \
+                        PKG_CONFIG="$(type -P pkg-config)"
     execute make "-j${cpu_threads}"
     execute make install
     build_done 'libbluray' "${g_ver1}"
