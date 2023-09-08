@@ -27,7 +27,7 @@
 ##    - will be prompted by the script to install them so that hardware acceleration is
 ##    - enabled when compiling FFmpeg
 ##
-##  Last Update: 09.07.23
+##  Last Update: 08.31.23
 ##
 ##  Added: Debian OS Support for Bookworm (12)
 ##  Added: cyanrip
@@ -607,8 +607,7 @@ fi
 #
 
 find_java="$(sudo find /usr/lib/jvm -type d -name java-*-openjdk-* | head -n1)"
-JAVA_HOME="${find_java}"
-export JAVA_HOME
+export JAVA_HOME="${find_java}"
 
 #
 # SET THE PATH VARIABLE
@@ -727,7 +726,7 @@ cuda_download_fn()
     cuda_ver="$(cat /usr/local/cuda/version.json | jq -r '.cuda.version')"
 
     if [ -z "${cuda_ver}" ]; then
-        fail_fn 'Unable to locate the file: /usr/local/cuda/version.json'
+        fail_fn "Unable to locate the file: /usr/local/cuda/version.json:${LINENO}"
     else
         export PATH="${PATH}:${cuda_path}"
     fi
@@ -760,7 +759,7 @@ install_cuda_fn()
         case "${choice}" in
                 1)      cuda_download_fn;;
                 2)      export PATH="${PATH}:${cuda_path}";;
-                *)      fail_fn 'Bad user input.';;
+                *)      fail_fn "Bad user input.:${LINENO}";;
         esac
     else
         printf "\n%s\n\n%s\n%s\n\n%s\n%s\n\n" \
@@ -1092,20 +1091,27 @@ if build 'autoconf' 'latest'; then
     build_done 'autoconf' 'latest'
 fi
 
-if build 'libtool' '2.4.6'; then
-    download 'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz'
+case "${OS}" in
+    Debian*)    libtool_ver='2.4.7';;
+    Ubuntu)     libtool_ver='2.4.6';;
+    *)          fail_fn "Unable to get the OS version:${LINENO}"
+esac
+
+if build 'libtool' "${libtool_ver}"; then
+    download "https://ftp.gnu.org/gnu/libtool/libtool-${libtool_ver}.tar.xz"
     execute ./configure --prefix="${workspace}"     \
                         --{build,host}="${pc_type}" \
                         --with-pic \
                         M4="${workspace}"/bin/m4
     execute make "-j${cpu_threads}"
     execute make install
-    build_done 'libtool' '2.4.6'
+    build_done 'libtool' "${libtool_ver}"
 fi
 
 if build 'pkg-config' '0.29.2'; then
     download "https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
-    execute ./configure --prefix="${workspace}" --with-pc-path="${PKG_CONFIG_PATH}"
+    execute ./configure --prefix="${workspace}" \
+                        --with-pc-path="${PKG_CONFIG_PATH}"
     execute make "-j${cpu_threads}"
     execute make install
     build_done 'pkg-config' '0.29.2'
@@ -1122,7 +1128,8 @@ fi
 
 if build 'openssl' '3.1.2'; then
     download 'https://www.openssl.org/source/openssl-3.1.2.tar.gz'
-    execute ./Configure --prefix=/usr/local                        \
+    execute ./Configure --prefix="${workspace}"                    \
+                        --openssldir="${workspace}"/lib/ssl        \
                         enable-egd                                 \
                         enable-fips                                \
                         enable-md2                                 \
@@ -1245,8 +1252,11 @@ if build 'freetype' "${g_ver1}"; then
     download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-${g_ver}/freetype-VER-${g_ver}.tar.bz2" "freetype-${g_ver1}.tar.bz2"
     extracommands=(-D{harfbuzz,png,bzip2,brotli,zlib,tests}'=disabled')
     execute ./autogen.sh
-    execute meson setup build --prefix="${workspace}" --libdir="${workspace}"/lib \
-        --buildtype=release --default-library=static --strip "${extracommands[@]}"
+    execute meson setup build --prefix="${workspace}"     \
+                              --libdir="${workspace}"/lib \
+                              --buildtype=release         \
+                              --default-library=static    \
+                              --strip "${extracommands[@]}"
     execute ninja "-j${cpu_threads}" -C build
     execute ninja "-j${cpu_threads}" -C build install
 build_done 'freetype' "${g_ver1}"
@@ -1261,7 +1271,8 @@ if build 'fontconfig' "${g_ver}"; then
     execute autoupdate
     LDFLAGS+=' -DLIBXML_STATIC'
     sed -i 's|Cflags:|& -DLIBXML_STATIC|' fontconfig.pc.in
-    execute ./configure --prefix="${workspace}" --disable-{docs,shared}
+    execute ./configure --prefix="${workspace}" \
+                        --disable-{docs,shared}
     execute make "-j${cpu_threads}"
     execute make install
     build_done 'fontconfig' "${g_ver}"
@@ -1275,8 +1286,11 @@ if [ "${VER}" != '18.04' ]; then
         download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/${g_ver}.tar.gz" "harfbuzz-${g_ver}.tar.gz"
         extracommands=(-D{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}'=disabled')
         execute ./autogen.sh
-        execute meson setup build --prefix="${workspace}" --libdir="${workspace}"/lib \
-            --buildtype=release --default-library=static --strip "${extracommands[@]}"
+        execute meson setup build --prefix="${workspace}"     \
+                                  --libdir="${workspace}"/lib \
+                                  --buildtype=release         \
+                                  --default-library=static    \
+                                  --strip "${extracommands[@]}"
         execute ninja "-j${cpu_threads}" -C build
         execute ninja "-j${cpu_threads}" -C build install
         build_done 'harfbuzz' "${g_ver}"
@@ -1305,8 +1319,11 @@ if build 'fribidi' "${g_ver}"; then
     download "https://github.com/fribidi/fribidi/archive/refs/tags/v${g_ver}.tar.gz" "fribidi-${g_ver}.tar.gz"
     extracommands=(-D{docs,tests}'=false')
     execute autoreconf -fi
-    execute meson setup build --prefix="${workspace}" --libdir="${workspace}"/lib \
-        --buildtype=release --default-library=static --strip "${extracommands[@]}"
+        execute meson setup build --prefix="${workspace}"     \
+                                  --libdir="${workspace}"/lib \
+                                  --buildtype=release         \
+                                  --default-library=static    \
+                                  --strip "${extracommands[@]}"
     execute ninja "-j${cpu_threads}" -C build
     execute ninja "-j${cpu_threads}" -C build install
     build_done 'fribidi' "${g_ver}"
@@ -1317,7 +1334,8 @@ pre_check_ver 'libass/libass' '1' 'T'
 if build 'libass' "${g_ver}"; then
     download "https://github.com/libass/libass/archive/refs/tags/${g_ver}.tar.gz" "libass-${g_ver}.tar.gz"
     execute ./autogen.sh
-    execute ./configure --prefix="${workspace}" --disable-shared
+    execute ./configure --prefix="${workspace}" \
+                        --disable-shared
     execute make "-j${cpu_threads}"
     execute make install
     build_done 'libass' "${g_ver}"
@@ -1328,7 +1346,7 @@ pre_check_ver 'FreeGLUTProject/freeglut' '1' 'T'
 if build 'freeglut' "${g_ver}"; then
     download "https://github.com/FreeGLUTProject/freeglut/archive/refs/tags/v${g_ver}.tar.gz" "freeglut-${g_ver}.tar.gz"
     CFLAGS+=' -DFREEGLUT_STATIC'
-    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} \
+    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release}    \
         -DFREEGLUT_{BUILD_SHARED_LIBS,GLES,PRINT_WARNINGS,WAYLAND}=OFF -G Ninja -Wno-dev \
         -DFREEGLUT_{BUILD_STATIC_LIBS,PRINT_ERRORS,REPLACE_GLUT}=ON
     execute ninja "-j${cpu_threads}" -C build
@@ -1351,9 +1369,9 @@ fi
 if build 'libwebp' 'git'; then
     download_git 'https://chromium.googlesource.com/webm/libwebp' 'libwebp-git'
     execute autoreconf -fi
-    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} \
-        -DWEBP_{BUILD_ANIM_UTILS,BUILD_EXTRAS,BUILD_GIF2WEBP,BUILD_IMG2WEBP,BUILD_LIBWEBPMUX}=OFF \
-        -DWEBP_{BUILD_VWEBP,BUILD_WEBPINFO,BUILD_WEBPMUX,ENABLE_SWAP_16BIT_CSP,LINK_STATIC}=OFF \
+    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release}                \
+        -DWEBP_{BUILD_ANIM_UTILS,BUILD_EXTRAS,BUILD_GIF2WEBP,BUILD_IMG2WEBP,BUILD_LIBWEBPMUX}=OFF    \
+        -DWEBP_{BUILD_VWEBP,BUILD_WEBPINFO,BUILD_WEBPMUX,ENABLE_SWAP_16BIT_CSP,LINK_STATIC}=OFF      \
         -DWEBP_{BUILD_CWEBP,BUILD_DWEBP}=ON -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR="${workspace}" \
         -G Ninja -Wno-dev
     execute ninja "-j${cpu_threads}" -C build
@@ -1367,7 +1385,7 @@ if build 'libhwy' "${g_ver}"; then
     download "https://github.com/google/highway/archive/refs/tags/${g_ver}.tar.gz" "libhwy-${g_ver}.tar.gz"
     CXXFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
     execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} \
-        -DHWY_ENABLE_{EXAMPLES,TESTS}=OFF -G Ninja -Wno-dev
+                           -DHWY_ENABLE_{EXAMPLES,TESTS}=OFF -G Ninja -Wno-dev        \
     execute ninja "-j${cpu_threads}" -C build
     execute ninja "-j${cpu_threads}" -C build install
     build_done 'libhwy' "${g_ver}"
@@ -1386,7 +1404,8 @@ pre_check_ver 'mm2/Little-CMS' '1' 'T'
 if build 'lcms2' "${g_ver}"; then
     download "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms${g_ver}.tar.gz" "lcms2-${g_ver}.tar.gz"
     execute ./autogen.sh
-    execute ./configure --prefix="${workspace}" --disable-shared
+    execute ./configure --prefix="${workspace}" \
+                        --disable-shared
     execute make "-j${cpu_threads}"
     execute make install
     build_done 'lcms2' "${g_ver}"
@@ -1396,8 +1415,9 @@ ffmpeg_libraries+=('--enable-lcms2')
 pre_check_ver 'gflags/gflags' '1' 'T'
 if build 'gflags' "${g_ver}"; then
     download "https://github.com/gflags/gflags/archive/refs/tags/v${g_ver}.tar.gz" "gflags-${g_ver}.tar.gz"
-    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} -DINSTALL_HEADERS=ON \
-        -DBUILD_{STATIC_LIBS,gflags_LIB}=ON -DREGISTER_{BUILD_DIR,INSTALL_PREFIX}=ON -G Ninja -Wno-dev
+    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} \
+                           -DINSTALL_HEADERS=ON -DBUILD_{STATIC_LIBS,gflags_LIB}=ON   \
+                           -DREGISTER_{BUILD_DIR,INSTALL_PREFIX}=ON -G Ninja -Wno-dev
     execute ninja "-j${cpu_threads}" -C build
     execute ninja "-j${cpu_threads}" -C build install
     build_done 'gflags' "${g_ver}"
