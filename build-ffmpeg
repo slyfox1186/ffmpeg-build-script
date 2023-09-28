@@ -955,9 +955,12 @@ sort_libjxl_fn()
 
 debian_os_version()
 {
+    debian_pkgs='libncurses5-dev libncursesw5-dev libdmalloc5 libjemalloc2 libtcmalloc-minimal4 libyuv-dev libyuv-utils libyuv0 libsharp-dev'
+
     case "${VER}" in
-        n/a)            pkgs_fn 'libncurses-dev libncurses6 libncursesw6';;
-        12|11|10)       pkgs_fn 'libncurses5-dev libncursesw5-dev libdmalloc5 libjemalloc2 libtcmalloc-minimal4 libyuv-dev libyuv-utils libyuv0 libsharp-dev';;
+        n/a)            pkgs_fn "${debian_pkgs} libncurses-dev libncurses6 libncursesw6 librist-dev";;
+        12)             pkgs_fn "${debian_pkgs} librist-dev";;
+        10|11)          pkgs_fn "${debian_pkgs}"
         *)              fail_fn "Could not detect the Ubuntu version:Line ${LINENO}";;
     esac
 }
@@ -967,12 +970,13 @@ ubuntu_os_version()
     bionic_pkgs='libdmalloc5 libjemalloc1 libtcmalloc-minimal4 libvmmalloc-dev libvmmalloc1 libreadline-gplv2-dev'
     focal_pkgs='libjemalloc2 libtcmalloc-minimal4 libvmmalloc1 libvmmalloc-dev libdmalloc5 libcunit1-dev libde265-dev libncurses5-dev'
     focal_pkgs+=' libncursesw5-dev librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
-    jammy_lunar_pkgs='libmimalloc-dev libtbbmalloc2 libyuv-dev librust-jemalloc-sys-dev librust-malloc-buf-dev libncurses5-dev'
-    jammy_lunar_pkgs+=' libncursesw5-dev libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libde265-dev'
+    jammy_pkgs='libmimalloc-dev libtbbmalloc2 libyuv-dev librust-jemalloc-sys-dev librust-malloc-buf-dev libncurses5-dev'
+    jammy_pkgs+=' libncursesw5-dev libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libde265-dev'
+    lunar_kenetic_pkgs='librist-dev'
 
     case "${VER}" in
-        23.04|22.10)    pkgs_fn "${jammy_lunar_pkgs}";;
-        22.04)          pkgs_fn "${jammy_lunar_pkgs}";;
+        23.04|22.10)    pkgs_fn "${lunar_kenetic_pkgs} ${jammy_pkgs}";;
+        22.04)          pkgs_fn "${jammy_pkgs}";;
         20.04)          pkgs_fn "${focal_pkgs}";;
         18.04)          pkgs_fn "${bionic_pkgs}";;
         *)              fail_fn "Could not detect the Ubuntu version:Line ${LINENO}";;
