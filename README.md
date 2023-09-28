@@ -149,8 +149,7 @@ bash build-ffmpeg --build --latest
         * H264 `h264_amf` 
 
 ## Requirements
-  - All required packages will be made available to download by the user's choice.
-    - The packages are required for a successful build.
+  - All required packages should be downloaded by the script.
 
 Example Output
 -------
@@ -158,12 +157,6 @@ Example Output
 ```bash
 ffmpeg-build-script-downloader v0.1
 =============================================
-
-First we create the ffmpeg build directory
-==============================================
-
-Now we download and execute the build script
-==============================================
 
 ffmpeg-build-script v3.3
 ======================================
