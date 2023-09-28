@@ -960,7 +960,7 @@ debian_os_version()
     case "${VER}" in
         n/a)            pkgs_fn "${debian_pkgs} libncurses-dev libncurses6 libncursesw6 librist-dev";;
         12)             pkgs_fn "${debian_pkgs} librist-dev";;
-        10|11)          pkgs_fn "${debian_pkgs}"
+        10|11)          pkgs_fn "${debian_pkgs}";;
         *)              fail_fn "Could not detect the Ubuntu version:Line ${LINENO}";;
     esac
 }
