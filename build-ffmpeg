@@ -61,7 +61,7 @@ LDEXEFLAGS=
 EXTRALIBS='-ldl -lpthread -lm -lz'
 ffmpeg_libraries=()
 latest=false
-user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
+user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36'
 web_repo=https://github.com/slyfox1186/ffmpeg-build-script
 debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
@@ -285,7 +285,7 @@ git_1_fn()
     github_repo="${1}"
     github_url="${2}"
 
-    if curl_cmd="$(curl -A "${user_agent}" -m $"{curl_timeout}" \-sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
+    if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
         g_ver="$(echo "${curl_cmd}" | jq -r '.[0].name' 2>/dev/null)"
         g_ver1="$(echo "${curl_cmd}" | jq -r '.[1].name' 2>/dev/null)"
         g_ver="${g_ver#cares-}"
@@ -670,7 +670,7 @@ cuda_download_fn()
         'Pick your Linux distro from the list below:' \
         'Supported architecture: x86_64' \
         '[1] Debian 10' \
-        '[2] Debian 11' \
+        '[2] Debian 11|12' \
         '[3] Ubuntu 20.04' \
         '[4] Ubuntu 22.04' \
         '[5] Ubuntu WSL' \
@@ -1131,8 +1131,8 @@ if build 'zlib' "${g_ver}"; then
     build_done 'zlib' "${g_ver}"
 fi
 
-if build 'openssl' '3.1.2'; then
-    download 'https://www.openssl.org/source/openssl-3.1.2.tar.gz'
+if build 'openssl' '3.1.3'; then
+    download 'https://www.openssl.org/source/openssl-3.1.3.tar.gz'
     execute ./Configure --prefix=/usr/local                        \
                         enable-egd                                 \
                         enable-fips                                \
@@ -1146,7 +1146,7 @@ if build 'openssl' '3.1.2'; then
     execute make "-j${cpu_threads}"
     execute sudo make install_sw
     execute sudo make install_fips
-    build_done 'openssl' '3.1.2'
+    build_done 'openssl' '3.1.3'
 fi
 ffmpeg_libraries+=('--enable-openssl')
 
