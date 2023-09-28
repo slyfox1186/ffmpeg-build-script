@@ -810,7 +810,7 @@ pkgs_fn()
           libintl-perl libjack-dev libjemalloc-dev libladspa-ocaml-dev libleptonica-dev liblz-dev liblzma-dev liblzo2-dev
           libmathic-dev libmatroska-dev libmfx-dev libmodplug-dev libmp3lame-dev libmusicbrainz5-dev libmysofa-dev libnuma1
           libnuma-dev libopencore-amrnb-dev libopencore-amrwb-dev libopencv-dev libopenjp2-7-dev libopenmpt-dev libopus-dev
-          libperl-dev libpstoedit-dev libpulse-dev librabbitmq-dev libraqm-dev libraw-dev librist-dev librsvg2-dev librubberband-dev
+          libperl-dev libpstoedit-dev libpulse-dev librabbitmq-dev libraqm-dev libraw-dev librsvg2-dev librubberband-dev
           librust-gstreamer-base-sys-dev libshine-dev libsmbclient-dev libsnappy-dev libsndio-dev libsoxr-dev libspeex-dev
           libsqlite3-dev libsrt-gnutls-dev libssl-dev libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libtalloc-dev libtheora-dev
           libticonv-dev libtool libtool-bin libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev
@@ -971,7 +971,7 @@ ubuntu_os_version()
     jammy_lunar_pkgs+=' libncursesw5-dev libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libde265-dev'
 
     case "${VER}" in
-        23.04|22.10)    pkgs_fn "${jammy_lunar_pkgs} librist-dev";;
+        23.04|22.10)    pkgs_fn "${jammy_lunar_pkgs}";;
         22.04)          pkgs_fn "${jammy_lunar_pkgs}";;
         20.04)          pkgs_fn "${focal_pkgs}";;
         18.04)          pkgs_fn "${bionic_pkgs}";;
