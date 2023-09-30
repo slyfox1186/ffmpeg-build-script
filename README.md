@@ -31,7 +31,7 @@ See the below example on how to put your own token into the script.
                         --url "https://api.github.com/<username here>" \
                         --header "Authorization: Bearer ${git_token}" \
                         --header "X-GitHub-Api-Version: 2022-11-28" \
-                        -sSL "https://api.github.com/repos/$github_repo/$github_url")"; then
+                        -sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
 ```
 
 ## Disclaimer And Data Privacy Notice
@@ -41,13 +41,12 @@ These sources are in control of the developers of each script which I have no co
 
 **Importantly**, this script creates a <ins>**non-free**</ins> and unredistributable binary at its end AND by downloading and using this script, you are <ins>**fully aware of this**</ins>.
 
-Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems
-other than Debian based OS's.
+Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems other than those based on Debian.
 
 ## Install methods
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
 
-### Quick installion
+### Quick installation
 
 This command downloads the build script and automatically starts the build process.
 
@@ -68,12 +67,12 @@ bash build-ffmpeg --build --latest
 * `x264`: H.264 Video Codec (MPEG-4 AVC)
 * `x265`: H.265 Video Codec (HEVC)
 * `kvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
-* `cuda` : Hardware acceleration for Nvidia graphics cards
+* `cuda`: Hardware acceleration for Nvidia graphics cards
 * `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
-* `cyanrip`: Fully featured CD ripping program able to take out most of the tedium. Fully accurate, has advanced features most rippers don't, yet has no bloat and is cross-platform.
+* `cyanrip`: Fully featured CD ripping program which is able to take out most of the tedium. Wholly accurate, has advanced features most rippers don't, yet has no bloat and is cross-platform.
 * `vpx`: VP8 / VP9 Video Codec for the WebM video file format
 * `frei0r` A collection of free and open source video effects plugins that can be used with a variety of video editing and processing software
-* `opencl`: An open source project that uses Boost.Compute as a high level C++ wrapper over the OpenCL API
+* `opencl`: An open-source project that uses Boost. Compute as a high-level C++ wrapper over the OpenCL API
 * `avisynth`: A powerful tool for video post-production
 * `vapoursynth`: An application for video manipulation.
 * `aom`: AV1 Video Codec (Experimental and very slow!)
@@ -87,32 +86,32 @@ bash build-ffmpeg --build --latest
 * `libfdk_aac`: Fraunhofer FDK AAC Codec
 * `libopus`: Lossy audio coding format
 * `libmp3lame`: MPEG-1 or MPEG-2 Audio Layer III
-* `flac`: Free Lossless Audio Codec is open source software that can reduce the amount of storage space needed to store digital audio signals without needing to remove information in doing so
+* `flac`: Free Lossless Audio Codec is open-source software that can reduce the amount of storage space needed to store digital audio signals without needing to remove information in doing so
 * `ogg`: Free, open container format
-* `opencore-amr`: Adaptive Multi Rate (AMR) speech codec library implementation
+* `opencore-amr`: Adaptive Multi-Rate (AMR) speech codec library implementation
 * `vorbis`: Lossy audio compression format
 * `jxl`: JPEG XL offers significantly better image quality and compression ratios than legacy JPEG, plus a shorter specification
 * `openjpeg`: OpenJPEG is an open-source library to encode and decode JPEG 2000 images
-* `srt`: Secure Reliable Transport (SRT) is a transport protocol for ultra low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
+* `srt`: Secure Reliable Transport (SRT) is a transport protocol for ultra-low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
 * `harfbuzz`: Text shaping image processor
 * `fontconfig`: Font configuration and customization library
 * `freetype`: A freely available software library to render fonts
 * `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
 * `libbluray`: An open-source library designed for Blu-Ray Discs playback
 * `fribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
-* `sdl`: A cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
+* `sdl`: A cross-platform development library designed to provide low-level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
 * `openjpeg`: Is an open-source JPEG 2000 codec written in C language
 * `mediainfo`: A convenient unified display of the most relevant technical and tag data for video and audio files
 * `xml2`: XML parser and toolkit
 * `tiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
-* `mp4box/gpac`: Modular Multimedia framework for packaging, streaming and playing your favorite content, see http://netflix.gpac.io
+* `mp4box/gpac`: Modular Multimedia framework for packaging, streaming, and playing your favorite content, see http://netflix.gpac.io
 * `alsa`: Advanced Linux Sound Architecture (ALSA) project. A library to interface with ALSA in the Linux kernel and virtual devices using a plugin system
-* `bzlib` A general purpose data compression library
+* `bzlib` A general-purpose data compression library
 * `iconv`: Used to convert some text in one encoding into another encoding
-* `lcms2`: A free, open source, CMM engine. It provides fast transforms between ICC profiles
-* `libopencore_amr`: OpenCORE Adaptive Multi Rate (AMR) speech codec library implementation
-* `vidstab`: A video stabilization library which can be plugged-in with Ffmpeg and Transcode
-* `xcb`: C interface to the X Window System protocol, which replaces the traditional Xlib interface.
+* `lcms2`: A free, open-source, CMM engine. It provides fast transforms between ICC profiles
+* `libopencore_amr`: OpenCORE Adaptive Multi-Rate (AMR) speech codec library implementation
+* `vidstab`: A video stabilization library which can be plugged in with Ffmpeg and Transcode
+* `xcb`: A C language interface to the X Window System protocol, which replaces the traditional Xlib interface.
 * `libxvid`: Xvid MPEG-4 Part 2 encoder wrapper
 
 ### HardwareAccel
