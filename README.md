@@ -154,702 +154,938 @@ Example Output
 -------
 
 ```bash
-ffmpeg-build-script-downloader v0.1
-=============================================
+ -------------------------
+|                         |
+| Installing Global Tools |
+|                         |
+ -------------------------
 
-ffmpeg-build-script v3.3
-======================================
-
-The script will utilize 32 CPU cores for parallel processing to accelerate the build speed.
-
-The script has been configured to run with GPL and non-free codecs enabled
-
-
-The cuda-sdk-toolkit v12.1 is already installed.
-=================================================
-
-Do you want to update/reinstall it?
-
-[1] Yes
-[2] No
-
-Your choices are (1 or 2): 2
-
-Continuing the build...
-
-Installing required development packages
-==========================================
-The required development packages are already installed.
-
-building giflib - version 5.2.1
+Building m4 - version latest
 ====================================
-Downloading https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.1.tar.gz as giflib-5.2.1.tar.gz
+Downloading "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz" saving as "m4-latest.tar.xz"
 Download Completed
+File extracted: m4-latest.tar.xz
 
-File extracted: giflib-5.2.1.tar.gz
-$ make
-$ make PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace install
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --disable-nls --enable-c++
+$ make -j32
+$ make install
 
-building pkg-config - version 1.9.4
+Building autoconf - version latest
 ====================================
-Downloading https://github.com/pkgconf/pkgconf/archive/refs/heads/master.tar.gz as pkgconf-1.9.4.tar.gz
+Downloading "http://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz" saving as "autoconf-latest.tar.xz"
 Download Completed
+File extracted: autoconf-latest.tar.xz
 
-File extracted: pkgconf-1.9.4.tar.gz
-$ ./autogen.sh
-$ ./configure --silent --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    --with-pc-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig/ --with-internal-glib
-$ make -j 32
-$ sudo make install
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --build=x86_64-linux-gnu --host=x86_64-linux-gnu M4=/home/jman/tmp/ffmpeg-build-script/workspace/bin/m4
+$ make -j32
+$ make install
 
-building yasm - version 1.3.0
+Building libtool - version 2.4.7
 ====================================
-Downloading https://github.com/yasm/yasm/archive/refs/heads/master.tar.gz as yasm-1.3.0.tar.gz
+Downloading "https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.xz" saving as "libtool-2.4.7.tar.xz"
 Download Completed
-
-File extracted: yasm-1.3.0.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
-$ make -j 32
-$ sudo make install
-
-building nasm - version 2.16.02rc1
-====================================
-Downloading https://www.nasm.us/pub/nasm/releasebuilds/2.16.02rc1/nasm-2.16.02rc1.tar.xz as nasm-2.16.02rc1.tar.xz
-Download Completed
-
-File extracted: nasm-2.16.02rc1.tar.xz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building zlib - version 1.2.13
-====================================
-Downloading https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.gz as zlib-1.2.13.tar.gz
-Download Completed
-
-File extracted: zlib-1.2.13.tar.gz
-$ ./configure --static --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
-$ make -j 32
-$ sudo make install
-
-building m4 - version 1.4.19
-====================================
-Downloading https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.xz as m4-1.4.19.tar.xz
-Download Completed
-
-File extracted: m4-1.4.19.tar.xz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --enable-c++ --with-dmalloc
-$ make -j 32
-$ sudo make install
-
-building autoconf - version 2.71
-====================================
-Downloading https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.xz as autoconf-2.71.tar.xz
-Download Completed
-
-File extracted: autoconf-2.71.tar.xz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
-$ make -j 32
-$ sudo make install
-
-building automake - version 1.16.5
-====================================
-Downloading https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.xz as automake-1.16.5.tar.xz
-Download Completed
-
-File extracted: automake-1.16.5.tar.xz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
-^T$ make -j 32
-^T$ sudo make install
-
-building libtool - version 2.4.7
-====================================
-Downloading https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.xz as libtool-2.4.7.tar.xz
-Download Completed
-
 File extracted: libtool-2.4.7.tar.xz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --enable-static --disable-shared
-$ make -j 32
-$ sudo make install
 
-building openssl - version 3.1.0
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --build=x86_64-linux-gnu --host=x86_64-linux-gnu --with-pic M4=/home/jman/tmp/ffmpeg-build-script/workspace/bin/m4
+$ make -j32
+$ make install
+
+Building pkg-config - version 0.29.2
 ====================================
-Downloading https://github.com/openssl/openssl/archive/refs/heads/master.tar.gz as openssl-3.1.0.tar.gz
+Downloading "https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz" saving as "pkg-config-0.29.2.tar.gz"
 Download Completed
+File extracted: pkg-config-0.29.2.tar.gz
 
-File extracted: openssl-3.1.0.tar.gz
-$ ./config --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --openssldir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    --with-zlib-include=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --with-zlib-lib=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib no-shared zlib
-$ make -j 32
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --with-pc-path=/home/jman/tmp/ffmpeg-build-script/workspace/usr/lib/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib64/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/share/pkgconfig:/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/share/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/open-coarrays/openmpi/pkgconfig:/usr/lib/x86_64-linux-gnu/openmpi/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/lib64/pkgconfig:/lib/pkgconfig:/lib/x86_64-linux-gnu/pkgconfig
+$ make -j32
+$ make install
+
+Building zlib - version 1.3
+====================================
+Downloading "https://github.com/madler/zlib/releases/download/v1.3/zlib-1.3.tar.gz" saving as "zlib-1.3.tar.gz"
+Download Completed
+File extracted: zlib-1.3.tar.gz
+
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
+$ make -j32
+$ make install
+
+Building openssl - version 3.1.3
+====================================
+Downloading "https://www.openssl.org/source/openssl-3.1.3.tar.gz" saving as "openssl-3.1.3.tar.gz"
+Download Completed
+File extracted: openssl-3.1.3.tar.gz
+
+$ ./Configure --prefix=/usr/local enable-egd enable-fips enable-md2 enable-rc5 enable-trace threads zlib --with-rand-seed=os --with-zlib-include=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-zlib-lib=/home/jman/tmp/ffmpeg-build-script/workspace/lib
+$ make -j32
 $ sudo make install_sw
+$ sudo make install_fips
 
-building cmake - version 3.26.3
+Building yasm - version 1.3.0
 ====================================
-Downloading https://github.com/kitware/cmake/archive/refs/tags/v3.26.3.tar.gz as cmake-3.26.3.tar.gz
+Downloading "https://github.com/yasm/yasm/archive/refs/tags/v1.3.0.tar.gz" saving as "yasm-1.3.0.tar.gz"
 Download Completed
+File extracted: yasm-1.3.0.tar.gz
 
-File extracted: cmake-3.26.3.tar.gz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --parallel=32 --enable-ccache -- -DCMAKE_USE_OPENSSL=OFF
-$ make -j 32
+$ autoreconf -fi
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building nasm - version 2.16.01
+====================================
+Downloading "https://www.nasm.us/pub/nasm/stable/nasm-2.16.01.tar.xz" saving as "nasm-2.16.01.tar.xz"
+Download Completed
+File extracted: nasm-2.16.01.tar.xz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --disable-pedantic --enable-ccache
+$ make -j32
+$ make install
+
+Building giflib - version 5.2.1
+====================================
+Downloading "https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.1.tar.gz" saving as "giflib-5.2.1.tar.gz"
+Download Completed
+File extracted: giflib-5.2.1.tar.gz
+
+$ make
+$ make PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace install
+
+Building xml2 - version 2.11.5
+====================================
+Downloading "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v2.11.5/libxml2-v2.11.5.tar.bz2" saving as "xml2-2.11.5.tar.bz2"
+Download Completed
+File extracted: xml2-2.11.5.tar.bz2
+
+$ ./autogen.sh
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCPACK_BINARY_DEB=ON -DCPACK_BINARY_FREEBSD=ON -DCPACK_BINARY_IFW=ON -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_RPM=ON -DCPACK_BINARY_TBZ2=ON -DCPACK_BINARY_TXZ=ON -DCPACK_SOURCE_RPM=ON -DCPACK_SOURCE_ZIP=ON -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libpng - version 1.6.40
+====================================
+Downloading "https://github.com/glennrp/libpng/archive/refs/tags/v1.6.40.tar.gz" saving as "libpng-1.6.40.tar.gz"
+Download Completed
+File extracted: libpng-1.6.40.tar.gz
+
+$ autoupdate
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --enable-hardware-optimizations --enable-unversioned-links
+$ make -j32
+$ make install-header-links
+$ make install-library-links
+$ make install
+
+Building aribb24 - version 2.16.01
+====================================
+Downloading "https://github.com/nkoriyama/aribb24/archive/refs/tags/v1.0.3.tar.gz" saving as "aribb24-1.0.3.tar.gz"
+Download Completed
+File extracted: aribb24-1.0.3.tar.gz
+
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --with-pic PKG_CONFIG=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config
+$ make -j32
+$ make install
+
+Building freetype - version 2.13.2
+====================================
+Downloading "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-2-13-2/freetype-VER-2-13-2.tar.bz2" saving as "freetype-2.13.2.tar.bz2"
+Download Completed
+File extracted: freetype-2.13.2.tar.bz2
+
+$ ./autogen.sh
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dharfbuzz=disabled -Dpng=disabled -Dbzip2=disabled -Dbrotli=disabled -Dzlib=disabled -Dtests=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building fontconfig - version 2.14.2
+====================================
+Downloading "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/2.14.2/fontconfig-2.14.2.tar.bz2" saving as "fontconfig-2.14.2.tar.bz2"
+Download Completed
+File extracted: fontconfig-2.14.2.tar.bz2
+
+$ ./autogen.sh --noconf
+$ autoreconf -fi
+$ autoupdate
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-docs --disable-shared
+$ make -j32
+$ make install
+
+Building harfbuzz - version 8.2.1
+====================================
+Downloading "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/8.2.1.tar.gz" saving as "harfbuzz-8.2.1.tar.gz"
+Download Completed
+File extracted: harfbuzz-8.2.1.tar.gz
+
+$ ./autogen.sh
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbenchmark=disabled -Dcairo=disabled -Ddocs=disabled -Dglib=disabled -Dgobject=disabled -Dicu=disabled -Dintrospection=disabled -Dtests=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building c2man - version git
+====================================
+Downloading https://github.com/fribidi/c2man.git as c2man-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/c2man-git
+
+$ ./Configure -desO -D prefix=/home/jman/tmp/ffmpeg-build-script/workspace -D bin=/home/jman/tmp/ffmpeg-build-script/workspace/bin -D bash=/usr/local/bin/bash -D cc=/usr/bin/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D find=/usr/bin/find -D gcc=/usr/bin/gcc -D gzip=/usr/bin/gzip -D installmansrc=/home/jman/tmp/ffmpeg-build-script/workspace/share/man -D ldflags=-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib -DLIBXML_STATIC -D less=/usr/bin/less -D libpth=/lib /usr/lib -D uniq=/usr/bin/uniq -D tr=/usr/bin/tr -D locincpth=/home/jman/tmp/ffmpeg-build-script/workspace/include /usr/local/include /usr/include -D yacc=/usr/bin/yacc -D loclibpth=/home/jman/tmp/ffmpeg-build-script/workspace/lib /usr/local/lib -D make=/usr/local/bin/make -D troff=/usr/bin/troff -D more=/usr/bin/more -D osname=Debian -D perl=/usr/bin/perl -D privlib=/home/jman/tmp/ffmpeg-build-script/workspace/lib/c2man -D privlibexp=/home/jman/tmp/ffmpeg-build-script/workspace/lib/c2man -D sleep=/usr/bin/sleep -D tail=/usr/bin/tail -D tar=/usr/local/bin/tar -D uuname=Linux -D vi=/usr/bin/vi -D zip=/usr/bin/zip
+$ make depend
+$ make -j32
 $ sudo make install
 
-building dav1d - version 9593e625
+Building fribidi - version 1.0.13
 ====================================
-Downloading https://code.videolan.org/videolan/dav1d/-/archive/9593e625b75d498d1edea544da21ea764b98d507/9593e625b75d498d1edea544da21ea764b98d507.tar.bz2 as dav1d-9593e625.tar.bz2
+Downloading "https://github.com/fribidi/fribidi/archive/refs/tags/v1.0.13.tar.gz" saving as "fribidi-1.0.13.tar.gz"
 Download Completed
+File extracted: fribidi-1.0.13.tar.gz
 
-File extracted: dav1d-9593e625.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release \
-    --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --strip
-$ ninja -C build
-$ sudo ninja -C build install
+$ autoreconf -fi
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=false -Dtests=false
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
 
-building svtav1 - version 1.4.1
+Building libass - version 0.17.1
 ====================================
-Downloading https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.4.1/SVT-AV1-v1.4.1.tar.bz2 as SVT-AV1-1.4.1.tar.bz2
+Downloading "https://github.com/libass/libass/archive/refs/tags/0.17.1.tar.gz" saving as "libass-0.17.1.tar.gz"
 Download Completed
+File extracted: libass-0.17.1.tar.gz
 
-File extracted: SVT-AV1-1.4.1.tar.bz2
-$ cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    -DBUILD_SHARED_LIBS=OFF ../.. -GUnix Makefiles -DCMAKE_BUILD_TYPE=Release
-$ make -j 32
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building freeglut - version 3.4.0
+====================================
+Downloading "https://github.com/freeglutproject/freeglut/archive/refs/tags/v3.4.0.tar.gz" saving as "freeglut-3.4.0.tar.gz"
+Download Completed
+File extracted: freeglut-3.4.0.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DFREEGLUT_BUILD_SHARED_LIBS=OFF -DFREEGLUT_GLES=OFF -DFREEGLUT_PRINT_WARNINGS=OFF -DFREEGLUT_WAYLAND=OFF -G Ninja -Wno-dev -DFREEGLUT_BUILD_STATIC_LIBS=ON -DFREEGLUT_PRINT_ERRORS=ON -DFREEGLUT_REPLACE_GLUT=ON
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libtiff - version 4.6.0
+====================================
+Downloading "https://gitlab.com/libtiff/libtiff/-/archive/v4.6.0/libtiff-v4.6.0.tar.bz2" saving as "libtiff-4.6.0.tar.bz2"
+Download Completed
+File extracted: libtiff-4.6.0.tar.bz2
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --build=x86_64-linux-gnu --host=x86_64-linux-gnu --disable-shared
+$ make -j32
+$ make install
+
+Building libwebp - version git
+====================================
+Downloading https://chromium.googlesource.com/webm/libwebp as libwebp-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/libwebp-git
+
+$ autoreconf -fi
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DWEBP_BUILD_ANIM_UTILS=OFF -DWEBP_BUILD_EXTRAS=OFF -DWEBP_BUILD_GIF2WEBP=OFF -DWEBP_BUILD_IMG2WEBP=OFF -DWEBP_BUILD_LIBWEBPMUX=OFF -DWEBP_BUILD_VWEBP=OFF -DWEBP_BUILD_WEBPINFO=OFF -DWEBP_BUILD_WEBPMUX=OFF -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=OFF -DWEBP_BUILD_CWEBP=ON -DWEBP_BUILD_DWEBP=ON -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libhwy - version 1.0.7
+====================================
+Downloading "https://github.com/google/highway/archive/refs/tags/1.0.7.tar.gz" saving as "libhwy-1.0.7.tar.gz"
+Download Completed
+File extracted: libhwy-1.0.7.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DHWY_ENABLE_EXAMPLES=OFF -DHWY_ENABLE_TESTS=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building brotli - version 1.1.0
+====================================
+Downloading "https://github.com/google/brotli/archive/refs/tags/v1.1.0.tar.gz" saving as "brotli-1.1.0.tar.gz"
+Download Completed
+File extracted: brotli-1.1.0.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building lcms2 - version 2.15
+====================================
+Downloading "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms2.15.tar.gz" saving as "lcms2-2.15.tar.gz"
+Download Completed
+File extracted: lcms2-2.15.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building gflags - version 2.2.2
+====================================
+Downloading "https://github.com/gflags/gflags/archive/refs/tags/v2.2.2.tar.gz" saving as "gflags-2.2.2.tar.gz"
+Download Completed
+File extracted: gflags-2.2.2.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DINSTALL_HEADERS=ON -DBUILD_STATIC_LIBS=ON -DBUILD_gflags_LIB=ON -DREGISTER_BUILD_DIR=ON -DREGISTER_INSTALL_PREFIX=ON -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libjxl - version 0.8.2
+====================================
+(Reading database ... 367126 files and directories currently installed.)
+Preparing to unpack libjxl_0.8.2_amd64.deb ...
+Unpacking libjxl:amd64 (0.8.2) over (0.8.2) ...
+Setting up libjxl:amd64 (0.8.2) ...
+Processing triggers for libc-bin (2.36-9+deb12u1) ...
+ldconfig: /usr/lib/wsl/lib/libcuda.so.1 is not a symbolic link
+
+(Reading database ... 367126 files and directories currently installed.)
+Preparing to unpack ./jxl_0.8.2_amd64.deb ...
+Unpacking jxl (0.8.2) over (0.8.2) ...
+Preparing to unpack ./jxl-dbgsym_0.8.2_amd64.deb ...
+Unpacking jxl-dbgsym (0.8.2) over (0.8.2) ...
+Preparing to unpack .../libjxl-dbgsym_0.8.2_amd64.deb ...
+Unpacking libjxl-dbgsym:amd64 (0.8.2) over (0.8.2) ...
+Preparing to unpack ./libjxl-dev_0.8.2_amd64.deb ...
+Unpacking libjxl-dev (0.8.2) over (0.8.2) ...
+Preparing to unpack .../libjxl-gdk-pixbuf_0.8.2_amd64.deb ...
+Unpacking libjxl-gdk-pixbuf:amd64 (0.8.2) over (0.8.2) ...
+Preparing to unpack .../libjxl-gdk-pixbuf-dbgsym_0.8.2_amd64.deb ...
+Unpacking libjxl-gdk-pixbuf-dbgsym:amd64 (0.8.2) over (0.8.2) ...
+Preparing to unpack .../libjxl-gimp-plugin_0.8.2_amd64.deb ...
+Unpacking libjxl-gimp-plugin:amd64 (0.8.2) over (0.8.2) ...
+Preparing to unpack .../libjxl-gimp-plugin-dbgsym_0.8.2_amd64.deb ...
+Unpacking libjxl-gimp-plugin-dbgsym:amd64 (0.8.2) over (0.8.2) ...
+Setting up jxl (0.8.2) ...
+Setting up jxl-dbgsym (0.8.2) ...
+Setting up libjxl-dbgsym:amd64 (0.8.2) ...
+Setting up libjxl-dev (0.8.2) ...
+Setting up libjxl-gdk-pixbuf:amd64 (0.8.2) ...
+Setting up libjxl-gdk-pixbuf-dbgsym:amd64 (0.8.2) ...
+Setting up libjxl-gimp-plugin:amd64 (0.8.2) ...
+Setting up libjxl-gimp-plugin-dbgsym:amd64 (0.8.2) ...
+Processing triggers for man-db (2.11.2-2) ...
+Processing triggers for libgdk-pixbuf-2.0-0:amd64 (2.42.10+dfsg-1+b1) ...
+Processing triggers for shared-mime-info (2.2-1) ...
+
+Building opencl-headers - version 2023.04.17
+====================================
+Downloading "https://github.com/KhronosGroup/OpenCL-Headers/archive/refs/tags/v2023.04.17.tar.gz" saving as "opencl-headers-2023.04.17.tar.gz"
+Download Completed
+File extracted: opencl-headers-2023.04.17.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DOPENCL_HEADERS_BUILD_CXX_TESTS=ON -DBUILD_TESTING=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building tesseract - version 5.3.2
+====================================
+Downloading "https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.3.2.tar.gz" saving as "tesseract-5.3.2.tar.gz"
+Download Completed
+File extracted: tesseract-5.3.2.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --build=x86_64-linux-gnu --host=x86_64-linux-gnu --disable-doc --with-extra-includes=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-extra-libraries=/home/jman/tmp/ffmpeg-build-script/workspace/lib --with-pic PKG_CONFIG=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config
+$ make -j32
+$ make install
+
+Building rubberband - version git
+====================================
+Downloading https://github.com/m-ab-s/rubberband.git as rubberband-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/rubberband-git
+
+$ make -j32 PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace install-static
+
+Building zimg - version 3.0.5
+====================================
+Downloading "https://github.com/sekrit-twc/zimg/archive/refs/tags/release-3.0.5.tar.gz" saving as "zimg-3.0.5.tar.gz"
+Download Completed
+File extracted: zimg-3.0.5.tar.gz
+
+$ libtoolize -fiq
+$ autoupdate
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building c-ares - version 1.19.1
+====================================
+Downloading "https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_19_1.tar.gz" saving as "c-ares-1.19.1.tar.gz"
+Download Completed
+File extracted: c-ares-1.19.1.tar.gz
+
+$ autoreconf -fi
+$ autoupdate
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --disable-warnings
+$ make -j32
+$ make install
+
+Building lv2 - version git
+====================================
+Downloading https://github.com/lv2/lv2.git as lv2-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/lv2-git
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dplugins=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building waflib - version 2.0.26
+====================================
+Downloading "https://gitlab.com/ita1024/waf/-/archive/waf-2.0.26/waf-waf-2.0.26.tar.bz2" saving as "waflib-2.0.26.tar.bz2"
+Download Completed
+File extracted: waflib-2.0.26.tar.bz2
+
+
+Building serd - version 0.30.16
+====================================
+Downloading "https://gitlab.com/drobilla/serd/-/archive/v0.30.16/serd-v0.30.16.tar.bz2" saving as "serd-0.30.16.tar.bz2"
+Download Completed
+File extracted: serd-0.30.16.tar.bz2
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building pcre2 - version 2-10.42
+====================================
+Downloading "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.42.tar.gz" saving as "pcre2-2-10.42.tar.gz"
+Download Completed
+File extracted: pcre2-2-10.42.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building zix - version 0.4.0
+====================================
+Downloading "https://gitlab.com/drobilla/zix/-/archive/v0.4.0/zix-v0.4.0.tar.bz2" saving as "zix-0.4.0.tar.bz2"
+Download Completed
+File extracted: zix-0.4.0.tar.bz2
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbenchmarks=disabled -Ddocs=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtests_cpp=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building sord - version 5175d274
+====================================
+Downloading "https://gitlab.com/drobilla/sord/-/archive/5175d274ca9099fee515878d5605b51775b31a7f/sord-5175d274ca9099fee515878d5605b51775b31a7f.tar.bz2" saving as "sord-5175d274.tar.bz2"
+Download Completed
+File extracted: sord-5175d274.tar.bz2
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dtests=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building sratom - version 0.6.14
+====================================
+Downloading "https://gitlab.com/lv2/sratom/-/archive/v0.6.14/sratom-v0.6.14.tar.bz2" saving as "sratom-0.6.14.tar.bz2"
+Download Completed
+File extracted: sratom-0.6.14.tar.bz2
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dtests=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building lilv - version 0.24.20
+====================================
+Downloading "https://gitlab.com/lv2/lilv/-/archive/v0.24.20/lilv-v0.24.20.tar.bz2" saving as "lilv-0.24.20.tar.bz2"
+Download Completed
+File extracted: lilv-0.24.20.tar.bz2
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dtests=disabled
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libmpg123 - version git
+====================================
+Downloading https://github.com/gypified/libmpg123.git as libmpg123-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/libmpg123-git
+
+$ rm -fr aclocal.m4
+$ aclocal --force -I m4
+$ autoconf -f -W all,no-obsolete
+$ autoheader -f -W all
+$ automake -a -c -f -W all,no-portability
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-static --with-cpu=x86-64
+$ make -j32
+$ make install
+
+Building jansson - version 2.14
+====================================
+Downloading "https://github.com/akheron/jansson/archive/refs/tags/v2.14.tar.gz" saving as "jansson-2.14.tar.gz"
+Download Completed
+File extracted: jansson-2.14.tar.gz
+
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
+$ make -j32
+$ make install
+
+Building jemalloc - version 5.3.0
+====================================
+Downloading "https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.tar.gz" saving as "jemalloc-5.3.0.tar.gz"
+Download Completed
+File extracted: jemalloc-5.3.0.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-autogen --enable-static --enable-xmalloc --disable-debug --disable-doc --disable-fill --disable-log --disable-shared --disable-prof --disable-stats
+$ make -j32
+$ make install
+
+Building cunit - version git
+====================================
+Downloading https://github.com/jacklicn/cunit.git as cunit-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/cunit-git
+
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+ ------------------------
+|                        |
+| Installing Audio Tools |
+|                        |
+ ------------------------
+
+Building libflac - version 1.4.3
+====================================
+Downloading "https://github.com/xiph/flac/archive/refs/tags/1.4.3.tar.gz" saving as "libflac-1.4.3.tar.gz"
+Download Completed
+File extracted: libflac-1.4.3.tar.gz
+
+$ ./autogen.sh
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DINSTALL_CMAKE_CONFIG_MODULE=ON -DINSTALL_MANPAGES=ON -DINSTALL_PKGCONFIG_MODULES=ON -DBUILD_CXXLIBS=ON -DBUILD_PROGRAMS=ON -DWITH_ASM=ON -DWITH_AVX=ON -DWITH_FORTIFY_SOURCE=ON -DWITH_STACK_PROTECTOR=ON -DWITH_OGG=OFF -DENABLE_64_BIT_WORDS=ON -DBUILD_DOCS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libfdk-aac - version 2.0.2
+====================================
+Downloading "https://gigenet.dl.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-2.0.2.tar.gz" saving as "libfdk-aac-2.0.2.tar.gz"
+Download Completed
+File extracted: libfdk-aac-2.0.2.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --enable-static
+$ make -j32
+$ make install
+
+Building libogg - version 1.3.5
+====================================
+Downloading "https://github.com/xiph/ogg/archive/refs/tags/v1.3.5.tar.gz" saving as "libogg-1.3.5.tar.gz"
+Download Completed
+File extracted: libogg-1.3.5.tar.gz
+
+$ autoreconf -fi
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DCPACK_BINARY_DEB=OFF -DCPACK_SOURCE_ZIP=OFF -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building vorbis - version 1.3.7
+====================================
+Downloading "https://github.com/xiph/vorbis/archive/refs/tags/v1.3.7.tar.gz" saving as "vorbis-1.3.7.tar.gz"
+Download Completed
+File extracted: vorbis-1.3.7.tar.gz
+
+$ ./autogen.sh
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DOGG_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DOGG_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building opus - version 1.4
+====================================
+Downloading "https://github.com/xiph/opus/archive/refs/tags/v1.4.tar.gz" saving as "opus-1.4.tar.gz"
+Download Completed
+File extracted: opus-1.4.tar.gz
+
+$ autoreconf -fis
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building libmysofa - version 1.3.1
+====================================
+Downloading "https://github.com/hoene/libmysofa/archive/refs/tags/v1.3.1.tar.gz" saving as "libmysofa-1.3.1.tar.gz"
+Download Completed
+File extracted: libmysofa-1.3.1.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building vpx - version 1.13.0
+====================================
+Downloading "https://github.com/webmproject/libvpx/archive/refs/tags/v1.13.0.tar.gz" saving as "libvpx-1.13.0.tar.gz"
+Download Completed
+File extracted: libvpx-1.13.0.tar.gz
+
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-unit-tests --disable-shared --disable-examples --as=yasm --enable-vp9-highbitdepth
+$ make -j32
+$ make install
+
+Building opencore-amr - version 0.1.6-1
+====================================
+Downloading "https://salsa.debian.org/multimedia-team/opencore-amr/-/archive/debian/0.1.6-1/opencore-amr-debian-0.1.6-1.tar.bz2" saving as "opencore-amr-0.1.6-1.tar.bz2"
+Download Completed
+File extracted: opencore-amr-0.1.6-1.tar.bz2
+
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --enable-static
+$ make -j32
+$ make install
+
+Building liblame - version 3.100
+====================================
+Downloading "https://zenlayer.dl.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz" saving as "lame-3.100.tar.gz"
+Download Completed
+File extracted: lame-3.100.tar.gz
+
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building libtheora - version 1.1.1
+====================================
+Downloading "https://github.com/xiph/theora/archive/refs/tags/v1.1.1.tar.gz" saving as "libtheora-1.1.1.tar.gz"
+Download Completed
+File extracted: libtheora-1.1.1.tar.gz
+
+$ ./autogen.sh
+$ mv configure.patched configure
+$ rm config.guess
+$ curl -A Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 -Lso config.guess https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-asm --disable-examples --disable-oggtest --disable-spec --disable-shared --disable-vorbistest --with-ogg-includes=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-ogg-libraries=/home/jman/tmp/ffmpeg-build-script/workspace/lib --with-vorbis-includes=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-vorbis-libraries=/home/jman/tmp/ffmpeg-build-script/workspace/lib
+$ make -j32
+$ make install
+
+ ------------------------
+|                        |
+| Installing Video Tools |
+|                        |
+ ------------------------
+
+Building av1 - version 61bddf1
+====================================
+Downloading "https://aomedia.googlesource.com/aom/+archive/61bddf1e5f233e048280cf33cc31f72eecc2954a.tar.gz" saving as "av1-61bddf1.tar.gz"
+Download Completed
+File extracted: av1-61bddf1.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_INSTALL_LIBDIR=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DCMAKE_BUILD_TYPE=Release -DCONFIG_ANALYZER=0 -DCONFIG_AV1_TEMPORAL_DENOISING=0 -DCONFIG_BIG_ENDIAN=0 -DCONFIG_COLLECT_RD_STATS=0 -DCONFIG_ENTROPY_STATS=0 -DCONFIG_AV1_DECODER=1 -DCONFIG_AV1_ENCODER=1 -DCONFIG_AV1_HIGHBITDEPTH=1 -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 -DBUILD_SHARED_LIBS=OFF -DENABLE_CCACHE=1 -DENABLE_EXAMPLES=0 -DENABLE_TESTS=0 -G Ninja -Wno-dev /home/jman/tmp/ffmpeg-build-script/packages/av1
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building dav1d - version 1.2.1
+====================================
+Downloading "https://code.videolan.org/videolan/dav1d/-/archive/1.2.1/dav1d-1.2.1.tar.bz2" saving as "dav1d-1.2.1.tar.bz2"
+Download Completed
+File extracted: dav1d-1.2.1.tar.bz2
+
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Denable_tests=false -Dlogging=false
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building rav1e - version p20230926
+====================================
+$ Installing RustUp
+$ cargo install --version 0.9.24+cargo-0.73.0 cargo-c
+Downloading "https://github.com/xiph/rav1e/archive/refs/tags/p20230926.tar.gz" saving as "rav1e-p20230926.tar.gz"
+Download Completed
+File extracted: rav1e-p20230926.tar.gz
+
+$ cargo cinstall --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --library-type=staticlib --crt-static --release
+
+Building avif - version 1.0.1
+====================================
+Downloading "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v1.0.1.tar.gz" saving as "avif-1.0.1.tar.gz"
+Download Completed
+File extracted: avif-1.0.1.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_DECODE=ON -DAVIF_CODEC_AOM_ENCODE=ON -DAVIF_ENABLE_GTEST=OFF -DAVIF_ENABLE_WERROR=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building kvazaar - version 2.2.0
+====================================
+Downloading https://github.com/ultravideo/kvazaar.git as kvazaar-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/kvazaar-git
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building libdvdread - version 6.1.3
+====================================
+Downloading "https://code.videolan.org/videolan/libdvdread/-/archive/6.1.3/libdvdread-6.1.3.tar.bz2" saving as "libdvdread-6.1.3.tar.bz2"
+Download Completed
+File extracted: libdvdread-6.1.3.tar.bz2
+
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-apidoc --disable-shared
+$ make -j32
+$ make install
+
+Building udfread - version 1.1.2
+====================================
+Downloading "https://code.videolan.org/videolan/libudfread/-/archive/1.1.2/libudfread-1.1.2.tar.bz2" saving as "libudfread-1.1.2.tar.bz2"
+Download Completed
+File extracted: libudfread-1.1.2.tar.bz2
+
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building libbluray - version 1.3.4
+====================================
+Downloading "https://code.videolan.org/videolan/libbluray/-/archive/1.3.4/1.3.4.tar.gz" saving as "libbluray-1.3.4.tar.gz"
+Download Completed
+File extracted: libbluray-1.3.4.tar.gz
+
+$ autoreconf -fi
+$ ./bootstrap
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-extra-warnings --disable-shared --disable-werror --without-libxml2
+$ make -j32
+$ make install
+
+Building zenlib - version 0.4.41
+====================================
+Downloading "https://github.com/MediaArea/ZenLib/archive/refs/tags/v0.4.41.tar.gz" saving as "zenlib-0.4.41.tar.gz"
+Download Completed
+File extracted: zenlib-0.4.41.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building mediainfolib - version 23.09
+====================================
+Downloading "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v23.09.tar.gz" saving as "mediainfolib-23.09.tar.gz"
+Download Completed
+File extracted: mediainfolib-23.09.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
+
+Building mediainfo-cli - version 23.09
+====================================
+Downloading "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v23.09.tar.gz" saving as "mediainfo-cli-23.09.tar.gz"
+Download Completed
+File extracted: mediainfo-cli-23.09.tar.gz
+
+$ ./autogen.sh
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-staticlibs
+$ make -j32
+$ make install
+
+Building vid-stab - version 1.1.1
+====================================
+Downloading "https://github.com/georgmartius/vid.stab/archive/refs/tags/v1.1.1.tar.gz" saving as "vid-stab-1.1.1.tar.gz"
+Download Completed
+File extracted: vid-stab-1.1.1.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building frei0r - version 2.3.1
+====================================
+Downloading "https://github.com/dyne/frei0r/archive/refs/tags/v2.3.1.tar.gz" saving as "frei0r-2.3.1.tar.gz"
+Download Completed
+File extracted: frei0r-2.3.1.tar.gz
+
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SHARED_LIBS=OFF -DWITHOUT_OPENCV=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
+
+Building amf - version 1.4.30
+====================================
+Downloading "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v1.4.30.tar.gz" saving as "amf-1.4.30.tar.gz"
+Download Completed
+File extracted: amf-1.4.30.tar.gz
+
+$ rm -fr /home/jman/tmp/ffmpeg-build-script/workspace/include/AMF
+$ mkdir -p /home/jman/tmp/ffmpeg-build-script/workspace/include/AMF
+$ cp -fr /home/jman/tmp/ffmpeg-build-script/packages/amf-1.4.30/amf/public/include/components /home/jman/tmp/ffmpeg-build-script/packages/amf-1.4.30/amf/public/include/core /home/jman/tmp/ffmpeg-build-script/workspace/include/AMF
+
+Building gpac - version 2.2.1
+====================================
+Downloading https://github.com/gpac/gpac.git as gpac-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/gpac-git
+
+$ sudo ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-gprof --static-bin --static-modules
+$ sudo make -j32
 $ sudo make install
-$ sudo cp SvtAv1Enc.pc /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig/
-$ sudo cp SvtAv1Dec.pc /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig/
 
-building rav1e - version 0.6.4
+Building svt-hevc - version 1.5.1
 ====================================
-Downloading https://github.com/xiph/rav1e/archive/refs/tags/v0.6.4.tar.gz as rav1e-0.6.4.tar.gz
+Downloading "https://github.com/OpenVisualCloud/SVT-HEVC/archive/refs/tags/v1.5.1.tar.gz" saving as "svt-hevc-1.5.1.tar.gz"
 Download Completed
+File extracted: svt-hevc-1.5.1.tar.gz
 
-File extracted: rav1e-0.6.4.tar.gz
-$ cargo install --version 0.9.14+cargo-0.66 cargo-c
-$ cargo cinstall --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --library-type=staticlib --crt-static --release
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DYASM_EXE=/home/jman/tmp/ffmpeg-build-script/workspace/bin/yasm -DNATIVE=ON -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
 
-building x264 - version a8b68ebf
+Building svt-av1 - version 1.4.0
 ====================================
-Downloading https://code.videolan.org/videolan/x264/-/archive/a8b68ebfaa68621b5ac8907610d3335971839d52/x264-a8b68ebfaa68621b5ac8907610d3335971839d52.tar.bz2 as x264-a8b68ebf.tar.bz2
+Downloading "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.4.0/SVT-AV1-v1.4.0.tar.bz2" saving as "svt-av1-1.4.0.tar.bz2"
 Download Completed
+File extracted: svt-av1-1.4.0.tar.bz2
 
-File extracted: x264-a8b68ebf.tar.bz2
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --enable-static --enable-pic CXXFLAGS=-fPIC 
-$ make -j 32
+$ cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=ON -DBUILD_DEC=ON -DBUILD_ENC=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DENABLE_NASM=ON -DENABLE_AVX512=ON -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=OFF -DNATIVE=ON -G Ninja -Wno-dev
+$ ninja -j32 -C Build/linux
+$ ninja -j32 -C Build/linux install
+
+Building x264 - version a8b68eb
+====================================
+Downloading "https://code.videolan.org/videolan/x264/-/archive/a8b68ebfaa68621b5ac8907610d3335971839d52/x264-a8b68ebfaa68621b5ac8907610d3335971839d52.tar.bz2" saving as "x264-a8b68eb.tar.bz2"
+Download Completed
+File extracted: x264-a8b68eb.tar.bz2
+
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --bit-depth=all --chroma-format=all --enable-gprof --enable-static --enable-strip
+$ sudo make -j32
 $ sudo make install
 $ sudo make install-lib-static
 
-building x265 - version 3.5
+Building x265 - version 8ee01d4
 ====================================
-Downloading https://github.com/videolan/x265/archive/Release_3.5.tar.gz as x265-3.5.tar.gz
+Downloading "https://bitbucket.org/multicoreware/x265_git/get/8ee01d45b05cdbc9da89b884815257807a514bc8.tar.bz2" saving as "x265-8ee01d4.tar.bz2"
 Download Completed
+File extracted: x265-8ee01d4.tar.bz2
 
-File extracted: x265-3.5.tar.gz
 $ making 12bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DHIGH_BIT_DEPTH=ON -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF -DENABLE_CLI=OFF -DMAIN12=ON
-$ make -j 32
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DHIGH_BIT_DEPTH=ON -DEXPORT_C_API=OFF -DENABLE_SHARED=OFF -DENABLE_CLI=OFF -DMAIN12=ON -G Ninja -Wno-dev
+$ ninja -j32
 $ making 10bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DHIGH_BIT_DEPTH=ON -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF -DENABLE_CLI=OFF
-$ make -j 32
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DHIGH_BIT_DEPTH=ON -DEXPORT_C_API=OFF -DENABLE_SHARED=OFF -DENABLE_CLI=OFF -G Ninja -Wno-dev
+$ ninja -j32
 $ making 8bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DEXTRA_LIB=x265_main10.a;x265_main12.a;-ldl -DEXTRA_LINK_FLAGS=-L. -DLINKED_10BIT=ON -DLINKED_12BIT=ON
-$ make -j 32
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DEXTRA_LIB=x265_main10.a;x265_main12.a -DEXTRA_LINK_FLAGS=-L. -DLINKED_10BIT=ON -DLINKED_12BIT=ON -G Ninja -Wno-dev
+$ ninja -j32
 $ ar -M
-$ sudo make install
+$ ninja -j32 install
 
-building SVT-HEVC - version 1.5.1
+Building nv-codec-headers - version 12.0.16.0
 ====================================
-Downloading https://github.com/openvisualcloud/svt-hevc/archive/refs/heads/master.tar.gz as SVT-HEVC-1.5.1.tar.gz
+Downloading "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.0.16.0/nv-codec-headers-12.0.16.0.tar.gz" saving as "nv-codec-headers-12.0.16.0.tar.gz"
 Download Completed
+File extracted: nv-codec-headers-12.0.16.0.tar.gz
 
-File extracted: SVT-HEVC-1.5.1.tar.gz
-^T^T$ cmake .. -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
-$ make -j 32
-$ sudo make install
+$ make -j32
+$ make PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace install
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+nvidia-smi is already the newest version (525.125.06-1~deb12u1).
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
 
-building libvpx - version 1.13.0
+Building srt - version 1.5.3
 ====================================
-Downloading https://github.com/webmproject/libvpx/archive/refs/heads/master.tar.gz as libvpx-1.13.0.tar.gz
+Downloading "https://github.com/Haivision/srt/archive/refs/tags/v1.5.3.tar.gz" saving as "srt-1.5.3.tar.gz"
 Download Completed
+File extracted: srt-1.5.3.tar.gz
 
-File extracted: libvpx-1.13.0.tar.gz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-unit-tests --disable-shared --disable-examples --as=yasm
-$ make -j 32
-$ sudo make install
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DENABLE_APPS=OFF -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DUSE_STATIC_LIBSTDCXX=ON -G Ninja -Wno-dev
+$ ninja -C build -j32
+$ ninja -C build -j32 install
 
-building xvidcore - version 1.3.7
+Building avisynth - version 3.7.3
 ====================================
-Downloading https://downloads.xvid.com/downloads/xvidcore-1.3.7.tar.bz2 as xvidcore-1.3.7.tar.bz2
+Downloading "https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v3.7.3.tar.gz" saving as "avisynth-3.7.3.tar.gz"
 Download Completed
+File extracted: avisynth-3.7.3.tar.gz
 
-File extracted: xvidcore-1.3.7.tar.bz2
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-$ sudo rm /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/libxvidcore.so /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/libxvidcore.so.4 /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/libxvidcore.so.4.3
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DHEADERS_ONLY=ON -G Unix Makefiles -Wno-dev
+$ make -j32 -C build VersionGen install
 
-building vid_stab - version 1.1.1
+Building vapoursynth - version R64
 ====================================
-Downloading https://github.com/georgmartius/vid.stab/archive/refs/heads/master.tar.gz as vid.stab-1.1.1.tar.gz
+Downloading "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R64.tar.gz" saving as "vapoursynth-R64.tar.gz"
 Download Completed
+File extracted: vapoursynth-R64.tar.gz
 
-File extracted: vid.stab-1.1.1.tar.gz
-$ cmake -S . -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DUSE_OMP=OFF -DENABLE_SHARED=OFF .
-$ make -j 32
-$ sudo make install
-
-building av1 - version 5711b50
-====================================
-Downloading https://aomedia.googlesource.com/aom/+archive/5711b50eebe392119defd2a2a262bffef05e8507.tar.gz as av1.tar.gz
-Download Completed
-
-File extracted: av1.tar.gz
-$ cmake -S . -DENABLE_TESTS=0 -DENABLE_EXAMPLES=0 -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-      -DCMAKE_INSTALL_LIBDIR=lib /home/jman/tmp/ffmpeg/ffmpeg-build/packages/av1
-$ make -j 32
-$ sudo make install
-
-building zimg - version 3.0.4
-====================================
-Downloading https://github.com/sekrit-twc/zimg/archive/refs/tags/release-3.0.4.tar.gz as zimg-3.0.4.tar.gz
-Download Completed
-
-File extracted: zimg-3.0.4.tar.gz
-$ /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/bin/libtoolize -ifq
+$ pip install Cython==0.29.36
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --enable-static --disable-shared
-$ make -j 32
-$ sudo make install
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ make -j32
+$ make install
 
-building libpng - version 1.6.39
+Building cyanrip - version 1.0.0-rc1
 ====================================
-Downloading https://github.com/glennrp/libpng/archive/refs/tags/v1.6.39.tar.gz as libpng-1.6.39.tar.gz
+Downloading "https://github.com/cyanreg/cyanrip/archive/refs/tags/v1.0.0-rc1.tar.gz" saving as "cyanrip-1.0.0-rc1.tar.gz"
 Download Completed
+File extracted: cyanrip-1.0.0-rc1.tar.gz
 
-File extracted: libpng-1.6.39.tar.gz
-$ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
+$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=shared --strip -Dpkg_config_path=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig
+$ ninja -C build -j32
+$ ninja -C build -j32 install
 
-building avif - version 0.11.1
+Building libgav1 - version git
 ====================================
-Downloading https://github.com/AOMediaCodec/libavif/archive/refs/tags/v0.11.1.tar.gz as avif-0.11.1.tar.gz
+Downloading https://chromium.googlesource.com/codecs/libgav1 as libgav1-git
+Successfully cloned: /home/jman/tmp/ffmpeg-build-script/packages/libgav1-git
+
+$ git clone -b 20220623.0 --depth 1 https://github.com/abseil/abseil-cpp.git third_party/abseil-cpp
+$ cmake -B libgav1_build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin -DBUILD_SHARED_LIBS=OFF -DABSL_ENABLE_INSTALL=ON -DABSL_PROPAGATE_CXX_STD=ON -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja -Wno-dev
+$ ninja -j32 -C libgav1_build
+$ ninja -j32 -C libgav1_build install
+
+Building xvidcore - version 1.3.7-1
+====================================
+Downloading "https://salsa.debian.org/multimedia-team/xvidcore/-/archive/debian/2%251.3.7-1/xvidcore-debian-2%251.3.7-1.tar.bz2" saving as "xvidcore-1.3.7-1.tar.bz2"
 Download Completed
+File extracted: xvidcore-1.3.7-1.tar.bz2
 
-File extracted: avif-0.11.1.tar.gz
-$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DAVIF_CODEC_AOM=ON \
-    -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_DAV1D=ON -DAVIF_CODEC_RAV1E=ON -DAVIF_CODEC_SVT=ON -DBUILD_SHARED_LIBS=OFF -GNinja
-$ ninja
-$ ninja install
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
+$ make -j32
+$ make install
+$ ln -sf build/libxvidcore.so.4.3 /home/jman/tmp/ffmpeg-build-script/workspace/lib/libxvidcore.so.4@
 
-building kvazaar - version 2.2.0
+ ------------------------
+|                        |
+| Installing Image Tools |
+|                        |
+ ------------------------
+
+Building libheif - version 1.16.2
 ====================================
-Downloading https://github.com/ultravideo/kvazaar/archive/refs/heads/master.tar.gz as kvazaar-2.2.0.tar.gz
+Downloading "https://github.com/strukturag/libheif/archive/refs/tags/v1.16.2.tar.gz" saving as "libheif-1.16.2.tar.gz"
 Download Completed
+File extracted: libheif-1.16.2.tar.gz
 
-File extracted: kvazaar-2.2.0.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --enable-static --disable-shared
-$ make -j 32
-$ sudo make install
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev -DWITH_AOM_DECODER=ON -DWITH_AOM_ENCODER=ON -DWITH_DAV1D=ON -DWITH_LIBDE265=ON -DWITH_LIBSHARPYUV=ON -DWITH_RAV1E=ON -DWITH_RAV1E_PLUGIN=ON -DWITH_SvtEnc=ON -DWITH_SvtEnc_PLUGIN=ON -DWITH_X265=ON -DWITH_GDK_PIXBUF=ON -DWITH_EXAMPLES=OFF -DWITH_REDUCED_VISIBILITY=OFF -DSvtEnc_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DSvtEnc_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DAOM_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DAOM_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DDAV1D_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DDAV1D_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DRAV1E_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include/rav1e -DRAV1E_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DLIBDE265_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DLIBDE265_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DX265_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DX265_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib -DLIBSHARPYUV_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include/webp -DLIBSHARPYUV_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
 
-building lv2 - version 1.18.10
+Building openjpeg - version wg1n6848
 ====================================
-Downloading https://github.com/lv2/lv2/archive/refs/heads/master.tar.gz as lv2-1.18.10.tar.gz
+Downloading "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/wg1n6848" saving as "openjpeg-wg1n6848.tar.gz"
 Download Completed
+File extracted: openjpeg-wg1n6848.tar.gz
 
-File extracted: lv2-1.18.10.tar.gz
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release \
-    --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
-$ ninja -C build
-$ sudo ninja -C build install
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_SHARED_LIBS=ON -DBUILD_THIRDPARTY=ON -DCPACK_BINARY_DEB=ON -DCPACK_BINARY_FREEBSD=ON -DCPACK_BINARY_IFW=ON -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_RPM=ON -DCPACK_BINARY_TBZ2=ON -DCPACK_BINARY_TXZ=ON -DCPACK_SOURCE_RPM=ON -DCPACK_SOURCE_ZIP=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja -Wno-dev
+$ ninja -j32 -C build
+$ ninja -j32 -C build install
 
-building waflib - version waf-2.0.25
+ -----------------
+|                 |
+| Building FFmpeg |
+|                 |
+ -----------------
+
+Building ffmpeg - version 963937e
 ====================================
-Downloading https://gitlab.com/ita1024/waf/-/archive/waf-2.0.25/waf-waf-2.0.25.tar.bz2 as autowaf-waf-2.0.25.tar.bz2
+Downloading "https://git.ffmpeg.org/gitweb/ffmpeg.git/snapshot/963937e408fc68b5925f938a253cfff1d506f784.tar.gz" saving as "ffmpeg-963937e.tar.gz"
 Download Completed
-
-File extracted: autowaf-waf-2.0.25.tar.bz2
-
-building serd - version 0.30.16
-====================================
-Downloading https://gitlab.com/drobilla/serd/-/archive/v0.30.16/serd-v0.30.16.tar.bz2 as serd-0.30.16.tar.bz2
-Download Completed
-
-File extracted: serd-0.30.16.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
-    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
-$ ninja -C build
-$ sudo ninja -C build install
-
-building pcre2 - version 10.42
-====================================
-Downloading https://github.com/pcre2project/pcre2/archive/refs/heads/master.tar.gz as pcre2-10.42.tar.gz
-Download Completed
-
-File extracted: pcre2-10.42.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building zix - version 9e966d0f
-====================================
-Downloading https://gitlab.com/drobilla/zix/-/archive/9e966d0f5a11bb43d17a56aab1ed9a43b8c2a112/zix-9e966d0f5a11bb43d17a56aab1ed9a43b8c2a112.tar.bz2 as zix-9e966d0f.tar.bz2
-Download Completed
-
-File extracted: zix-9e966d0f.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release \
-    --default-library=static --backend ninja --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
-$ ninja -C build
-$ sudo ninja -C build install
-
-building sord - version 0.16.14
-====================================
-Downloading https://gitlab.com/drobilla/sord/-/archive/v0.16.14/sord-v0.16.14.tar.bz2 as sord-0.16.14.tar.bz2
-Download Completed
-
-File extracted: sord-0.16.14.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
-    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
-$ ninja -C build
-$ sudo ninja -C build install
-
-building sratom - version 0.6.14
-====================================
-Downloading https://gitlab.com/lv2/sratom/-/archive/v0.6.14/sratom-v0.6.14.tar.bz2 as sratom-0.6.14.tar.bz2
-Download Completed
-
-File extracted: sratom-0.6.14.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
-    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
-$ ninja -C build
-$ sudo ninja -C build install
-
-building lilv - version 0.24.20
-====================================
-Downloading https://gitlab.com/lv2/lilv/-/archive/v0.24.20/lilv-v0.24.20.tar.bz2 as lilv-0.24.20.tar.bz2
-Download Completed
-
-File extracted: lilv-0.24.20.tar.bz2
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static \
-    --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig
-$ ninja -C build
-$ sudo ninja -C build install
-
-building opencore - version 0.1.6
-====================================
-Downloading https://master.dl.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.6.tar.gz?viasf=1 as opencore-amr-0.1.6.tar.gz
-Download Completed
-
-File extracted: opencore-amr-0.1.6.tar.gz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building lame - version 3.100
-====================================
-Downloading https://sourceforge.net/projects/lame/files/lame/3.100/lame-3.100.tar.gz/download?use_mirror=gigenet as lame-3.100.tar.gz
-Download Completed
-
-File extracted: lame-3.100.tar.gz
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building opus - version 1.4
-====================================
-Downloading https://github.com/xiph/opus/archive/refs/tags/v1.4.tar.gz as opus-1.4.tar.gz
-Download Completed
-
-File extracted: opus-1.4.tar.gz
-$ ./autogen.sh
-$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DENABLE_SHARED=OFF \
-    -DBUILD_SHARED_LIBS=OFF -DENABLE_STATIC=ON -GUnix Makefiles
-$ make -j 32
-$ sudo make install
-
-building libogg - version 1.3.5
-====================================
-Downloading https://github.com/xiph/ogg/archive/refs/heads/master.tar.gz as libogg-1.3.5.tar.gz
-Download Completed
-
-File extracted: libogg-1.3.5.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building libvorbis - version 1.3.7
-====================================
-Downloading https://github.com/xiph/vorbis/archive/refs/tags/v1.3.7.tar.gz as libvorbis-1.3.7.tar.gz
-Download Completed
-
-File extracted: libvorbis-1.3.7.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-ogg-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib \
-    --with-ogg-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include --enable-static --disable-shared --disable-oggtest
-$ make -j 32
-$ sudo make install
-
-building libtheora - version 1.0
-====================================
-Downloading https://codeload.github.com/xiph/theora/tar.gz/refs/tags/v1.0 as libtheora-1.0.tar.gz
-Download Completed
-
-File extracted: libtheora-1.0.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --with-ogg-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib \
-    --with-ogg-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --with-vorbis-libraries=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib \
-    --with-vorbis-includes=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/ --enable-static --disable-shared --disable-oggtest --disable-vorbistest \
-    --disable-examples --disable-asm --disable-spec
-$ make -j 32
-$ sudo make install
-
-building fdk_aac - version 2.0.2
-====================================
-Downloading https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v2.0.2.tar.gz as fdk_aac-2.0.2.tar.gz
-Download Completed
-
-File extracted: fdk_aac-2.0.2.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static --enable-pic --bindir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/bin CXXFLAGS= -fno-exceptions -fno-rtti
-$ make -j 32
-$ sudo make install
-
-building libtiff - version 4.5.0
-====================================
-Downloading https://gitlab.com/libtiff/libtiff/-/archive/v4.5.0/libtiff-v4.5.0.tar.bz2 as libtiff-4.5.0.tar.bz2
-Download Completed
-
-File extracted: libtiff-4.5.0.tar.bz2
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building libwebp - version git
-====================================
-Downloading libwebp-git
-Download Complete
-
-$ autoreconf -fi
-$ cmake -S . -DCMAKE_INSTALL_MANDIR:PATH= -DCMAKE_C_FLAGS_RELEASE:STRING=-O3 -DNDEBUG -DWEBP_BUILD_EXTRAS:BOOL=0 -DWEBP_BUILD_LIBWEBPMUX:BOOL=0 -DZLIB_LIBRARY_DEBUG:FILEPATH=ZLIB_LIBRARY_DEBUG-NOTFOUND -DCMAKE_INSTALL_INCLUDEDIR:PATH=include -DCMAKE_INSTALL_LOCALEDIR:PATH= -DWEBP_LINK_STATIC:BOOL=0 -DWEBP_BUILD_GIF2WEBP:BOOL=0 -DWEBP_BUILD_IMG2WEBP:BOOL=0 -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=1 -DWEBP_BUILD_DWEBP:BOOL=0 -DWEBP_BUILD_CWEBP:BOOL=0 -DWEBP_BUILD_ANIM_UTILS:BOOL=0 -DWEBP_BUILD_WEBPMUX:BOOL=0 -DCMAKE_C_FLAGS:STRING= -DWEBP_ENABLE_SWAP_16BIT_CSP:BOOL=0 -DCMAKE_SHARED_LINKER_FLAGS_RELEASE:STRING= -DWEBP_BUILD_WEBPINFO:BOOL=0 -DCMAKE_INSTALL_PREFIX:PATH=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DZLIB_INCLUDE_DIR:PATH=/usr/include -DWEBP_BUILD_VWEBP:BOOL=0 -DCMAKE_INSTALL_DOCDIR:PATH= -GUnix Makefiles
-$ make -j 32
-$ sudo make install
-
-building udfread - version 1.1.2
-====================================
-Downloading https://code.videolan.org/videolan/libudfread/-/archive/1.1.2/libudfread-1.1.2.tar.bz2 as udfread-1.1.2.tar.bz2
-Download Completed
-
-File extracted: udfread-1.1.2.tar.bz2
-$ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static --with-pic --with-gnu-ld
-$ make -j 32
-$ sudo make install
-
-building libbluray - version 1.3.4
-====================================
-Downloading https://code.videolan.org/videolan/libbluray/-/archive/1.3.4/1.3.4.tar.gz as libbluray-1.3.4.tar.gz
-Download Completed
-
-File extracted: libbluray-1.3.4.tar.gz
-$ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building zenLib - version 0.4.41
-====================================
-Downloading https://github.com/MediaArea/ZenLib/archive/refs/tags/v0.4.41.tar.gz as zenLib-0.4.41.tar.gz
-Download Completed
-
-File extracted: zenLib-0.4.41.tar.gz
-$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_BINDIR=bin -DCMAKE_INSTALL_INCLUDEDIR=include -DENABLE_SHARED=OFF -DENABLE_STATIC=ON
-$ make -j 32
-$ sudo make install
-
-building MediaInfoLib - version 23.03
-====================================
-Downloading https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v23.03.tar.gz as MediaInfoLib-23.03.tar.gz
-Download Completed
-
-File extracted: MediaInfoLib-23.03.tar.gz
-$ cmake . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_BINDIR=bin -DCMAKE_INSTALL_INCLUDEDIR=include -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DENABLE_APPS=OFF -DUSE_STATIC_LIBSTDCXX=ON -DBUILD_ZLIB=OFF -DBUILD_ZENLIB=OFF
-$ make -j 32
-$ sudo make install
-
-building MediaInfoCLI - version 23.03
-====================================
-Downloading https://github.com/MediaArea/MediaInfo/archive/refs/heads/master.tar.gz as MediaInfoCLI-23.03.tar.gz
-Download Completed
-
-File extracted: MediaInfoCLI-23.03.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --enable-staticlibs
-
-building harfbuzz - version 7.1.0
-====================================
-Downloading https://github.com/harfbuzz/harfbuzz/archive/refs/tags/7.1.0.tar.gz as harfbuzz-7.1.0.tar.gz
-Download Completed
-
-File extracted: harfbuzz-7.1.0.tar.gz
-$ ./autogen.sh
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib
-$ ninja -C build
-$ sudo ninja -C build install
-
-building c2man - version git
-====================================
-Downloading c2man-git
-Download Complete
-
-$ ./Configure -desO -D prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -D bin=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/bin \
-    -D bash=/bin/bash -D cc=/usr/lib/ccache/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D find=/usr/bin/find -D gcc=/usr/lib/ccache/gcc \
-    -D gzip=/usr/bin/gzip -D installmansrc=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/share/man \
-    -D ldflags= -L /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib -L/usr/local/lib -D less=/usr/bin/less \
-    -D libpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib /usr/local/lib /lib /usr/lib \
-    -D locincpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include /usr/local/include /opt/local/include /usr/gnu/include /opt/gnu/include /usr/GNU/include /opt/GNU/include \
-    -D yacc=/usr/bin/yacc -D loclibpth=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib /usr/local/lib /opt/local/lib /usr/gnu/lib /opt/gnu/lib /usr/GNU/lib /opt/GNU/lib \
-    -D make=/usr/bin/make -D more=/usr/bin/more -D osname=Ubuntu -D perl=/usr/bin/perl -D privlib=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/c2man \
-    -D privlibexp=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/c2man -D sleep=/usr/bin/sleep -D tail=/usr/bin/tail -D tar=/usr/bin/tar -D uuname=Linux \
-    -D vi=/usr/bin/vi -D zip=/usr/bin/zip
-$ make depend
-$ make -j 32
-$ sudo make install
-
-building fribidi - version 1.0.12
-====================================
-Downloading https://github.com/fribidi/fribidi/archive/refs/heads/master.tar.gz as fribidi-1.0.12.tar.gz
-Download Completed
-
-File extracted: fribidi-1.0.12.tar.gz
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg/workspace --strip --backend ninja --optimization 3 \
-    --pkg-config-path=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:\
-    /usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib64/pkgconfig \
-    --buildtype=release --default-library=static --libdir=/home/jman/tmp/ffmpeg/workspace/lib
-$ ninja -C build
-$ sudo ninja -C build install
-
-building libass - version 0.17.1
-====================================
-Downloading https://github.com/libass/libass/archive/refs/heads/master.tar.gz as libass-0.17.1.tar.gz
-Download Completed
-
-File extracted: libass-0.17.1.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building fontconfig - version 2.14.2
-====================================
-Downloading https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/2.14.2/fontconfig-2.14.2.tar.bz2 as fontconfig-2.14.2.tar.bz2
-Download Completed
-
-File extracted: fontconfig-2.14.2.tar.bz2
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --sysconfdir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/etc/ \
-    --mandir=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace/share/man/
-$ make -j 32
-$ sudo make install
-
-building freetype - version VER-2-13-0
-====================================
-Downloading https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-2-13-0/freetype-VER-2-13-0.tar.bz2 as freetype-VER-2-13-0.tar.bz2
-Download Completed
-
-File extracted: freetype-VER-2-13-0.tar.bz2
-$ ./autogen.sh
-$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-    -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release -Dharfbuzz=disabled \
-    -Dpng=disabled -Dbzip2=disabled -Dbrotli=disabled -Dzlib=disabled -Dtests=disabled
-$ cmake --build build/release-static -j 32
-
-building libsdl - version 2.26.5
-====================================
-Downloading https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.26.5.tar.gz as libsdl-2.26.5.tar.gz
-Download Completed
-
-File extracted: libsdl-2.26.5.tar.gz
-$ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace --disable-shared --enable-static
-$ make -j 32
-$ sudo make install
-
-building srt - version rc.1
-====================================
-Downloading https://github.com/Haivision/srt/archive/refs/heads/master.tar.gz as srt-rc.1.tar.gz
-Download Completed
-
-File extracted: srt-rc.1.tar.gz
-$ cmake . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -DCMAKE_INSTALL_LIBDIR=lib \
-  -DCMAKE_INSTALL_BINDIR=bin -DCMAKE_INSTALL_INCLUDEDIR=include -DENABLE_SHARED=OFF -DENABLE_STATIC=ON \
-  -DENABLE_APPS=OFF -DUSE_STATIC_LIBSTDCXX=ON
-$ make -j 32
-$ sudo make install
-
-building opencl - version 2023.04.17
-====================================
-Downloading https://github.com/khronosgroup/opencl-headers/archive/refs/heads/master.tar.gz as opencl-2023.04.17.tar.gz
-Download Completed
-
-File extracted: opencl-2023.04.17.tar.gz
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
-$ cmake --build build --target install
-
-building amf - version 1.4.29
-====================================
-Downloading https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/heads/master.tar.gz as AMF-1.4.29.tar.gz
-Download Completed
-
-File extracted: AMF-1.4.29.tar.gz
-$ rm -fr /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/AMF
-$ mkdir -p /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/AMF
-$ cp -fr /home/jman/tmp/ffmpeg/ffmpeg-build/packages/AMF-1.4.29/amf/public/include/components /home/jman/tmp/ffmpeg/ffmpeg-build/packages/AMF-1.4.29/amf/public/include/core /home/jman/tmp/ffmpeg/ffmpeg-build/workspace/include/AMF/
-
-building vvenc - version 1.8.0
-====================================
-Downloading https://github.com/fraunhoferhhi/vvenc/archive/refs/heads/master.tar.gz as vvenc-1.8.0.tar.gz
-Download Completed
-
-File extracted: vvenc-1.8.0.tar.gz
-$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-  -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release
-$ cmake --build build/release-static -j 32
-
-building vvdec - version rc1
-====================================
-Downloading vvdec-rc1
-Download Complete
-
-$ cmake -B build/release-static -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace \
-  -DVVDEC_ENABLE_LINK_TIME_OPT=OFF -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release
-$ cmake --build build/release-static -j 32
-
-building nv-codec - version n12.0.16.0
-====================================
-Downloading nv-codec-n12.0.16.0
-Download Complete
-
-$ make PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace -j 32
-$ sudo make install PREFIX=/home/jman/tmp/ffmpeg/ffmpeg-build/workspace
-```
--------
-
-```bash
-building FFmpeg - version 5.1.3
-====================================
-The file "ffmpeg-5.1.3.tar.xz" is already downloaded.
-File extracted: ffmpeg-5.1.3.tar.xz
+File extracted: ffmpeg-963937e.tar.gz
 
 install prefix            /home/jman/tmp/ffmpeg-build-script/workspace
 source path               .
-C compiler                gcc-12
+C compiler                gcc
 C library                 glibc
 ARCH                      x86 (16)
 big-endian                no
@@ -892,281 +1128,384 @@ makeinfo supports HTML    yes
 xmllint enabled           yes
 
 External libraries:
-alsa                    libaom                  libfreetype             libopencore_amrwb       libtheora               libx265                 lv2                     xlib
-avisynth                libass                  libfribidi              libopenjpeg             libvidstab              libxcb                  lzma                    zlib
-bzlib                   libbluray               libjxl                  libopus                 libvorbis               libxcb_shm              openssl
-frei0r                  libdav1d                libkvazaar              librav1e                libvpx                  libxml2                 sdl2
-iconv                   libfdk_aac              libmp3lame              libsrt                  libwebp                 libxvid                 sndio
-lcms2                   libfontconfig           libopencore_amrnb       libsvtav1               libx264                 libzimg                 vapoursynth
+alsa                    libbluray               libgme                  libpulse                libssh                  libwebp                 opengl
+avisynth                libbs2b                 libjxl                  librav1e                libsvtav1               libx264                 openssl
+bzlib                   libcaca                 libkvazaar              librubberband           libtesseract            libx265                 sdl2
+frei0r                  libcdio                 libmodplug              libshine                libtheora               libxcb                  sndio
+iconv                   libdav1d                libmp3lame              libsmbclient            libtwolame              libxcb_shm              vapoursynth
+ladspa                  libfdk_aac              libmysofa               libsmbclient            libv4l2                 libxml2                 xlib
+lcms2                   libflite                libopencore_amrnb       libsnappy               libvidstab              libxvid                 zlib
+libaom                  libfontconfig           libopencore_amrwb       libsoxr                 libvo_amrwbenc          libzimg
+libaribb24              libfreetype             libopenjpeg             libspeex                libvorbis               lv2
+libass                  libfribidi              libopus                 libsrt                  libvpx                  lzma
 
 External libraries providing hardware acceleration:
-amf                     cuda_llvm               cuvid                   libnpp                  nvenc                   v4l2_m2m
-cuda                    cuda_nvcc               ffnvcodec               nvdec                   opencl                  vulkan
+amf                     cuda_llvm               cuvid                   nvdec                   opencl                  vaapi                   vulkan
+cuda                    cuda_nvcc               ffnvcodec               nvenc                   v4l2_m2m                vdpau
 
 Libraries:
-avcodec                 avdevice                avfilter                avformat                avutil                  postproc                swresample              swscale
+avcodec                 avfilter                avutil                  swresample
+avdevice                avformat                postproc                swscale
 
 Programs:
 ffmpeg                  ffplay                  ffprobe
 
 Enabled decoders:
-aac                     amrwb                   dpx                     hevc                    mp3                     pcm_s24daud             scpr                    vc1image
-aac_fixed               amv                     dsd_lsbf                hevc_cuvid              mp3adu                  pcm_s24le               screenpresso            vcr1
-aac_latm                anm                     dsd_lsbf_planar         hevc_v4l2m2m            mp3adufloat             pcm_s24le_planar        sdx2_dpcm               vmdaudio
-aasc                    ansi                    dsd_msbf                hnm4_video              mp3float                pcm_s32be               sga                     vmdvideo
-ac3                     ape                     dsd_msbf_planar         hq_hqa                  mp3on4                  pcm_s32le               sgi                     vmnc
-ac3_fixed               apng                    dsicinaudio             hqx                     mp3on4float             pcm_s32le_planar        sgirle                  vorbis
-acelp_kelvin            aptx                    dsicinvideo             huffyuv                 mpc7                    pcm_s64be               sheervideo              vp3
-adpcm_4xm               aptx_hd                 dss_sp                  hymt                    mpc8                    pcm_s64le               shorten                 vp4
-adpcm_adx               arbc                    dst                     iac                     mpeg1_cuvid             pcm_s8                  simbiosis_imx           vp5
-adpcm_afc               argo                    dvaudio                 idcin                   mpeg1_v4l2m2m           pcm_s8_planar           sipr                    vp6
-adpcm_agm               ass                     dvbsub                  idf                     mpeg1video              pcm_sga                 siren                   vp6a
-adpcm_aica              asv1                    dvdsub                  iff_ilbm                mpeg2_cuvid             pcm_u16be               smackaud                vp6f
-adpcm_argo              asv2                    dvvideo                 ilbc                    mpeg2_v4l2m2m           pcm_u16le               smacker                 vp7
-adpcm_ct                atrac1                  dxa                     imc                     mpeg2video              pcm_u24be               smc                     vp8
-adpcm_dtk               atrac3                  dxtory                  imm4                    mpeg4                   pcm_u24le               smvjpeg                 vp8_cuvid
-adpcm_ea                atrac3al                dxv                     imm5                    mpeg4_cuvid             pcm_u32be               snow                    vp8_v4l2m2m
-adpcm_ea_maxis_xa       atrac3p                 eac3                    indeo2                  mpeg4_v4l2m2m           pcm_u32le               sol_dpcm                vp9
-adpcm_ea_r1             atrac3pal               eacmv                   indeo3                  mpegvideo               pcm_u8                  sonic                   vp9_cuvid
-adpcm_ea_r2             atrac9                  eamad                   indeo4                  mpl2                    pcm_vidc                sp5x                    vp9_v4l2m2m
-adpcm_ea_r3             aura                    eatgq                   indeo5                  msa1                    pcx                     speedhq                 vplayer
-adpcm_ea_xas            aura2                   eatgv                   interplay_acm           mscc                    pfm                     speex                   vqa
-adpcm_g722              av1                     eatqi                   interplay_dpcm          msmpeg4v1               pgm                     srgc                    wavpack
-adpcm_g726              av1_cuvid               eightbps                interplay_video         msmpeg4v2               pgmyuv                  srt                     wcmv
-adpcm_g726le            avrn                    eightsvx_exp            ipu                     msmpeg4v3               pgssub                  ssa                     webp
-adpcm_ima_acorn         avrp                    eightsvx_fib            jacosub                 msnsiren                pgx                     stl                     webvtt
-adpcm_ima_alp           avs                     escape124               jpeg2000                msp2                    phm                     subrip                  wmalossless
-adpcm_ima_amv           avui                    escape130               jpegls                  msrle                   photocd                 subviewer               wmapro
-adpcm_ima_apc           ayuv                    evrc                    jv                      mss1                    pictor                  subviewer1              wmav1
-adpcm_ima_apm           bethsoftvid             exr                     kgv1                    mss2                    pixlet                  sunrast                 wmav2
-adpcm_ima_cunning       bfi                     fastaudio               kmvc                    msvideo1                pjs                     svq1                    wmavoice
-adpcm_ima_dat4          bink                    ffv1                    lagarith                mszh                    png                     svq3                    wmv1
-adpcm_ima_dk3           binkaudio_dct           ffvhuff                 libaom_av1              mts2                    ppm                     tak                     wmv2
-adpcm_ima_dk4           binkaudio_rdft          ffwavesynth             libdav1d                mv30                    prores                  targa                   wmv3
-adpcm_ima_ea_eacs       bintext                 fic                     libfdk_aac              mvc1                    prosumer                targa_y216              wmv3image
-adpcm_ima_ea_sead       bitpacked               fits                    libjxl                  mvc2                    psd                     tdsc                    wnv1
-adpcm_ima_iss           bmp                     flac                    libopencore_amrnb       mvdv                    ptx                     text                    wrapped_avframe
-adpcm_ima_moflex        bmv_audio               flashsv                 libopencore_amrwb       mvha                    qcelp                   theora                  ws_snd1
-adpcm_ima_mtf           bmv_video               flashsv2                libopenjpeg             mwsc                    qdm2                    thp                     xan_dpcm
-adpcm_ima_oki           brender_pix             flic                    libopus                 mxpeg                   qdmc                    tiertexseqvideo         xan_wc3
-adpcm_ima_qt            c93                     flv                     libvorbis               nellymoser              qdraw                   tiff                    xan_wc4
-adpcm_ima_rad           cavs                    fmvc                    libvpx_vp8              notchlc                 qoi                     tmv                     xbin
-adpcm_ima_smjpeg        ccaption                fourxm                  libvpx_vp9              nuv                     qpeg                    truehd                  xbm
-adpcm_ima_ssi           cdgraphics              fraps                   loco                    on2avc                  qtrle                   truemotion1             xface
-adpcm_ima_wav           cdtoons                 frwu                    lscr                    opus                    r10k                    truemotion2             xl
-adpcm_ima_ws            cdxl                    g2m                     m101                    paf_audio               r210                    truemotion2rt           xma1
-adpcm_ms                cfhd                    g723_1                  mace3                   paf_video               ra_144                  truespeech              xma2
-adpcm_mtaf              cinepak                 g729                    mace6                   pam                     ra_288                  tscc                    xpm
-adpcm_psx               clearvideo              gdv                     magicyuv                pbm                     ralf                    tscc2                   xsub
-adpcm_sbpro_2           cljr                    gem                     mdec                    pcm_alaw                rasc                    tta                     xwd
-adpcm_sbpro_3           cllc                    gif                     metasound               pcm_bluray              rawvideo                twinvq                  y41p
-adpcm_sbpro_4           comfortnoise            gremlin_dpcm            microdvd                pcm_dvd                 realtext                txd                     ylc
-adpcm_swf               cook                    gsm                     mimic                   pcm_f16le               rl2                     ulti                    yop
-adpcm_thp               cpia                    gsm_ms                  mjpeg                   pcm_f24le               roq                     utvideo                 yuv4
-adpcm_thp_le            cri                     h261                    mjpeg_cuvid             pcm_f32be               roq_dpcm                v210                    zero12v
-adpcm_vima              cscd                    h263                    mjpegb                  pcm_f32le               rpza                    v210x                   zerocodec
-adpcm_xa                cyuv                    h263_v4l2m2m            mlp                     pcm_f64be               rscc                    v308                    zlib
-adpcm_yamaha            dca                     h263i                   mmvideo                 pcm_f64le               rv10                    v408                    zmbv
-adpcm_zork              dds                     h263p                   mobiclip                pcm_lxf                 rv20                    v410
-agm                     derf_dpcm               h264                    motionpixels            pcm_mulaw               rv30                    vb
-aic                     dfa                     h264_cuvid              movtext                 pcm_s16be               rv40                    vble
-alac                    dfpwm                   h264_v4l2m2m            mp1                     pcm_s16be_planar        s302m                   vbn
-alias_pix               dirac                   hap                     mp1float                pcm_s16le               sami                    vc1
-als                     dnxhd                   hca                     mp2                     pcm_s16le_planar        sanm                    vc1_cuvid
-amrnb                   dolby_e                 hcom                    mp2float                pcm_s24be               sbc                     vc1_v4l2m2m
+aac                     argo                    eamad                   jv                      mvc2                    r10k                    utvideo
+aac_fixed               ass                     eatgq                   kgv1                    mvdv                    r210                    v210
+aac_latm                asv1                    eatgv                   kmvc                    mvha                    ra_144                  v210x
+aasc                    asv2                    eatqi                   lagarith                mwsc                    ra_288                  v308
+ac3                     atrac1                  eightbps                libaom_av1              mxpeg                   ralf                    v408
+ac3_fixed               atrac3                  eightsvx_exp            libaribb24              nellymoser              rasc                    v410
+acelp_kelvin            atrac3al                eightsvx_fib            libdav1d                notchlc                 rawvideo                vb
+adpcm_4xm               atrac3p                 escape124               libfdk_aac              nuv                     realtext                vble
+adpcm_adx               atrac3pal               escape130               libjxl                  on2avc                  rl2                     vbn
+adpcm_afc               atrac9                  evrc                    libopencore_amrnb       opus                    roq                     vc1
+adpcm_agm               aura                    exr                     libopencore_amrwb       paf_audio               roq_dpcm                vc1_cuvid
+adpcm_aica              aura2                   fastaudio               libopenjpeg             paf_video               rpza                    vc1_v4l2m2m
+adpcm_argo              av1                     ffv1                    libopus                 pam                     rscc                    vc1image
+adpcm_ct                av1_cuvid               ffvhuff                 libspeex                pbm                     rv10                    vcr1
+adpcm_dtk               avrn                    ffwavesynth             libvorbis               pcm_alaw                rv20                    vmdaudio
+adpcm_ea                avrp                    fic                     libvpx_vp8              pcm_bluray              rv30                    vmdvideo
+adpcm_ea_maxis_xa       avs                     fits                    libvpx_vp9              pcm_dvd                 rv40                    vmnc
+adpcm_ea_r1             avui                    flac                    loco                    pcm_f16le               s302m                   vorbis
+adpcm_ea_r2             ayuv                    flashsv                 lscr                    pcm_f24le               sami                    vp3
+adpcm_ea_r3             bethsoftvid             flashsv2                m101                    pcm_f32be               sanm                    vp4
+adpcm_ea_xas            bfi                     flic                    mace3                   pcm_f32le               sbc                     vp5
+adpcm_g722              bink                    flv                     mace6                   pcm_f64be               scpr                    vp6
+adpcm_g726              binkaudio_dct           fmvc                    magicyuv                pcm_f64le               screenpresso            vp6a
+adpcm_g726le            binkaudio_rdft          fourxm                  mdec                    pcm_lxf                 sdx2_dpcm               vp6f
+adpcm_ima_acorn         bintext                 fraps                   metasound               pcm_mulaw               sga                     vp7
+adpcm_ima_alp           bitpacked               frwu                    microdvd                pcm_s16be               sgi                     vp8
+adpcm_ima_amv           bmp                     g2m                     mimic                   pcm_s16be_planar        sgirle                  vp8_cuvid
+adpcm_ima_apc           bmv_audio               g723_1                  mjpeg                   pcm_s16le               sheervideo              vp8_v4l2m2m
+adpcm_ima_apm           bmv_video               g729                    mjpeg_cuvid             pcm_s16le_planar        shorten                 vp9
+adpcm_ima_cunning       brender_pix             gdv                     mjpegb                  pcm_s24be               simbiosis_imx           vp9_cuvid
+adpcm_ima_dat4          c93                     gem                     mlp                     pcm_s24daud             sipr                    vp9_v4l2m2m
+adpcm_ima_dk3           cavs                    gif                     mmvideo                 pcm_s24le               siren                   vplayer
+adpcm_ima_dk4           ccaption                gremlin_dpcm            mobiclip                pcm_s24le_planar        smackaud                vqa
+adpcm_ima_ea_eacs       cdgraphics              gsm                     motionpixels            pcm_s32be               smacker                 wavpack
+adpcm_ima_ea_sead       cdtoons                 gsm_ms                  movtext                 pcm_s32le               smc                     wcmv
+adpcm_ima_iss           cdxl                    h261                    mp1                     pcm_s32le_planar        smvjpeg                 webp
+adpcm_ima_moflex        cfhd                    h263                    mp1float                pcm_s64be               snow                    webvtt
+adpcm_ima_mtf           cinepak                 h263_v4l2m2m            mp2                     pcm_s64le               sol_dpcm                wmalossless
+adpcm_ima_oki           clearvideo              h263i                   mp2float                pcm_s8                  sonic                   wmapro
+adpcm_ima_qt            cljr                    h263p                   mp3                     pcm_s8_planar           sp5x                    wmav1
+adpcm_ima_rad           cllc                    h264                    mp3adu                  pcm_sga                 speedhq                 wmav2
+adpcm_ima_smjpeg        comfortnoise            h264_cuvid              mp3adufloat             pcm_u16be               speex                   wmavoice
+adpcm_ima_ssi           cook                    h264_v4l2m2m            mp3float                pcm_u16le               srgc                    wmv1
+adpcm_ima_wav           cpia                    hap                     mp3on4                  pcm_u24be               srt                     wmv2
+adpcm_ima_ws            cri                     hca                     mp3on4float             pcm_u24le               ssa                     wmv3
+adpcm_ms                cscd                    hcom                    mpc7                    pcm_u32be               stl                     wmv3image
+adpcm_mtaf              cyuv                    hevc                    mpc8                    pcm_u32le               subrip                  wnv1
+adpcm_psx               dca                     hevc_cuvid              mpeg1_cuvid             pcm_u8                  subviewer               wrapped_avframe
+adpcm_sbpro_2           dds                     hevc_v4l2m2m            mpeg1_v4l2m2m           pcm_vidc                subviewer1              ws_snd1
+adpcm_sbpro_3           derf_dpcm               hnm4_video              mpeg1video              pcx                     sunrast                 xan_dpcm
+adpcm_sbpro_4           dfa                     hq_hqa                  mpeg2_cuvid             pfm                     svq1                    xan_wc3
+adpcm_swf               dfpwm                   hqx                     mpeg2_v4l2m2m           pgm                     svq3                    xan_wc4
+adpcm_thp               dirac                   huffyuv                 mpeg2video              pgmyuv                  tak                     xbin
+adpcm_thp_le            dnxhd                   hymt                    mpeg4                   pgssub                  targa                   xbm
+adpcm_vima              dolby_e                 iac                     mpeg4_cuvid             pgx                     targa_y216              xface
+adpcm_xa                dpx                     idcin                   mpeg4_v4l2m2m           phm                     tdsc                    xl
+adpcm_yamaha            dsd_lsbf                idf                     mpegvideo               photocd                 text                    xma1
+adpcm_zork              dsd_lsbf_planar         iff_ilbm                mpl2                    pictor                  theora                  xma2
+agm                     dsd_msbf                ilbc                    msa1                    pixlet                  thp                     xpm
+aic                     dsd_msbf_planar         imc                     mscc                    pjs                     tiertexseqvideo         xsub
+alac                    dsicinaudio             imm4                    msmpeg4v1               png                     tiff                    xwd
+alias_pix               dsicinvideo             imm5                    msmpeg4v2               ppm                     tmv                     y41p
+als                     dss_sp                  indeo2                  msmpeg4v3               prores                  truehd                  ylc
+amrnb                   dst                     indeo3                  msnsiren                prosumer                truemotion1             yop
+amrwb                   dvaudio                 indeo4                  msp2                    psd                     truemotion2             yuv4
+amv                     dvbsub                  indeo5                  msrle                   ptx                     truemotion2rt           zero12v
+anm                     dvdsub                  interplay_acm           mss1                    qcelp                   truespeech              zerocodec
+ansi                    dvvideo                 interplay_dpcm          mss2                    qdm2                    tscc                    zlib
+ape                     dxa                     interplay_video         msvideo1                qdmc                    tscc2                   zmbv
+apng                    dxtory                  ipu                     mszh                    qdraw                   tta
+aptx                    dxv                     jacosub                 mts2                    qoi                     twinvq
+aptx_hd                 eac3                    jpeg2000                mv30                    qpeg                    txd
+arbc                    eacmv                   jpegls                  mvc1                    qtrle                   ulti
 
 Enabled encoders:
-a64multi                ass                     flashsv2                libsvtav1               pam                     pcm_u16le               rv10                    vbn
-a64multi5               asv1                    flv                     libtheora               pbm                     pcm_u24be               rv20                    vc2
-aac                     asv2                    g723_1                  libvorbis               pcm_alaw                pcm_u24le               s302m                   vorbis
-ac3                     avrp                    gif                     libvpx_vp8              pcm_bluray              pcm_u32be               sbc                     vp8_v4l2m2m
-ac3_fixed               avui                    h261                    libvpx_vp9              pcm_dvd                 pcm_u32le               sgi                     wavpack
-adpcm_adx               ayuv                    h263                    libwebp                 pcm_f32be               pcm_u8                  smc                     webvtt
-adpcm_argo              bitpacked               h263_v4l2m2m            libx264                 pcm_f32le               pcm_vidc                snow                    wmav1
-adpcm_g722              bmp                     h263p                   libx264rgb              pcm_f64be               pcx                     sonic                   wmav2
-adpcm_g726              cfhd                    h264_amf                libx265                 pcm_f64le               pfm                     sonic_ls                wmv1
-adpcm_g726le            cinepak                 h264_nvenc              libxvid                 pcm_mulaw               pgm                     speedhq                 wmv2
-adpcm_ima_alp           cljr                    h264_v4l2m2m            ljpeg                   pcm_s16be               pgmyuv                  srt                     wrapped_avframe
-adpcm_ima_amv           comfortnoise            hevc_amf                magicyuv                pcm_s16be_planar        phm                     ssa                     xbm
-adpcm_ima_apm           dca                     hevc_nvenc              mjpeg                   pcm_s16le               png                     subrip                  xface
-adpcm_ima_qt            dfpwm                   hevc_v4l2m2m            mlp                     pcm_s16le_planar        ppm                     sunrast                 xsub
-adpcm_ima_ssi           dnxhd                   huffyuv                 movtext                 pcm_s24be               prores                  svq1                    xwd
-adpcm_ima_wav           dpx                     jpeg2000                mp2                     pcm_s24daud             prores_aw               targa                   y41p
-adpcm_ima_ws            dvbsub                  jpegls                  mp2fixed                pcm_s24le               prores_ks               text                    yuv4
-adpcm_ms                dvdsub                  libaom_av1              mpeg1video              pcm_s24le_planar        qoi                     tiff                    zlib
-adpcm_swf               dvvideo                 libfdk_aac              mpeg2video              pcm_s32be               qtrle                   truehd                  zmbv
-adpcm_yamaha            eac3                    libjxl                  mpeg4                   pcm_s32le               r10k                    tta
-alac                    exr                     libkvazaar              mpeg4_v4l2m2m           pcm_s32le_planar        r210                    ttml
-alias_pix               ffv1                    libmp3lame              msmpeg4v2               pcm_s64be               ra_144                  utvideo
-amv                     ffvhuff                 libopencore_amrnb       msmpeg4v3               pcm_s64le               rawvideo                v210
-apng                    fits                    libopenjpeg             msvideo1                pcm_s8                  roq                     v308
-aptx                    flac                    libopus                 nellymoser              pcm_s8_planar           roq_dpcm                v408
-aptx_hd                 flashsv                 librav1e                opus                    pcm_u16be               rpza                    v410
+a64multi                ayuv                    h264_v4l2m2m            libx264rgb              pcm_s16be               prores_aw               ttml
+a64multi5               bitpacked               h264_vaapi              libx265                 pcm_s16be_planar        prores_ks               utvideo
+aac                     bmp                     hap                     libxvid                 pcm_s16le               qoi                     v210
+ac3                     cfhd                    hevc_amf                ljpeg                   pcm_s16le_planar        qtrle                   v308
+ac3_fixed               cinepak                 hevc_nvenc              magicyuv                pcm_s24be               r10k                    v408
+adpcm_adx               cljr                    hevc_v4l2m2m            mjpeg                   pcm_s24daud             r210                    v410
+adpcm_argo              comfortnoise            hevc_vaapi              mjpeg_vaapi             pcm_s24le               ra_144                  vbn
+adpcm_g722              dca                     huffyuv                 mlp                     pcm_s24le_planar        rawvideo                vc2
+adpcm_g726              dfpwm                   jpeg2000                movtext                 pcm_s32be               roq                     vorbis
+adpcm_g726le            dnxhd                   jpegls                  mp2                     pcm_s32le               roq_dpcm                vp8_v4l2m2m
+adpcm_ima_alp           dpx                     libaom_av1              mp2fixed                pcm_s32le_planar        rpza                    vp8_vaapi
+adpcm_ima_amv           dvbsub                  libfdk_aac              mpeg1video              pcm_s64be               rv10                    vp9_vaapi
+adpcm_ima_apm           dvdsub                  libjxl                  mpeg2_vaapi             pcm_s64le               rv20                    wavpack
+adpcm_ima_qt            dvvideo                 libkvazaar              mpeg2video              pcm_s8                  s302m                   webvtt
+adpcm_ima_ssi           eac3                    libmp3lame              mpeg4                   pcm_s8_planar           sbc                     wmav1
+adpcm_ima_wav           exr                     libopencore_amrnb       mpeg4_v4l2m2m           pcm_u16be               sgi                     wmav2
+adpcm_ima_ws            ffv1                    libopenjpeg             msmpeg4v2               pcm_u16le               smc                     wmv1
+adpcm_ms                ffvhuff                 libopus                 msmpeg4v3               pcm_u24be               snow                    wmv2
+adpcm_swf               fits                    librav1e                msvideo1                pcm_u24le               sonic                   wrapped_avframe
+adpcm_yamaha            flac                    libshine                nellymoser              pcm_u32be               sonic_ls                xbm
+alac                    flashsv                 libspeex                opus                    pcm_u32le               speedhq                 xface
+alias_pix               flashsv2                libsvtav1               pam                     pcm_u8                  srt                     xsub
+amv                     flv                     libtheora               pbm                     pcm_vidc                ssa                     xwd
+apng                    g723_1                  libtwolame              pcm_alaw                pcx                     subrip                  y41p
+aptx                    gif                     libvo_amrwbenc          pcm_bluray              pfm                     sunrast                 yuv4
+aptx_hd                 h261                    libvorbis               pcm_dvd                 pgm                     svq1                    zlib
+ass                     h263                    libvpx_vp8              pcm_f32be               pgmyuv                  targa                   zmbv
+asv1                    h263_v4l2m2m            libvpx_vp9              pcm_f32le               phm                     text
+asv2                    h263p                   libwebp                 pcm_f64be               png                     tiff
+avrp                    h264_amf                libwebp_anim            pcm_f64le               ppm                     truehd
+avui                    h264_nvenc              libx264                 pcm_mulaw               prores                  tta
 
 Enabled hwaccels:
-av1_nvdec               hevc_nvdec              mpeg1_nvdec             mpeg4_nvdec             vp8_nvdec               wmv3_nvdec
-h264_nvdec              mjpeg_nvdec             mpeg2_nvdec             vc1_nvdec               vp9_nvdec
+av1_nvdec               h264_vaapi              mjpeg_nvdec             mpeg2_vaapi             vc1_nvdec               vp9_nvdec               wmv3_vdpau
+av1_vaapi               h264_vdpau              mjpeg_vaapi             mpeg2_vdpau             vc1_vaapi               vp9_vaapi
+av1_vdpau               hevc_nvdec              mpeg1_nvdec             mpeg4_nvdec             vc1_vdpau               vp9_vdpau
+h263_vaapi              hevc_vaapi              mpeg1_vdpau             mpeg4_vaapi             vp8_nvdec               wmv3_nvdec
+h264_nvdec              hevc_vdpau              mpeg2_nvdec             mpeg4_vdpau             vp8_vaapi               wmv3_vaapi
 
 Enabled parsers:
-aac                     avs3                    dnxhd                   flac                    h264                    mpegaudio               rv40                    vp8
-aac_latm                bmp                     dolby_e                 g723_1                  hevc                    mpegvideo               sbc                     vp9
-ac3                     cavsvideo               dpx                     g729                    ipu                     opus                    sipr                    webp
-adx                     cook                    dvaudio                 gif                     jpeg2000                png                     tak                     xbm
-amr                     cri                     dvbsub                  gsm                     mjpeg                   pnm                     vc1                     xma
-av1                     dca                     dvd_nav                 h261                    mlp                     qoi                     vorbis
-avs2                    dirac                   dvdsub                  h263                    mpeg4video              rv30                    vp3
+aac                     bmp                     dpx                     gif                     mjpeg                   qoi                     vp3
+aac_latm                cavsvideo               dvaudio                 gsm                     mlp                     rv30                    vp8
+ac3                     cook                    dvbsub                  h261                    mpeg4video              rv40                    vp9
+adx                     cri                     dvd_nav                 h263                    mpegaudio               sbc                     webp
+amr                     dca                     dvdsub                  h264                    mpegvideo               sipr                    xbm
+av1                     dirac                   flac                    hevc                    opus                    tak                     xma
+avs2                    dnxhd                   g723_1                  ipu                     png                     vc1
+avs3                    dolby_e                 g729                    jpeg2000                pnm                     vorbis
 
 Enabled demuxers:
-aa                      bfi                     filmstrip               image_gif_pipe          lmlm4                   nsp                     rsd                     truehd
-aac                     bfstm                   fits                    image_j2k_pipe          loas                    nsv                     rso                     tta
-aax                     bink                    flac                    image_jpeg_pipe         lrc                     nut                     rtp                     tty
-ac3                     binka                   flic                    image_jpegls_pipe       luodat                  nuv                     rtsp                    txd
-ace                     bintext                 flv                     image_jpegxl_pipe       lvf                     obu                     s337m                   ty
-acm                     bit                     fourxm                  image_pam_pipe          lxf                     ogg                     sami                    v210
-act                     bitpacked               frm                     image_pbm_pipe          m4v                     oma                     sap                     v210x
-adf                     bmv                     fsb                     image_pcx_pipe          matroska                paf                     sbc                     vag
-adp                     boa                     fwse                    image_pfm_pipe          mca                     pcm_alaw                sbg                     vapoursynth
-ads                     brstm                   g722                    image_pgm_pipe          mcc                     pcm_f32be               scc                     vc1
-adx                     c93                     g723_1                  image_pgmyuv_pipe       mgsts                   pcm_f32le               scd                     vc1t
-aea                     caf                     g726                    image_pgx_pipe          microdvd                pcm_f64be               sdp                     vividas
-afc                     cavsvideo               g726le                  image_phm_pipe          mjpeg                   pcm_f64le               sdr2                    vivo
-aiff                    cdg                     g729                    image_photocd_pipe      mjpeg_2000              pcm_mulaw               sds                     vmd
-aix                     cdxl                    gdv                     image_pictor_pipe       mlp                     pcm_s16be               sdx                     vobsub
-alp                     cine                    genh                    image_png_pipe          mlv                     pcm_s16le               segafilm                voc
-amr                     codec2                  gif                     image_ppm_pipe          mm                      pcm_s24be               ser                     vpk
-amrnb                   codec2raw               gsm                     image_psd_pipe          mmf                     pcm_s24le               sga                     vplayer
-amrwb                   concat                  gxf                     image_qdraw_pipe        mods                    pcm_s32be               shorten                 vqf
-anm                     dash                    h261                    image_qoi_pipe          moflex                  pcm_s32le               siff                    w64
-apc                     data                    h263                    image_sgi_pipe          mov                     pcm_s8                  simbiosis_imx           wav
-ape                     daud                    h264                    image_sunrast_pipe      mp3                     pcm_u16be               sln                     wc3
-apm                     dcstr                   hca                     image_svg_pipe          mpc                     pcm_u16le               smacker                 webm_dash_manifest
-apng                    derf                    hcom                    image_tiff_pipe         mpc8                    pcm_u24be               smjpeg                  webvtt
-aptx                    dfa                     hevc                    image_vbn_pipe          mpegps                  pcm_u24le               smush                   wsaud
-aptx_hd                 dfpwm                   hls                     image_webp_pipe         mpegts                  pcm_u32be               sol                     wsd
-aqtitle                 dhav                    hnm                     image_xbm_pipe          mpegtsraw               pcm_u32le               sox                     wsvqa
-argo_asf                dirac                   ico                     image_xpm_pipe          mpegvideo               pcm_u8                  spdif                   wtv
-argo_brp                dnxhd                   idcin                   image_xwd_pipe          mpjpeg                  pcm_vidc                srt                     wv
-argo_cvg                dsf                     idf                     imf                     mpl2                    pjs                     stl                     wve
-asf                     dsicin                  iff                     ingenient               mpsub                   pmp                     str                     xa
-asf_o                   dss                     ifv                     ipmovie                 msf                     pp_bnk                  subviewer               xbin
-ass                     dts                     ilbc                    ipu                     msnwc_tcp               pva                     subviewer1              xmv
-ast                     dtshd                   image2                  ircam                   msp                     pvf                     sup                     xvag
-au                      dv                      image2_alias_pix        iss                     mtaf                    qcp                     svag                    xwma
-av1                     dvbsub                  image2_brender_pix      iv8                     mtv                     r3d                     svs                     yop
-avi                     dvbtxt                  image2pipe              ivf                     musx                    rawvideo                swf                     yuv4mpegpipe
-avisynth                dxa                     image_bmp_pipe          ivr                     mv                      realtext                tak
-avr                     ea                      image_cri_pipe          jacosub                 mvi                     redspark                tedcaptions
-avs                     ea_cdata                image_dds_pipe          jv                      mxf                     rl2                     thp
-avs2                    eac3                    image_dpx_pipe          kux                     mxg                     rm                      threedostr
-avs3                    epaf                    image_exr_pipe          kvag                    nc                      roq                     tiertexseq
-bethsoftvid             ffmetadata              image_gem_pipe          live_flv                nistsphere              rpl                     tmv
+aa                      bitpacked               g726le                  image_qdraw_pipe        mpc                     pcm_vidc                svag
+aac                     bmv                     g729                    image_qoi_pipe          mpc8                    pjs                     svs
+aax                     boa                     gdv                     image_sgi_pipe          mpegps                  pmp                     swf
+ac3                     brstm                   genh                    image_sunrast_pipe      mpegts                  pp_bnk                  tak
+ace                     c93                     gif                     image_svg_pipe          mpegtsraw               pva                     tedcaptions
+acm                     caf                     gsm                     image_tiff_pipe         mpegvideo               pvf                     thp
+act                     cavsvideo               gxf                     image_vbn_pipe          mpjpeg                  qcp                     threedostr
+adf                     cdg                     h261                    image_webp_pipe         mpl2                    r3d                     tiertexseq
+adp                     cdxl                    h263                    image_xbm_pipe          mpsub                   rawvideo                tmv
+ads                     cine                    h264                    image_xpm_pipe          msf                     realtext                truehd
+adx                     codec2                  hca                     image_xwd_pipe          msnwc_tcp               redspark                tta
+aea                     codec2raw               hcom                    imf                     msp                     rl2                     tty
+afc                     concat                  hevc                    ingenient               mtaf                    rm                      txd
+aiff                    dash                    hls                     ipmovie                 mtv                     roq                     ty
+aix                     data                    hnm                     ipu                     musx                    rpl                     v210
+alp                     daud                    ico                     ircam                   mv                      rsd                     v210x
+amr                     dcstr                   idcin                   iss                     mvi                     rso                     vag
+amrnb                   derf                    idf                     iv8                     mxf                     rtp                     vapoursynth
+amrwb                   dfa                     iff                     ivf                     mxg                     rtsp                    vc1
+anm                     dfpwm                   ifv                     ivr                     nc                      s337m                   vc1t
+apc                     dhav                    ilbc                    jacosub                 nistsphere              sami                    vividas
+ape                     dirac                   image2                  jv                      nsp                     sap                     vivo
+apm                     dnxhd                   image2_alias_pix        kux                     nsv                     sbc                     vmd
+apng                    dsf                     image2_brender_pix      kvag                    nut                     sbg                     vobsub
+aptx                    dsicin                  image2pipe              libgme                  nuv                     scc                     voc
+aptx_hd                 dss                     image_bmp_pipe          libmodplug              obu                     scd                     vpk
+aqtitle                 dts                     image_cri_pipe          live_flv                ogg                     sdp                     vplayer
+argo_asf                dtshd                   image_dds_pipe          lmlm4                   oma                     sdr2                    vqf
+argo_brp                dv                      image_dpx_pipe          loas                    paf                     sds                     w64
+argo_cvg                dvbsub                  image_exr_pipe          lrc                     pcm_alaw                sdx                     wav
+asf                     dvbtxt                  image_gem_pipe          luodat                  pcm_f32be               segafilm                wc3
+asf_o                   dxa                     image_gif_pipe          lvf                     pcm_f32le               ser                     webm_dash_manifest
+ass                     ea                      image_j2k_pipe          lxf                     pcm_f64be               sga                     webvtt
+ast                     ea_cdata                image_jpeg_pipe         m4v                     pcm_f64le               shorten                 wsaud
+au                      eac3                    image_jpegls_pipe       matroska                pcm_mulaw               siff                    wsd
+av1                     epaf                    image_jpegxl_pipe       mca                     pcm_s16be               simbiosis_imx           wsvqa
+avi                     ffmetadata              image_pam_pipe          mcc                     pcm_s16le               sln                     wtv
+avisynth                filmstrip               image_pbm_pipe          mgsts                   pcm_s24be               smacker                 wv
+avr                     fits                    image_pcx_pipe          microdvd                pcm_s24le               smjpeg                  wve
+avs                     flac                    image_pfm_pipe          mjpeg                   pcm_s32be               smush                   xa
+avs2                    flic                    image_pgm_pipe          mjpeg_2000              pcm_s32le               sol                     xbin
+avs3                    flv                     image_pgmyuv_pipe       mlp                     pcm_s8                  sox                     xmv
+bethsoftvid             fourxm                  image_pgx_pipe          mlv                     pcm_u16be               spdif                   xvag
+bfi                     frm                     image_phm_pipe          mm                      pcm_u16le               srt                     xwma
+bfstm                   fsb                     image_photocd_pipe      mmf                     pcm_u24be               stl                     yop
+bink                    fwse                    image_pictor_pipe       mods                    pcm_u24le               str                     yuv4mpegpipe
+binka                   g722                    image_png_pipe          moflex                  pcm_u32be               subviewer
+bintext                 g723_1                  image_ppm_pipe          mov                     pcm_u32le               subviewer1
+bit                     g726                    image_psd_pipe          mp3                     pcm_u8                  sup
 
 Enabled muxers:
-a64                     avs2                    flac                    image2pipe              mpeg1system             pcm_f32le               roq                     tgp
-ac3                     avs3                    flv                     ipod                    mpeg1vcd                pcm_f64be               rso                     truehd
-adts                    bit                     framecrc                ircam                   mpeg1video              pcm_f64le               rtp                     tta
-adx                     caf                     framehash               ismv                    mpeg2dvd                pcm_mulaw               rtp_mpegts              ttml
-aiff                    cavsvideo               framemd5                ivf                     mpeg2svcd               pcm_s16be               rtsp                    uncodedframecrc
-alp                     codec2                  g722                    jacosub                 mpeg2video              pcm_s16le               sap                     vc1
-amr                     codec2raw               g723_1                  kvag                    mpeg2vob                pcm_s24be               sbc                     vc1t
-amv                     crc                     g726                    latm                    mpegts                  pcm_s24le               scc                     voc
-apm                     dash                    g726le                  lrc                     mpjpeg                  pcm_s32be               segafilm                w64
-apng                    data                    gif                     m4v                     mxf                     pcm_s32le               segment                 wav
-aptx                    daud                    gsm                     matroska                mxf_d10                 pcm_s8                  smjpeg                  webm
-aptx_hd                 dfpwm                   gxf                     matroska_audio          mxf_opatom              pcm_u16be               smoothstreaming         webm_chunk
-argo_asf                dirac                   h261                    md5                     null                    pcm_u16le               sox                     webm_dash_manifest
-argo_cvg                dnxhd                   h263                    microdvd                nut                     pcm_u24be               spdif                   webp
-asf                     dts                     h264                    mjpeg                   obu                     pcm_u24le               spx                     webvtt
-asf_stream              dv                      hash                    mkvtimestamp_v2         oga                     pcm_u32be               srt                     wsaud
-ass                     eac3                    hds                     mlp                     ogg                     pcm_u32le               stream_segment          wtv
-ast                     f4v                     hevc                    mmf                     ogv                     pcm_u8                  streamhash              wv
-au                      ffmetadata              hls                     mov                     oma                     pcm_vidc                sup                     yuv4mpegpipe
-avi                     fifo_test               ico                     mp2                     opus                    psp                     swf
-avif                    filmstrip               ilbc                    mp3                     pcm_alaw                rawvideo                tee
-avm2                    fits                    image2                  mp4                     pcm_f32be               rm                      tg2
+a64                     caf                     g723_1                  m4v                     null                    pcm_u32be               sup
+ac3                     cavsvideo               g726                    matroska                nut                     pcm_u32le               swf
+adts                    codec2                  g726le                  matroska_audio          obu                     pcm_u8                  tee
+adx                     codec2raw               gif                     md5                     oga                     pcm_vidc                tg2
+aiff                    crc                     gsm                     microdvd                ogg                     psp                     tgp
+alp                     dash                    gxf                     mjpeg                   ogv                     rawvideo                truehd
+amr                     data                    h261                    mkvtimestamp_v2         oma                     rm                      tta
+amv                     daud                    h263                    mlp                     opus                    roq                     ttml
+apm                     dfpwm                   h264                    mmf                     pcm_alaw                rso                     uncodedframecrc
+apng                    dirac                   hash                    mov                     pcm_f32be               rtp                     vc1
+aptx                    dnxhd                   hds                     mp2                     pcm_f32le               rtp_mpegts              vc1t
+aptx_hd                 dts                     hevc                    mp3                     pcm_f64be               rtsp                    voc
+argo_asf                dv                      hls                     mp4                     pcm_f64le               sap                     w64
+argo_cvg                eac3                    ico                     mpeg1system             pcm_mulaw               sbc                     wav
+asf                     f4v                     ilbc                    mpeg1vcd                pcm_s16be               scc                     webm
+asf_stream              ffmetadata              image2                  mpeg1video              pcm_s16le               segafilm                webm_chunk
+ass                     fifo_test               image2pipe              mpeg2dvd                pcm_s24be               segment                 webm_dash_manifest
+ast                     filmstrip               ipod                    mpeg2svcd               pcm_s24le               smjpeg                  webp
+au                      fits                    ircam                   mpeg2video              pcm_s32be               smoothstreaming         webvtt
+avi                     flac                    ismv                    mpeg2vob                pcm_s32le               sox                     wsaud
+avif                    flv                     ivf                     mpegts                  pcm_s8                  spdif                   wtv
+avm2                    framecrc                jacosub                 mpjpeg                  pcm_u16be               spx                     wv
+avs2                    framehash               kvag                    mxf                     pcm_u16le               srt                     yuv4mpegpipe
+avs3                    framemd5                latm                    mxf_d10                 pcm_u24be               stream_segment
+bit                     g722                    lrc                     mxf_opatom              pcm_u24le               streamhash
 
 Enabled protocols:
-bluray                  data                    gopher                  https                   md5                     rtmp                    rtmpts                  tee
-cache                   ffrtmpcrypt             gophers                 icecast                 mmsh                    rtmpe                   rtp                     tls
-concat                  ffrtmphttp              hls                     ipfs                    mmst                    rtmps                   srtp                    udp
-concatf                 file                    http                    ipns                    pipe                    rtmpt                   subfile                 udplite
-crypto                  ftp                     httpproxy               libsrt                  prompeg                 rtmpte                  tcp                     unix
+bluray                  ffrtmphttp              httpproxy               libssh                  rtmpe                   srtp                    unix
+cache                   file                    https                   md5                     rtmps                   subfile
+concat                  ftp                     icecast                 mmsh                    rtmpt                   tcp
+concatf                 gopher                  ipfs                    mmst                    rtmpte                  tee
+crypto                  gophers                 ipns                    pipe                    rtmpts                  tls
+data                    hls                     libsmbclient            prompeg                 rtp                     udp
+ffrtmpcrypt             http                    libsrt                  rtmp                    sctp                    udplite
 
 Enabled filters:
-abench                  aphasemeter             chromakey_cuda          drawgraph               hqx                     nlmeans                 scroll                  testsrc2
-abitscope               aphaser                 chromanr                drawgrid                hstack                  nlmeans_opencl          segment                 thistogram
-acompressor             aphaseshift             chromashift             drawtext                hsvhold                 nnedi                   select                  threshold
-acontrast               apsyclip                ciescope                drmeter                 hsvkey                  noformat                selectivecolor          thumbnail
-acopy                   apulsator               codecview               dynaudnorm              hue                     noise                   sendcmd                 thumbnail_cuda
-acrossfade              arealtime               color                   earwax                  huesaturation           normalize               separatefields          tile
-acrossover              aresample               colorbalance            ebur128                 hwdownload              null                    setdar                  tiltshelf
-acrusher                areverse                colorchannelmixer       edgedetect              hwmap                   nullsink                setfield                tinterlace
-acue                    arnndn                  colorchart              elbg                    hwupload                nullsrc                 setparams               tlut2
-addroi                  asdr                    colorcontrast           entropy                 hwupload_cuda           openclsrc               setpts                  tmedian
-adeclick                asegment                colorcorrect            epx                     hysteresis              oscilloscope            setrange                tmidequalizer
-adeclip                 aselect                 colorhold               eq                      iccdetect               overlay                 setsar                  tmix
-adecorrelate            asendcmd                colorize                equalizer               iccgen                  overlay_cuda            settb                   tonemap
-adelay                  asetnsamples            colorkey                erosion                 identity                overlay_opencl          sharpen_npp             tonemap_opencl
-adenorm                 asetpts                 colorkey_opencl         erosion_opencl          idet                    owdenoise               shear                   tpad
-aderivative             asetrate                colorlevels             estdif                  il                      pad                     showcqt                 transpose
-adrawgraph              asettb                  colormap                exposure                inflate                 pad_opencl              showfreqs               transpose_npp
-adynamicequalizer       ashowinfo               colormatrix             extractplanes           interlace               pal100bars              showinfo                transpose_opencl
-adynamicsmooth          asidedata               colorspace              extrastereo             interleave              pal75bars               showpalette             treble
-aecho                   asoftclip               colorspectrum           fade                    join                    palettegen              showspatial             tremolo
-aemphasis               aspectralstats          colortemperature        feedback                kerndeint               paletteuse              showspectrum            trim
-aeval                   asplit                  compand                 fftdnoiz                kirsch                  pan                     showspectrumpic         unpremultiply
-aevalsrc                ass                     compensationdelay       fftfilt                 lagfun                  perms                   showvolume              unsharp
-aexciter                astats                  concat                  field                   latency                 perspective             showwaves               unsharp_opencl
-afade                   astreamselect           convolution             fieldhint               lenscorrection          phase                   showwavespic            untile
-afftdn                  asubboost               convolution_opencl      fieldmatch              life                    photosensitivity        shuffleframes           v360
-afftfilt                asubcut                 convolve                fieldorder              limitdiff               pixdesctest             shufflepixels           vaguedenoiser
-afifo                   asupercut               copy                    fifo                    limiter                 pixelize                shuffleplanes           varblur
-afir                    asuperpass              cover_rect              fillborders             loop                    pixscope                sidechaincompress       vectorscope
-afirsrc                 asuperstop              crop                    find_rect               loudnorm                pp                      sidechaingate           vflip
-aformat                 atadenoise              cropdetect              firequalizer            lowpass                 pp7                     sidedata                vfrdet
-afreqshift              atempo                  crossfeed               flanger                 lowshelf                premultiply             sierpinski              vibrance
-afwtdn                  atilt                   crystalizer             floodfill               lumakey                 prewitt                 signalstats             vibrato
-agate                   atrim                   cue                     format                  lut                     prewitt_opencl          signature               vidstabdetect
-agraphmonitor           avectorscope            curves                  fps                     lut1d                   program_opencl          silencedetect           vidstabtransform
-ahistogram              avgblur                 datascope               framepack               lut2                    pseudocolor             silenceremove           vif
-aiir                    avgblur_opencl          dblur                   framerate               lut3d                   psnr                    sinc                    vignette
-aintegral               avsynctest              dcshift                 framestep               lutrgb                  pullup                  sine                    virtualbass
-ainterleave             axcorrelate             dctdnoiz                freezedetect            lutyuv                  qp                      siti                    vmafmotion
-alatency                bandpass                deband                  freezeframes            lv2                     random                  smartblur               volume
-alimiter                bandreject              deblock                 frei0r                  mandelbrot              readeia608              smptebars               volumedetect
-allpass                 bass                    decimate                frei0r_src              maskedclamp             readvitc                smptehdbars             vstack
-allrgb                  bbox                    deconvolve              fspp                    maskedmax               realtime                sobel                   w3fdif
-allyuv                  bench                   dedot                   gblur                   maskedmerge             remap                   sobel_opencl            waveform
-aloop                   bilateral               deesser                 geq                     maskedmin               remap_opencl            spectrumsynth           weave
-alphaextract            biquad                  deflate                 gradfun                 maskedthreshold         removegrain             speechnorm              xbr
-alphamerge              bitplanenoise           deflicker               gradients               maskfun                 removelogo              split                   xcorrelate
-amerge                  blackdetect             dejudder                graphmonitor            mcompand                repeatfields            spp                     xfade
-ametadata               blackframe              delogo                  grayworld               median                  replaygain              sr                      xfade_opencl
-amix                    blend                   derain                  greyedge                mergeplanes             reverse                 ssim                    xmedian
-amovie                  blockdetect             deshake                 guided                  mestimate               rgbashift               stereo3d                xstack
-amplify                 blurdetect              deshake_opencl          haas                    metadata                rgbtestsrc              stereotools             yadif
-amultiply               bm3d                    despill                 haldclut                midequalizer            roberts                 stereowiden             yadif_cuda
-anequalizer             boxblur                 detelecine              haldclutsrc             minterpolate            roberts_opencl          streamselect            yaepblur
-anlmdn                  boxblur_opencl          dialoguenhance          hdcd                    mix                     rotate                  subtitles               yuvtestsrc
-anlmf                   bwdif                   dilation                headphone               monochrome              sab                     super2xsai              zoompan
-anlms                   cas                     dilation_opencl         hflip                   morpho                  scale                   superequalizer          zscale
-anoisesrc               cellauto                displace                highpass                movie                   scale2ref               surround
-anull                   channelmap              dnn_classify            highshelf               mpdecimate              scale2ref_npp           swaprect
-anullsink               channelsplit            dnn_detect              hilbert                 mptestsrc               scale_cuda              swapuv
-anullsrc                chorus                  dnn_processing          histeq                  msad                    scale_npp               tblend
-apad                    chromahold              doubleweave             histogram               multiply                scdet                   telecine
-aperms                  chromakey               drawbox                 hqdn3d                  negate                  scharr                  testsrc
+abench                  asegment                colorspectrum           fifo                    lut2                    realtime                stereotools
+abitscope               aselect                 colortemperature        fillborders             lut3d                   remap                   stereowiden
+acompressor             asendcmd                compand                 find_rect               lutrgb                  remap_opencl            streamselect
+acontrast               asetnsamples            compensationdelay       firequalizer            lutyuv                  removegrain             subtitles
+acopy                   asetpts                 concat                  flanger                 lv2                     removelogo              super2xsai
+acrossfade              asetrate                convolution             flite                   mandelbrot              repeatfields            superequalizer
+acrossover              asettb                  convolution_opencl      floodfill               maskedclamp             replaygain              surround
+acrusher                ashowinfo               convolve                format                  maskedmax               reverse                 swaprect
+acue                    asidedata               copy                    fps                     maskedmerge             rgbashift               swapuv
+addroi                  asoftclip               cover_rect              framepack               maskedmin               rgbtestsrc              tblend
+adeclick                aspectralstats          crop                    framerate               maskedthreshold         roberts                 telecine
+adeclip                 asplit                  cropdetect              framestep               maskfun                 roberts_opencl          testsrc
+adecorrelate            ass                     crossfeed               freezedetect            mcompand                rotate                  testsrc2
+adelay                  astats                  crystalizer             freezeframes            median                  rubberband              thistogram
+adenorm                 astreamselect           cue                     frei0r                  mergeplanes             sab                     threshold
+aderivative             asubboost               curves                  frei0r_src              mestimate               scale                   thumbnail
+adrawgraph              asubcut                 datascope               fspp                    metadata                scale2ref               thumbnail_cuda
+adynamicequalizer       asupercut               dblur                   gblur                   midequalizer            scale_cuda              tile
+adynamicsmooth          asuperpass              dcshift                 geq                     minterpolate            scale_vaapi             tiltshelf
+aecho                   asuperstop              dctdnoiz                gradfun                 mix                     scdet                   tinterlace
+aemphasis               atadenoise              deband                  gradients               monochrome              scharr                  tlut2
+aeval                   atempo                  deblock                 graphmonitor            morpho                  scroll                  tmedian
+aevalsrc                atilt                   decimate                grayworld               movie                   segment                 tmidequalizer
+aexciter                atrim                   deconvolve              greyedge                mpdecimate              select                  tmix
+afade                   avectorscope            dedot                   guided                  mptestsrc               selectivecolor          tonemap
+afftdn                  avgblur                 deesser                 haas                    msad                    sendcmd                 tonemap_opencl
+afftfilt                avgblur_opencl          deflate                 haldclut                multiply                separatefields          tonemap_vaapi
+afifo                   avsynctest              deflicker               haldclutsrc             negate                  setdar                  tpad
+afir                    axcorrelate             deinterlace_vaapi       hdcd                    nlmeans                 setfield                transpose
+afirsrc                 bandpass                dejudder                headphone               nlmeans_opencl          setparams               transpose_opencl
+aformat                 bandreject              delogo                  hflip                   nnedi                   setpts                  transpose_vaapi
+afreqshift              bass                    denoise_vaapi           highpass                noformat                setrange                treble
+afwtdn                  bbox                    derain                  highshelf               noise                   setsar                  tremolo
+agate                   bench                   deshake                 hilbert                 normalize               settb                   trim
+agraphmonitor           bilateral               deshake_opencl          histeq                  null                    sharpness_vaapi         unpremultiply
+ahistogram              biquad                  despill                 histogram               nullsink                shear                   unsharp
+aiir                    bitplanenoise           detelecine              hqdn3d                  nullsrc                 showcqt                 unsharp_opencl
+aintegral               blackdetect             dialoguenhance          hqx                     ocr                     showfreqs               untile
+ainterleave             blackframe              dilation                hstack                  openclsrc               showinfo                v360
+alatency                blend                   dilation_opencl         hsvhold                 oscilloscope            showpalette             vaguedenoiser
+alimiter                blockdetect             displace                hsvkey                  overlay                 showspatial             varblur
+allpass                 blurdetect              dnn_classify            hue                     overlay_cuda            showspectrum            vectorscope
+allrgb                  bm3d                    dnn_detect              huesaturation           overlay_opencl          showspectrumpic         vflip
+allyuv                  boxblur                 dnn_processing          hwdownload              overlay_vaapi           showvolume              vfrdet
+aloop                   boxblur_opencl          doubleweave             hwmap                   owdenoise               showwaves               vibrance
+alphaextract            bs2b                    drawbox                 hwupload                pad                     showwavespic            vibrato
+alphamerge              bwdif                   drawgraph               hwupload_cuda           pad_opencl              shuffleframes           vidstabdetect
+amerge                  cas                     drawgrid                hysteresis              pal100bars              shufflepixels           vidstabtransform
+ametadata               cellauto                drawtext                iccdetect               pal75bars               shuffleplanes           vif
+amix                    channelmap              drmeter                 iccgen                  palettegen              sidechaincompress       vignette
+amovie                  channelsplit            dynaudnorm              identity                paletteuse              sidechaingate           virtualbass
+amplify                 chorus                  earwax                  idet                    pan                     sidedata                vmafmotion
+amultiply               chromahold              ebur128                 il                      perms                   sierpinski              volume
+anequalizer             chromakey               edgedetect              inflate                 perspective             signalstats             volumedetect
+anlmdn                  chromakey_cuda          elbg                    interlace               phase                   signature               vstack
+anlmf                   chromanr                entropy                 interleave              photosensitivity        silencedetect           w3fdif
+anlms                   chromashift             epx                     join                    pixdesctest             silenceremove           waveform
+anoisesrc               ciescope                eq                      kerndeint               pixelize                sinc                    weave
+anull                   codecview               equalizer               kirsch                  pixscope                sine                    xbr
+anullsink               color                   erosion                 ladspa                  pp                      siti                    xcorrelate
+anullsrc                colorbalance            erosion_opencl          lagfun                  pp7                     smartblur               xfade
+apad                    colorchannelmixer       estdif                  latency                 premultiply             smptebars               xfade_opencl
+aperms                  colorchart              exposure                lenscorrection          prewitt                 smptehdbars             xmedian
+aphasemeter             colorcontrast           extractplanes           life                    prewitt_opencl          sobel                   xstack
+aphaser                 colorcorrect            extrastereo             limitdiff               procamp_vaapi           sobel_opencl            yadif
+aphaseshift             colorhold               fade                    limiter                 program_opencl          sofalizer               yadif_cuda
+apsyclip                colorize                feedback                loop                    pseudocolor             spectrumsynth           yaepblur
+apulsator               colorkey                fftdnoiz                loudnorm                psnr                    speechnorm              yuvtestsrc
+arealtime               colorkey_opencl         fftfilt                 lowpass                 pullup                  split                   zoompan
+aresample               colorlevels             field                   lowshelf                qp                      spp                     zscale
+areverse                colormap                fieldhint               lumakey                 random                  sr
+arnndn                  colormatrix             fieldmatch              lut                     readeia608              ssim
+asdr                    colorspace              fieldorder              lut1d                   readvitc                stereo3d
 
 Enabled bsfs:
-aac_adtstoasc           dca_core                filter_units            hevc_metadata           mov2textsub             null                    remove_extradata        vp9_metadata
-av1_frame_merge         dump_extradata          h264_metadata           hevc_mp4toannexb        mp3_header_decompress   opus_metadata           setts                   vp9_raw_reorder
-av1_frame_split         dv_error_marker         h264_mp4toannexb        imx_dump_header         mpeg2_metadata          pcm_rechunk             text2movsub             vp9_superframe
-av1_metadata            eac3_core               h264_redundant_pps      mjpeg2jpeg              mpeg4_unpack_bframes    pgs_frame_merge         trace_headers           vp9_superframe_split
-chomp                   extract_extradata       hapqa_extract           mjpega_dump_header      noise                   prores_metadata         truehd_core
+aac_adtstoasc           dump_extradata          h264_mp4toannexb        mjpeg2jpeg              noise                   remove_extradata        vp9_raw_reorder
+av1_frame_merge         dv_error_marker         h264_redundant_pps      mjpega_dump_header      null                    setts                   vp9_superframe
+av1_frame_split         eac3_core               hapqa_extract           mov2textsub             opus_metadata           text2movsub             vp9_superframe_split
+av1_metadata            extract_extradata       hevc_metadata           mp3_header_decompress   pcm_rechunk             trace_headers
+chomp                   filter_units            hevc_mp4toannexb        mpeg2_metadata          pgs_frame_merge         truehd_core
+dca_core                h264_metadata           imx_dump_header         mpeg4_unpack_bframes    prores_metadata         vp9_metadata
 
 Enabled indevs:
-alsa                    fbdev                   lavfi                   oss                     sndio                   v4l2                    xcbgrab
+alsa                    lavfi                   oss                     sndio                   xcbgrab
+fbdev                   libcdio                 pulse                   v4l2
 
 Enabled outdevs:
-alsa                    fbdev                   oss                     sdl2                    sndio                   v4l2                    xv
+alsa                    fbdev                   oss                     sdl2                    v4l2
+caca                    opengl                  pulse                   sndio                   xv
+
+License: nonfree and unredistributable
+$ make -j32
+$ make install
+============================================
+               FFmpeg Version
+============================================
+
+ffmpeg version 5.1.3-963937e Copyright (c) 2000-2022 the FFmpeg developers
+built with gcc 12 (Debian 12.2.0-14)
+configuration: --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --arch=x86_64 --cpu=16 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libjxl --enable-opencl --enable-libtesseract --enable-librubberband --enable-libzimg --enable-lv2 --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-libdav1d --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-amf --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvenc --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-ffnvcodec --enable-gpl --enable-ladspa --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libflite --enable-libgme --enable-libmodplug --enable-libpulse --enable-libshine --enable-libsmbclient --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-nonfree --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-lto --enable-version3 --extra-cflags='-I/home/jman/tmp/ffmpeg-build-script/workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/CL -g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I/home/jman/tmp/ffmpeg-build-script/workspace/include/serd-0 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/lilv-0 -I/usr/local/cuda-12.2/include' --extra-cxxflags='-g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DHWY_COMPILE_ALL_ATTAINABLE' --extra-ldflags='-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib -DLIBXML_STATIC -L/usr/local/cuda-12.2/lib64' --extra-ldexeflags= --extra-libs='-ldl -lpthread -lm -lz -L/usr/local/cuda-12.2/targets/x86_64-linux/lib -lOpenCL' --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/usr/bin/strip
+libavutil      57. 28.100 / 57. 28.100
+libavcodec     59. 37.100 / 59. 37.100
+libavformat    59. 27.100 / 59. 27.100
+libavdevice    59.  7.100 / 59.  7.100
+libavfilter     8. 44.100 /  8. 44.100
+libswscale      6.  7.100 /  6.  7.100
+libswresample   4.  7.100 /  4.  7.100
+libpostproc    56.  6.100 / 56.  6.100
+
+Would you like to install the static binaries system-wide? [/usr/local/bin]
+
+[1] Yes
+[2] No
+
+Your choices are (1 or 2): 1
+
+============================================
+  Do you want to clean up the build files?
+============================================
+
+[1] Yes
+[2] No
+
+Your choices are (1 or 2): 2
+
+
+Make sure to star this repository to show your support!
+
+8268
+
+
+~/tmp
+09:09:37
+bookworm@jman$ffmpeg -version
+ffmpeg version 5.1.3-963937e Copyright (c) 2000-2022 the FFmpeg developers
+built with gcc 12 (Debian 12.2.0-14)
+configuration: --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --arch=x86_64 --cpu=16 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libjxl --enable-opencl --enable-libtesseract --enable-librubberband --enable-libzimg --enable-lv2 --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-libdav1d --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-amf --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvenc --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-ffnvcodec --enable-gpl --enable-ladspa --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libflite --enable-libgme --enable-libmodplug --enable-libpulse --enable-libshine --enable-libsmbclient --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-nonfree --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-lto --enable-version3 --extra-cflags='-I/home/jman/tmp/ffmpeg-build-script/workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/CL -g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I/home/jman/tmp/ffmpeg-build-script/workspace/include/serd-0 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/lilv-0 -I/usr/local/cuda-12.2/include' --extra-cxxflags='-g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DHWY_COMPILE_ALL_ATTAINABLE' --extra-ldflags='-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib -DLIBXML_STATIC -L/usr/local/cuda-12.2/lib64' --extra-ldexeflags= --extra-libs='-ldl -lpthread -lm -lz -L/usr/local/cuda-12.2/targets/x86_64-linux/lib -lOpenCL' --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/usr/bin/strip
+libavutil      57. 28.100 / 57. 28.100
+libavcodec     59. 37.100 / 59. 37.100
+libavformat    59. 27.100 / 59. 27.100
+libavdevice    59.  7.100 / 59.  7.100
+libavfilter     8. 44.100 /  8. 44.100
+libswscale      6.  7.100 /  6.  7.100
+libswresample   4.  7.100 /  4.  7.100
+libpostproc    56.  6.100 / 56.  6.100
 ```
