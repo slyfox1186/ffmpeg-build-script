@@ -293,6 +293,7 @@ git_1_fn()
     if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
         g_ver="$(echo "${curl_cmd}" | jq -r '.[0].name' 2>/dev/null)"
         g_ver1="$(echo "${curl_cmd}" | jq -r '.[1].name' 2>/dev/null)"
+        g_ver2="$(echo "${curl_cmd}" | jq -r '.[0].tag_name' 2>/dev/null)"
         g_ver="${g_ver#cares-}"
         g_ver="${g_ver#FAAC }"
         g_ver="${g_ver#lcms}"
@@ -307,6 +308,7 @@ git_1_fn()
         g_ver="${g_ver#v}"
         g_ver1="${g_ver1#nasm-}"
         g_ver1="${g_ver1#v}"
+        g_ver2="${g_ver2#v}"
     fi
 
     echo "${github_repo%/*}-${g_ver}" >> "${ver_file_tmp}"
@@ -1311,7 +1313,9 @@ if build 'fontconfig' "${g_ver}"; then
     execute autoupdate
     LDFLAGS+=' -DLIBXML_STATIC'
     sed -i 's|Cflags:|& -DLIBXML_STATIC|' fontconfig.pc.in
-    execute ./configure --prefix="${workspace}" --disable-{docs,shared}
+    execute ./configure --prefix="${workspace}" \
+                        --disable-docs          \
+                        --disable-shared
     execute make "-j${cpu_threads}"
     execute make install
     build_done 'fontconfig' "${g_ver}"
@@ -1338,16 +1342,37 @@ fi
 
 if build 'c2man' 'git'; then
     download_git 'https://github.com/fribidi/c2man.git'
-    execute ./Configure -desO \
-                        -D prefix="${workspace}" -D bin="${workspace}"/bin -D bash="$(type -P bash)" \
-                        -D cc=/usr/bin/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D find="$(type -P find)" -D gcc=/usr/bin/gcc \
-                        -D gzip="$(type -P gzip)" -D installmansrc="${workspace}"/share/man -D ldflags="${LDFLAGS}" \
-                        -D less="$(type -P less)" -D libpth='/lib /usr/lib' -D uniq="$(type -P uniq)" -D tr="$(type -P tr)" \
-                        -D locincpth="${workspace}/include /usr/local/include /usr/include" -D yacc="$(type -P yacc)" \
-                        -D loclibpth="${workspace}/lib /usr/local/lib" -D make="$(type -P make)" -D troff="$(type -P troff)" \
-                        -D more="$(type -P more)" -D osname="${OS}" -D perl="$(type -P perl)" -D privlib="${workspace}"/lib/c2man \
-                        -D privlibexp="${workspace}"/lib/c2man -D sleep="$(type -P sleep)" -D tail="$(type -P tail)" \
-                        -D tar="$(type -P tar)" -D uuname="$(uname -s)" -D vi="$(type -P vi)" -D zip="$(type -P zip)"
+    execute ./Configure -desO                                                               \
+                        -D bash="$(type -P bash)"                                           \
+                        -D bin="${workspace}"/bin                                           \
+                        -D cc=/usr/bin/cc                                                   \
+                        -D d_gnu=/usr/lib/x86_64-linux-gnu                                  \
+                        -D find="$(type -P find)"                                           \
+                        -D gcc=/usr/bin/gcc                                                 \
+                        -D gzip="$(type -P gzip)"                                           \
+                        -D installmansrc="${workspace}"/share/man                           \
+                        -D ldflags="${LDFLAGS}"                                             \
+                        -D less="$(type -P less)"                                           \
+                        -D libpth='/lib /usr/lib'                                           \
+                        -D locincpth="${workspace}/include /usr/local/include /usr/include" \
+                        -D loclibpth="${workspace}/lib /usr/local/lib"                      \
+                        -D make="$(type -P make)"                                           \
+                        -D more="$(type -P more)"                                           \
+                        -D osname="${OS}"                                                   \
+                        -D perl="$(type -P perl)"                                           \
+                        -D prefix="${workspace}"                                            \
+                        -D privlib="${workspace}"/lib/c2man                                 \
+                        -D privlibexp="${workspace}"/lib/c2man                              \
+                        -D sleep="$(type -P sleep)"                                         \
+                        -D tail="$(type -P tail)"                                           \
+                        -D tar="$(type -P tar)"                                             \
+                        -D tr="$(type -P tr)"                                               \
+                        -D troff="$(type -P troff)"                                         \
+                        -D uniq="$(type -P uniq)"                                           \
+                        -D uuname="$(uname -s)"                                             \
+                        -D vi="$(type -P vi)"                                               \
+                        -D yacc="$(type -P yacc)"                                           \
+                        -D zip="$(type -P zip)"
     execute make depend
     execute make "-j${cpu_threads}"
     execute sudo make install
@@ -2243,10 +2268,15 @@ if build 'x265' "${g_sver}"; then
     mkdir -p {8,10,12}bit
     cd 12bit || exit 1
     echo '$ making 12bit binaries'
-    execute cmake ../../../source                                        \
-        -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release}       \
-        -DHIGH_BIT_DEPTH=ON -DEXPORT_C_API=OFF -DENABLE_{SHARED,CLI}=OFF \
-        -DMAIN12=ON -G Ninja -Wno-dev
+    execute cmake ../../../source                       \
+                  -DCMAKE_INSTALL_PREFIX="${workspace}" \
+                  -DCMAKE_BUILD_TYPE=Release            \
+                  -DHIGH_BIT_DEPTH=ON                   \
+                  -DEXPORT_C_API=OFF                    \
+                  -DENABLE_SHARED=OFF                   \
+                  -DENABLE_CLI=OFF                      \
+                  -DMAIN12=ON                           \
+                  -G Ninja -Wno-dev
     execute ninja "-j${cpu_threads}"
     echo '$ making 10bit binaries'
     cd ../10bit || exit 1
@@ -2343,8 +2373,15 @@ if build 'srt' "${g_ver}"; then
     export OPENSSL_ROOT_DIR="${workspace}"
     export OPENSSL_LIB_DIR="${workspace}"/lib
     export OPENSSL_INCLUDE_DIR="${workspace}"/include
-    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} -DBUILD_SHARED_LIBS=OFF \
-        -DENABLE_{APPS=OFF,SHARED=OFF,STATIC=ON} -DUSE_STATIC_LIBSTDCXX=ON -G Ninja -Wno-dev
+    execute cmake -B build                              \
+                  -DCMAKE_INSTALL_PREFIX="${workspace}" \
+                  -DCMAKE_BUILD_TYPE=Release            \
+                  -DBUILD_SHARED_LIBS=OFF               \
+                  -DENABLE_APPS=OFF                     \
+                  -DENABLE_SHARED=OFF                   \
+                  -DENABLE_STATIC=ON                    \
+                  -DUSE_STATIC_LIBSTDCXX=ON             \
+                  -G Ninja -Wno-dev
     execute ninja -C build "-j${cpu_threads}"
     execute ninja -C build "-j${cpu_threads}" install
     if [ -n "${LDEXEFLAGS}" ]; then
@@ -2502,15 +2539,29 @@ if build 'libheif' "${g_ver}"; then
     build_done 'libheif' "${g_ver}"
 fi
 
-pre_check_ver 'uclouvain/openjpeg' '1' 'T'
-if build 'openjpeg' "${g_ver1}"; then
-    download "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/${g_ver1}" "openjpeg-${g_ver1}.tar.gz"
-    execute cmake -B build -DCMAKE_{INSTALL_PREFIX="${workspace}",BUILD_TYPE=Release} -DBUILD_{TESTING,SHARED_LIBS}=ON -DBUILD_THIRDPARTY=ON \
-        -DCPACK_{BINARY_DEB,BINARY_FREEBSD,BINARY_IFW,BINARY_NSIS,BINARY_RPM,BINARY_TBZ2,BINARY_TXZ,SOURCE_RPM,SOURCE_ZIP}=ON \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja -Wno-dev
+pre_check_ver 'uclouvain/openjpeg' '1' 'R'
+if build 'openjpeg' "${g_ver2}"; then
+    download "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/v${g_ver2}" "openjpeg-${g_ver2}.tar.gz"
+    execute cmake -B build                              \
+                  -DCMAKE_INSTALL_PREFIX="${workspace}" \
+                  -DCMAKE_BUILD_TYPE=Release            \
+                  -DBUILD_TESTING=ON                    \
+                  -DBUILD_SHARED_LIBS=ON                \
+                  -DBUILD_THIRDPARTY=ON                 \
+                  -DCPACK_BINARY_DEB=ON                 \
+                  -DCPACK_BINARY_FREEBSD=ON             \
+                  -DCPACK_BINARY_IFW=ON                 \
+                  -DCPACK_BINARY_NSIS=ON                \
+                  -DCPACK_BINARY_RPM=ON                 \
+                  -DCPACK_BINARY_TBZ2=ON                \
+                  -DCPACK_BINARY_TXZ=ON                 \
+                  -DCPACK_SOURCE_RPM=ON                 \
+                  -DCPACK_SOURCE_ZIP=ON                 \
+                  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON    \
+                  -G Ninja -Wno-dev
     execute ninja "-j${cpu_threads}" -C build
     execute ninja "-j${cpu_threads}" -C build install
-    build_done 'openjpeg' "${g_ver1}"
+    build_done 'openjpeg' "${g_ver2}"
 fi
 ffmpeg_libraries+=('--enable-libopenjpeg')
 
