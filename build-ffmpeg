@@ -498,6 +498,7 @@ gpu_arch_fn()
     fi
 
     case "${gpu_name}" in
+        'Quadro P2000')               gpu_type=1;;
         'NVIDIA GeForce GT 1010')     gpu_type=1;;
         'NVIDIA GeForce GTX 1030')    gpu_type=1;;
         'NVIDIA GeForce GTX 1050')    gpu_type=1;;
