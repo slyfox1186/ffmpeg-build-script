@@ -1025,27 +1025,6 @@ check_python3_ver()
     python3_rm_decimals="${python3_ver//\./}"
 }
 
-patch_fn()
-{
-    local patch1 patch2 patch3 patch4 vvc_patch_url
-
-    vvc_patch_url='https://raw.githubusercontent.com/m-ab-s/mabs-patches/master/VVCSoftware_VTM'
-
-    patch1="${vvc_patch_url}/0001-BBuildEnc.cmake-Remove-Werror-for-gcc-and-clang.patch"
-    patch2="${vvc_patch_url}/0002-cmake-allow-installing-apps.patch"
-    patch3="${vvc_patch_url}/0003-CMake-add-USE_CCACHE-variable-to-disable-using-found.patch"
-
-    if ! curl -A "${user_agent}" -Lso 'vvc_patch1.patch' "${patch1}"; then
-        fail_fn "Failed to download vvc patch 1: ${patch1}:Line ${LINENO}"
-    fi
-    if ! curl -A "${user_agent}" -Lso 'vvc_patch2.patch' "${patch2}"; then
-        fail_fn "Failed to download vvc patch 2: ${patch2}:Line ${LINENO}"
-    fi
-    if ! curl -A "${user_agent}" -Lso 'vvc_patch3.patch' "${patch3}"; then
-        fail_fn "Failed to download vvc patch 3: ${patch3}:Line ${LINENO}"
-    fi
-}
-
 #
 # PROMPT THE USER TO INSTALL THE GEFORCE CUDA SDK-TOOLKIT
 #
@@ -2100,6 +2079,7 @@ git_ver_fn '206' '2' 'T'
 if build 'libbluray' "${g_ver1}"; then
     download "https://code.videolan.org/videolan/libbluray/-/archive/${g_ver1}/${g_ver1}.tar.gz" "libbluray-${g_ver1}.tar.gz"
     execute autoreconf -fi
+    execute ./bootstrap
     execute ./configure --prefix="${workspace}"  \
                         --disable-extra-warnings \
                         --disable-shared         \
@@ -2197,20 +2177,20 @@ if build 'gpac' "${g_ver}"; then
     build_done 'gpac' "${g_ver}"
 fi
 
-pre_check_ver 'openvisualcloud/svt-hevc' '1' 'T'
-if build 'svt-hevc' "${g_ver}"; then
-    download "https://github.com/OpenVisualCloud/SVT-HEVC/archive/refs/tags/v${g_ver}.tar.gz" "svt-hevc-${g_ver}.tar.gz"
-    execute cmake -B build                              \
-                  -DCMAKE_INSTALL_PREFIX="${workspace}" \
-                  -DCMAKE_BUILD_TYPE=Release            \
-                  -DBUILD_SHARED_LIBS=OFF               \
-                  -DYASM_EXE="${workspace}"/bin/yasm    \
-                  -DNATIVE=ON                           \
-                  -G Ninja -Wno-dev
-    execute ninja "-j${cpu_threads}" -C build
-    execute ninja "-j${cpu_threads}" -C build install
-    build_done 'svt-hevc' "${g_ver}"
-fi
+# pre_check_ver 'openvisualcloud/svt-hevc' '1' 'T'
+# if build 'svt-hevc' "${g_ver}"; then
+#     download "https://github.com/OpenVisualCloud/SVT-HEVC/archive/refs/tags/v${g_ver}.tar.gz" "svt-hevc-${g_ver}.tar.gz"
+#     execute cmake -B build                              \
+#                   -DCMAKE_INSTALL_PREFIX="${workspace}" \
+#                   -DCMAKE_BUILD_TYPE=Release            \
+#                   -DBUILD_SHARED_LIBS=OFF               \
+#                   -DYASM_EXE="${workspace}"/bin/yasm    \
+#                   -DNATIVE=ON                           \
+#                   -G Ninja -Wno-dev
+#     execute ninja "-j${cpu_threads}" -C build
+#     execute ninja "-j${cpu_threads}" -C build install
+#     build_done 'svt-hevc' "${g_ver}"
+# fi
 # ffmpeg_libraries+=('--enable-libsvthevc')
 
 # UPDATE THIS FROM TIME TO TIME
@@ -2220,7 +2200,7 @@ if build 'svt-av1' '1.4.0'; then
     execute cmake -S . -B Build/linux                        \
                        -DCMAKE_INSTALL_PREFIX="${workspace}" \
                        -DCMAKE_BUILD_TYPE=Release            \
-                       -DBUILD_APPS=ON                       \
+                       -DBUILD_APPS=OFF                      \
                        -DBUILD_DEC=ON                        \
                        -DBUILD_ENC=ON                        \
                        -DBUILD_SHARED_LIBS=OFF               \
