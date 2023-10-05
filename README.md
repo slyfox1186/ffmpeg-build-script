@@ -112,20 +112,20 @@ bash build-ffmpeg --build --latest
 * `xcb`: A C language interface to the X Window System protocol, which replaces the traditional Xlib interface
 * `libxvid`: Xvid MPEG-4 Part 2 encoder wrapper
 * `libsnappy`: Snappy is a compression/decompression library
-* `libv4l2`: Is a collection of libraries which adds a thin abstraction layer on top of video4linux2 devices
+* `libv4l2`: Is a collection of libraries that adds a thin abstraction layer on top of video4linux2 devices
 * `sndio`: Is a small audio and MIDI framework part of the OpenBSD project and ported to FreeBSD, Linux and NetBSD
 * `libsoxr`: The SoX Resampler library `libsoxr' performs one-dimensional sample-rate conversion
 * `libbs2b`: Is designed to improve headphone listening of stereo audio records
 * `libgme`: Is a collection of video game music file emulators
 * `libspeex`: Is an Open Source/Free Software patent-free audio compression format designed for speech
-* `libvo_amrwbenc`: This library contains an encoder implementation of the Adaptive Multi Rate Wideband (AMR-WB) audio codec
+* `libvo_amrwbenc`: This library contains an encoder implementation of the Adaptive Multi-Rate Wideband (AMR-WB) audio codec
 * `xlib`: Is a C subroutine library that application programs (clients) use to interface with the window system by means of a stream connection
 * `libcaca`: Is a graphics library that outputs text instead of pixels, so that it can work on older video cards or text terminals
 * `libpulse`: A featureful, general-purpose sound server 
 * `libzimg`: The "z" library implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion
-* `zlib`: Is a general purpose data compression library
+* `zlib`: Is a general-purpose data compression library
 * `libcdio`: Is a library for CD-ROM and CD image access
-* `libssh`: Is a multiplatform C library implementing the SSHv2 protocol on client and server side
+* `libssh`: Is a multiplatform C library implementing the SSHv2 protocol on the client and server side
 * `lv2`: Is an extensible open standard for audio plugins
 * `ladspa`: Is an acronym for Linux Audio Developer's Simple Plugin API
 * `libmodplug`: A library which was part of the Modplug-xmms project: http://modplug-xmms.sf.net/
@@ -139,7 +139,8 @@ bash build-ffmpeg --build --latest
 * `libsmbclient`: Is a library toolset that permits applications to manipulate CIFS/SMB network resources using many of the standards POSIX functions available for manipulating local UNIX/Linux files
 * `openssl`: Is a software library for applications that provide secure communications over computer networks against eavesdropping, and identify the party at the other end
 * `libaribb24`: A library for ARIB STD-B24, decoding JIS 8 bit characters and parsing MPEG-TS stream 
-* `libtwolame`: Is an optimised MPEG Audio Layer 2 (MP2) encoder based on tooLAME by Mike Cheng, which in turn is based upon the ISO dist10 code and portions of LAME
+* `libtwolame`: Is an optimized MPEG Audio Layer 2 (MP2) encoder based on tooLAME by Mike Cheng, which in turn is based upon the ISO dist10 code and portions of LAME
+* `chromaprint`: Is an audio fingerprinting library that calculates fingerprints used by the Acoustid service. It's the core component of the AcoustID project.
 
 ### HardwareAccel
 
