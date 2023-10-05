@@ -1484,12 +1484,12 @@ License: nonfree and unredistributable
 $ make -j32
 $ make install
 ============================================
-               FFmpeg Version
+               FFmpeg Version               
 ============================================
 
 ffmpeg version 5.1.3-963937e Copyright (c) 2000-2022 the FFmpeg developers
-built with gcc 12 (Debian 12.2.0-14)
-configuration: --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --arch=x86_64 --cpu=16 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libjxl --enable-opencl --enable-libtesseract --enable-librubberband --enable-libzimg --enable-lv2 --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-libdav1d --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-amf --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvenc --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-ffnvcodec --enable-gpl --enable-ladspa --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libflite --enable-libgme --enable-libmodplug --enable-libpulse --enable-libshine --enable-libsmbclient --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-nonfree --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-lto --enable-version3 --extra-cflags='-I/home/jman/tmp/ffmpeg-build-script/workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/CL -g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I/home/jman/tmp/ffmpeg-build-script/workspace/include/serd-0 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/lilv-0 -I/usr/local/cuda-12.2/include' --extra-cxxflags='-g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DHWY_COMPILE_ALL_ATTAINABLE' --extra-ldflags='-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib -DLIBXML_STATIC -L/usr/local/cuda-12.2/lib64' --extra-ldexeflags= --extra-libs='-ldl -lpthread -lm -lz -L/usr/local/cuda-12.2/targets/x86_64-linux/lib -lOpenCL' --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/usr/bin/strip
+built with gcc 11 (Ubuntu 11.4.0-1ubuntu1~22.04)
+configuration: --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --arch=x86_64 --cpu=16 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libjxl --enable-opencl --enable-libtesseract --enable-librubberband --enable-libzimg --enable-lv2 --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-libdav1d --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-amf --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvenc --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-ffnvcodec --enable-gpl --enable-ladspa --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libflite --enable-libgme --enable-libmodplug --enable-libpulse --enable-libshine --enable-libsmbclient --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-lto --enable-nonfree --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-version3 --extra-cflags='-I/home/jman/tmp/ffmpeg-build-script/workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/CL -g -O2 -march=native -I/home/jman/tmp/ffmpeg-build-script/workspace/include/lilv-0 -I/usr/local/cuda-12.2/include -I/home/jman/tmp/ffmpeg-build-script/workspace/include/avisynth' --extra-cxxflags='-g -O2 -march=native' --extra-ldflags='-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib -L/usr/local/cuda-12.2/lib64' --extra-ldexeflags= --extra-libs='-ldl -lpthread -lm -lz -L/usr/local/cuda-12.2/targets/x86_64-linux/lib -lOpenCL -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/usr/lib/x86_64-linux-gnu -ltesseract -lcurl' --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/usr/bin/strip
 libavutil      57. 28.100 / 57. 28.100
 libavcodec     59. 37.100 / 59. 37.100
 libavformat    59. 27.100 / 59. 27.100
@@ -1501,13 +1501,13 @@ libpostproc    56.  6.100 / 56.  6.100
 
 Would you like to install the static binaries system-wide? [/usr/local/bin]
 
-[1] Yes
+[1] Yes 
 [2] No
 
 Your choices are (1 or 2): 1
 
 ============================================
-  Do you want to clean up the build files?
+  Do you want to clean up the build files?  
 ============================================
 
 [1] Yes
@@ -1515,24 +1515,7 @@ Your choices are (1 or 2): 1
 
 Your choices are (1 or 2): 2
 
-
 Make sure to star this repository to show your support!
 
-8268
-
-
-~/tmp
-09:09:37
-bookworm@jman$ffmpeg -version
-ffmpeg version 5.1.3-963937e Copyright (c) 2000-2022 the FFmpeg developers
-built with gcc 12 (Debian 12.2.0-14)
-configuration: --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --arch=x86_64 --cpu=16 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libjxl --enable-opencl --enable-libtesseract --enable-librubberband --enable-libzimg --enable-lv2 --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-libdav1d --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-amf --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvenc --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-ffnvcodec --enable-gpl --enable-ladspa --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libflite --enable-libgme --enable-libmodplug --enable-libpulse --enable-libshine --enable-libsmbclient --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-nonfree --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-lto --enable-version3 --extra-cflags='-I/home/jman/tmp/ffmpeg-build-script/workspace/include -I/usr/local/include -I/usr/include -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/CL -g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I/home/jman/tmp/ffmpeg-build-script/workspace/include/serd-0 -I/home/jman/tmp/ffmpeg-build-script/workspace/include/lilv-0 -I/usr/local/cuda-12.2/include' --extra-cxxflags='-g -O2 -ffunction-sections -fdata-sections -pipe -march=native -DHWY_COMPILE_ALL_ATTAINABLE' --extra-ldflags='-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -L/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib -DLIBXML_STATIC -L/usr/local/cuda-12.2/lib64' --extra-ldexeflags= --extra-libs='-ldl -lpthread -lm -lz -L/usr/local/cuda-12.2/targets/x86_64-linux/lib -lOpenCL' --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/usr/bin/strip
-libavutil      57. 28.100 / 57. 28.100
-libavcodec     59. 37.100 / 59. 37.100
-libavformat    59. 27.100 / 59. 27.100
-libavdevice    59.  7.100 / 59.  7.100
-libavfilter     8. 44.100 /  8. 44.100
-libswscale      6.  7.100 /  6.  7.100
-libswresample   4.  7.100 /  4.  7.100
-libpostproc    56.  6.100 / 56.  6.100
+https://github.com/slyfox1186/script-repo
 ```
