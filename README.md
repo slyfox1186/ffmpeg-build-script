@@ -28,7 +28,7 @@ See the below example on how to put your own token into the script.
                         -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36' \
                         -m 10 \
                         --request GET \
-                        --url "https://api.github.com/<username here>" \
+                        --url "https://api.github.com/<replace with token name>" \
                         --header "Authorization: Bearer ${git_token}" \
                         --header "X-GitHub-Api-Version: 2022-11-28" \
                         -sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
