@@ -15,7 +15,7 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
 
 
 ## Important GitHub API info
-**Be aware** that without using a pre-created API Token from GitHub, you are limited to ***50 API calls a day***. This is important because the script has ***44+ repositories*** with API calls during the build. If you stop the script in the middle of the build and restart (potentially over and over) you will eventually eat up the 50-call limit and be forced to wait to continue ***unless*** you change the curl code under the function `git_1_fn` and put in your own [Token](https://github.com/settings/tokens?type=beta).
+**Be aware** that without using a pre-created API Token from GitHub, you are limited to ***50 API calls a day***. This is important because the script has ***44+ repositories*** with API calls during the build. If you stop the script in the middle of the build and restart (potentially over and over) you will eventually eat up the 50-call limit and be forced to wait to continue ***unless*** you change the curl code under the function `git_1_fn` and put in your own [token](https://github.com/settings/tokens?type=beta).
 
 ### If you start the build ***<ins>let it finish</ins>***
 
