@@ -30,7 +30,7 @@
 ##
 ##  Updated: x265 library
 ##  Updated: aom/av1 library to the latest stable version
-##  Reverted: nv-codec-headers to version - 8.1.24.15
+##  Reverted: nv-codec-headers to version - 12.0.16.1 due to a 20% decrease in FPS
 ##
 ##  Added: Ubuntu Lunar 23.04 support
 ##  Added: Debian OS Support for Bookworm (12)
