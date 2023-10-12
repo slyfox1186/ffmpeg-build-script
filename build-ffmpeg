@@ -297,7 +297,7 @@ ver_file="${workspace}"/latest-versions.txt
 
 sed -i -e '/null-/d' -e '/null /d' -e '/-null/d' -e '/-$/d' "${ver_file_tmp}" "${ver_file}" 2>/dev/null
 
-if [ ! -f "${ver_file_tmp}" ] || [ ! -f "${ver_file}" ]; then
+if [ ! -f "${ver_file_tmp}" ] && [ ! -f "${ver_file}" ]; then
     touch "${ver_file_tmp}" "${ver_file}" 2>/dev/null
 fi
 
@@ -2507,7 +2507,7 @@ fi
 ffmpeg_libraries+=('--enable-vapoursynth')
 
 # CYANRIP WILL NOT BUILD ON JAMMY AND DEBIAN 11 BULLSEYE
-if [ "${VER}" != '22.04' ] || [ "${VER}" != '11' ]; then
+if [ "${VER}" != '22.04' ] && [ "${VER}" != '11' ]; then
     pre_check_ver 'cyanreg/cyanrip' '1' 'T'
     if build 'cyanrip' "${g_ver}"; then
         download "https://github.com/cyanreg/cyanrip/archive/refs/tags/v${g_ver}.tar.gz" "cyanrip-${g_ver}.tar.gz"
