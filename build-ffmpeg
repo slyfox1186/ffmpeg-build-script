@@ -755,7 +755,7 @@ cuda_download_fn()
     cuda_ver="$(cat /usr/local/cuda/version.json | jq -r '.cuda.version')"
 
     if [ -z "${cuda_ver}" ]; then
-        fail_fn "Unable to locate the file: ${cuda_folder_path}/version.json. Line: ${LINENO}"
+        fail_fn "Unable to locate the file: /usr/local/cuda/version.json. Line: ${LINENO}"
     else
         export PATH="${PATH}:${cuda_path}"
     fi
