@@ -770,8 +770,8 @@ install_cuda_fn()
     local answer choice
     clear
 
-    if [ -f "${cuda_folder_path}"/version.json ]; then
-        cuda_installed_ver="$(cat "${cuda_folder_path}"/version.json | jq -r '.cuda.version')"
+    if [ -f /usr/local/cuda/version.json ]; then
+        cuda_installed_ver="$(cat /usr/local/cuda/version.json | jq -r '.cuda.version')"
         cuda_ver="${cuda_installed_ver}"
     else
         cuda_ver="${cuda_latest_ver}"
