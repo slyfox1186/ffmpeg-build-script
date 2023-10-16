@@ -1057,6 +1057,16 @@ patch_ffmpeg_fn()
 #
 # ARCHLINUX FUNCTION SECTION
 #
+
+python2_arch_fn()
+{
+    if build 'python2' 'git'; then
+        download_git 'https://aur.archlinux.org/python2.git' 'python2-AUR'
+            makepkg -si --noconfirm
+        build_done 'python2' 'git'
+    fi
+}
+
 vo-amrwbenc_arch_fn()
 {
     if build 'vo-amrwbenc' 'git'; then
@@ -1120,15 +1130,6 @@ jq_arch_fn()
     fi
 }
 
-python2_arch_fn()
-{
-    if build 'python2' 'git'; then
-        download_git 'https://aur.archlinux.org/python2.git' 'python2-AUR'
-        execute makepkg -si --noconfirm
-        build_done 'python2' 'git'
-    fi
-}
-
 python2_bin_arch_fn()
 {
     if build 'python2-bin' 'git'; then
@@ -1166,8 +1167,8 @@ arch_os_version()
     sudo pip install setuptools 2>/dev/null
 
     # INSTALL ARCH LINUX AUR GIT PACKAGES
-    jq_arch_fn
     python2_arch_fn
+    jq_arch_fn
     python2_bin_arch_fn
     shine_arch_fn
     vo-amrwbenc_arch_fn
