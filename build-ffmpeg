@@ -1141,9 +1141,9 @@ python2_bin_arch_fn()
 
 arch_os_version()
 {
-    arch_pkgs=(svt-av1 av1an cmake cuda dav1d devil flite gettext git gperf gperftools
-               lib32-gcc-libs libde265 libmusicbrainz5 libnghttp2 libwebp libyuv meson
-               ninja numactl openjdk21-src pd sudo texlive-basic texlive-binextra valgrind)
+    arch_pkgs=(svt-av1 av1an bluez-libs cmake cuda dav1d devil flite gdb gettext git gperf gperftools
+               lib32-gcc-libs libde265 libmusicbrainz5 libnghttp2 libwebp libyuv meson ninja numactl
+               openjdk21-src pd sudo texlive-basic texlive-binextra tk valgrind xorg-server-xvfb xterm)
 
     # REMOVE ANY LOCKS ON PACMAN
     if [ -f /var/lib/pacman/db.lck ]; then
