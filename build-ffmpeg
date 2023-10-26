@@ -3001,7 +3001,7 @@ if build 'ffmpeg' "${ffmpeg_sver}"; then
                 --enable-libzvbi                            \
                 --enable-nonfree                            \
                 --enable-opengl                             \
-                --enable-pie                                \
+                --enable-pic                                \
                 --enable-pthreads                           \
                 --enable-small                              \
                 --enable-static                             \
