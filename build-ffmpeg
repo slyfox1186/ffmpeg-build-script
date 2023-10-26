@@ -112,7 +112,7 @@ latest=false
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
 web_repo=https://github.com/slyfox1186/ffmpeg-build-script
 curl_timeout=10
-debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
+debug=ON # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
 #
 # SET THE AVAILABLE CPU THREAD AND CORE COUNT FOR PARALLEL PROCESSING (SPEEDS UP THE BUILD PROCESS)
@@ -158,8 +158,8 @@ export CC=gcc CXX=g++
 
 source_flags_fn()
 {
-    EXTRALIBS='-ldl -lpthread -lm -lz'
-    EXTRALIBS+=" -L${workspace}/lib -L/usr/lib/x86_64-linux-gnu -ltesseract -lcurl -L${workspace}/lib -lhwy -lbrotlidec -lbrotlienc"
+    EXTRALIBS='-ldl -lpthread -lm -lz -L${workspace}/lib -L/usr/lib/x86_64-linux-gnu'
+    EXTRALIBS+=" -ltesseract -lcurl -L${workspace}/lib -lhwy -lbrotlidec -lbrotlienc"
     CXXFLAGS='-g -O2 -march=native'
     CFLAGS="-I${workspace}/include -I${workspace}/include/jxl -I${workspace}/include/CL -I/usr/local/include -I/usr/include"
     CFLAGS+=" -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 ${CXXFLAGS}"
@@ -2808,7 +2808,7 @@ fi
 
 if build 'libgav1' 'git'; then
     download_git 'https://chromium.googlesource.com/codecs/libgav1' 'libgav1-git'
-    execute git clone -q -b '20220623.1' --depth 1 'https://github.com/abseil/abseil-cpp.git third_party/abseil-cpp'
+    execute git clone -q -b -q 20220623.1 --depth 1 https://github.com/abseil/abseil-cpp.git third_party/abseil-cpp
     execute cmake -B build                              \
                   -DCMAKE_INSTALL_PREFIX="${workspace}" \
                   -DCMAKE_BUILD_TYPE=Release            \
@@ -3001,6 +3001,7 @@ if build 'ffmpeg' "${ffmpeg_sver}"; then
                 --enable-libzvbi                            \
                 --enable-nonfree                            \
                 --enable-opengl                             \
+                --enable-pie                                \
                 --enable-pthreads                           \
                 --enable-small                              \
                 --enable-static                             \
