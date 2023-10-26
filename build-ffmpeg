@@ -2107,9 +2107,9 @@ if build 'sdl2' 'git'; then
 fi
 
 git_ver_fn '810' '4'
-if build 'libpulse' 'git'; then
-    download_git 'https://github.com/pulseaudio/pulseaudio.git'
-    extracmds=('-D'{daemon,man,tests}'=false')
+if build 'libpulse' "${g_ver}"; then
+    download_git 'https://gitlab.freedesktop.org/pulseaudio/pulseaudio.git' "libpulse-${g_ver}.tar.gz"
+    extracmds=('-D'{daemon,doxygen,ipv6,man,tests}'=false')
     execute meson setup build --prefix="${workspace}"  \
                               --buildtype=release      \
                               --default-library=static \
@@ -2118,7 +2118,7 @@ if build 'libpulse' 'git'; then
     execute ninja "-j${cpu_threads}" -C build
     execute sudo ninja "-j${cpu_threads}" -C build install
     libpulse_fix_libs_fn
-    build_done 'libpulse' 'git'
+    build_done 'libpulse' "${g_ver}"
 fi
 ffmpeg_libraries+=('--enable-libpulse')
 
