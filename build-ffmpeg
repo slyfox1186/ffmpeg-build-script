@@ -2968,7 +2968,7 @@ fi
 
 if build 'ffmpeg' "${ffmpeg_sver}"; then
     download ${ff_cmd}
-    if [ "${OS}" = 'Arch' ]; then
+    if [[ "${OS}" == 'Arch' ]]; then
         patch_ffmpeg_fn
     fi
     ./configure --prefix="${workspace}"                     \
