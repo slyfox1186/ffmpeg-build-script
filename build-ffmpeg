@@ -43,7 +43,6 @@
 ##
 ##  Updated
 ##
-##    - ffmpeg to snapshot version 566aa38d98f5f492995127e82ab9a516f59bf952
 ##    - abseil library
 ##    - aom/av1 library
 ##    - libvpx library
@@ -84,7 +83,7 @@
 
 script_name="${0}"
 script_ver=3.1.1
-ffmpeg_ver=566aa38d98f5f492995127e82ab9a516f59bf952
+ffmpeg_ver=963937e408fc68b5925f938a253cfff1d506f784
 ffmpeg_sver="${ffmpeg_ver::7}"
 ffmpeg_archive=ffmpeg-"${ffmpeg_sver}".tar.gz
 ffmpeg_url=https://git.ffmpeg.org/gitweb/ffmpeg.git/snapshot/"${ffmpeg_ver}".tar.gz
