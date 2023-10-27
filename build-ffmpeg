@@ -801,7 +801,7 @@ cuda_download_fn()
     7)
             git clone -q 'https://gitlab.archlinux.org/archlinux/packaging/packages/cuda.git'
             cd cuda || exit 1
-            makepkg -sif --cleanbuild --noconfirm
+            makepkg -sif --cleanbuild --noconfirm --needed
             return 0
             ;;
     8)
@@ -1131,7 +1131,7 @@ python2_bin_arch_fn()
 {
     if build 'python2-bin' 'git'; then
         download_git 'https://aur.archlinux.org/python2-bin.git'
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'python2-bin' 'git'
     fi
 }
@@ -1140,7 +1140,7 @@ python2_six_fn()
 {
     if build 'python2-six' 'git'; then
         download_git https://aur.archlinux.org/python2-six.git
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'python2-six' 'git'
     fi
 }
@@ -1149,7 +1149,7 @@ python2_setuptools_arch_fn()
 {
     if build 'python2-setuptools' 'git'; then
         download_git https://aur.archlinux.org/python2-setuptools.git
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'python2-setuptools' 'git'
     fi
 }
@@ -1168,7 +1168,7 @@ vo-amrwbenc_arch_fn()
 {
     if build 'vo-amrwbenc' 'git'; then
         download_git 'https://aur.archlinux.org/vo-amrwbenc.git' 'vo-amrwbenc-AUR'
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'vo-amrwbenc' 'git'
     fi
 }
@@ -1177,7 +1177,7 @@ shine_arch_fn()
 {
     if build 'shine' 'git'; then
         download_git 'https://aur.archlinux.org/shine.git' 'shine-AUR'
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         execute libtool --finish /usr/lib
         build_done 'shine' 'git'
     fi
@@ -1187,7 +1187,7 @@ gpac_arch_fn()
 {
     if build 'gpac-git' 'git'; then
         download_git 'https://aur.archlinux.org/gpac-git.git' 'gpac-git-AUR'
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'gpac-git' 'git'
     fi
 }
@@ -1232,7 +1232,7 @@ apache_ant_fn()
 {
     if build 'apache-ant' 'git'; then
         download_git 'https://aur.archlinux.org/apache-ant-contrib.git' 'apache-ant-AUR'
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'apache-ant' 'git'
     fi
 }
@@ -1241,7 +1241,7 @@ librist_arch_fn()
 {
     if build 'librist' 'git'; then
         download_git 'https://aur.archlinux.org/librist.git' 'librist-AUR'
-        execute makepkg -sif --cleanbuild --noconfirm
+        execute makepkg -sif --cleanbuild --noconfirm --needed
         build_done 'librist' 'git'
     fi
 }
