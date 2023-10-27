@@ -111,7 +111,7 @@ latest=false
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
 web_repo=https://github.com/slyfox1186/ffmpeg-build-script
 curl_timeout=10
-debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
+debug=ON # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
 #
 # SET THE AVAILABLE CPU THREAD AND CORE COUNT FOR PARALLEL PROCESSING (SPEEDS UP THE BUILD PROCESS)
@@ -159,7 +159,7 @@ source_flags_fn()
 {
     EXTRALIBS='-ldl -lpthread -lm -lz -L${workspace}/lib -L/usr/lib/x86_64-linux-gnu'
     EXTRALIBS+=" -ltesseract -lcurl -L${workspace}/lib -lhwy -lbrotlidec -lbrotlienc"
-    CXXFLAGS='-g -O2 -march=native'
+    CXXFLAGS='-g -O2 -march=native -DHWY_COMPILE_ONLY_SCALAR'
     CFLAGS="-I${workspace}/include -I${workspace}/include/jxl -I${workspace}/include/CL -I/usr/local/include -I/usr/include"
     CFLAGS+=" -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 ${CXXFLAGS}"
     CPPFLAGS="-I${workspace}/include -I/usr/local/include -I/usr/include -I/usr/include/openjpeg-2.5 -I/usr/include/flite"
@@ -573,7 +573,7 @@ gpu_arch_fn()
         'NVIDIA GeForce RTX 3060')      gpu_type=4;;
         'NVIDIA GeForce RTX 3070')      gpu_type=4;;
         'NVIDIA GeForce RTX 3080')      gpu_type=4;;
-        'NVIDIA GeForce RTX 3080 Ti')   gpu_type=4;;
+        'NVIDIA GeForce RTX 3080 Ti')   gpu_type=3;;
         'NVIDIA GeForce RTX 3090')      gpu_type=4;;
         'NVIDIA RTX A2000')             gpu_type=4;;
         'NVIDIA RTX A3000')             gpu_type=4;;
@@ -667,11 +667,17 @@ fi
 # SET THE PATH VARIABLE
 #
 
+cuda_bin_path="$(sudo find /usr/local/ -type d -name 'cuda' | head -n1)"
+cuda_bin_path="$(sudo find /opt/ -type d -name 'cuda' | head -n1)"
+cuda_bin_path+='/bin'
+
+path_fn()
+{
 PATH="\
 /usr/lib/ccache/bin:\
 /usr/lib/ccache:\
+${cuda_bin_path}:\
 ${workspace}/bin:\
-${HOME}/.cargo/bin:\
 ${HOME}/.local/bin:\
 /usr/local/sbin:\
 /usr/local/bin:\
@@ -679,11 +685,29 @@ ${HOME}/.local/bin:\
 /usr/bin:\
 /sbin:\
 /bin:\
-/usr/local/cuda/bin:\
-/opt/cuda/bin:\
 /usr/local/ant/bin\
 "
 export PATH
+}
+path_fn
+
+path_clean_fn()
+{
+PATH="\
+/usr/lib/ccache/bin:\
+/usr/lib/ccache:\
+${cuda_bin_path}:\
+${HOME}/.local/bin:\
+/usr/local/sbin:\
+/usr/local/bin:\
+/usr/sbin:\
+/usr/bin:\
+/sbin:\
+/bin:\
+/usr/local/ant/bin\
+"
+export PATH
+}
 
 #
 # SET THE PKG_CONFIG_PATH VARIABLE
@@ -1103,24 +1127,40 @@ patch_ffmpeg_fn()
 # ARCHLINUX FUNCTION SECTION
 #
 
+python2_bin_arch_fn()
+{
+    if build 'python2-bin' 'git'; then
+        download_git 'https://aur.archlinux.org/python2-bin.git'
+        execute makepkg -sif --cleanbuild --noconfirm
+        build_done 'python2-bin' 'git'
+    fi
+}
+
+python2_six_fn()
+{
+    if build 'python2-six' 'git'; then
+        download_git https://aur.archlinux.org/python2-six.git
+        execute makepkg -sif --cleanbuild --noconfirm
+        build_done 'python2-six' 'git'
+    fi
+}
+
+python2_setuptools_arch_fn()
+{
+    if build 'python2-setuptools' 'git'; then
+        download_git https://aur.archlinux.org/python2-setuptools.git
+        execute makepkg -sif --cleanbuild --noconfirm
+        build_done 'python2-setuptools' 'git'
+    fi
+}
+
 python2_arch_fn()
 {
-    if build 'python2' '2.7.18'; then
-        download 'https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tar.xz' 'python-2.7.18.tar.xz'
+    if build 'python2' 'git'; then
+        download_git 'https://aur.archlinux.org/python2.git'
         gpg --recv-keys 04C367C218ADD4FF 2>/dev/null
-        mkdir build
-        cd build || exit 1
-        execute ../configure --prefix="${workspace}"            \
-                             --{build,host,target}="${pc_type}" \
-                             --disable-ipv6                     \
-                             --enable-optimizations             \
-                             --enable-shared                    \
-                             --with-lto                         \
-                             --with-valgrind                    \
-                             PKG_CONFIG="$(type -P pkg-config)"
-        execute make "-j${cpu_threads}" build_all
-        execute make install
-        build_done 'python2' '2.7.18'
+        makepkg -sif --noconfirm
+        build_done 'python2' 'git'
     fi
 }
 
@@ -1171,16 +1211,29 @@ jxl_arch_fn()
         execute cmake -B build                              \
                       -DCMAKE_INSTALL_PREFIX="${workspace}" \
                       -DCMAKE_BUILD_TYPE=Release            \
+                      -DBUILD_SHARED_LIBS=OFF               \
                       -DBUILD_TESTING=OFF                   \
-                      -DJPEGXL_FORCE_SYSTEM_HWY=ON          \
+                      -DJPEGXL_ENABLE_BENCHMARK=OFF         \
+                      -DJPEGXL_ENABLE_DOXYGEN=OFF           \
+                      -DJPEGXL_ENABLE_EXAMPLES=OFF          \
                       -DJPEGXL_ENABLE_MANPAGES=OFF          \
+                      -DJPEGXL_FORCE_SYSTEM_HWY=ON          \
                       -G Ninja -Wno-dev
+                      sed -i 's/Version: 0.9.0/Version: 1.0.0/g' "${workspace}"/lib/pkgconfig/libjxl.pc
+                      sed -i 's/libdir=/libdir=${exec_prefix}\/lib/g' "${workspace}"/lib/pkgconfig/https://download.videolan.org/pub/contrib/dxva2api.hlibjxl_cms.pc
+                      sed -i 's/includedir=/includedir=${exec_prefix}\/include/g' "${workspace}"/lib/pkgconfig/libjxl_cms.pc
         execute ninja "-j${cpu_threads}" -C build
         execute ninja "-j${cpu_threads}" -C build install
-        sed -i 's/Version: 0.9.0/Version: 1.0.0/g' "${workspace}"/lib/pkgconfig/libjxl.pc
-        sed -i 's/libdir=/libdir=${exec_prefix}\/lib/g' "${workspace}"/lib/pkgconfig/libjxl_cms.pc
-        sed -i 's/includedir=/includedir=${exec_prefix}\/include/g' "${workspace}"/lib/pkgconfig/libjxl_cms.pc
         build_done 'libjxl' 'git'
+    fi
+}
+
+apache_ant_fn()
+{
+    if build 'apache-ant' 'git'; then
+        download_git 'https://aur.archlinux.org/apache-ant-contrib.git' 'apache-ant-AUR'
+        execute makepkg -sif --cleanbuild --noconfirm
+        build_done 'apache-ant' 'git'
     fi
 }
 
@@ -1196,8 +1249,17 @@ librist_arch_fn()
 jq_arch_fn()
 {
     if build 'jq' 'git'; then
-        download_git 'https://aur.archlinux.org/jq-git.git' 'jq-AUR'
-        execute makepkg -sif --cleanbuild --noconfirm
+        download_git 'https://github.com/stedolan/jq.git'
+        execute git submodule update --init
+        execute autoreconf -fi
+        execute ./configure --prefix=/usr/local         \
+                            --{build,host}="${pc_type}" \
+                            --with-oniguruma=builtin    \
+                            --disable-maintainer-mode   \
+                            --disable-shared            \
+                            --enable-all-static
+        execute make "-j${cpu_threads}"
+        execute sudo make install
         execute libtool --finish /usr/lib
         build_done 'jq' 'git'
     fi
@@ -1215,38 +1277,37 @@ fix_arch_lib_dir_fn()
 
 arch_os_ver_fn()
 {
-    arch_pkgs=(svt-av1 av1an bluez-libs clang cmake cuda dav1d devil docbook5-xml flite gdb gettext git gperf gperftools
+    arch_pkgs=(svt-av1 av1an bluez-libs clang cmake dav1d devil docbook5-xml flite gdb gettext git gperf gperftools
                ladspa lib32-gcc-libs libde265 libmusicbrainz5 libnghttp2 libwebp libyuv meson nasm ninja numactl opencv
-               openjdk21-src pd sudo texlive-basic texlive-binextra tk valgrind xorg-server-xvfb webp-pixbuf-loader xterm
-               yasm)
+               pd sudo texlive-basic texlive-binextra tk valgrind xorg-server-xvfb webp-pixbuf-loader xterm yasm perl-datetime
+               jre17-openjdk-headless jdk17-openjdk libjpeg-turbo libjpeg6-turbo)
 
     # REMOVE ANY LOCKS ON PACMAN
     if [ -f '/var/lib/pacman/db.lck' ]; then
         sudo rm '/var/lib/pacman/db.lck'
     fi
-
-    for i in ${arch_pkgs[@]}
+ 
+    for i in "${arch_pkgs[@]}"
     do
-        missing_pkg="$(sudo pacman -Qi | grep -o "${i}")"
-
-        if [ -z "${missing_pkg}" ]; then
-            missing_pkgs+=" ${i}"
-        fi
+        sudo pacman -Sq --needed --noconfirm ${i} 2>&1
+        clear
     done
 
-    if [ -n "${missing_pkgs}" ]; then
-        sudo pacman -Sq --noconfirm ${missing_pkgs}
-    fi
-
     # INSTALL REQUIRED PIP MODULES
-    sudo pip install setuptools Sphinx 2>/dev/null
+    sudo pip install DateTime Sphinx wheel
+    clear
 
     # INSTALL ARCH LINUX AUR GIT PACKAGES
+    python2_bin_arch_fn
+    path_clean_fn
+    python2_setuptools_arch_fn
+    python2_six_fn
     python2_arch_fn
     jq_arch_fn
     shine_arch_fn
     vo-amrwbenc_arch_fn
     fix_arch_lib_dir_fn
+    path_fn
 }
 
 debian_os_ver_fn()
@@ -1324,12 +1385,21 @@ esac
 # SET JAVA VARIABLES
 #
 
+path_fn
 find_java="$(sudo find /usr/lib/jvm -type d -name 'java-*-openjdk*' | rev | sort | rev | head -n1)"
-JAVA_HOME="${find_java}"
-export JAVA_HOME
-export PATH="${PATH}:${JAVA_HOME}/bin"
 java_config="$(sudo find /usr/lib -type f -name 'jni.h'  | rev | sort -r | rev | head -n1 | sed 's/\(^.*\)\/.*$/\1/')"
 export CPPFLAGS+=" -I${java_config}"
+export JDK_HOME="${find_java}"
+export JAVA_HOME="${find_java}"
+export PATH="${PATH}:${JAVA_HOME}/bin"
+
+ant_path_fn()
+{
+    export ANT_HOME=/usr/local/ant
+    if [ ! -d /usr/local/ant/bin ] || [ ! -d /usr/local/ant/lib ]; then
+        sudo mkdir -p /usr/local/ant/bin /usr/local/ant/lib 2>/dev/null
+    fi
+}
 
 #
 # CHECK IF THE CUDA FOLDER EXISTS TO DETERMINE INSTALLATION STATUS
@@ -1474,6 +1544,7 @@ ffmpeg_libraries+=('--enable-openssl')
 pre_check_ver 'yasm/yasm' '1' 'T'
 if build 'yasm' "${g_ver}"; then
     download "https://github.com/yasm/yasm/archive/refs/tags/v${g_ver}.tar.gz" "yasm-${g_ver}.tar.gz"
+    export PYTHONHOME=/usr/local
     execute autoreconf -fi
     execute cmake -B build                              \
                   -DCMAKE_INSTALL_PREFIX="${workspace}" \
@@ -1545,6 +1616,9 @@ if build 'libtiff' "$g_ver"; then
     execute ./autogen.sh
     execute ./configure --prefix="${workspace}"     \
                         --{build,host}="${pc_type}" \
+                        --disable-docs              \
+                        --disable-sphinx            \
+                        --disable-tests             \
                         --enable-cxx                \
                         --with-pic
     execute make "-j${cpu_threads}"
@@ -1587,7 +1661,7 @@ if build 'fontconfig' "${g_ver}"; then
     download "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/${g_ver}/fontconfig-${g_ver}.tar.bz2"
     extracmds=('--disable-'{docbook,docs,nls,shared})
     LDFLAGS+=' -DLIBXML_STATIC'
-    sed -i 's|Cflags:|& -DLIBXML_STATIC|' fontconfig.pc.in
+    sed -i 's|Cflags:|& -DLIBXML_STATIC|' 'fontconfig.pc.in'
     execute ./autogen.sh --noconf
     execute autoupdate
     execute ./configure --prefix="${workspace}"     \
@@ -1652,8 +1726,7 @@ if build 'c2man' 'git'; then
                         -D uniq="$(type -P uniq)"                                           \
                         -D uuname="$(uname -s)"                                             \
                         -D vi="$(type -P vi)"                                               \
-                        -D yacc="$(type -P yacc)"                                           \
-                        -D zip="$(type -P zip)"
+                        -D yacc="$(type -P yacc)"
     execute make depend
     execute make "-j${cpu_threads}"
     execute sudo make install
@@ -1813,8 +1886,14 @@ else
         build_done 'libjxl' '0.8.2'
     fi
 fi
-ffmpeg_libraries+=('--enable-libjxl')
-export CFLAGS+=" -DJXL_STATIC_DEFINE -DJXL_THREADS_STATIC_DEFINE"
+
+# libjxl has a bug in the decoder bit decoding and must be disabled on Arch Linux
+if [[ "${OS}" == 'Arch' ]]; then
+    ffmpeg_libraries+=('--disable-libjxl')
+else
+    ffmpeg_libraries+=('--enable-libjxl')
+fi
+# RESUME COMPILING WITH GCC
 export CC=gcc CXX=g++
 
 pre_check_ver 'khronosgroup/opencl-headers' '1' 'T'
@@ -2444,15 +2523,16 @@ if build 'udfread' "${g_ver1}"; then
     build_done 'udfread' "${g_ver1}"
 fi
 
+ant_path_fn
 if build 'ant' 'git'; then
     download_git 'https://github.com/apache/ant.git'
-    export ANT_HOME=/usr/local/ant
-    if [ ! -d /usr/local/ant/bin ] || [ ! -d /usr/local/ant/lib ]; then
-        sudo mkdir -p /usr/local/ant/bin /usr/local/ant/lib 2>/dev/null
-    fi
     sudo chmod 777 -R /usr/local/ant
     execute sh build.sh install-lite
     build_done 'ant' 'git'
+fi
+
+if [[ "${OS}" == 'Arch' ]]; then
+    apache_ant_fn
 fi
 
 git_ver_fn '206' '2' 'T'
@@ -2807,7 +2887,7 @@ fi
 
 if build 'libgav1' 'git'; then
     download_git 'https://chromium.googlesource.com/codecs/libgav1' 'libgav1-git'
-    execute git clone -q -b 20220623.1 --depth 1 https://github.com/abseil/abseil-cpp.git third_party/abseil-cpp
+    execute git clone -q -b '20220623.1' --depth 1 'https://github.com/abseil/abseil-cpp.git' 'third_party/abseil-cpp'
     execute cmake -B build                              \
                   -DCMAKE_INSTALL_PREFIX="${workspace}" \
                   -DCMAKE_BUILD_TYPE=Release            \
@@ -2923,7 +3003,7 @@ if build 'openjpeg' "${g_ver2}"; then
     execute cmake -B build                              \
                   -DCMAKE_INSTALL_PREFIX="${workspace}" \
                   -DCMAKE_BUILD_TYPE=Release            \
-                  -DBUILD_SHARED_LIBS=OFF               \
+                  -DBUILD_SHARED_LIBS=ON                \
                   -DBUILD_TESTING=OFF                   \
                   -G Ninja -Wno-dev
     execute ninja "-j${cpu_threads}" -C build
@@ -2964,6 +3044,11 @@ if [[ "${OS}" == 'Arch' ]]; then
 else
     ladspa_switch='--enable-ladspa'
 fi
+
+curl -A "${user_agent}" -Lso "${packages}"/dxva2api.h 'https://download.videolan.org/pub/contrib/dxva2api.h'
+sudo cp -f "${packages}"/dxva2api.h /usr/include
+curl -A "${user_agent}" -Lso "${packages}"/objbase.h 'https://raw.githubusercontent.com/wine-mirror/wine/master/include/objbase.h'
+sudo cp -f "${packages}"/objbase.h /usr/local
 
 if build 'ffmpeg' "${ffmpeg_sver}"; then
     download ${ff_cmd}
