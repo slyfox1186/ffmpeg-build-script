@@ -2836,7 +2836,7 @@ if [ -n "${iscuda}" ]; then
 
     if [ "${OS}" != 'Arch' ]; then
         if ! sudo dpkg -l | grep -o nvidia-smi &>/dev/null; then
-            sudo apt -y install nvidia-smi 2>/dev/null
+            sudo apt -y install nvidia-smi &>/dev/null
         fi
     fi
 
