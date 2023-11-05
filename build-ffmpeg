@@ -1549,7 +1549,6 @@ ffmpeg_libraries+=('--enable-openssl')
 pre_check_ver 'yasm/yasm' '1' 'T'
 if build 'yasm' "${g_ver}"; then
     download "https://github.com/yasm/yasm/archive/refs/tags/v${g_ver}.tar.gz" "yasm-${g_ver}.tar.gz"
-    export PYTHONHOME=/usr/local
     execute autoreconf -fi
     execute cmake -B build                              \
                   -DCMAKE_INSTALL_PREFIX="${workspace}" \
