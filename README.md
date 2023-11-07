@@ -141,6 +141,7 @@ bash build-ffmpeg --build --latest
 * `libaribb24`: A library for ARIB STD-B24, decoding JIS 8 bit characters and parsing MPEG-TS stream 
 * `libtwolame`: Is an optimized MPEG Audio Layer 2 (MP2) encoder based on tooLAME by Mike Cheng, which in turn is based upon the ISO dist10 code and portions of LAME
 * `chromaprint`: Is an audio fingerprinting library that calculates fingerprints used by the Acoustid service. It's the core component of the AcoustID project.
+* `DeckLink`: DeckLink cards are open standard capture cards and are perfect for the development of Linux based video applications
 
 ### HardwareAccel
 
