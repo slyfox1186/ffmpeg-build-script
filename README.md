@@ -3,7 +3,7 @@
 [ffmpeg-build-script](https://ffmpeg.org/download.html)
 ==========
 
-The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary with **non-free and GPL codecs** by using API calls to get download the latest source code available.
+The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary with **non-free and GPL codecs** by using API calls to download the latest source code available.
   - See https://ffmpeg.org/legal.html)
 
 - **Compiles the latest updates from source code by issuing API calls to each repository backend**
