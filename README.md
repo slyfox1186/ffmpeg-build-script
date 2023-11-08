@@ -1,6 +1,6 @@
 ### If you like the script, please "★" this project!
 
-[build-ffmpeg](https://ffmpeg.org/download.html)
+[ffmpeg-build-script](https://ffmpeg.org/download.html)
 ==========
 
 The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary on **<ins>Debian-based systems</ins>** with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
