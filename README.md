@@ -1,7 +1,9 @@
-## Install [FFmpeg](https://ffmpeg.org/download.html)
-The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary on **<ins>Debian-based systems</ins>** with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
-
 ### If you like the script, please "★" this project!
+
+[build-ffmpeg](https://ffmpeg.org/download.html)
+==========
+
+The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary on **<ins>Debian-based systems</ins>** with **non-free and GPL codecs**, see https://ffmpeg.org/legal.html) included. It uses API calls to get you the latest version of each package available at the time of building.
 
 - **Compiles the latest updates from source code by issuing API calls to each repository backend**
   - **The CUDA SDK Toolkit which unlocks Hardware Acceleration is available during the installation to make things as easy as possible**
