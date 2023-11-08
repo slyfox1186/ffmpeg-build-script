@@ -1139,14 +1139,15 @@ arch_os_ver_fn()
 
 debian_os_ver_fn()
 {
-    debian_pkgs='cppcheck libnvidia-encode-545 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0 libsharp-dev libdmalloc5'
+    debian_pkgs='cppcheck libnvidia-encode1 libyuv-utils libyuv0 libsharp-dev'
+    debian_pkgs+=' libdmalloc5 nvidia-driver nvidia-driver-bin nvidia-driver-libs'
 
     if [ "${2}" = '1' ]; then
         echo
     else
         case "${VER}" in
-            12|trixie)      pkgs_fn "${debian_pkgs} librist-dev nvidia-utils-545";;
-            10|11)          pkgs_fn "${debian_pkgs} nvidia-utils-545";;
+            12|trixie)      pkgs_fn "${debian_pkgs} librist-dev libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev";;
+            11)             pkgs_fn "${debian_pkgs}";;
             *)              fail_fn "Could not detect the Debian version. Line: ${LINENO}";;
         esac
     fi
@@ -1154,19 +1155,18 @@ debian_os_ver_fn()
 
 ubuntu_os_ver_fn()
 {
-    ubuntu_common_pkgs='libnvidia-encode-545 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev cppcheck'
-    bionic_pkgs='libdmalloc5 libjemalloc1 libvmmalloc-dev libvmmalloc1 libreadline-gplv2-dev'
-    focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5 libcunit1-dev nvidia-utils-535'
-    focal_pkgs+=' librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
+    ubuntu_common_pkgs='cppcheck nvidia-utils-535 libnvidia-encode-535'
+    focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5 libcunit1-dev librust-jemalloc-sys-dev'
+    focal_pkgs+=' librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
     jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev librust-malloc-buf-dev'
-    jammy_pkgs+=' libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev nvidia-utils-545'
-    lunar_kenetic_pkgs='librist-dev libjxl-dev nvidia-utils-545'
+    jammy_pkgs+=' libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev'
+    jammy_pkgs+=' libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev'
+    lunar_kenetic_pkgs='librist-dev libjxl-dev nvidia-utils-545 libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev'
 
     case "${VER}" in
         23.04|22.10)    pkgs_fn "${ubuntu_common_pkgs} ${lunar_kenetic_pkgs} ${jammy_pkgs}";;
         22.04)          pkgs_fn "${ubuntu_common_pkgs} ${jammy_pkgs}";;
-        20.04)          pkgs_fn "${focal_pkgs} cppcheck";;
-        18.04)          pkgs_fn "${bionic_pkgs}";;
+        20.04)          pkgs_fn "${ubuntu_common_pkgs} ${focal_pkgs}";;
         *)              fail_fn "Could not detect the Ubuntu version. Line: ${LINENO}";;
     esac
 }
