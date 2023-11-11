@@ -45,10 +45,10 @@ Use this script at your own risk. I maintain this script in my spare time. Pleas
 ## Install methods
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
 
-# The standard build script will build everything minus the NDI library.
+#### The standard build script will build everything minus the NDI library.
 [Standard build script](https://github.com/slyfox1186/ffmpeg-build-script/blob/main/build-ffmpeg)
 
-The NDI build script is not officially supported by either FFmpeg or the NDI creators and I take no responsibility for people who use it in ways the developers have told you not to. I do not support or condone this behavior. If you want to use it use it within the aspects of the law.
+#### The NDI build script is not officially supported by either FFmpeg or the NDI creators and I take no responsibility for people who use it in ways the developers have told you not to. I do not support or condone this behavior. If you want to use it use it within the aspects of the law.
 [NDI build script](https://github.com/slyfox1186/script-repo/blob/main/Bash/Installer%20Scripts/FFmpeg/build-ffmpeg-NDI)
 
 ### Quick installation
