@@ -7,11 +7,11 @@
 ##
 ##  Script version
 ##
-##    - 3.1.3
+##    - 3.1.4
 ##
 ##  Updated on
 ##
-##    - 11.08.23
+##    - 11.11.23
 ##
 ##  Purpose:
 ##
@@ -43,6 +43,7 @@
 ##
 ##  Updated
 ##
+##    - ffmpeg to version n5.1.4
 ##    - abseil library
 ##    - aom/av1 library
 ##    - libvpx library
@@ -61,7 +62,6 @@
 ##    - Ubuntu 23.04 (Lunar) support
 ##    - VapourSynth library support
 ##    - Windows WSL2 support
-##    - NDI SDK for Linux Support
 ##    - Vulkan Support
 ##
 ##  Removed
@@ -87,21 +87,10 @@
 #
 
 script_name="${0}"
-script_ver=3.1.3
-# ffmpeg_ver=e531abaf3c41953618573bef9a2568f7644626b6
-# ffmpeg_sver="${ffmpeg_ver::7}"
-# ffmpeg_archive=ffmpeg-"${ffmpeg_sver}".tar.gz
-# ffmpeg_url=https://git.ffmpeg.org/gitweb/ffmpeg.git/snapshot/"${ffmpeg_ver}".tar.gz
-###############################################################################
-# SNAPSHOT
-# ffmpeg_ver=963937e408fc68b5925f938a253cfff1d506f784
-# ffmpeg_sver="${ffmpeg_ver::7}"
-# ffmpeg_archive=ffmpeg-"${ffmpeg_sver}".tar.gz
-# ffmpeg_url=https://git.ffmpeg.org/gitweb/ffmpeg.git/snapshot/"${ffmpeg_ver}".tar.gz
-# STABLE
-# ffmpeg_sver=5.1.3
-# ffmpeg_archive=https://www.ffmpeg.org/releases/ffmpeg-"${ffmpeg_sver}".tar.gz
-###############################################################################
+script_ver=3.1.4
+ffmpeg_sver=n5.1.4
+ffmpeg_archive=ffmpeg-"${ffmpeg_sver}"
+ffmpeg_url=https://github.com/FFmpeg/FFmpeg/archive/refs/tags/"${ffmpeg_sver}".tar.gz
 cuda_latest_ver=12.3.0
 cuda_url="https://developer.download.nvidia.com/compute/cuda/${cuda_latest_ver}"
 cuda_pin_url='https://developer.download.nvidia.com/compute/cuda/repos'
@@ -165,11 +154,11 @@ source_flags_fn()
 {
     EXTRALIBS="-ldl -lpthread -lm -lz -L/usr/lib/x86_64-linux-gnu -lcurl -lvulkan -L${workspace}/lib -llcms2 -llcms2_threaded"
     EXTRALIBS+=" -lhwy -lbrotlidec -lbrotlienc -ltesseract -L/usr/local/cuda/targets/x86_64-linux/lib -lOpenCL"
-    CXXFLAGS='-g -O3 -march=native -DHWY_COMPILE_ONLY_SCALAR'
-    CFLAGS="-I${workspace}/include -I${workspace}/include/jxl -I${workspace}/include/CL -I/usr/local/include -I/usr/include"
-    CFLAGS+='-I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5'
-    CFLAGS+=" -I/usr/include/vk_video -I/usr/include/vulkan ${CXXFLAGS}"
-    CPPFLAGS="-I${workspace}/include -I/usr/local/include -I/usr/include -I/usr/include/openjpeg-2.5 -I/usr/include/flite"
+    CXXFLAGS='-g -O3 -march=native'
+    CFLAGS="${CXXFLAGS} -I${workspace}/include -I${workspace}/include/jxl -I/usr/local/include -I/usr/include -I${workspace}/include/CL"
+    CFLAGS+=' -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5'
+    CFLAGS+=" -I/usr/include/vk_video -I/usr/include/vulkan -I${workspace}/include/avisynth -I/usr/include/flite"
+    CPPFLAGS="-I${workspace}/include -I/usr/local/include -I/usr/include"
     LDFLAGS="-L${workspace}/lib64 -L${workspace}/lib -L${workspace}/lib/x86_64-linux-gnu -L/usr/local/lib64"
     LDFLAGS+=' -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib'
     export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
@@ -342,8 +331,16 @@ git_1_fn()
     # SCRAPE GITHUB WEBSITE FOR THE LATEST REPO VERSION
     github_repo="${1}"
     github_url="${2}"
+    git_token='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'
 
-    if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
+    if curl_cmd="$(curl \
+                        -A "${user_agent}" \
+                        -m "${curl_timeout}" \
+                        --request GET \
+                        --url "https://api.github.com/slyfox1186" \
+                        --header "Authorization: Bearer ${git_token}" \
+                        --header "X-GitHub-Api-Version: 2022-11-28" \
+                        -sSL "https://api.github.com/repos/${github_repo}/${github_url}")"; then
         g_ver="$(echo "${curl_cmd}" | jq -r '.[0].name' 2>/dev/null)"
         g_ver1="$(echo "${curl_cmd}" | jq -r '.[1].name' 2>/dev/null)"
         g_ver2="$(echo "${curl_cmd}" | jq -r '.[0].tag_name' 2>/dev/null)"
@@ -1102,15 +1099,6 @@ patch_ffmpeg_fn()
 #
 # ARCHLINUX FUNCTION SECTION
 #
-
-ffmpeg_ndi_fn()
-{
-    cd "${packages}" || exit 1
-    if build 'FFMPEG-NDI-git' 'git'; then
-        download_git 'https://github.com/lplassman/FFMPEG-NDI.git'
-    fi
-    ffmpeg_libraries+=('--enable-libndi_newtek')
-}
 
 apache_ant_fn()
 {
@@ -2742,7 +2730,6 @@ if build 'avisynth' "${g_ver}"; then
     execute make "-j${cpu_threads}" -C build VersionGen install
     build_done 'avisynth' "${g_ver}"
 fi
-CFLAGS+=" -I${workspace}/include/avisynth"
 ffmpeg_libraries+=('--enable-avisynth')
 
 pre_check_ver 'vapoursynth/vapoursynth' '1' 'R'
@@ -2794,10 +2781,12 @@ git_ver_fn '8268' '6'
 g_ver="${g_ver//debian\/2%/}"
 if build 'xvidcore' "${g_ver}"; then
     download "https://salsa.debian.org/multimedia-team/xvidcore/-/archive/debian/2%25${g_ver}/xvidcore-debian-2%25${g_ver}.tar.bz2" "xvidcore-${g_ver}.tar.bz2"
-    cd build/generic || exit 1
-    execute ./configure --prefix=/usr/local
+    cd 'build/generic' || exit 1
+    execute ./bootstrap.sh
+    execute ./configure --prefix=${workspace} \
+                        --{build,host,target}="${pc_type}"
     execute make "-j${cpu_threads}"
-    execute sudo make install
+    execute make install
     build_done 'xvidcore' "${g_ver}"
 fi
 ffmpeg_libraries+=('--enable-libxvid')
@@ -2927,74 +2916,58 @@ curl -A "${user_agent}" -Lso "${packages}"/objbase.h 'https://raw.githubusercont
 sudo cp -f "${packages}"/objbase.h /usr/local
 
 if build 'ffmpeg' 'git'; then
-    download_git 'https://git.ffmpeg.org/ffmpeg.git'
+    download ${ff_cmd}
     if [[ "${OS}" == 'Arch' ]]; then
         patch_ffmpeg_fn
     fi
 
-    ffmpeg_ndi_fn
-    cd "${packages}/ffmpeg-git" || exit 1
-    git checkout n5.1
-    echo
-    read -p 'Please enter your GitHub e-mail address: ' gh_email
-    read -p 'Please enter your GitHub username: ' gh_uname
-    echo
-    git config user.email "${gh_email}"
-    git config --global user.name "${gh_uname}"
-    execute sudo git am "${packages}"/FFMPEG-NDI-git/libndi.patch
-    execute sudo cp "${packages}"/FFMPEG-NDI-git/libavdevice/libndi_newtek_* libavdevice/
-    execute sudo bash "${packages}"/FFMPEG-NDI-git/preinstall.sh
-    execute sed -i 's/FFMPEG-NDI/FFMPEG-NDI-git/g' "${packages}/FFMPEG-NDI-git/install-ndi-x86_64.sh"
-    execute sudo bash "${packages}"/FFMPEG-NDI-git/install-ndi-x86_64.sh
-    execute sed -i 's/    { VK_EXT_VIDEO_DECODE_H264_EXTENSION_NAME,                FF_VK_EXT_NO_FLAG                },//g' 'libavutil/hwcontext_vulkan.c'
-    execute sed -i 's/    { VK_EXT_VIDEO_DECODE_H265_EXTENSION_NAME,                FF_VK_EXT_NO_FLAG                },//g' 'libavutil/hwcontext_vulkan.c'
     mkdir build
     cd build || exit 1
-    ../configure --prefix=${install_dir}                     \
-                 --arch="$(uname -m)"                        \
-                 --cpu="$((cpu_threads / 2))"                \
-                 --cc="${CC}"                                \
-                 --cxx="${CXX}"                              \
-                 --disable-debug                             \
-                 --disable-doc                               \
-                 --disable-large-tests                       \
-                 --disable-shared                            \
-                 "${ladspa_switch}"                          \
-                 "${ffmpeg_libraries[@]}"                    \
-                 --enable-chromaprint                        \
-                 --enable-gpl                                \
-                 --enable-libbs2b                            \
-                 --enable-libcaca                            \
-                 --enable-libcdio                            \
-                 --enable-libgme                             \
-                 --enable-libmodplug                         \
-                 --enable-libshine                           \
-                 --enable-libsmbclient                       \
-                 --enable-libsnappy                          \
-                 --enable-libsoxr                            \
-                 --enable-libspeex                           \
-                 --enable-libssh                             \
-                 --enable-libtwolame                         \
-                 --enable-libv4l2                            \
-                 --enable-libvo-amrwbenc                     \
-                 --enable-libzvbi                            \
-                 --enable-lto                                \
-                 --enable-nonfree                            \
-                 --enable-opengl                             \
-                 --enable-pic                                \
-                 --enable-pthreads                           \
-                 --enable-small                              \
-                 --enable-static                             \
-                 --enable-vulkan                             \
-                 --enable-version3                           \
-                 --extra-cflags="${CFLAGS}"                  \
-                 --extra-cxxflags="${CXXFLAGS}"              \
-                 --extra-ldflags="${LDFLAGS}"                \
-                 --extra-ldexeflags="${LDEXEFLAGS}"          \
-                 --extra-libs="${EXTRALIBS}"                 \
-                 --pkg-config-flags='--static'               \
-                 --pkg-config=/usr/local/bin/pkg-config      \
-                 --pkgconfigdir="${workspace}"/lib/pkgconfig \
+    ../configure --prefix="${install_dir}"                     \
+                 --arch="$(uname -m)"                          \
+                 --cpu="$((cpu_threads / 2))"                  \
+                 --cc="${CC}"                                  \
+                 --cxx="${CXX}"                                \
+                 --disable-debug                               \
+                 --disable-doc                                 \
+                 --disable-large-tests                         \
+                 --disable-shared                              \
+                 "${ladspa_switch}"                            \
+                 "${ffmpeg_libraries[@]}"                      \
+                 --enable-chromaprint                          \
+                 --enable-gpl                                  \
+                 --enable-libbs2b                              \
+                 --enable-libcaca                              \
+                 --enable-libcdio                              \
+                 --enable-libgme                               \
+                 --enable-libmodplug                           \
+                 --enable-libshine                             \
+                 --enable-libsmbclient                         \
+                 --enable-libsnappy                            \
+                 --enable-libsoxr                              \
+                 --enable-libspeex                             \
+                 --enable-libssh                               \
+                 --enable-libtwolame                           \
+                 --enable-libv4l2                              \
+                 --enable-libvo-amrwbenc                       \
+                 --enable-libzvbi                              \
+                 --enable-lto                                  \
+                 --enable-nonfree                              \
+                 --enable-opengl                               \
+                 --enable-pic                                  \
+                 --enable-pthreads                             \
+                 --enable-small                                \
+                 --enable-static                               \
+                 --enable-vulkan                               \
+                 --enable-version3                             \
+                 --extra-cflags="${CFLAGS}"                    \
+                 --extra-cxxflags="${CXXFLAGS}"                \
+                 --extra-ldflags="${LDFLAGS}"                  \
+                 --extra-ldexeflags="${LDEXEFLAGS}"            \
+                 --extra-libs="${EXTRALIBS}"                   \
+                 --pkg-config-flags='--static'                 \
+                 --pkg-config="${install_dir}"/bin/pkg-config  \
+                 --pkgconfigdir="${install_dir}"/lib/pkgconfig \
                  --strip="$(type -P strip)"
     execute make "-j${cpu_threads}"
     execute sudo make install
