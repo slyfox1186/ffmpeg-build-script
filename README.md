@@ -56,15 +56,15 @@ Use this script at your own risk. I maintain this script in my spare time. Pleas
 This command downloads the build script and automatically starts the build process.
 
 ```bash
-bash <(curl -sSL https://ffmpeg.optimizethis.net) --build --latest
+bash <(curl -fsSL 'https://ffmpeg.optimizethis.net') --build --latest
 ```
 
 These commands clone the build script and start the build.
 
 ```bash
-git clone https://github.com/slyfox1186/ffmpeg-build-script.git
-cd ffmpeg-build-script || exit 1
-bash build-ffmpeg --build --latest
+git clone 'https://github.com/slyfox1186/ffmpeg-build-script.git'
+cd 'ffmpeg-build-script' || exit 1
+bash 'build-ffmpeg' --build --latest
 ```
 
 ## Supported Codecs
