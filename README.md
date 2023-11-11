@@ -40,7 +40,7 @@ These sources are in control of the developers of each script which I have no co
 
 **Importantly**, this script creates a <ins>**non-free**</ins> and unredistributable binary at its end, AND by downloading and using this script, you are <ins>**fully aware of this**</ins>.
 
-Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems other than those based on Debian.
+Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems other than those based on Debian or Arch Linux.
 
 ## Install methods
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
