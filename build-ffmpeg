@@ -155,8 +155,8 @@ source_flags_fn()
     EXTRALIBS="-ldl -lpthread -lm -lz -L/usr/lib/x86_64-linux-gnu -lcurl -lvulkan -L${workspace}/lib -llcms2 -llcms2_threaded"
     EXTRALIBS+=" -lhwy -lbrotlidec -lbrotlienc -ltesseract -L/usr/local/cuda/targets/x86_64-linux/lib -lOpenCL"
     CXXFLAGS='-g -O3 -march=native'
-    CFLAGS="${CXXFLAGS} -I${workspace}/include -I${workspace}/include/jxl -I/usr/local/include -I/usr/include -I${workspace}/include/CL"
-    CFLAGS+=' -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5'
+    CFLAGS="${CXXFLAGS} -I${workspace}/include -I${workspace}/include/jxl -I${workspace}/include/fdk-aac -I/usr/local/include -I/usr/include"
+    CFLAGS+=" -I${workspace}/include/CL -I/usr/include/x86_64-linux-gnu -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5"
     CFLAGS+=" -I/usr/include/vk_video -I/usr/include/vulkan -I${workspace}/include/avisynth -I/usr/include/flite"
     CPPFLAGS="-I${workspace}/include -I/usr/local/include -I/usr/include"
     LDFLAGS="-L${workspace}/lib64 -L${workspace}/lib -L${workspace}/lib/x86_64-linux-gnu -L/usr/local/lib64"
@@ -1430,8 +1430,8 @@ fi
 # UBUNTU BIONIC FAILS TO BUILD XML2
 if [ "${VER}" != '18.04' ]; then
     git_ver_fn '1665' '5' 'T'
-    if build 'libxml2' "${g_ver}"; then
-        download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v${g_ver}/libxml2-v${g_ver}.tar.bz2" "libxml2-${g_ver}.tar.bz2"
+    if build 'libxml2' '2.12.0'; then
+        download 'https://gitlab.gnome.org/GNOME/libxml2/-/archive/v2.12.0/libxml2-v2.12.0.tar.bz2' 'libxml2-2.12.0.tar.bz2'
         CFLAGS+=' -DNOLIBTOOL'
         execute ./autogen.sh
         execute cmake -B build                              \
@@ -1441,7 +1441,7 @@ if [ "${VER}" != '18.04' ]; then
                       -G Ninja -Wno-dev
         execute ninja "-j${cpu_threads}" -C build
         execute ninja "-j${cpu_threads}" -C build install
-        build_done 'libxml2' "${g_ver}"
+        build_done 'libxml2' '2.12.0'
     fi
     ffmpeg_libraries+=('--enable-libxml2')
 fi
@@ -2581,10 +2581,12 @@ ffmpeg_libraries+=('--enable-libsvtav1')
 git_ver_fn '536' '2' 'B'
 g_sver="${g_ver::8}"
 if build 'x264' "${g_sver}"; then
+    LDFLAGS='-Wl,--copy-dt-needed-entries'
     download "https://code.videolan.org/videolan/x264/-/archive/${g_ver}/x264-${g_ver}.tar.bz2" "x264-${g_sver}.tar.bz2"
     execute ./configure --prefix="${workspace}" \
                         --bit-depth=all         \
                         --chroma-format=all     \
+                        --enable-debug          \
                         --enable-gprof          \
                         --enable-static         \
                         --enable-strip
@@ -2594,6 +2596,7 @@ if build 'x264' "${g_sver}"; then
     build_done 'x264' "${g_sver}"
 fi
 ffmpeg_libraries+=('--enable-libx264')
+source_flags_fn
 
 # X265 GIVES BETTER FPS WHEN BUILT WITH CLANG
 export CC=clang CXX=clang++
@@ -2767,20 +2770,6 @@ if build 'vapoursynth' "${g_ver}"; then
     build_done 'vapoursynth' "${g_ver}"
 fi
 ffmpeg_libraries+=('--enable-vapoursynth')
-
-if [ "${VER}" != '22.04' ]; then
-    pre_check_ver 'cyanreg/cyanrip' '1' 'T'
-    if build 'cyanrip' "${g_ver}"; then
-        download "https://github.com/cyanreg/cyanrip/archive/refs/tags/v${g_ver}.tar.gz" "cyanrip-${g_ver}.tar.gz"
-        execute meson setup build --prefix="${workspace}"  \
-                                  --buildtype=release      \
-                                  --default-library=static \
-                                  --strip
-        execute ninja -C build "-j${cpu_threads}"
-        execute ninja -C build "-j${cpu_threads}" install
-        build_done 'cyanrip' "${g_ver}"
-    fi
-fi
 
 if build 'libgav1' 'git'; then
     download_git 'https://chromium.googlesource.com/codecs/libgav1' 'libgav1-git'
