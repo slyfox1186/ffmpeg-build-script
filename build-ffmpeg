@@ -2043,7 +2043,7 @@ if build 'sdl2' 'git'; then
 fi
 
 pre_check_ver 'libsndfile/libsndfile' '1' 'R'
-if build 'libpulse' "${g_ver}"; then
+if build 'libsndfile' "${g_ver}"; then
     download "https://github.com/libsndfile/libsndfile/releases/download/${g_ver}/libsndfile-${g_ver}.tar.xz"
     execute autoreconf -fi
     execute ./configure --prefix="${install_dir}"   \
@@ -2053,7 +2053,7 @@ if build 'libpulse' "${g_ver}"; then
                         --with-pkgconfigdir="${workspace}"/lib/pkgconfig
     execute make "-j${cpu_threads}"
     execute sudo make install
-    build_done 'libfdk-aac' '2.0.2'
+    build_done 'libsndfile' "${g_ver}"
 fi
 
 git_ver_fn '810' '4'
