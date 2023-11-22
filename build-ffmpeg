@@ -2542,8 +2542,10 @@ else
         download_git 'https://github.com/gpac/gpac.git'
         execute sudo ./configure --prefix="${install_dir}" \
                                  --static-bin              \
+                                 --static-modules          \
                                  --use-a52=local           \
                                  --use-faad=local          \
+                                 --use-freetype=local      \
                                  --use-mad=local           \
                                  --sdl-cfg="${workspace}"/include/SDL3
         execute sudo make "-j${cpu_threads}"
