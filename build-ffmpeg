@@ -7,7 +7,7 @@
 ##
 ##  Script version
 ##
-##    - 3.1.5
+##    - 3.1.6
 ##
 ##  Updated on
 ##
@@ -87,7 +87,7 @@
 #
 
 script_name="${0}"
-script_ver=3.1.5
+script_ver=3.1.6
 ffmpeg_sver=n5.1.4
 ffmpeg_archive=ffmpeg-"${ffmpeg_sver}"
 ffmpeg_url=https://github.com/FFmpeg/FFmpeg/archive/refs/tags/"${ffmpeg_sver}".tar.gz
@@ -679,7 +679,6 @@ ${HOME}/.local/bin:\
 "
 export PATH
 }
-path_fn
 
 path_clean_fn()
 {
@@ -820,8 +819,9 @@ install_cuda_fn()
     clear
 
     if [[ "${OS}" == 'Arch' ]]; then
-        cuda_ver_test="$(nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')"
-        cuda_ver_test+='.0'
+        find_nvcc="$(sudo find /opt/ -type f -name 'nvcc')"
+        cuda_ver_test="$(${find_nvcc} --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')"
+        cuda_ver_test+='.1'
     else
         cuda_ver_test="$(cat '/usr/local/cuda/version.json' 2>/dev/null | jq -r '.cuda.version')"
     fi
@@ -869,7 +869,14 @@ install_cuda_fn()
         esac
     fi
 
-    cuda_ver="$(cat '/usr/local/cuda/version.json' 2>/dev/null | jq -r '.cuda.version')"
+    if [[ "${OS}" == 'Arch' ]]; then
+        find_nvcc="$(sudo find /opt/ -type f -name 'nvcc')"
+        cuda_ver_test="$(${find_nvcc} --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')"
+        cuda_ver_test+='.1'
+    else
+        cuda_ver_test="$(cat '/usr/local/cuda/version.json' 2>/dev/null | jq -r '.cuda.version')"
+    fi
+    cuda_ver="${cuda_ver_test}"
 
     if [ -z "${cuda_ver}" ]; then
         fail_fn "Unable to locate the file: /usr/local/cuda/version.json. Line: ${LINENO}"
