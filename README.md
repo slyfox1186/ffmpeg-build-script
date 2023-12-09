@@ -30,7 +30,7 @@ See the below example on how to put your own token into the script.
                         --url "https://api.github.com/<replace with token name>" \
                         --header "Authorization: Bearer ${git_token}" \
                         --header "X-GitHub-Api-Version: 2022-11-28" \
-                        -sSL "https://api.github.com/repos/${git_repo}/${gi_url}")"; then
+                        -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
 ```
 
 ## Disclaimer And Data Privacy Notice
