@@ -150,6 +150,28 @@ MAKEFLAGS="-j$(nproc --all)"
 export MAKEFLAGS
 
 #
+# CREATE THE OUTPUT DIRECTORIES
+#
+
+mkdir -p "${packages}"/nvidia-cuda "${workspace}"/logs
+
+#
+# CREATE TXT FILES TO STORE VERSION NUMBERS TO AVOID UNNECESSARY API CALLS
+#
+
+ver_file_tmp="${workspace}"/latest-versions-tmp.txt
+ver_file="${workspace}"/latest-versions.txt
+sed -i -e '/null-/d' -e '/null /d' -e '/-null/d' -e '/-$/d' "${ver_file_tmp}" "${ver_file}" 2>/dev/null
+
+if [ ! -f "${ver_file_tmp}" ] || [ ! -f "${ver_file}" ]; then
+    touch "${ver_file_tmp}" "${ver_file}" 2>/dev/null
+fi
+
+####################
+# CREATE FUNCTIONS #
+####################
+
+#
 # SET THE CC/CPP COMPILERS + CUSTOMIZED COMPILER OPTIMIZATION FLAGS
 #
 
@@ -169,12 +191,6 @@ source_flags_fn()
     export CC CXX CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
 }
 source_flags_fn
-
-#
-# CREATE THE OUTPUT DIRECTORIES
-#
-
-mkdir -p "${packages}"/nvidia-cuda "${workspace}"/logs
 
 #
 # DEFINE FUNCTIONS
@@ -316,16 +332,6 @@ download_git()
 
     cd "${target_dir}" || fail_fn "Unable to change the working directory to: ${target_dir}. Line: ${LINENO}"
 }
-
-# CREATE TXT FILES TO STORE VERSION NUMBERS TO AVOID UNNECESSARY API CALLS
-ver_file_tmp="${workspace}"/latest-versions-tmp.txt
-ver_file="${workspace}"/latest-versions.txt
-
-sed -i -e '/null-/d' -e '/null /d' -e '/-null/d' -e '/-$/d' "${ver_file_tmp}" "${ver_file}" 2>/dev/null
-
-if [ ! -f "${ver_file_tmp}" ] || [ ! -f "${ver_file}" ]; then
-    touch "${ver_file_tmp}" "${ver_file}" 2>/dev/null
-fi
 
 #
 # PULL THE LATEST VERSIONS OF EACH PACKAGE FROM THE WEBSITE API
