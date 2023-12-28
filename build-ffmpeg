@@ -440,8 +440,6 @@ git_4_fn()
 
     if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.freedesktop.org/api/v4/projects/${repo}/repository/tags")"; then
         g_ver="$(echo "${curl_cmd}" | jq -r '.[0].name')"
-        g_ver="${g_ver#pkg-config-}"
-        g_ver="${g_ver#VER-}"
         g_ver="${g_ver#v}"
     fi
 
@@ -1589,6 +1587,7 @@ fi
 ffmpeg_libraries+=('--enable-libaribb24')
 
 git_ver_fn '7950' '4'
+g_ver="${g_ver#VER-}"
 g_ver1="${g_ver//-/.}"
 if build 'freetype' "${g_ver1}"; then
     download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-${g_ver}/freetype-VER-${g_ver}.tar.bz2" "freetype-${g_ver1}.tar.bz2"
