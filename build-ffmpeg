@@ -116,18 +116,6 @@ regex_str='(rc|RC)+[0-9]+$' # SET THE REGEX VARIABLE TO CHECK FOR RELEASE CANDID
 debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
 #
-# SET THE AVAILABLE CPU THREAD AND CORE COUNT FOR PARALLEL PROCESSING (SPEEDS UP THE BUILD PROCESS)
-#
-
-if [ -f '/proc/cpuinfo' ]; then
-    cpu_threads="$(grep --count ^processor '/proc/cpuinfo')"
-else
-    cpu_threads="$(nproc --all)"
-fi
-MAKEFLAGS="-j$(nproc --all)"
-export MAKEFLAGS
-
-#
 # PRINT SCRIPT BANNER
 #
 
@@ -148,6 +136,18 @@ box_out_banner1()
 }
 box_out_banner1 "FFmpeg Build Script - v${script_ver}"
 printf "\n%s\n\n" "The script will utilize (${cpu_threads}) CPU threads for parallel processing to accelerate the build speed."
+
+#
+# SET THE AVAILABLE CPU THREAD AND CORE COUNT FOR PARALLEL PROCESSING (SPEEDS UP THE BUILD PROCESS)
+#
+
+if [ -f '/proc/cpuinfo' ]; then
+    cpu_threads="$(grep --count ^processor '/proc/cpuinfo')"
+else
+    cpu_threads="$(nproc --all)"
+fi
+MAKEFLAGS="-j$(nproc --all)"
+export MAKEFLAGS
 
 #
 # SET THE CC/CPP COMPILERS + CUSTOMIZED COMPILER OPTIMIZATION FLAGS
