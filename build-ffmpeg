@@ -533,9 +533,9 @@ check_version()
     check_ver="$(grep -Eo "${github_repo#*/}-[0-9\.]+$" "${latest_txt}" | sort | head -n1)"
 
     if [ -n "${check_ver}" ]; then
-        g_nocheck=0
+        g_nocheck='0'
     else
-        g_nocheck=1
+        g_nocheck='1'
     fi
 }
 
