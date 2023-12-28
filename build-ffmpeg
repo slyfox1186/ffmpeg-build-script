@@ -1146,14 +1146,22 @@ dl_libjxl_fn()
             fail_fn "Failed to download the libjxl archive: ${packages}/${libjxl_name}.tar.gz. Line: ${LINENO}"
         fi
 
+        # CREATE THE OUTPUT FILE DIRECTORY IF IT DOESN'T EXIST
         if [ ! -d "${packages}"/deb-files ]; then
             mkdir -p "${packages}"/deb-files
         fi
+        
+        # REMOVE AND LEFTOVER FILES FROM PREVIOUS RUNS
+        if [ -f "${packages}"/deb-files/*.deb ] || [ -f "${packages}"/deb-files/*.debb ]; then
+            sudo rm "${packages}"/deb-files/*.deb "${packages}"/deb-files/*.debb
+        fi
+
+        # EXTRACT THE LIBJXL DEBIAN FILES
         if ! tar -zxf "${packages}/${libjxl_name}.tar.gz" -C "${packages}"/deb-files --strip-components 1; then
             fail_fn "Could not extract the libjxl archive: ${packages}/${libjxl_name}.tar.gz. Line: ${LINENO}"
         fi
 
-        # INSTALL THE DOWNLOADED LIBJXL DEBIAN PACKAGES
+        # INSTALL THE LIBJXL DEBIAN PACKAGES
         install_libjxl_fn "${libjxl_name}"
     fi
 }
