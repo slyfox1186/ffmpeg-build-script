@@ -841,41 +841,41 @@ cuda_download_fn()
 
     case "${choice}" in
         1)
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-buster-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-debian10-12-3-local_12.3.1-545.23.08-1_amd64.deb"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-buster-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-debian10-12-3-local_12.3.1-545.23.08-1_amd64.deb"
             sudo dpkg -i "${packages}/nvidia-cuda/cuda-buster-${cuda_latest_ver}.deb"
             sudo cp -f /var/cuda-repo-debian10-12-3-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
             sudo add-apt-repository -y contrib
             ;;
         2)
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-bullseye-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-debian11-12-3-local_12.3.1-545.23.08-1_amd64.deb"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-bullseye-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-debian11-12-3-local_12.3.1-545.23.08-1_amd64.deb"
             sudo dpkg -i "${packages}/nvidia-cuda/cuda-bullseye-${cuda_latest_ver}.deb"
             sudo cp -f /var/cuda-repo-debian11-12-3-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
             sudo add-apt-repository -y contrib
             ;;
         3)
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-bookworm-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-debian12-12-3-local_12.3.1-545.23.08-1_amd64.deb"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-bookworm-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-debian12-12-3-local_12.3.1-545.23.08-1_amd64.deb"
             sudo dpkg -i "${packages}/nvidia-cuda/cuda-bookworm-${cuda_latest_ver}.deb"
             sudo cp -f /var/cuda-repo-debian12-12-3-local/cuda-*-keyring.gpg /usr/share/keyrings/
             sudo add-apt-repository -y contrib
             ;;
         4)
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-ubuntu2004.pin" "${cuda_pin_url}/ubuntu2004/x86_64/cuda-ubuntu2004.pin"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-ubuntu2004.pin" "${cuda_pin_url}/ubuntu2004/x86_64/cuda-ubuntu2004.pin"
             sudo mv "${packages}/nvidia-cuda/cuda-ubuntu2004.pin" '/etc/apt/preferences.d/cuda-repository-pin-600'
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-focal-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-ubuntu2004-12-3-local_12.3.1-545.23.08-1_amd64.deb"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-focal-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-ubuntu2004-12-3-local_12.3.1-545.23.08-1_amd64.deb"
             sudo dpkg -i "${packages}/nvidia-cuda/cuda-focal-${cuda_latest_ver}.deb"
             sudo cp -f /var/cuda-repo-ubuntu2004-12-3-local/cuda-*-keyring.gpg '    /usr/share/keyrings/'
             ;;
         5)
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-ubuntu2204.pin" "${cuda_pin_url}/ubuntu2204/x86_64/cuda-ubuntu2204.pin"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-ubuntu2204.pin" "${cuda_pin_url}/ubuntu2204/x86_64/cuda-ubuntu2204.pin"
             sudo mv "${packages}/nvidia-cuda/cuda-ubuntu2204.pin" '/etc/apt/preferences.d/cuda-repository-pin-600'
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-jammy-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-ubuntu2204-12-3-local_12.3.1-545.23.08-1_amd64.deb"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-jammy-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-ubuntu2204-12-3-local_12.3.1-545.23.08-1_amd64.deb"
             sudo dpkg -i "${packages}/nvidia-cuda/cuda-jammy-${cuda_latest_ver}.deb"
             sudo cp -f /var/cuda-repo-ubuntu2204-12-3-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
             ;;
         6)
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-wsl-ubuntu.pin" "${cuda_pin_url}/wsl-ubuntu/x86_64/cuda-wsl-ubuntu.pin"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-wsl-ubuntu.pin" "${cuda_pin_url}/wsl-ubuntu/x86_64/cuda-wsl-ubuntu.pin"
             sudo mv "${packages}/nvidia-cuda/cuda-wsl-ubuntu.pin" '/etc/apt/preferences.d/cuda-repository-pin-600'
-            wget --show progress -U "${user_agent}" -cqO "${packages}/nvidia-cuda/cuda-wsl-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-wsl-ubuntu-12-3-local_12.3.1-1_amd64.deb"
+            wget -U "${user_agent}" --show progress -cqO "${packages}/nvidia-cuda/cuda-wsl-${cuda_latest_ver}.deb" "${cuda_url}/local_installers/cuda-repo-wsl-ubuntu-12-3-local_12.3.1-1_amd64.deb"
             sudo dpkg -i "${packages}/nvidia-cuda/cuda-wsl-${cuda_latest_ver}.deb"
             sudo cp -f /var/cuda-repo-wsl-ubuntu-12-3-local/cuda-*-keyring.gpg '/usr/share/keyrings/'
             ;;
