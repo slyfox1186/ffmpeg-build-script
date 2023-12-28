@@ -43,7 +43,7 @@
 ##
 ##  Updated
 ##
-##    - improved the coding to avoid downloading a release candidate version of any program during each API call (rev1)
+##    - improved the coding to avoid downloading a release candidate version of any program during each API call (rev2)
 ##    - libtesseract & leptonica to pull from their latest GitHub release
 ##    - ffmpeg to version n5.1.4
 ##    - rav1e library to version (p20231128 - 11.28.23)
