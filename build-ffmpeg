@@ -1977,7 +1977,7 @@ if build 'serd' "${g_ver}"; then
 fi
 
 pre_check_ver 'pcre2project/pcre2' '1' 'T'
-gver="${gver//pcre2-pcre2-/pcre2-}"
+gver="${gver//pcre2-pcre2-/}"
 if build 'pcre2' "${g_ver}"; then
     download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-${g_ver}.tar.gz" "pcre2-${g_ver}.tar.gz"
     execute ./autogen.sh
