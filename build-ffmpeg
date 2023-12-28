@@ -504,19 +504,19 @@ git_ver_fn()
     if [ -n "${3}" ]; then
         v_flag="${3}"
         case "${v_flag}" in
-                B)      t_flag=branches;;
-                R)      t_flag=releases;;
-                T)      t_flag=tags;;
+                B)      t_flag='branches';;
+                R)      t_flag='releases';;
+                T)      t_flag='tags';;
         esac
     fi
 
     case "${v_tag}" in
-            1)      u_flag=git_1_fn;;
-            2)      u_flag=git_2_fn;;
-            3)      u_flag=git_3_fn;;
-            4)      u_flag=git_4_fn;;
-            5)      u_flag=git_5_fn;;
-            6)      u_flag=git_6_fn;;
+            1)      u_flag='git_1_fn';;
+            2)      u_flag='git_2_fn';;
+            3)      u_flag='git_3_fn';;
+            4)      u_flag='git_4_fn';;
+            5)      u_flag='git_5_fn';;
+            6)      u_flag='git_6_fn';;
             *)      fail_fn "Could not detect the variable \"v_tag\" in the function \"git_ver_fn\". Line: ${LINENO}"
     esac
 
