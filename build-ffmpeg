@@ -1256,10 +1256,10 @@ ubuntu_os_ver_fn()
     fi
 
     ubuntu_common_pkgs='cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libumfpack5 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2'
-    focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5'
-    focal_pkgs+=' libcunit1-dev nvidia-utils-535 librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
-    jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev'
-    jammy_pkgs+=' librust-malloc-buf-dev libacl1-dev liblz4-dev libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libpsl-dev'
+    focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5 libcunit1-dev nvidia-utils-535 librust-jemalloc-sys-dev'
+    focal_pkgs+=' librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
+    jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev librust-malloc-buf-dev libacl1-dev'
+    jammy_pkgs+=' liblz4-dev libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libpsl-dev'
     lunar_kenetic_pkgs='librist-dev libjxl-dev'
     mantic_pkgs='cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev'
 
