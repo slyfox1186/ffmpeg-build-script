@@ -599,7 +599,7 @@ installed() { return $(dpkg-query -W -f '${Status}\n' "${1}" 2>&1 | awk '/ok ins
 
 library_exists()
 {
-    if ! [[ -x "$(pkg-config --exists --print-errors "${1}" 2>&1 >/dev/null)" ]]; then
+    if ! [[ -x "$(pkg-config --exists --print-errors "${1}" 2>&1)" ]]; then
         return 1
     fi
     return 0
