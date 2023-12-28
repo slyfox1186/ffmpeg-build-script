@@ -7,11 +7,11 @@
 ##
 ##  Script version
 ##
-##    - 3.2.2
+##    - 3.2.3
 ##
-##  Major updated
+##  Updated
 ##
-##    - 12.09.23
+##    - 12.28.23
 ##
 ##  Purpose:
 ##
@@ -43,6 +43,8 @@
 ##
 ##  Updated
 ##
+##    - improved the coding to avoid downloading a release candidate version of any program during each API call
+##    - libtesseract & leptonica to pull from their latest GitHub release
 ##    - ffmpeg to version n5.1.4
 ##    - rav1e library to version (p20231128 - 11.28.23)
 ##    - abseil library
@@ -65,7 +67,7 @@
 ##    - Windows WSL2 support
 ##    - Vulkan Support
 ##    - Extra code to support DSO symbols in the LDFLAGS compiler variable
-##
+##"
 ##  Removed
 ##
 ##    - python3 build code that became useless
@@ -74,6 +76,7 @@
 ##
 ##  Fixed
 ##
+##    - An issue with libtesseract regarding the file libcurl.a during it's build
 ##    - GPAC was missing a required .so file from libjpeg-turbo
 ##    - GPAC build issue due to the sdl2 library not being found in the workspace folder
 ##    - The nvidia-smi command not being installed for Debian OS versions
@@ -91,7 +94,7 @@
 #
 
 script_name="${0}"
-script_ver=3.2.2
+script_ver=3.2.3
 ffmpeg_sver=n5.1.4
 ffmpeg_archive="ffmpeg-${ffmpeg_sver}.tar.gz"
 ffmpeg_url="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/${ffmpeg_sver}.tar.gz"
@@ -109,6 +112,7 @@ latest=false
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 web_repo=https://github.com/slyfox1186/ffmpeg-build-script
 curl_timeout=10
+regex_str='-rc[0-9]+' # SET A REGEX STRING VARIABLE TO CHECK FOR RELEASE CANDIDATES
 debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
 #
@@ -134,7 +138,7 @@ box_out_banner1()
     line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
@@ -263,12 +267,12 @@ download()
     if [ -n "${3}" ]; then
         if ! tar -xf "${target_file}" -C "${target_dir}" 2>/dev/null >/dev/null; then
             sudo rm "${target_file}"
-            fail_fn "The script failed to extract \"${dl_file}\" so it was deleted. Please re-run the script. Line: ${LINENO}"
+            fail_fn "The script failed to extract \"${dl_file}\" so it was deleted. Please re-run the script to try again. Line: ${LINENO}"
         fi
     else
         if ! tar -xf "${target_file}" -C "${target_dir}" --strip-components 1 2>/dev/null >/dev/null; then
             sudo rm "${target_file}"
-            fail_fn "The script failed to extract \"${dl_file}\" so it was deleted. Please re-run the script. Line: ${LINENO}"
+            fail_fn "The script failed to extract \"${dl_file}\" so it was deleted. Please re-run the script to try again. Line: ${LINENO}"
         fi
     fi
 
@@ -334,7 +338,7 @@ git_1_fn()
     git_url="${2}"
     cnt=0
 
-    if curl_cmd="$(curl-A "${user_agent}" -m 10 -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
+    if curl_cmd="$(curl -A "${user_agent}" -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
         g_ver="$(echo "${curl_cmd}" | jq -r '.[0].name' 2>/dev/null)"
         g_ver1="$(echo "${curl_cmd}" | jq -r '.[1].name' 2>/dev/null)"
         g_ver2="$(echo "${curl_cmd}" | jq -r '.[0].tag_name' 2>/dev/null)"
@@ -355,16 +359,17 @@ git_1_fn()
         g_ver2="${g_ver2#v}"
     fi
 
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION AKA 'RC'
-    get_str_end='-rc[0-9]'
-    while [[ ${g_ver} =~ ${get_str_end}$ ]]
+    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
+    while [[ ${g_ver} =~ ${regex_str}$ ]]
     do
-        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.kitware.com/api/v4/projects/${gitlab_repo}/repository/${github_url}" | jq -r '.[$cnt].name')"; then
-            g_ver="${curl_cmd#v}"
-            ((cnt++))
+        if curl_cmd="$(curl -A "${user_agent}" -m 10 -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
+            g_ver="$(echo "${curl_cmd}" | jq -r "[${cnt}].name")"
+            g_ver="${g_ver#v}"
         fi
+        ((cnt++))
     done
 
+    # STORE EACH PROGRAM VERSION FOUND IN A TEMPORARY FILE TO HELP AVOID PULLS FROM THE GITHUB API
     echo "${github_repo%/*}-${g_ver}" >> "${ver_file_tmp}"
     awk '!NF || !seen[$0]++' "${latest_txt_tmp}" > "${ver_file}"
 }
@@ -384,12 +389,12 @@ git_2_fn()
         g_ver1="${g_ver1#v}"
     fi
 
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE ANY RELEASE CANDIDATES AKA 'RC'. STABLE RELEASES ONLY.
-    get_str_end='-rc[0-9]'
-    while [[ ${g_ver} =~ ${get_str_end}$ ]]
+    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
+    while [[ ${g_ver} =~ ${regex_str}$ ]]
     do
-        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://code.videolan.org/api/v4/projects/${repo}/repository/${url}" | jq -r ".[$cnt].name")"; then
-            g_ver="${curl_cmd#v}"
+        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://code.videolan.org/api/v4/projects/${repo}/repository/${url}")"; then
+            g_ver="$(echo "${curl_cmd}" | jq -r "[${cnt}].name")"
+            g_ver="${g_ver#v}"
         fi
         ((cnt++))
     done
@@ -411,14 +416,13 @@ git_3_fn()
         g_ver="${g_ver#VTM-}"
     fi
 
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE ANY RELEASE CANDIDATES AKA 'RC'. STABLE RELEASES ONLY.
-    get_str_end='-rc[0-9]'
-    while [[ ${g_ver} =~ ${get_str_end}$ ]]
+    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
+    while [[ ${g_ver} =~ ${regex_str}$ ]]
     do
-        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.com/api/v4/projects/${repo}/repository/${url}" | jq -r ".[$cnt].name")"; then
-            g_ver="${curl_cmd#v}"
+        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.com/api/v4/projects/${repo}/repository/${url}")"; then
+            g_ver="$(echo "${curl_cmd}" | jq -r "[${cnt}].name")"
+            g_ver="${g_ver#v}"
         fi
-        ((cnt++))
     done
 }
 
@@ -435,12 +439,12 @@ git_4_fn()
         g_ver="${g_ver#v}"
     fi
 
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE ANY RELEASE CANDIDATES AKA 'RC'. STABLE RELEASES ONLY.
-    get_str_end='-rc[0-9]'
-    while [[ ${g_ver} =~ ${get_str_end}$ ]]
+    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
+    while [[ ${g_ver} =~ ${regex_str}$ ]]
     do
-        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.freedesktop.org/api/v4/projects/${repo}/repository/tags" | jq -r ".[$cnt].name")"; then
-            g_ver="${curl_cmd#v}"
+        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.freedesktop.org/api/v4/projects/${repo}/repository/tags")"; then
+            g_ver="$(echo "${curl_cmd}" | jq -r "[${cnt}].name")"
+            g_ver="${g_ver#v}"
         fi
         ((cnt++))
     done
@@ -457,12 +461,12 @@ git_5_fn()
         g_ver="${g_ver#v}"
     fi
 
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE ANY RELEASE CANDIDATES AKA 'RC'. STABLE RELEASES ONLY.
-    get_str_end='-rc[0-9]'
-    while [[ ${g_ver} =~ ${get_str_end}$ ]]
+    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
+    while [[ ${g_ver} =~ ${regex_str}$ ]]
     do
-        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.gnome.org/api/v4/projects/${repo}/repository/tags" | jq -r ".[$cnt].name")"; then
-            g_ver="${curl_cmd#v}"
+        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.gnome.org/api/v4/projects/${repo}/repository/tags")"; then
+            g_ver="$(echo "${curl_cmd}" | jq -r "[${cnt}].name")"
+            g_ver="${g_ver#v}"
         fi
         ((cnt++))
     done
@@ -479,12 +483,12 @@ git_6_fn()
         g_ver="${g_ver#v}"
     fi
 
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE ANY RELEASE CANDIDATES AKA 'RC'. STABLE RELEASES ONLY.
-    get_str_end='-rc[0-9]'
-    while [[ ${g_ver} =~ ${get_str_end}$ ]]
+    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
+    while [[ ${g_ver} =~ ${regex_str}$ ]]
     do
-        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://salsa.debian.org/api/v4/projects/${repo}/repository/tags" | jq -r ".[$cnt].name")"; then
-            g_ver="${curl_cmd#v}"
+        if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://salsa.debian.org/api/v4/projects/${repo}/repository/tags")"; then
+            g_ver="$(echo "${curl_cmd}" | jq -r "[${cnt}].name")"
+            g_ver="${g_ver#v}"
         fi
         ((cnt++))
     done
@@ -993,7 +997,7 @@ pkgs_fn()
           libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libcholmod3 libchromaprint-dev libcjson-dev libcodec2-dev
           libcolamd2 libcrypto++-dev libcurl4-openssl-dev libdbus-1-dev libde265-dev libdevil-dev libdmalloc-dev libdrm-dev
           libdvbpsi-dev libebml-dev libegl1-mesa-dev libffi-dev libgbm-dev libgdbm-dev libgegl-0.4-0 libgegl-common libgimp2.0
-          libgl1-mesa-dev libgles2-mesa-dev libglib2.0-dev libgme-dev libgnutls28-dev libgnutls30 libgoogle-perftools4
+          libgl1-mesa-dev libgles2-mesa-dev libglib2.0-dev libgme-dev libgmock-dev libgnutls28-dev libgnutls30 libgoogle-perftools4
           libgoogle-perftools-dev libgsm1-dev libgtest-dev libgvc6 libhwy-dev libibus-1.0-dev libiconv-hook-dev
           libintl-perl libjack-dev libjemalloc-dev libladspa-ocaml-dev libleptonica-dev liblz-dev liblzma-dev
           liblzo2-dev libmathic-dev libmatroska-dev libmbedtls-dev libmetis5 libmfx-dev libmodplug-dev libmp3lame-dev
@@ -1249,8 +1253,8 @@ ubuntu_os_ver_fn()
     ubuntu_common_pkgs=' libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev cppcheck'
     focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5 libcunit1-dev nvidia-utils-535'
     focal_pkgs+=' librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
-    jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev librust-malloc-buf-dev'
-    jammy_pkgs+=' libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev'
+    jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev librust-malloc-buf-dev libacl1-dev liblz4-dev'
+    jammy_pkgs+=' libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libpsl-dev'
     lunar_kenetic_pkgs='librist-dev libjxl-dev'
 
     case "${VER}" in
@@ -1550,8 +1554,8 @@ if build 'libpng' '1.6.40'; then
 fi
 
 git_ver_fn '4720790' '3' 'T'
-if build 'libtiff' "$g_ver"; then
-    download "https://gitlab.com/libtiff/libtiff/-/archive/v$g_ver/libtiff-v$g_ver.tar.bz2" "libtiff-$g_ver.tar.bz2"
+if build 'libtiff' "${g_ver}"; then
+    download "https://gitlab.com/libtiff/libtiff/-/archive/v${g_ver}/libtiff-v${g_ver}.tar.bz2" "libtiff-${g_ver}.tar.bz2"
     execute ./autogen.sh
     execute ./configure --prefix="${install_dir}"   \
                         --{build,host}="${pc_type}" \
@@ -1562,7 +1566,7 @@ if build 'libtiff' "$g_ver"; then
                         --with-pic
     execute make "-j${cpu_threads}"
     execute sudo make install
-    build_done 'libtiff' "$g_ver"
+    build_done 'libtiff' "${g_ver}"
 fi
 
 pre_check_ver 'nkoriyama/aribb24' '1' 'T'
@@ -1845,31 +1849,34 @@ if build 'opencl-sdk' "${g_ver}"; then
     build_done 'opencl-sdk' "${g_ver}"
 fi
 
-pre_check_ver 'DanBloomberg/leptonica' '1' 'T'
-if build 'leptonica' '1.83.1'; then
-    download 'https://github.com/DanBloomberg/leptonica/archive/refs/tags/1.83.1.tar.gz' "leptonica-1.83.1.tar.gz"
+pre_check_ver 'DanBloomberg/leptonica' '1' 'R'
+g_ver="${g_ver//Leptonica version /}"
+if build 'leptonica' "${g_ver}"; then
+    download "https://github.com/DanBloomberg/leptonica/archive/refs/tags/${g_ver}.tar.gz" "leptonica-${g_ver}.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="${install_dir}"   \
                         --{build,host}="${pc_type}" \
                         --with-pic
     execute make "-j${cpu_threads}"
     execute sudo make install
-    build_done 'leptonica' '1.83.1'
+    build_done 'leptonica' "${g_ver}"
 fi
 
 pre_check_ver 'tesseract-ocr/tesseract' '1' 'T'
-if build 'tesseract' '5.3.2'; then
-    download 'https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.3.2.tar.gz' 'tesseract-5.3.2.tar.gz'
+if build 'tesseract' "${g_ver}"; then
+    download "https://github.com/tesseract-ocr/tesseract/archive/refs/tags/${g_ver}.tar.gz" "tesseract-${g_ver}.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="${install_dir}"                    \
                         --{build,host}="${pc_type}"                  \
                         --disable-doc                                \
                         --with-extra-includes="${workspace}"/include \
                         --with-extra-libraries="${workspace}"/lib    \
-                        --with-pic
+                        --with-pic                                   \
+                        --without-archive                            \
+                        --without-curl
     execute make "-j${cpu_threads}"
     execute sudo make install
-    build_done 'tesseract' '5.3.2'
+    build_done 'tesseract' "${g_ver}"
 fi
 ffmpeg_libraries+=('--enable-libtesseract')
 
@@ -1911,8 +1918,8 @@ ffmpeg_libraries+=('--enable-libzimg')
 pre_check_ver 'c-ares/c-ares' '1' 'R'
 g_ver="${g_ver//ares-/}"
 g_tag="${g_ver//\./_}"
-if build 'c-ares' "${g_ver}"; then
-    download "https://github.com/c-ares/c-ares/archive/refs/tags/cares-${g_tag}.tar.gz" "c-ares-${g_ver}.tar.gz"
+if build 'c-ares' '1.23.0'; then
+    download 'https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_23_0.tar.gz' 'c-ares-1.23.0.tar.gz'
     execute autoreconf -fi
     execute ./configure --prefix="${install_dir}"   \
                         --{build,host}="${pc_type}" \
@@ -1921,7 +1928,7 @@ if build 'c-ares' "${g_ver}"; then
                         --with-pic
     execute make "-j${cpu_threads}"
     execute sudo make install
-    build_done 'c-ares' "${g_ver}"
+    build_done 'c-ares' '1.23.0'
 fi
 
 if build 'lv2' 'git'; then
@@ -2354,20 +2361,23 @@ box_out_banner_video()
 }
 box_out_banner_video 'Installing Video Tools'
 
-if build 'vulkan-headers' 'git'; then
-    download_git 'https://github.com/KhronosGroup/Vulkan-Headers.git' 'vulkan-headers-git'
-    execute cmake -B build                                     \
-                  -DCMAKE_INSTALL_PREFIX="${workspace}"        \
-                  -DCMAKE_BUILD_TYPE=Release                   \
-                  -DBUILD_TESTS=OFF                            \
-                  -DCMAKE_C_FLAGS='-g -O3 -pipe -march=native' \
-                  -DCMAKE_STRIP="$(type -P strip)"             \
-                  -G Ninja -Wno-devCMAKE_CXX_COMPILE
-    execute ninja "-j${cpu_threads}" -C build
-    execute ninja -C build install
-    build_done 'vulkan-headers' 'git'
+amd_gpu_test="$(glxinfo | grep -E 'OpenGL renderer' | grep -Eo 'AMD\s.*$')"
+if [ -n "${amd_gpu_test}" ]; then
+    if build 'vulkan-headers' 'git'; then
+        download_git 'https://github.com/KhronosGroup/Vulkan-Headers.git' 'vulkan-headers-git'
+        execute cmake -B build                                     \
+                      -DCMAKE_INSTALL_PREFIX="${workspace}"        \
+                      -DCMAKE_BUILD_TYPE=Release                   \
+                      -DBUILD_TESTS=OFF                            \
+                      -DCMAKE_C_FLAGS='-g -O3 -pipe -march=native' \
+                      -DCMAKE_STRIP="$(type -P strip)"             \
+                      -G Ninja -Wno-devCMAKE_CXX_COMPILE
+        execute ninja "-j${cpu_threads}" -C build
+        execute ninja -C build install
+        build_done 'vulkan-headers' 'git'
+    fi
+    ffmpeg_libraries+=('--enable-vulkan')
 fi
-ffmpeg_libraries+=('--enable-libkvazaar')
 
 if build 'decklink' '12.7'; then
     download 'https://github.com/slyfox1186/ffmpeg-build-script/raw/main/library-files/Blackmagic-DeckLink-SDK-12.7.tar.xz' 'decklink-12.7.tar.xz'
@@ -2381,7 +2391,7 @@ ffmpeg_libraries+=('--enable-decklink')
 
 # NEED TO UPDATE THIS REPO FROM TIME TO TIME MANUALLY
 aom_ver=6054fae218eda6e53e1e3b4f7ef0fff4877c7bf1
-# aom_ver=4783bb8b4ca42e15078225e3f58d246e13a93c28
+# FAILED TO BUILD FFMPEG 12.28.23 = d3b7ce41e0bd9afe93564124c31a3d12beb6eda7
 aom_sver="${aom_ver::7}"
 if build 'av1' "${aom_sver}"; then
     download "https://aomedia.googlesource.com/aom/+archive/${aom_ver}.tar.gz" "av1-${aom_sver}.tar.gz" 'av1'
@@ -2687,6 +2697,7 @@ export CC=clang CXX=clang++
 
 # ENTER A SNAPSHOT ID FOR X265
 g_ver=8ee01d45b05cdbc9da89b884815257807a514bc8
+# FAILED TO BUILD FFMPEG 12.28.23 = ce8642f22123f0b8cf105c88fc1e8af9888bd345
 g_sver="${g_ver::7}"
 if build 'x265' "${g_sver}"; then
     download "https://bitbucket.org/multicoreware/x265_git/get/${g_ver}.tar.bz2" "x265-${g_sver}.tar.bz2"
@@ -2744,13 +2755,13 @@ SAVE
 END
 EOF
 
-    execute sudo ninja "-j${cpu_threads}" install
+    execute sudo ninja install
 
     if [ -n "${LDEXEFLAGS}" ]; then
         sed -i.backup 's/lgcc_s/lgcc_eh/g' "${install_dir}/lib/pkgconfig/x265.pc"
     fi
 
-    # FIX x265 SHARED LIB ISSUES
+    # FIX THE x265 SHARED LIBRARY ISSUE
     x265_fix_libs_fn
 
     build_done 'x265' "${g_sver}"
@@ -2770,10 +2781,6 @@ if [ -z "${LDEXEFLAGS}" ]; then
         ffmpeg_libraries+=('--enable-vaapi')
     fi
 fi
-
-printf "\n%s\n%s\n"                                 \
-    'Building nv-codec-headers - version 12.0.16.1' \
-    '========================================================'
 
 # GET THE GPU ARCHITECTURE
 # https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards
@@ -2810,9 +2817,9 @@ if [ ${?} -eq '0' ]; then
         fi
     fi
     ffmpeg_libraries+=("--nvccflags=-gencode arch=${gpu_arch}")
-else
-    printf "\n%s\n\n" 'The Active GPU is made by AMD and the Geforce CUDA SDK Toolkit will not be enabled.'
-    sleep 5
+    else
+        printf "\n%s\n\n" 'The Active GPU is made by AMD and the Geforce CUDA SDK Toolkit will not be enabled.'
+        sleep 5
 fi
 
 pre_check_ver 'Haivision/srt' '1' 'R'
@@ -3105,4 +3112,3 @@ fi
 cleanup_fn
 
 # SHOW EXIT MESSAGE
-exit_fn
