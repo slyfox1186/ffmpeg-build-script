@@ -390,7 +390,7 @@ git_2_fn()
     fi
 
     # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
-    while [[ ${g_ver} =~ ${regex_str}$ ]]
+    while [[ ${g_ver} =~ ${regex_str} ]]
     do
         if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://code.videolan.org/api/v4/projects/${repo}/repository/${url}")"; then
             g_ver="$(echo "${curl_cmd}" | jq -r ".[${cnt}].name")"
@@ -417,7 +417,7 @@ git_3_fn()
     fi
 
     # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
-    while [[ ${g_ver} =~ ${regex_str}$ ]]
+    while [[ ${g_ver} =~ ${regex_str} ]]
     do
         if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.com/api/v4/projects/${repo}/repository/${url}")"; then
             g_ver="$(echo "${curl_cmd}" | jq -r ".[${cnt}].name")"
@@ -440,7 +440,7 @@ git_4_fn()
     fi
 
     # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
-    while [[ ${g_ver} =~ ${regex_str}$ ]]
+    while [[ ${g_ver} =~ ${regex_str} ]]
     do
         if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.freedesktop.org/api/v4/projects/${repo}/repository/tags")"; then
             g_ver="$(echo "${curl_cmd}" | jq -r ".[${cnt}].name")"
@@ -462,7 +462,7 @@ git_5_fn()
     fi
 
     # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
-    while [[ ${g_ver} =~ ${regex_str}$ ]]
+    while [[ ${g_ver} =~ ${regex_str} ]]
     do
         if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://gitlab.gnome.org/api/v4/projects/${repo}/repository/tags")"; then
             g_ver="$(echo "${curl_cmd}" | jq -r ".[${cnt}].name")"
@@ -484,7 +484,7 @@ git_6_fn()
     fi
 
     # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
-    while [[ ${g_ver} =~ ${regex_str}$ ]]
+    while [[ ${g_ver} =~ ${regex_str} ]]
     do
         if curl_cmd="$(curl -A "${user_agent}" -m "${curl_timeout}" -sSL "https://salsa.debian.org/api/v4/projects/${repo}/repository/tags")"; then
             g_ver="$(echo "${curl_cmd}" | jq -r ".[${cnt}].name")"
