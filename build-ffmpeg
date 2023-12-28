@@ -186,8 +186,8 @@ source_flags_fn()
     CFLAGS="${CXXFLAGS} -I${workspace}/include -I${workspace}/include/jxl -I${workspace}/include/fdk-aac -I${workspace}/include/CL -I${workspace}/include/avisynth"
     CFLAGS+=' -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio -I/usr/include/openjpeg-2.5 -I/usr/include/vk_video -I/usr/include/vulkan -I/usr/include/flite'
     CPPFLAGS="-I${workspace}/include"
-    LDFLAGS="-Wl,--as-needed -L${workspace}/lib64 -L${workspace}/lib -L${workspace}/lib/x86_64-linux-gnu -L/usr/local/lib/x86_64-linux-gnu"
-    LDFLAGS+=" -L${install_dir}/lib64 -L${install_dir}/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/usr/lib -L/lib64 -L/lib"
+    LDFLAGS="-Wl,--as-needed -L${workspace}/lib64 -L${workspace}/lib -L${workspace}/lib/x86_64-linux-gnu -L${install_dir}/lib/x86_64-linux-gnu"
+    LDFLAGS+=" -L${install_dir}/lib64 -L${install_dir}/lib -L/usr/lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib -L/lib64 -L/lib"
     export CC CXX CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
 }
 source_flags_fn
