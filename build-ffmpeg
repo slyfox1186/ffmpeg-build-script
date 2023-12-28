@@ -1330,7 +1330,7 @@ esac
 
 path_fn
 find_java="$(sudo find /usr/lib/jvm/ -type d -name 'java-*-openjdk*' | rev | sort | rev | head -n1)"
-java_config="$(sudo find /usr/lib/ -type f -name 'jni.h'  | rev | sort -r | rev | head -n1 | sed 's/\(^.*\)\/.*$/\1/')"
+java_config="$(sudo find /usr/lib/ -type f -name 'jni.h' | sort -r | head -n1 | sed 's/\(^.*\)\/.*$/\1/')"
 export CPPFLAGS+=" -I${java_config}"
 export JDK_HOME="${find_java}"
 export JAVA_HOME="${find_java}"
