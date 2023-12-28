@@ -94,24 +94,24 @@
 #
 
 script_name="${0}"
-script_ver=3.2.4
-ffmpeg_sver=n5.1.4
+script_ver='3.2.4'
+ffmpeg_sver='n5.1.4'
 ffmpeg_archive="ffmpeg-${ffmpeg_sver}.tar.gz"
 ffmpeg_url="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/${ffmpeg_sver}.tar.gz"
-cuda_latest_ver=12.3.1
+cuda_latest_ver='12.3.1'
 cuda_url="https://developer.download.nvidia.com/compute/cuda/${cuda_latest_ver}"
 cuda_pin_url='https://developer.download.nvidia.com/compute/cuda/repos'
 cwd="${PWD}"/ffmpeg-build-script
 packages="${cwd}"/packages
 workspace="${cwd}"/workspace
-install_dir=/usr/local
-pc_type=x86_64-linux-gnu
+install_dir='/usr/local'
+pc_type='x86_64-linux-gnu'
+user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+web_repo='https://github.com/slyfox1186/ffmpeg-build-script'
+curl_timeout='10'
 LDEXEFLAGS=''
 ffmpeg_libraries=()
-latest=false
-user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-web_repo=https://github.com/slyfox1186/ffmpeg-build-script
-curl_timeout=10
+latest='false'
 regex_str='(rc|RC)+[0-9]+$' # SET THE REGEX VARIABLE TO CHECK FOR RELEASE CANDIDATES
 debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
