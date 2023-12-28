@@ -934,7 +934,11 @@ install_cuda_fn()
             clear
 
             case "${choice}" in
-                1)      cuda_download_fn;;
+                1)
+                        cuda_download_fn
+                        PATH="${PATH}:${cuda_path}"
+                        export PATH
+                        ;;
                 2)
                         PATH="${PATH}:${cuda_path}"
                         export PATH
