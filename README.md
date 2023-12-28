@@ -18,7 +18,8 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
 
 ### If you start the build ***<ins>let it finish</ins>***
 
-See the below example on how to put your own token into the script.
+See the below example on how to put your token into the script.
+  - replace both of the `curl_cmd` variables inside the function with your token as shown below
 
 ```
     git_token='github_pat_blahblahblahblah'
