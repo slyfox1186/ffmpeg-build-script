@@ -1128,39 +1128,21 @@ dl_libjxl_fn()
 {
     local url_base url_suffix
 
-    url_base=https://github.com/libjxl/libjxl/releases/download/v0.9.0/jxl-debs-amd64
-    url_suffix=v0.9.0.tar.gz
+    url_base='https://github.com/libjxl/libjxl/releases/download/v0.8.2/jxl-debs-amd64'
+    url_suffix='v0.8.2.tar.gz'
 
     if [ ! -f "${packages}"/libjxl.tar.gz ]; then
         case "${VER}" in
-            10)
-                                    libjxl_name='debian-buster'
-                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
-                                    ;;
-            11)
-                                    libjxl_name='debian-bullseye'
-                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
-                                    ;;
-            12)
-                                    libjxl_name='debian-bookworm'
-                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
-                                    ;;
-            18.04)
-                                    libjxl_name='ubuntu-18.04'
-                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
-                                   ;;
-            20.04)
-                                    libjxl_name='ubuntu-20.04'
-                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
-                                    ;;
-            23.10|23.04|22.04)
-                                    libjxl_name='ubuntu-22.04'
-                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
-                                    ;;
+            10)                     libjxl_name='debian-buster';;
+            11)                     libjxl_name='debian-bullseye';;
+            12)                     libjxl_name='debian-bookworm';;
+            18.04)                  libjxl_name='ubuntu-18.04';;
+            20.04)                  libjxl_name='ubuntu-20.04';;
+            23.10|23.04|22.04)      libjxl_name='ubuntu-22.04';;
             *)                      echo;;
         esac
 
-        if ! curl -A "${user_agent}" -Lso "${packages}/${libjxl_name}.tar.gz" "${libjxl_download}"; then
+        if ! curl -A "${user_agent}" -Lso "${packages}/${libjxl_name}.tar.gz" "${url_base}-${libjxl_name}-${url_suffix}"; then
             fail_fn "Failed to download the libjxl archive: ${packages}/${libjxl_name}.tar.gz. Line: ${LINENO}"
         fi
 
@@ -1168,7 +1150,7 @@ dl_libjxl_fn()
             mkdir -p "${packages}"/deb-files
         fi
         if ! tar -zxf "${packages}/${libjxl_name}.tar.gz" -C "${packages}"/deb-files --strip-components 1; then
-            fail_fn "Could not extract the libjxl archive ${packages}/${libjxl_name}.tar.gz. Line: ${LINENO}"
+            fail_fn "Could not extract the libjxl archive: ${packages}/${libjxl_name}.tar.gz. Line: ${LINENO}"
         fi
 
         # INSTALL THE DOWNLOADED LIBJXL DEBIAN PACKAGES
@@ -1823,9 +1805,9 @@ fi
 if [[ "${OS}" == 'Arch' ]]; then
     ffmpeg_libraries+=('--disable-libjxl')
 else
-    if build 'libjxl' '0.9.0'; then
+    if build 'libjxl' '0.8.2'; then
         dl_libjxl_fn
-        build_done 'libjxl' '0.9.0'
+        build_done 'libjxl' '0.8.2'
     fi
     ffmpeg_libraries+=('--enable-libjxl')
 fi
