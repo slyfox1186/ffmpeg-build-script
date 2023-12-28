@@ -1819,18 +1819,14 @@ if build 'gflags' "${g_ver}"; then
     build_done 'gflags' "${g_ver}"
 fi
 
-if [[ "${OS}" == 'Arch' ]]; then
-    echo
-else
-    if build 'libjxl' '0.8.2'; then
-        dl_libjxl_fn
-        build_done 'libjxl' '0.8.2'
-    fi
-fi
-# libjxl has a bug in the decoder bit decoding and must be disabled on Arch Linux
+# LIBJXL HAS A BUG IN THE DECODER BIT AND MUST BE DISABLED ON ARCH LINUX
 if [[ "${OS}" == 'Arch' ]]; then
     ffmpeg_libraries+=('--disable-libjxl')
 else
+    if build 'libjxl' '0.9.0'; then
+        dl_libjxl_fn
+        build_done 'libjxl' '0.9.0'
+    fi
     ffmpeg_libraries+=('--enable-libjxl')
 fi
 
