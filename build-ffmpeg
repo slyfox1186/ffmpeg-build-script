@@ -116,28 +116,6 @@ regex_str='(rc|RC)+[0-9]+$' # SET THE REGEX VARIABLE TO CHECK FOR RELEASE CANDID
 debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
 
 #
-# PRINT SCRIPT BANNER
-#
-
-clear
-box_out_banner1()
-{
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
-    tput bold
-    line="$(tput setaf 3)${line}"
-    space="${line//-/ }"
-    echo " ${line}"
-    printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
-    printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
-    printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
-    echo " ${line}"
-    tput sgr 0
-}
-box_out_banner1 "FFmpeg Build Script - v${script_ver}"
-printf "\n%s\n\n" "The script will utilize (${cpu_threads}) CPU threads for parallel processing to accelerate the build speed."
-
-#
 # SET THE AVAILABLE CPU THREAD AND CORE COUNT FOR PARALLEL PROCESSING (SPEEDS UP THE BUILD PROCESS)
 #
 
@@ -166,6 +144,28 @@ sed -i -e '/null-/d' -e '/null /d' -e '/-null/d' -e '/-$/d' "${ver_file_tmp}" "$
 if [ ! -f "${ver_file_tmp}" ] || [ ! -f "${ver_file}" ]; then
     touch "${ver_file_tmp}" "${ver_file}" 2>/dev/null
 fi
+
+#
+# PRINT SCRIPT BANNER
+#
+
+clear
+box_out_banner1()
+{
+    input_char=$(echo "${@}" | wc -c)
+    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    tput bold
+    line="$(tput setaf 3)${line}"
+    space="${line//-/ }"
+    echo " ${line}"
+    printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
+    printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
+    printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
+    echo " ${line}"
+    tput sgr 0
+}
+box_out_banner1 "FFmpeg Build Script - v${script_ver}"
+printf "\n%s\n\n" "The script will utilize (${cpu_threads}) CPU threads for parallel processing to accelerate the build speed."
 
 ####################
 # CREATE FUNCTIONS #
