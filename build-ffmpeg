@@ -1153,7 +1153,7 @@ dl_libjxl_fn()
         
         # REMOVE AND LEFTOVER FILES FROM PREVIOUS RUNS
         if [ -f "${packages}"/deb-files/*.deb ] || [ -f "${packages}"/deb-files/*.debb ]; then
-            sudo rm "${packages}"/deb-files/*.deb "${packages}"/deb-files/*.debb
+            sudo rm "${packages}"/deb-files/*.deb "${packages}"/deb-files/*.debb 2>/dev/null
         fi
 
         # EXTRACT THE LIBJXL DEBIAN FILES
