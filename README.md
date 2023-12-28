@@ -46,7 +46,7 @@ Use this script at your own risk. I maintain this script in my spare time. Pleas
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
 
 #### The standard build script will build everything minus the NDI library.
-[Standard build script](https://github.com/slyfox1186/ffmpeg-build-script/blob/main/build-ffmpeg)
+[build-ffmpeg](https://github.com/slyfox1186/ffmpeg-build-script/blob/main/build-ffmpeg)
 
 This command clones the build script and starts the build.
 
