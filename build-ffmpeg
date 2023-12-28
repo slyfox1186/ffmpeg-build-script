@@ -909,6 +909,7 @@ install_cuda_fn()
 {
     local choice
     clear
+
     amd_gpu_test="$(glxinfo | grep -E 'OpenGL renderer' | grep -Eo 'AMD\s.*$')"
 
     if [ -z "${amd_gpu_test}" ]; then
