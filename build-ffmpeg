@@ -1229,6 +1229,7 @@ arch_os_ver_fn()
     clear
 }
 
+
 debian_os_ver_fn()
 {
     if [[ "${2}" = 'yes_wsl' ]]; then
@@ -1236,8 +1237,8 @@ debian_os_ver_fn()
         debian_wsl_pkgs="${1}"
     fi
 
-    debian_pkgs="${1} cppcheck libnvidia-encode1 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev"
-    debian_pkgs+=' libyuv-utils libyuv0 libsharp-dev libdmalloc5'
+    debian_pkgs="${1} cppcheck libnvidia-encode1 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0"
+    debian_pkgs+=' libsharp-dev libdmalloc5 libumfpack5 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2'
 
     case "${VER}" in
         12|trixie|sid)      pkgs_fn "${debian_pkgs} librist-dev";;
@@ -1250,22 +1251,24 @@ debian_os_ver_fn()
 ubuntu_os_ver_fn()
 {
     if [[ "${2}" = 'yes_wsl' ]]; then
-        VER=msft
+        VER='msft'
         ubuntu_wsl_pkgs="${1}"
     fi
 
-    ubuntu_common_pkgs=' libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev cppcheck'
-    focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5 libcunit1-dev nvidia-utils-535'
-    focal_pkgs+=' librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
-    jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev librust-malloc-buf-dev libacl1-dev liblz4-dev'
-    jammy_pkgs+=' libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libpsl-dev'
+    ubuntu_common_pkgs='cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libumfpack5 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2'
+    focal_pkgs='libvmmalloc1 libvmmalloc-dev libdmalloc5'
+    focal_pkgs+=' libcunit1-dev nvidia-utils-535 librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libreadline-dev libcunit1 libcunit1-doc'
+    jammy_pkgs='libmimalloc-dev libtbbmalloc2 librust-jemalloc-sys-dev'
+    jammy_pkgs+=' librust-malloc-buf-dev libacl1-dev liblz4-dev libsrt-doc libreadline-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev libpsl-dev'
     lunar_kenetic_pkgs='librist-dev libjxl-dev'
+    mantic_pkgs='cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev'
 
     case "${VER}" in
-        23.10|23.04|22.10)      pkgs_fn "${1} ${ubuntu_common_pkgs} ${lunar_kenetic_pkgs} ${jammy_pkgs}";;
-        22.04|msft)             pkgs_fn "${1} ${ubuntu_common_pkgs} ${ubuntu_wsl_pkgs} ${jammy_pkgs}";;
-        20.04)                  pkgs_fn "${1} ${ubuntu_common_pkgs} ${ubuntu_wsl_pkgs} ${focal_pkgs}";;
-        *)                      fail_fn "Could not detect the Ubuntu version. Line: ${LINENO}";;
+        23.10)          pkgs_fn "${1} ${mantic_pkgs} ${lunar_kenetic_pkgs} ${jammy_pkgs}";;
+        23.04|22.10)    pkgs_fn "${1} ${ubuntu_common_pkgs} ${lunar_kenetic_pkgs} ${jammy_pkgs}";;
+        22.04|msft)     pkgs_fn "${1} ${ubuntu_common_pkgs} ${ubuntu_wsl_pkgs} ${jammy_pkgs}";;
+        20.04)          pkgs_fn "${1} ${ubuntu_common_pkgs} ${ubuntu_wsl_pkgs} ${focal_pkgs}";;
+        *)              fail_fn "Could not detect the Ubuntu version. Line: ${LINENO}";;
     esac
 }
 
