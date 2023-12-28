@@ -1128,34 +1128,34 @@ dl_libjxl_fn()
 {
     local url_base url_suffix
 
-    url_base=https://github.com/libjxl/libjxl/releases/download/v0.8.2/jxl-debs-amd64
-    url_suffix=v0.8.2.tar.gz
+    url_base=https://github.com/libjxl/libjxl/releases/download/v0.9.0/jxl-debs-amd64
+    url_suffix=v0.9.0.tar.gz
 
     if [ ! -f "${packages}"/libjxl.tar.gz ]; then
         case "${VER}" in
             10)
-                                    libjxl_download="${url_base}-debian-buster-${url_suffix}"
                                     libjxl_name='debian-buster'
+                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
                                     ;;
             11)
-                                    libjxl_download="${url_base}-debian-bullseye-${url_suffix}"
                                     libjxl_name='debian-bullseye'
+                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
                                     ;;
             12)
-                                    libjxl_download="${url_base}-debian-bookworm-${url_suffix}"
                                     libjxl_name='debian-bookworm'
+                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
                                     ;;
             18.04)
-                                    libjxl_download="${url_base}-ubuntu-18.04-${url_suffix}"
                                     libjxl_name='ubuntu-18.04'
+                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
                                    ;;
             20.04)
-                                    libjxl_download="${url_base}-ubuntu-20.04-${url_suffix}"
                                     libjxl_name='ubuntu-20.04'
+                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
                                     ;;
             23.10|23.04|22.04)
-                                    libjxl_download="${url_base}-ubuntu-22.04-${url_suffix}"
                                     libjxl_name='ubuntu-22.04'
+                                    libjxl_download="${url_base}-${libjxl_name}-${url_suffix}"
                                     ;;
             *)                      echo;;
         esac
