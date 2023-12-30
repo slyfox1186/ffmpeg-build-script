@@ -25,13 +25,13 @@ See the below example on how to put your token into the script.
 ```
     git_token='github_pat_blahblahblahblah'
 
-    if curl_cmd="$(curl                                                                                                      \
-                  -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' \
-                  -m 10                                                                                                      \
-                  --request GET                                                                                              \
-                  --url "https://api.github.com/<replace with token name>"                                                   \
-                  --header "Authorization: Bearer ${git_token}"                                                              \
-                  --header "X-GitHub-Api-Version: 2022-11-28"                                                                \
+    if curl_cmd="$(curl \
+                  -A "${user_agent}" \
+                  -m 10 \
+                  --request GET \
+                  --url "https://api.github.com/<replace with token name>" \
+                  --header "Authorization: Bearer ${git_token}" \
+                  --header "X-GitHub-Api-Version: 2022-11-28" \
                   -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
 ```
 
