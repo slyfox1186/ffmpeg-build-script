@@ -84,7 +84,7 @@
 ##    - The code that prompts the user to install the CUDA SDK ToolKit
 ##    - A broken download url for the WSL version of the CUDA SDK ToolKit
 ##    - APT package errors for Debian 11 Bullseye
-##    - Arch Linux error not being able to find a file tha does not exist on Arch when installing CUDA.
+##    - Arch Linux error not being able to find a file that does not exist on Arch when installing CUDA.
 ##      The script will get the information sought by executing a different command that Arch does provide.
 ##
 #############################################################################################################################
@@ -3062,13 +3062,15 @@ curl -A "${user_agent}" -Lso "${packages}"/objbase.h 'https://raw.githubusercont
 sudo cp -f "${packages}"/objbase.h "${install_dir}"
 
 #
-# SINCE THE SCRIPT WILL LATER COMPILE THE LATEST VERSION OF X265 WHICH COMES WITH ITS OWN LIBRARY SO FILES
-# WE MUST REMOVE ANY X265 LIBRARIES THAT ARE ALREADY INSTALLED (FOR WHATEVER REASON). THE SCRIPT FAILS TO BUILD
-# FFMPEG WITH CHROMAPRINT ENABLED UNLESS THE NEXT TWO COMMANDS ARE EXECUTED. IF THAT DOESN'T WORK TRY TO FIND
+# SINCE THE SCRIPT HAS COMPILED A MORE RECENT VERSION OF X265 WHICH COMES WITH ITS OWN LIBRARY FILES
+# WE MUST REMOVE ANY CONFLICTING X265 LIBRARIES THAT ARE ALREADY INSTALLED. THE SCRIPT FAILS TO BUILD
+# FFMPEG WITH CHROMAPRINT ENABLED UNLESS THE NEXT COMMAND IS EXECUTED. IF THAT DOESN'T WORK TRY TO FIND
 # THE X265 VERSION THAT IS INSTALLED ON YOUR PC AND REMOVE IT MANUALLY.
 #
 
-sudo dpkg --remove libx265-199 2>/dev/null
+if sudo dpkg -l | grep -o 'libx265-199' &>/dev/null; then
+    sudo dpkg --force-all -r 'libx265-199' 2>/dev/null
+fi
 
 if build 'ffmpeg' "${ffmpeg_sver}"; then
     download ${ff_cmd}
@@ -3146,4 +3148,3 @@ cleanup_fn
 
 # SHOW EXIT MESSAGE
 exit_fn
-
