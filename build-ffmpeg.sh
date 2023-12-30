@@ -2478,7 +2478,7 @@ if [ "${VER}" != '18.04' ] && [ "${VER}" != '11' ]; then
             fi
             rm -fr "${HOME}"/.cargo/registry/index/* "${HOME}"/.cargo/.package-cache
         fi
-        execute cargo --verbose install cargo-c
+        execute cargo install cargo-c
         download 'https://github.com/xiph/rav1e/archive/refs/tags/p20231128.tar.gz' 'rav1e-p20231128.tar.gz'
         execute cargo cinstall --prefix="${workspace}"  \
                                --library-type=staticlib \
