@@ -2587,8 +2587,8 @@ if build 'zenlib' "${g_ver}"; then
 fi
 
 pre_check_ver 'MediaArea/MediaInfoLib' '1' 'T'
-if build 'mediainfolib' "${g_ver}"; then
-    download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v${g_ver}.tar.gz" "mediainfolib-${g_ver}.tar.gz"
+if build 'mediainfo-lib' "${g_ver}"; then
+    download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v${g_ver}.tar.gz" "mediainfo-lib-${g_ver}.tar.gz"
     cd Project/GNU/Library || exit 1
     execute ./autogen.sh
     execute ./configure --prefix="${workspace}"     \
@@ -2596,7 +2596,7 @@ if build 'mediainfolib' "${g_ver}"; then
                         --disable-shared
     execute make "-j${cpu_threads}"
     execute make install
-    build_done 'mediainfolib' "${g_ver}"
+    build_done 'mediainfo-lib' "${g_ver}"
 fi
 
 pre_check_ver 'MediaArea/MediaInfo' '1' 'T'
