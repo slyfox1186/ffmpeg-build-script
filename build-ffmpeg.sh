@@ -7,11 +7,11 @@
 ##
 ##  Script version
 ##
-##    - 3.2.4
+##    - 3.2.5
 ##
 ##  Updated
 ##
-##    - 12.28.23
+##    - 12.30.23
 ##
 ##  Purpose:
 ##
@@ -76,6 +76,7 @@
 ##
 ##  Fixed
 ##
+##    - removed the code to remove x265 v199 libs
 ##    - An issue with libtesseract regarding the file libcurl.a during it's build
 ##    - GPAC was missing a required .so file from libjpeg-turbo
 ##    - GPAC build issue due to the sdl2 library not being found in the workspace folder
@@ -94,7 +95,7 @@
 #
 
 script_name="${0}"
-script_ver='3.2.4'
+script_ver='3.2.5'
 ffmpeg_sver='n5.1.4'
 ffmpeg_archive="ffmpeg-${ffmpeg_sver}.tar.gz"
 ffmpeg_url="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/${ffmpeg_sver}.tar.gz"
@@ -3062,17 +3063,6 @@ curl -A "${user_agent}" -Lso "${packages}"/dxva2api.h 'https://download.videolan
 sudo cp -f "${packages}"/dxva2api.h /usr/include
 curl -A "${user_agent}" -Lso "${packages}"/objbase.h 'https://raw.githubusercontent.com/wine-mirror/wine/master/include/objbase.h'
 sudo cp -f "${packages}"/objbase.h "${install_dir}"
-
-#
-# SINCE THE SCRIPT HAS COMPILED A MORE RECENT VERSION OF X265 WHICH COMES WITH ITS OWN LIBRARY FILES
-# WE MUST REMOVE ANY CONFLICTING X265 LIBRARIES THAT ARE ALREADY INSTALLED. THE SCRIPT FAILS TO BUILD
-# FFMPEG WITH CHROMAPRINT ENABLED UNLESS THE NEXT COMMAND IS EXECUTED. IF THAT DOESN'T WORK TRY TO FIND
-# THE X265 VERSION THAT IS INSTALLED ON YOUR PC AND REMOVE IT MANUALLY.
-#
-
-if sudo dpkg -l | grep -o 'libx265-199' &>/dev/null; then
-    sudo dpkg --force-all -r 'libx265-199' 2>/dev/null
-fi
 
 if build 'ffmpeg' "${ffmpeg_sver}"; then
     download ${ff_cmd}
