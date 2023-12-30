@@ -368,7 +368,7 @@ git_1_fn()
     # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
     while [[ ${g_ver} =~ ${regex_str} ]]
     do
-            if curl_cmd="$(curl -A "${user_agent}" -m 10 -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
+        if curl_cmd="$(curl -A "${user_agent}" -m 10 -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
             g_ver="$(echo "${curl_cmd}" | jq -r ".[${cnt}].name")"
             g_ver="${g_ver#v}"
         fi
