@@ -1161,8 +1161,8 @@ dl_libjxl_fn()
         fi
         
         # REMOVE AND LEFTOVER FILES FROM PREVIOUS RUNS
-        libjxl_cnt_type_1="$(ls -1 "${packages}"/deb-files/*.deb | wc -l)"
-        libjxl_cnt_type_2="$(ls -1 "${packages}"/deb-files/*.debb | wc -l)"
+        libjxl_cnt_type_1="$(ls -1 "${packages}"/deb-files/*.deb 2>/dev/null | wc -l)"
+        libjxl_cnt_type_2="$(ls -1 "${packages}"/deb-files/*.debb 2>/dev/null | wc -l)"
         if [ "${libjxl_cnt_type_1}" -ne '0' ]; then
             sudo rm "${packages}"/deb-files/*.deb
         fi
