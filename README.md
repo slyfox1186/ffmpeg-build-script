@@ -9,6 +9,7 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
 - **Compiles the latest updates from source code by issuing API calls to each repository backend**
   - **The CUDA SDK Toolkit which unlocks Hardware Acceleration is available during the installation to make things as easy as possible**
   - **Supported OS:**
+    - Arch Linux
     - Debian - 11/12
     - Ubuntu - (20/22/23).04
     - Other debian style distros may work as well
