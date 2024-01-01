@@ -3107,7 +3107,6 @@ if build 'ffmpeg' "${ffmpeg_sver}"; then
                  --enable-pthreads                             \
                  --enable-small                                \
                  --enable-static                               \
-                 --enable-vulkan                               \
                  --enable-version3                             \
                  --extra-cflags="${CFLAGS}"                    \
                  --extra-cxxflags="${CXXFLAGS}"                \
