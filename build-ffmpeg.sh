@@ -319,7 +319,7 @@ download_git()
         sudo rm -fr "${target_dir}"
     fi
 
-    echo "Downloading ${dl_url} as ${dl_file}"
+    echo "Cloning ${dl_url} as ${dl_file}"
 
     if ! git clone ${set_recurse} -q "${dl_url}" "${target_dir}"; then
         printf "\n%s\n\n" "The script failed to clone the directory \"${target_dir}\" and will try again in 10 seconds..."
