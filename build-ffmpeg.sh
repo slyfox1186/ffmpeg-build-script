@@ -755,15 +755,15 @@ cuda_bin_path="$(sudo find /usr/local -maxdepth 1 -name 'cuda' | head -n1)"
 cuda_bin_path="$(sudo find /opt -maxdepth 1 -name 'cuda' | head -n1)"
 
 if [ -d '/usr/lib/ccache/bin' ]; then
-    set_ccache_dir='/usr/lib/ccache/bin'
+    ccache_dir='/usr/lib/ccache/bin'
 else
-    set_ccache_dir='/usr/lib/ccache'
+    ccache_dir='/usr/lib/ccache'
 fi
 
 path_fn()
 {
 PATH="\
-${set_ccache_dir}:\
+${ccache_dir}:\
 ${cuda_bin_path}:\
 ${workspace}/bin:\
 ${HOME}/.local/bin:\
