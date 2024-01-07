@@ -2401,7 +2401,7 @@ if [ -n "${amd_gpu_test}" ]; then
                       -DBUILD_TESTS=OFF                            \
                       -DCMAKE_C_FLAGS='-g -O3 -pipe -march=native' \
                       -DCMAKE_STRIP="$(type -P strip)"             \
-                      -G Ninja -Wno-devCMAKE_CXX_COMPILE
+                      -G Ninja -Wno-dev
         execute ninja "-j${cpu_threads}" -C build
         execute ninja -C build install
         build_done 'vulkan-headers' 'git'
