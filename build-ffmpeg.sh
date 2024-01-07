@@ -3,7 +3,7 @@
 
 #############################################################################################################################
 ##
-##  GitHub: https://github.com/slyfox1186/script-repo
+##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
 ##  Script version
 ##
@@ -108,7 +108,7 @@ workspace="$cwd"/workspace
 install_dir='/usr/local'
 pc_type='x86_64-linux-gnu'
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-web_repo='https://github.com/slyfox1186/script-repo'
+web_repo='https://github.com/slyfox1186/ffmpeg-build-script'
 curl_timeout='10'
 LDEXEFLAGS=''
 ffmpeg_libraries=()
