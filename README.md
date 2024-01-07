@@ -14,26 +14,8 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
     - Ubuntu - (20/22/23).04
     - Other debian style distros may work as well
 
-## Important GitHub API info
-**Be aware** that without using a pre-created API Token from GitHub, you are limited to ***50 API calls a day***. This is important because the script has ***44+ repositories*** with API calls during the build. If you stop the script in the middle of the build and restart (potentially over and over) you will eventually eat up the 50-call limit and be forced to wait to continue ***unless*** you change the curl code under the function `git_1_fn` and put in your own [token](https://github.com/settings/tokens?type=beta).
-
-### If you start the build ***<ins>let it finish</ins>***
-
-See the below example on how to put your token into the script.
-  - replace both of the `curl_cmd` variables inside the `git_1_fn` function with your token as shown below
-
-```
-    git_token='github_pat_blahblahblahblah'
-
-    if curl_cmd="$(curl \
-                  -A "${user_agent}" \
-                  -m 10 \
-                  --request GET \
-                  --url "https://api.github.com/<replace with token name>" \
-                  --header "Authorization: Bearer ${git_token}" \
-                  --header "X-GitHub-Api-Version: 2022-11-28" \
-                  -sSL "https://api.github.com/repos/${git_repo}/${git_url}")"; then
-```
+# Major update
+  - Removed the need to use the GitHub's API. This frees the user from having to manually modify the code to avoid going over the API call limit. Just run the code and it should work.
 
 ## Disclaimer And Data Privacy Notice
 
