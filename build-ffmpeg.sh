@@ -3,7 +3,7 @@
 
 #############################################################################################################################
 ##
-##  https://github.com/slyfox1186/ffmpeg-build-script
+##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
 ##  Script version
 ##
