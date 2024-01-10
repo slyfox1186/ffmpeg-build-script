@@ -126,7 +126,7 @@ export MAKEFLAGS
 # CREATE THE OUTPUT DIRECTORIES
 #
 
-mkdir -p "$packages" "$workspace"/logs
+mkdir -p "$packages"/nvidia-cuda "$workspace"/logs
 
 #
 # PRINT SCRIPT BANNER
