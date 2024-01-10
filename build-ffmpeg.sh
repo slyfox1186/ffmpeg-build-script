@@ -758,8 +758,6 @@ cuda_download_fn()
     local choice
     clear
 
-    mkdir -p "$packages"/nvidia-cuda 
-
     printf "%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n" \
         'Pick your Linux distro from the list below:' \
         'Supported architecture: x86_64' \
