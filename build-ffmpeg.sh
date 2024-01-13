@@ -42,7 +42,7 @@
 ##    - improved the regex coding to avoid downloading a RELEASE CANDIDATE OF A PROGRAM during each API call (rev2)
 ##    - libtesseract & leptonica to pull from their latest GitHub release
 ##    - ffmpeg to version n5.1.4
-##    - rav1e library to version (p20240102 - 11.28.23)
+##    - rav1e library to version (0.7.1 - 11.28.23)
 ##    - abseil library
 ##    - aom/av1 library
 ##    - libvpx library
@@ -2395,7 +2395,7 @@ ffmpeg_libraries+=('--enable-libdav1d')
 # RAV1E FAILS TO BUILD ON UBUNTU BIONIC AND DEBIAN 11 BULLSEYE
 if [ "$VER" != '18.04' ] && [ "$VER" != '11' ]; then
     git_ver_fn 'xiph/rav1e' '1' 'T'
-    if build 'rav1e' 'p20240102'; then
+    if build 'rav1e' '0.7.1'; then
         get_rustc_ver="$(rustc --version | grep -Eo '[0-9 \.]+' | head -n1)"
         if [ "$get_rustc_ver" != '1.73.0' ]; then
             echo '$ Installing RustUp'
@@ -2409,12 +2409,12 @@ if [ "$VER" != '18.04' ] && [ "$VER" != '11' ]; then
             rm -fr "$HOME"/.cargo/registry/index/* "$HOME"/.cargo/.package-cache
         fi
         execute cargo install cargo-c
-        download 'https://github.com/xiph/rav1e/archive/refs/tags/p20240102.tar.gz' 'rav1e-p20240102.tar.gz'
+        download 'https://github.com/xiph/rav1e/archive/refs/tags/v0.7.1.tar.gz' 'rav1e-0.7.1.tar.gz'
         execute cargo cinstall --prefix="$workspace" \
                                --library-type=staticlib \
                                --crt-static \
                                --release
-        build_done 'rav1e' 'p20240102'
+        build_done 'rav1e' '0.7.1'
     fi
     ffmpeg_libraries+=('--enable-librav1e')
 fi
