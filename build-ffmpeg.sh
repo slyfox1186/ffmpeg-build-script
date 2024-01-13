@@ -1414,8 +1414,9 @@ fi
 if [[ "$OS" == 'Arch' ]]; then
     librist_arch_fn
 else
-    if build 'librist' 'git'; then
-        download_git 'https://code.videolan.org/rist/librist.git'
+    git_ver_fn '816' '2' 'T'
+    if build 'librist' "$g_ver1"; then
+        download "https://code.videolan.org/rist/librist/-/archive/v$g_ver1/librist-v$g_ver1.tar.bz2" "librist-$g_ver1.tar.bz2"
         execute meson setup build --prefix="$workspace" \
                                   --buildtype=release \
                                   --default-library=static \
@@ -1424,7 +1425,7 @@ else
                                   -Dtest=false
         execute ninja "-j$cpu_threads" -C build
         execute ninja -C build install
-        build_done 'librist' 'git'
+        build_done 'librist' "$g_ver1"
     fi
 fi
 
