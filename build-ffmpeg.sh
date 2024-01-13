@@ -2039,7 +2039,9 @@ git_ver_fn 'akheron/jansson' '1' 'T'
 if build 'jansson' "$g_ver"; then
     download "https://github.com/akheron/jansson/archive/refs/tags/v$g_ver.tar.gz" "jansson-$g_ver.tar.gz"
     execute autoreconf -fi
-    execute ./configure --prefix="$workspace"
+    execute ./configure --prefix="$workspace" \
+                        --{build,host}="$pc_type" \
+                        --disable-shared
     execute make "-j$cpu_threads"
     execute make install
     build_done 'jansson' "$g_ver"
