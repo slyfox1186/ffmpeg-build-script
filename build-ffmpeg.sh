@@ -5,7 +5,7 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.3.1
+##  Script version: 3.3.2
 ##
 ##  Updated: 01.08.24
 ##
@@ -90,7 +90,7 @@
 #
 
 script_name="$0"
-script_ver='3.3.1'
+script_ver='3.3.2'
 ffmpeg_sver='n5.1.4'
 ffmpeg_archive="ffmpeg-$ffmpeg_sver.tar.gz"
 ffmpeg_url="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/$ffmpeg_sver.tar.gz"
@@ -159,13 +159,13 @@ source_flags_fn()
     CC='gcc'
     CXX='g++'
     CXXFLAGS='-g -O3 -march=native'
-    CFLAGS="$CXXFLAGS -I$workspace/include -I$workspace/include/jxl -I$workspace/include/fdk-aac"
-    CFLAGS+=" -I$workspace/include/CL -I$workspace/include/avisynth -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio"
+    CFLAGS="$CXXFLAGS -I$workspace/include -I$workspace/include/jxl -I$workspace/include/fdk-aac -I$workspace/include/CL"
+    CFLAGS+=" -I$workspace/include/avisynth  -I/usr/local/include -I/usr/include -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio"
     CFLAGS+=' -I/usr/include/openjpeg-2.5 -I/usr/include/vk_video -I/usr/include/vulkan -I/usr/include/flite'
-    CPPFLAGS="-I$workspace/include"
+    CPPFLAGS="-I$workspace/include -I/usr/local/include -I/usr/include"
     EXTRALIBS="-lm -lpthread -lz -lstdc++ -lgcc_s -lgcc -lrt -ldl -lnuma -L/usr/local/lib -lbrotlicommon -lbrotlidec -lbrotlienc"
     EXTRALIBS+=" -L/usr/local/lib -lhwy -ltesseract -L$workspace/lib -llcms2 -llcms2_threaded -L/usr/local/cuda/targets/x86_64-linux/lib -lOpenCL"
-    EXTRALIBS+=" $(pkg-config --libs x265 2>/dev/null) $(pkg-config --libs libchromaprint 2>/dev/null)"
+    EXTRALIBS+=" $(pkg-config --libs x265 2>/dev/null) $(pkg-config --libs libchromaprint 2>/dev/null) $(pkg-config --libs aom 2>/dev/null)"
     LDFLAGS="-Wl,--as-needed -L$workspace/lib64 -L$workspace/lib -L$workspace/lib/x86_64-linux-gnu"
     LDFLAGS+=' -L/usr/local/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib'
     LDFLAGS+=' -L/usr/lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib -L/lib64 -L/lib'
@@ -976,25 +976,26 @@ pkgs_fn()
     if [ -n "$missing_pkgs" ]; then
         printf "\n%s\n\n" "Installing missing apt packages..."
         sudo apt-get -qq -y install $missing_pkgs
-    else
+    else=
         printf "%s\n\n" "The packages are already installed."
     fi
 }
 
 x265_fix_libs_fn()
 {
-    local x265_libs_208
+    local x265_libs x265_libs_trim
 
-    x265_libs_208="$(find /usr/local/lib/ -type f -name 'libx265.so.208' -print | head -n1)"
+    x265_libs="$(find /usr/local/lib/ -type f -name 'libx265.so.*')"
+    x265_libs_trim="$(echo "$x265_libs" | sed 's:.*/::' | head -n1)"
 
     case "$OS" in
         Arch)
-                    sudo cp -f "$x265_libs_208" '/usr/lib'
-                    sudo ln -sf '/usr/lib/libx265.so.208' '/usr/lib/libx265.so'
+                    sudo cp -f "$x265_libs" '/usr/lib'
+                    sudo ln -sf "/usr/lib/$x265_libs_trim" '/usr/lib/libx265.so'
                     ;;
         *)
-                    sudo cp -f "$x265_libs_208" '/usr/lib/x86_64-linux-gnu'
-                    sudo ln -sf '/usr/lib/x86_64-linux-gnu/libx265.so.208' '/usr/lib/x86_64-linux-gnu/libx265.so'
+                    sudo cp -f "$x265_libs" '/usr/lib/x86_64-linux-gnu'
+                    sudo ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" '/usr/lib/x86_64-linux-gnu/libx265.so'
                     ;;
     esac
 }
@@ -1422,9 +1423,8 @@ fi
 if [[ "$OS" == 'Arch' ]]; then
     librist_arch_fn
 else
-    git_ver_fn '816' '2' 'T'
-    if build 'librist' "$g_ver1"; then
-        download "https://code.videolan.org/rist/librist/-/archive/v$g_ver1/librist-v$g_ver1.tar.bz2" "librist-$g_ver1.tar.bz2"
+    if build 'librist' 'git'; then
+        download_git 'https://code.videolan.org/rist/librist.git'
         execute meson setup build --prefix="$workspace" \
                                   --buildtype=release \
                                   --default-library=static \
@@ -1433,7 +1433,7 @@ else
                                   -Dtest=false
         execute ninja "-j$cpu_threads" -C build
         execute ninja -C build install
-        build_done 'librist' "$g_ver1"
+        build_done 'librist' 'git'
     fi
 fi
 
@@ -1527,9 +1527,7 @@ if build 'libpng' '1.6.40'; then
                         --enable-hardware-optimizations=yes \
                         --with-pic
     execute make "-j$cpu_threads"
-    execute make install-header-links
-    execute make install-library-links
-    execute make install
+    execute make install-header-links install-library-links install
     build_done 'libpng' '1.6.40'
 fi
 
@@ -2209,8 +2207,8 @@ if build 'vorbis' "$g_ver"; then
                   -DCMAKE_INSTALL_PREFIX="$install_dir" \
                   -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_SHARED_LIBS=ON \
-                  -DOGG_INCLUDE_DIR="$install_dir"/include \
-                  -DOGG_LIBRARY="$install_dir"/lib/libogg.so \
+                  -DOGG_INCLUDE_DIR="$install_dir/include" \
+                  -DOGG_LIBRARY="$install_dir/lib/libogg.so" \
                   -G Ninja -Wno-dev
     execute ninja "-j$cpu_threads" -C build
     execute sudo ninja "-j$cpu_threads" -C build install
@@ -2360,7 +2358,7 @@ if [ -n "$amd_gpu_test" ]; then
 fi
 
 # NEED TO UPDATE THIS REPO FROM TIME TO TIME MANUALLY
-aom_ver=6054fae218eda6e53e1e3b4f7ef0fff4877c7bf1
+aom_ver=db0844e82a90aa32a04bb1a9b0ab5d050092cda6
 # FAILED TO BUILD FFMPEG 12.28.23 = d3b7ce41e0bd9afe93564124c31a3d12beb6eda7
 aom_sver="${aom_ver::7}"
 if build 'av1' "$aom_sver"; then
@@ -2368,7 +2366,7 @@ if build 'av1' "$aom_sver"; then
     mkdir -p "$packages/aom_build"
     cd "$packages/aom_build" || exit 1
     execute cmake -B build \
-                  -DCMAKE_INSTALL_PREFIX="$workspace" \
+                  -DCMAKE_INSTALL_PREFIX="$install_dir" \
                   -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_SHARED_LIBS=OFF \
                   -DCONFIG_AV1_DECODER=1 \
@@ -2383,7 +2381,7 @@ if build 'av1' "$aom_sver"; then
                   -G Ninja -Wno-dev \
                   "$packages"/av1
     execute ninja "-j$cpu_threads" -C build
-    execute ninja -C build install
+    execute sudo ninja -C build install
     build_done 'av1' "$aom_sver"
 fi
 ffmpeg_libraries+=('--enable-libaom')
@@ -2411,11 +2409,11 @@ if [ "$VER" != '18.04' ] && [ "$VER" != '11' ]; then
         if [ "$get_rustc_ver" != '1.73.0' ]; then
             echo '$ Installing RustUp'
             curl -sSf --proto '=https' --tlsv1.2 'https://sh.rustup.rs' | sh -s -- -y &>/dev/null
-            . "$HOME"/.cargo/env
+            source "$HOME"/.cargo/env
             if [ -f "$HOME"/.zshrc ]; then
-                . "$HOME"/.zshrc
+                source "$HOME"/.zshrc
             else
-                . "$HOME"/.bashrc
+                source "$HOME"/.bashrc
             fi
             rm -fr "$HOME"/.cargo/registry/index/* "$HOME"/.cargo/.package-cache
         fi
@@ -2621,8 +2619,8 @@ fi
 
 # VERSIONS >= 1.4.0 BREAKS FFMPEG DURING THE BUILD
 git_ver_fn '24327400' '3' 'T'
-if build 'svt-av1' '1.4.0'; then
-    download 'https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.4.0/SVT-AV1-v1.4.0.tar.bz2' 'svt-av1-1.4.0.tar.bz2'
+if build 'svt-av1' '1.8.0'; then
+    download 'https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.8.0/SVT-AV1-v1.8.0.tar.bz2' 'svt-av1-1.8.0.tar.bz2'
     execute cmake -S . -B Build/linux \
                        -DCMAKE_INSTALL_PREFIX="$workspace" \
                        -DCMAKE_BUILD_TYPE=Release \
@@ -2639,7 +2637,7 @@ if build 'svt-av1' '1.4.0'; then
     execute ninja "-j$cpu_threads" -C Build/linux install
     cp -f 'Build/linux/SvtAv1Enc.pc' "$workspace"/lib/pkgconfig
     cp -f 'Build/linux/SvtAv1Dec.pc' "$workspace"/lib/pkgconfig
-    build_done 'svt-av1' '1.4.0'
+    build_done 'svt-av1' '1.8.0'
 fi
 ffmpeg_libraries+=('--enable-libsvtav1')
 
@@ -2669,8 +2667,8 @@ export CC=clang CXX=clang++
 g_ver=8ee01d45b05cdbc9da89b884815257807a514bc8
 # FAILED TO BUILD FFMPEG 12.28.23 = ce8642f22123f0b8cf105c88fc1e8af9888bd345
 g_sver="${g_ver::7}"
-if build 'x265' "$g_sver"; then
-    download "https://bitbucket.org/multicoreware/x265_git/get/$g_ver.tar.bz2" "x265-$g_sver.tar.bz2"
+if build 'x265' '3.5'; then
+    download 'https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz' 'x265-3.5.tar.gz'
     cd build/linux || exit 1
     rm -fr {8,10,12}bit 2>/dev/null
     mkdir -p {8,10,12}bit
@@ -2734,7 +2732,7 @@ EOF
     # FIX THE x265 SHARED LIBRARY ISSUE
     x265_fix_libs_fn
 
-    build_done 'x265' "$g_sver"
+    build_done 'x265' '3.5'
 fi
 ffmpeg_libraries+=('--enable-libx265')
 
@@ -2794,8 +2792,7 @@ if [ ${?} -eq '0' ]; then
         ffmpeg_libraries+=("--nvccflags=-gencode arch=$gpu_arch")
         fi
     else
-        printf " \n%s\n \n" 'The Active GPU is made by AMD and the Geforce CUDA SDK Toolkit will not be enabled.'
-        sleep 5
+        echo 'The Active GPU is made by AMD and the Geforce CUDA SDK Toolkit will not be enabled.'
 fi
 
 git_ver_fn 'Haivision/srt' '1' 'T'
