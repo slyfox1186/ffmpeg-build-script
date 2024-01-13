@@ -1411,6 +1411,14 @@ if build 'pkg-config' '0.29.2'; then
     build_done 'pkg-config' '0.29.2'
 fi
 
+git_ver_fn 'mesonbuild/meson' '1' 'T'
+if build 'meson' "$g_ver"; then
+    download "https://github.com/mesonbuild/meson/archive/refs/tags/$g_ver.tar.gz" "meson-$g_ver.tar.gz"
+    execute python3 setup.py build
+    execute sudo python3 setup.py install --prefix="$install_dir"
+    build_done 'meson' "$g_ver"
+fi
+
 if [[ "$OS" == 'Arch' ]]; then
     librist_arch_fn
 else
