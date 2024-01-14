@@ -15,7 +15,7 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
     - Other debian style distros may work as well
 
 # Major update
-  - Removed the need to use the GitHub's API. This frees the user from having to manually modify the code to avoid going over the API call limit. Just run the code and it should work.
+  - Removed the need to use GitHub's API. This frees the user from having to manually modify the code to avoid going over the API call limit. Just run the code and it should work.
 
 ## Disclaimer And Data Privacy Notice
 
