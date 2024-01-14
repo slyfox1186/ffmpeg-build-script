@@ -967,15 +967,15 @@ pkgs_fn() {
 
     # Print unavailable packages
     if [ "${#unavailable_packages[@]}" -gt 0 ]; then
-        printf "\\nUnavailable packages: %s\\n\\n" "${unavailable_packages[*]}"
+        echo "Unavailable packages: ${unavailable_packages[*]}"
     fi
 
     # Install available missing packages
     if [ "${#available_packages[@]}" -gt 0 ]; then
-        printf "\\nInstalling available missing packages: %s\\n\\n" "${available_packages[*]}"
+        echo "Installing available missing packages: ${available_packages[*]}"
         sudo apt -y install "${available_packages[@]}"
     else
-        printf "%s\\n\\n" "No missing packages to install or all missing packages are unavailable."
+        printf "%s\n\n" "No missing packages to install or all missing packages are unavailable."
     fi
 }
 
