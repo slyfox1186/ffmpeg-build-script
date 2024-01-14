@@ -663,8 +663,13 @@ fi
 # SET THE PATH VARIABLE
 #
 
-cuda_bin_path="$(sudo find /usr/local -maxdepth 1 -name 'cuda' | head -n1)"
-cuda_bin_path="$(sudo find /opt -maxdepth 1 -name 'cuda' | head -n1)"
+if sudo find /usr/local -maxdepth 1 -name 'cuda' 2>/dev/null | head -n1; then
+    cuda_bin_path="$(sudo find /usr/local -maxdepth 1 -name 'cuda' | head -n1)"
+    cuda_bin_path+='/bin'
+elif sudo find /opt -maxdepth 1 -name 'cuda' 2>/dev/null | head -n1; then
+    cuda_bin_path="$(sudo find /opt -maxdepth 1 -name 'cuda' | head -n1)"
+    cuda_bin_path+='/bin'
+fi
 
 if [ -d /usr/lib/ccache/bin ]; then
     set_ccache_dir='/usr/lib/ccache/bin'
