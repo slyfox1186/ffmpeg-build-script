@@ -906,7 +906,7 @@ install_cuda_fn() {
 #
 
 pkgs_fn() {
-    local libcpp_pkgs pkg pkgs missing_pkg missing_pkgs
+    local missing_pkg missing_packages pkg pkgs available_packages unavailable_packages
 
     libcpp_pkg="$(sudo apt list libc++* 2>/dev/null | grep -Eo 'libc\+\+-[0-9\-]+-dev' | uniq | sort -r | head -n1)"
     libcppabi_pkg="$(sudo apt list libc++abi* 2>/dev/null | grep -Eo 'libc\+\+abi-[0-9]+-dev' | uniq | sort -r | head -n1)"
@@ -914,54 +914,68 @@ pkgs_fn() {
 
     # Define an array of apt package names
     pkgs=(
-            $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg ant apt asciidoc autoconf autoconf-archive
-            automake autopoint binutils bison build-essential cargo ccache checkinstall clang clang-tools
-            cmake curl default-jdk-headless doxygen fcitx-libs-dev flex flite1-dev freeglut3-dev
-            frei0r-plugins-dev gawk gettext gimp-data git gnome-desktop-testing gnustep-gui-runtime
-            google-perftools gperf gtk-doc-tools guile-3.0-dev help2man jq junit ladspa-sdk lib32stdc++6
-            libamd2 libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev
-            libbpf-dev libbs2b-dev libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev libcamd2
-            libccolamd2 libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libcholmod3 libchromaprint-dev
-            libcjson-dev libcodec2-dev libcolamd2 libcrypto++-dev libcurl4-openssl-dev libdbus-1-dev
-            libde265-dev libdevil-dev libdmalloc-dev libdrm-dev libdvbpsi-dev libebml-dev libegl1-mesa-dev
-            libffi-dev libgbm-dev libgdbm-dev libgegl-0.4-0 libgegl-common libgimp2.0 libgl1-mesa-dev
-            libgles2-mesa-dev libglib2.0-dev libgme-dev libgmock-dev libgnutls28-dev libgnutls30
-            libgoogle-perftools-dev libgoogle-perftools4 libgsm1-dev libgtest-dev libgvc6 libibus-1.0-dev
-            libiconv-hook-dev libintl-perl libjack-dev libjemalloc-dev libladspa-ocaml-dev libleptonica-dev
-            liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmatroska-dev libmbedtls-dev libmetis5 libmfx-dev
-            libmodplug-dev libmp3lame-dev libmusicbrainz5-dev libmysofa-dev libnuma-dev libopencore-amrnb-dev
-            libopencore-amrwb-dev libopencv-dev libopenjp2-7-dev libopenmpt-dev libopus-dev libpango1.0-dev
-            libperl-dev libpstoedit-dev libpulse-dev librabbitmq-dev libraqm-dev libraw-dev librsvg2-dev
-            librubberband-dev librust-gstreamer-base-sys-dev libshine-dev libsmbclient-dev libsnappy-dev
-            libsndfile1-dev libsndio-dev libsoxr-dev libspeex-dev libsqlite3-dev libssh-dev libssl-dev
-            libsuitesparseconfig5 libsystemd-dev libtalloc-dev libtheora-dev libticonv-dev libtool libtool-bin
-            libtwolame-dev libudev-dev libumfpack5 libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev
-            libvo-amrwbenc-dev libvpx-dev libx11-dev libx264-dev libxcursor-dev libxext-dev libxfixes-dev
-            libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzmq3-dev libzstd-dev
-            libzvbi-dev libzzip-dev llvm lshw lzma-dev m4 mesa-utils meson nasm ninja-build pandoc python3
-            python3-pip ragel re2c scons sudo texi2html texinfo tk-dev unzip valgrind wget xmlto zlib1g-dev
+        $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg ant apt asciidoc autoconf autoconf-archive
+        automake autopoint binutils bison build-essential cargo ccache checkinstall clang clang-tools
+        cmake curl default-jdk-headless doxygen fcitx-libs-dev flex flite1-dev freeglut3-dev
+        frei0r-plugins-dev gawk gettext gimp-data git gnome-desktop-testing gnustep-gui-runtime
+        google-perftools gperf gtk-doc-tools guile-3.0-dev help2man jq junit ladspa-sdk lib32stdc++6
+        libamd2 libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev
+        libbpf-dev libbs2b-dev libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev libcamd2
+        libccolamd2 libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libcholmod3 libchromaprint-dev
+        libcjson-dev libcodec2-dev libcolamd2 libcrypto++-dev libcurl4-openssl-dev libdbus-1-dev
+        libde265-dev libdevil-dev libdmalloc-dev libdrm-dev libdvbpsi-dev libebml-dev libegl1-mesa-dev
+        libffi-dev libgbm-dev libgdbm-dev libgegl-0.4-0 libgegl-common libgimp2.0 libgl1-mesa-dev
+        libgles2-mesa-dev libglib2.0-dev libgme-dev libgmock-dev libgnutls28-dev libgnutls30
+        libgoogle-perftools-dev libgoogle-perftools4 libgsm1-dev libgtest-dev libgvc6 libibus-1.0-dev
+        libiconv-hook-dev libintl-perl libjack-dev libjemalloc-dev libladspa-ocaml-dev libleptonica-dev
+        liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmatroska-dev libmbedtls-dev libmetis5 libmfx-dev
+        libmodplug-dev libmp3lame-dev libmusicbrainz5-dev libmysofa-dev libnuma-dev libopencore-amrnb-dev
+        libopencore-amrwb-dev libopencv-dev libopenjp2-7-dev libopenmpt-dev libopus-dev libpango1.0-dev
+        libperl-dev libpstoedit-dev libpulse-dev librabbitmq-dev libraqm-dev libraw-dev librsvg2-dev
+        librubberband-dev librust-gstreamer-base-sys-dev libshine-dev libsmbclient-dev libsnappy-dev
+        libsndfile1-dev libsndio-dev libsoxr-dev libspeex-dev libsqlite3-dev libssh-dev libssl-dev
+        libsuitesparseconfig5 libsystemd-dev libtalloc-dev libtheora-dev libticonv-dev libtool libtool-bin
+        libtwolame-dev libudev-dev libumfpack5 libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev
+        libvo-amrwbenc-dev libvpx-dev libx11-dev libx264-dev libxcursor-dev libxext-dev libxfixes-dev
+        libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzmq3-dev libzstd-dev
+        libzvbi-dev libzzip-dev llvm lshw lzma-dev m4 mesa-utils meson nasm ninja-build pandoc python3
+        python3-pip ragel re2c scons sudo texi2html texinfo tk-dev unzip valgrind wget xmlto zlib1g-dev
 )
 
-    # Initialize an empty string for missing packages
-    missing_packages=""
+    # Initialize arrays for missing, available, and unavailable packages
+    missing_packages=()
+    available_packages=()
+    unavailable_packages=()
 
-    # Loop through the array
+    # Loop through the array to find missing packages
     for pkg in "${pkgs[@]}"
     do
-        # Check if the package is installed using dpkg-query
         if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "ok installed"; then
-            # If not installed, add it to the missing packages list
-            missing_packages+="$pkg "
+            missing_packages+=("$pkg")
         fi
     done
 
-    # Check if there are any missing packages
-    if [ -n "$missing_packages" ]; then
-        # Install missing packages
-        printf "\n%s\n\n" "Installing missing packages: $missing_packages"
-        sudo apt -y install $missing_packages
+    # Check availability of missing packages and categorize them
+    for pkg in "${missing_packages[@]}"
+    do
+        if apt-cache show "$pkg" > /dev/null 2>&1; then
+            available_packages+=("$pkg")
+        else
+            unavailable_packages+=("$pkg")
+        fi
+    done
+
+    # Print unavailable packages
+    if [ "${#unavailable_packages[@]}" -gt 0 ]; then
+        printf "\\nUnavailable packages: %s\\n\\n" "${unavailable_packages[*]}"
+    fi
+
+    # Install available missing packages
+    if [ "${#available_packages[@]}" -gt 0 ]; then
+        printf "\\nInstalling available missing packages: %s\\n\\n" "${available_packages[*]}"
+        sudo apt -y install "${available_packages[@]}"
     else
-        printf "%s\n\n" "All packages are already installed."
+        printf "%s\\n\\n" "No missing packages to install or all missing packages are unavailable."
     fi
 }
 
