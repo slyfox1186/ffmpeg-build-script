@@ -48,7 +48,7 @@ bash 'build-ffmpeg' --build --latest
 This command downloads the build script and automatically starts the build process.
 
 ```bash
-bash <(curl -fsSL https://build-ffmpeg.optimizethis.net) --build --latest
+bash <(curl -fsSL https://ffmpeg.optimizethis.net) --build --latest
 ```
 
 ## Supported Codecs
