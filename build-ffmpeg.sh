@@ -5,9 +5,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.3.2
+##  Script version: 3.3.3
 ##
-##  Updated: 01.08.24
+##  Updated: 01.15.24
 ##
 ##  Purpose:
 ##
@@ -72,6 +72,7 @@
 ##
 ##  Fixed:
 ##
+##    - A missing library related to libc6 for x265 to compile on Windows WSL
 ##    - An issue with libtesseract regarding the file libcurl.a during it's build
 ##    - GPAC was missing a required .so file from libjpeg-turbo
 ##    - GPAC build issue due to the sdl2 library not being found in the workspace folder
@@ -89,11 +90,11 @@
 # DEFINE GLOBAL VARIABLES
 #
 
-script_name="$0"
-script_ver='3.3.2'
-ffmpeg_sver='n5.1.4'
-ffmpeg_archive="ffmpeg-$ffmpeg_sver.tar.gz"
-ffmpeg_url="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/$ffmpeg_sver.tar.gz"
+script_name="${0}"
+script_ver='3.3.3'
+ffmpeg_ver='n5.1.4'
+ffmpeg_archive="ffmpeg-$ffmpeg_ver.tar.gz"
+ffmpeg_url="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/$ffmpeg_ver.tar.gz"
 cuda_latest_ver='12.3.2'
 cuda_url="https://developer.download.nvidia.com/compute/cuda/$cuda_latest_ver"
 cuda_pin_url='https://developer.download.nvidia.com/compute/cuda/repos'
@@ -119,14 +120,14 @@ if [ -f '/proc/cpuinfo' ]; then
 else
     cpu_threads="$(nproc --all)"
 fi
-MAKEFLAGS="-j$(nproc --all)"
+MAKEFLAGS="-j$cpu_threads"
 export MAKEFLAGS
 
 #
 # CREATE THE OUTPUT DIRECTORIES
 #
 
-mkdir -p "$packages/nvidia-cuda" "$workspace/logs"
+mkdir -p "$packages/nvidia-cuda"
 
 #
 # PRINT SCRIPT BANNER
@@ -134,8 +135,8 @@ mkdir -p "$packages/nvidia-cuda" "$workspace/logs"
 
 clear
 box_out_banner1() {
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    input_char="$(echo "${@}" | wc -c)"
+    line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
     space=${line//-/ }
@@ -158,15 +159,15 @@ source_flags_fn() {
     CXX='g++'
     CXXFLAGS='-g -O3 -march=native'
     CFLAGS="$CXXFLAGS -I$workspace/include -I$workspace/include/jxl -I$workspace/include/fdk-aac -I$workspace/include/CL"
-    CFLAGS+=" -I$workspace/include/avisynth  -I/usr/local/include -I/usr/include -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio"
-    CFLAGS+=' -I/usr/include/openjpeg-2.5 -I/usr/include/vk_video -I/usr/include/vulkan -I/usr/include/flite'
+    CFLAGS+=" -I$workspace/include/avisynth -I/usr/local/include -I/usr/include -I/usr/include/SDL2 -I/usr/lib/x86_64-linux-gnu/pulseaudio"
+    CFLAGS+=" -I/usr/include/openjpeg-2.5 -I/usr/include/vk_video -I/usr/include/vulkan -I/usr/include/flite"
     CPPFLAGS="-I$workspace/include -I/usr/local/include -I/usr/include"
     EXTRALIBS="-lm -lpthread -lz -lstdc++ -lgcc_s -lgcc -lrt -ldl -lnuma -L/usr/local/lib -lbrotlicommon -lbrotlidec -lbrotlienc"
     EXTRALIBS+=" -L/usr/local/lib -lhwy -ltesseract -L$workspace/lib -llcms2 -llcms2_threaded -L/usr/local/cuda/targets/x86_64-linux/lib -lOpenCL"
     EXTRALIBS+=" $(pkg-config --libs x265 2>/dev/null) $(pkg-config --libs libchromaprint 2>/dev/null) $(pkg-config --libs aom 2>/dev/null)"
     LDFLAGS="-Wl,--as-needed -L$workspace/lib64 -L$workspace/lib -L$workspace/lib/x86_64-linux-gnu"
-    LDFLAGS+=' -L/usr/local/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib'
-    LDFLAGS+=' -L/usr/lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib -L/lib64 -L/lib'
+    LDFLAGS+=" -L/usr/local/lib/x86_64-linux-gnu -L/usr/local/lib64 -L/usr/local/lib"
+    LDFLAGS+=" -L/usr/lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib -L/lib64 -L/lib"
     export CC CFLAGS CPPFLAGS CXX CXXFLAGS LDFLAGS
 }
 source_flags_fn
@@ -663,11 +664,11 @@ fi
 # SET THE PATH VARIABLE
 #
 
-if sudo find /usr/local -maxdepth 1 -name 'cuda' 2>/dev/null | head -n1; then
-    cuda_bin_path="$(sudo find /usr/local -maxdepth 1 -name 'cuda' | head -n1)"
+if sudo find /usr/local -maxdepth 1 -name 'cuda' &>/dev/null | head -n1; then
+    cuda_bin_path="$(sudo find /usr/local -maxdepth 1 -name 'cuda' &>/dev/null | head -n1)"
     cuda_bin_path+='/bin'
-elif sudo find /opt -maxdepth 1 -name 'cuda' 2>/dev/null | head -n1; then
-    cuda_bin_path="$(sudo find /opt -maxdepth 1 -name 'cuda' | head -n1)"
+elif sudo find /opt -maxdepth 1 -name 'cuda' &>/dev/null | head -n1; then
+    cuda_bin_path="$(sudo find /opt -maxdepth 1 -name 'cuda' &>/dev/null | head -n1)"
     cuda_bin_path+='/bin'
 fi
 
@@ -825,7 +826,7 @@ install_cuda_fn() {
     local choice
 
     amd_gpu_test="$(glxinfo 2>/dev/null | grep -E 'OpenGL renderer' | grep -Eo 'AMD\s.*$')"
-    nvidia_gpu_test="$(cat '/usr/local/cuda/version.json' 2>/dev/null | jq -r '.cuda.version')"
+    nvidia_gpu_test="$(cat '/usr/local/cuda/version.json' 2>&1 | jq -r '.cuda.version')"
     wsl_test="$(grep -i Microsoft '/proc/version')"
 
     if [ -z "$amd_gpu_test" ] || [ -n "$nvidia_gpu_test" ] || [ -n "$wsl_test" ]; then
@@ -890,7 +891,7 @@ install_cuda_fn() {
             cuda_ver_test="$($find_nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')"
             cuda_ver_test+='.1'
         else
-            cuda_ver_test="$(cat '/usr/local/cuda/version.json' 2>/dev/null | jq -r '.cuda.version')"
+            cuda_ver_test="$(cat '/usr/local/cuda/version.json' 2>&1 | jq -r '.cuda.version')"
         fi
         cuda_ver="$cuda_ver_test"
 
@@ -909,7 +910,7 @@ install_cuda_fn() {
 pkgs_fn() {
     local missing_pkg missing_packages pkg pkgs available_packages unavailable_packages
 
-    libcpp_pkg="$(sudo apt list libc++* 2>/dev/null | grep -Eo 'libc\+\+-[0-9\-]+-dev' | uniq | sort -r | head -n1)"
+    libcpp_pkg="$(sudo apt list libc++* 2>&1 | grep -Eo 'libc\+\+-[0-9\-]+-dev' | uniq | sort -r | head -n1)"
     libcppabi_pkg="$(sudo apt list libc++abi* 2>/dev/null | grep -Eo 'libc\+\+abi-[0-9]+-dev' | uniq | sort -r | head -n1)"
     libunwind_pkg="$(sudo apt list libunwind* 2>/dev/null | grep -Eo 'libunwind-[0-9]+-dev' | uniq | sort -r | head -n1)"
 
@@ -977,6 +978,13 @@ pkgs_fn() {
         sudo apt -y install "${available_packages[@]}"
     else
         printf "%s\n\n" "No missing packages to install or all missing packages are unavailable."
+    fi
+}
+
+fix_missing_x265_lib() {
+    if [[ ! -f '/usr/lib/x86_64-linux-gnu/libstdc++.so' ]] && [[ -f '/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30' ]]; then
+        echo '$ sudo ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30 /usr/lib/x86_64-linux-gnu/libstdc++.so'
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30 /usr/lib/x86_64-linux-gnu/libstdc++.so
     fi
 }
 
@@ -1320,8 +1328,8 @@ sudo ldconfig
 
 clear
 box_out_banner_global() {
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    input_char="$(echo "${@}" | wc -c)"
+    line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
     space=${line//-/ }
@@ -1387,7 +1395,7 @@ fi
 
 if build 'pkg-config' '0.29.2'; then
     download "https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
-    autoconf
+    execute autoconf
     execute ./configure --prefix="$install_dir" \
                         --enable-silent-rules \
                         --with-pc-path="$PKG_CONFIG_PATH"
@@ -2066,8 +2074,8 @@ fi
 
 echo
 box_out_banner_audio() {
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    input_char="$(echo "${@}" | wc -c)"
+    line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
     space=${line//-/ }
@@ -2307,8 +2315,8 @@ ffmpeg_libraries+=('--enable-libtheora')
 
 echo
 box_out_banner_video() {
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    input_char="$(echo "${@}" | wc -c)"
+    line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
     space=${line//-/ }
@@ -2642,14 +2650,8 @@ fi
 ffmpeg_libraries+=('--enable-libx264')
 source_flags_fn
 
-# X265 GIVES BETTER FPS WHEN BUILT WITH CLANG
-export CC=clang CXX=clang++
-
-# ENTER A SNAPSHOT ID FOR X265
-g_ver=8ee01d45b05cdbc9da89b884815257807a514bc8
-# FAILED TO BUILD FFMPEG 12.28.23 = ce8642f22123f0b8cf105c88fc1e8af9888bd345
-g_sver="${g_ver::7}"
 if build 'x265' '3.5'; then
+    fix_missing_x265_lib
     download 'https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz' 'x265-3.5.tar.gz'
     cd build/linux || exit 1
     rm -fr {8,10,12}bit 2>/dev/null
@@ -2863,8 +2865,8 @@ ffmpeg_libraries+=('--enable-libxvid')
 
 echo
 box_out_banner_images() {
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    input_char="$(echo "${@}" | wc -c)"
+    line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
     space=${line//-/ }
@@ -2948,8 +2950,8 @@ ffmpeg_libraries+=('--enable-libopenjpeg')
 
 echo
 box_out_banner_ffmpeg() {
-    input_char=$(echo "${@}" | wc -c)
-    line=$(for i in $(seq 0 ${input_char}); do printf '-'; done)
+    input_char="$(echo "${@}" | wc -c)"
+    line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
     space=${line//-/ }
@@ -2977,7 +2979,7 @@ if [ -n "$ffmpeg_archive" ]; then
     ff_cmd=" $ffmpeg_archive"
 fi
 
-if build 'ffmpeg' "$ffmpeg_sver"; then
+if build 'ffmpeg' "$ffmpeg_ver"; then
     download $ffmpeg_url $ff_cmd
     if [[ "$OS" == 'Arch' ]]; then
         patch_ffmpeg_fn
