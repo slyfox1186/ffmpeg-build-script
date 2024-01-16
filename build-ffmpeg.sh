@@ -139,7 +139,7 @@ box_out_banner1() {
     line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
@@ -173,8 +173,7 @@ source_flags_fn() {
 source_flags_fn
 
 exit_fn() {
-    printf "%s\n%s\n\n" \
-        'Make sure to star this repository to show your support!' "$web_repo"
+    printf "%s\n%s\n\n" 'Make sure to star this repository to show your support!' "$web_repo"
     exit 0
 }
 
@@ -305,15 +304,19 @@ download_git() {
 #
 
 git_1_fn() {
-    # Initial cnt
-    local cnt curl_cmd git_repo git_url
+    local cnt git_repo git_url max_attempts
+
     git_repo="$1"
     git_url="$2"
-    git_tag="$3"
     cnt=1
+    max_attempts=10
 
-    # Loop until the condition is met or a maximum limit is reached
-    while [ $cnt -le 10 ]  # You can set an upper limit to prevent an infinite loop
+    if [[ -z "$git_repo" || -z "$git_url" ]]; then
+        echo "Error: Git repository and URL are required."
+        return 1
+    fi
+
+    while [ $cnt -le $max_attempts ]
     do
         curl_cmd="$(curl -sSL "https://github.com/$git_repo/$git_url" | grep -o 'href="[^"]*\.tar\.gz"')"
 
@@ -331,19 +334,40 @@ git_1_fn() {
         fi
     done
 
-    # Check if a version was found
-    if [ $cnt -gt 10 ]; then
-        echo "No matching version found without RC/rc suffix."
-    fi
+    # DENY INSTALLING A RELEASE CANDIDATE
+    while [[ $g_ver =~ $regex_str ]]
+    do
+        curl_cmd="$(curl -sSL "https://github.com/$git_repo/$git_url" | grep -o 'href="[^"]*\.tar\.gz"')"
+
+        # Extract the specific line
+        line=$(echo "$curl_cmd" | grep -o 'href="[^"]*\.tar\.gz"' | sed -n "${cnt}p")
+
+        # Check if the line matches the pattern (version without 'RC'/'rc')
+        if echo "$line" | grep -qP '[v]*(\d+\.\d+(?:\.\d*){0,2})\.tar\.gz'; then
+            # Extract and print the version number
+            g_ver=$(echo "$line" | grep -oP '(\d+\.\d+(?:\.\d+){0,2})')
+            break
+        else
+            # Increment the cnt if no match is found
+            ((cnt++))
+        fi
+    done
 }
 
 git_2_fn() {
     local cnt repo url
+
     repo="$1"
     url="$2"
     cnt=0
+    g_ver=""
 
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://code.videolan.org/api/v4/projects/$repo/repository/$url")"; then
+    if [[ -z "$repo" || -z "$url" ]]; then
+        echo "Error: Repository and URL are required."
+        return 1
+    fi
+
+    if curl_cmd="$(curl -sSL "https://code.videolan.org/api/v4/projects/$repo/repository/$url")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].commit.id')"
         g_sver="$(echo "$curl_cmd" | jq -r '.[0].commit.short_id')"
         g_sver="${g_sver::7}"
@@ -354,7 +378,7 @@ git_2_fn() {
     # DENY INSTALLING A RELEASE CANDIDATE
     while [[ $g_ver =~ $regex_str ]]
     do
-        if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://code.videolan.org/api/v4/projects/$repo/repository/$url")"; then
+        if curl_cmd="$(curl -sSL "https://code.videolan.org/api/v4/projects/$repo/repository/$url")"; then
             g_ver="$(echo "$curl_cmd" | jq -r ".[$cnt].name")"
             g_ver="${g_ver#v}"
         fi
@@ -367,6 +391,9 @@ git_3_fn() {
     repo="$1"
     url="$2"
     cnt=0
+    g_ver=""
+    g_ver1=""
+    g_sver1=""
 
     if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.com/api/v4/projects/$repo/repository/$url")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
@@ -392,37 +419,47 @@ git_4_fn() {
     local cnt repo
     repo="$1"
     cnt=0
+    g_ver=""
 
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.freedesktop.org/api/v4/projects/$repo/repository/tags")"; then
-        g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
-        g_ver="${g_ver#v}"
-    fi
-
-    # LOOP THE VARIABLE G_VER TO MAKE SURE WE DON'T USE A RELEASE CANDIDATE VERSION OF ANY PROGRAM AKA 'RC'
-    while [[ $g_ver =~ $regex_str ]]
+    while true
     do
         if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.freedesktop.org/api/v4/projects/$repo/repository/tags")"; then
             g_ver="$(echo "$curl_cmd" | jq -r ".[$cnt].name")"
             g_ver="${g_ver#v}"
+
+            # Check if g_ver contains "RC" and skip it
+            if [[ $g_ver =~ $regex_str ]]; then
+                ((cnt++))
+            else
+                break  # Exit the loop when a non-RC version is found
+            fi
+        else
+            echo "Error: Failed to fetch data from GitLab API."
+            return 1
         fi
-        ((cnt++))
     done
 }
 
 git_5_fn() {
     local cnt repo
+
     repo="$1"
     cnt=0
+    g_ver=""
 
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags")"; then
+    if [[ -z "$repo" ]]; then
+        echo "Error: Repository name is required."
+        return 1
+    fi
+
+    if curl_cmd="$(curl -sSL "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
     fi
 
     # DENY INSTALLING A RELEASE CANDIDATE
-    while [[ $g_ver =~ $regex_str ]]
-    do
-        if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags")"; then
+    while [[ $g_ver =~ $regex_str ]]; do
+        if curl_cmd="$(curl -sSL "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags")"; then
             g_ver="$(echo "$curl_cmd" | jq -r ".[$cnt].name")"
             g_ver="${g_ver#v}"
         fi
@@ -432,10 +469,17 @@ git_5_fn() {
 
 git_6_fn() {
     local cnt repo
+
     repo="$1"
     cnt=0
+    g_ver=""
 
-    if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://salsa.debian.org/api/v4/projects/$repo/repository/tags")"; then
+    if [[ -z "$repo" ]]; then
+        echo "Error: Repository name is required."
+        return 1
+    fi
+
+    if curl_cmd="$(curl -sSL "https://salsa.debian.org/api/v4/projects/$repo/repository/tags")"; then
         g_ver="$(echo "$curl_cmd" | jq -r '.[0].name')"
         g_ver="${g_ver#v}"
     fi
@@ -443,7 +487,7 @@ git_6_fn() {
     # DENY INSTALLING A RELEASE CANDIDATE
     while [[ $g_ver =~ $regex_str ]]
     do
-        if curl_cmd="$(curl -m "$curl_timeout" -sSL "https://salsa.debian.org/api/v4/projects/$repo/repository/tags")"; then
+        if curl_cmd="$(curl -sSL "https://salsa.debian.org/api/v4/projects/$repo/repository/tags")"; then
             g_ver="$(echo "$curl_cmd" | jq -r ".[$cnt].name")"
             g_ver="${g_ver#v}"
         fi
@@ -452,29 +496,27 @@ git_6_fn() {
 }
 
 git_ver_fn() {
-    local t_flag u_flag v_flag v_tag v_url
+    local v_flag v_tag v_url
 
     v_url="$1"
     v_tag="$2"
-
-    if [ -n "$3" ]; then
-        v_flag="$3"
-        case "$v_flag" in
-                B)      t_flag='branches';;
-                L)      t_flag='releases/latest';;
-                R)      t_flag='releases';;
-                T)      t_flag='tags';;
-        esac
-    fi
+    v_flag="$3"
 
     case "$v_tag" in
-            1)      u_flag='git_1_fn';;
-            2)      u_flag='git_2_fn';;
-            3)      u_flag='git_3_fn';;
-            4)      u_flag='git_4_fn';;
-            5)      u_flag='git_5_fn';;
-            6)      u_flag='git_6_fn';;
-            *)      fail_fn "Error: Could not detect the variable \"\$v_tag\" in the function \"git_ver_fn\". (Line: $LINENO)"
+        1) u_flag='git_1_fn' ;;
+        2) u_flag='git_2_fn' ;;
+        3) u_flag='git_3_fn' ;;
+        4) u_flag='git_4_fn' ;;
+        5) u_flag='git_5_fn' ;;
+        6) u_flag='git_6_fn' ;;
+        *) fail_fn "Error: Could not detect the variable \"\$v_tag\" in the function \"git_ver_fn\". (Line: $LINENO)"
+    esac
+
+    case "$v_flag" in
+        B) t_flag='branches' ;;
+        L) t_flag='releases/latest' ;;
+        R) t_flag='releases' ;;
+        T) t_flag='tags' ;;
     esac
 
     "$u_flag" "$v_url" "$t_flag" 2>/dev/null
@@ -1100,7 +1142,7 @@ dl_libjxl_fn() {
         if [ ! -d "$packages/deb-files" ]; then
             mkdir -p "$packages/deb-files"
         fi
-        
+
         # REMOVE AND LEFTOVER FILES FROM PREVIOUS RUNS
         libjxl_cnt_type_1="$(ls -1A "$packages"/deb-files/*.deb 2>/dev/null | wc -l)"
         libjxl_cnt_type_2="$(ls -1A "$packages"/deb-files/*.debb 2>/dev/null | wc -l)"
@@ -1262,7 +1304,7 @@ printf "%s\n%s\n%s\n" \
     'Installing the required APT packages' \
     '========================================================' \
     'Checking installation status of each package...'
-    
+
 case "$OS" in
     Arch)           arch_os_ver_fn;;
     Debian|n/a)     debian_os_ver_fn "$nvidia_encode_var $nvidia_utils_ver";;
@@ -1332,7 +1374,7 @@ box_out_banner_global() {
     line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
@@ -1394,6 +1436,7 @@ else
 fi
 
 if build 'pkg-config' '0.29.2'; then
+    # download "https://web.archive.org/web/20220622114555if_/https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
     download "https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
     execute autoconf
     execute ./configure --prefix="$install_dir" \
@@ -2078,7 +2121,7 @@ box_out_banner_audio() {
     line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
@@ -2319,7 +2362,7 @@ box_out_banner_video() {
     line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
@@ -2869,7 +2912,7 @@ box_out_banner_images() {
     line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
@@ -2954,7 +2997,7 @@ box_out_banner_ffmpeg() {
     line="$(for i in $(seq 0 ${input_char}); do printf '-'; done)"
     tput bold
     line="$(tput setaf 3)${line}"
-    space=${line//-/ }
+    space="${line//-/ }"
     echo " ${line}"
     printf '|' ; echo -n "${space}" ; printf "%s\n" '|';
     printf '| ' ;tput setaf 4; echo -n "${@}"; tput setaf 3 ; printf "%s\n" ' |';
