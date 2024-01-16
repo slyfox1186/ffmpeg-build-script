@@ -826,8 +826,9 @@ install_cuda_fn() {
 
     amd_gpu_test="$(glxinfo 2>/dev/null | grep -E 'OpenGL renderer' | grep -Eo 'AMD\s.*$')"
     nvidia_gpu_test="$(cat '/usr/local/cuda/version.json' 2>/dev/null | jq -r '.cuda.version')"
+    wsl_test="$(grep -i Microsoft '/proc/version')"
 
-    if [ -z "$amd_gpu_test" ] || [ -n "$nvidia_gpu_test" ]; then
+    if [ -z "$amd_gpu_test" ] || [ -n "$nvidia_gpu_test" ] || [ -n "$wsl_test" ]; then
         get_ver_fn1
         if [[ "$OS" == 'Arch' ]]; then
             find_nvcc="$(sudo find /opt/ -type f -name 'nvcc')"
