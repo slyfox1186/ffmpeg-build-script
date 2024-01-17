@@ -2448,7 +2448,7 @@ if [ "$VER" != '18.04' ] && [ "$VER" != '11' ]; then
             else
                 source "$HOME/.bashrc"
             fi
-            rm -fr "$HOME"/.cargo/registry/index/* "$HOME/.cargo/.package-cache"
+            rm -fr "$HOME"/.cargo/registry/index/* "$HOME"/.cargo/.package-cache
         fi
         execute cargo install cargo-c
         download 'https://github.com/xiph/rav1e/archive/refs/tags/v0.7.1.tar.gz' 'rav1e-0.7.1.tar.gz'
