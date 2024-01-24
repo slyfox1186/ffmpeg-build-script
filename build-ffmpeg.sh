@@ -32,13 +32,13 @@
 ##
 ##    - updated to version 12.3.2 (01.08.2024)
 ##    - reverted the nv-codec-headers to version n12.0.16.1 due to a 20% decrease in fps using x265 with nvenc cuda
-##    - if the cuda libraries are not installed (for geforce graphics cards only) the user will be prompted
+##    - if the cuda libraries are not installed (for GeForce graphics cards only) the user will be prompted
 ##      by the script to install them so that hardware acceleration is enabled during the build
 ##
 ##  Updated:
 ##
 ##    - any apt packages detected that need installing will now prompt the user before installing
-##    - libvpx had an update that would not compile so i manually set it back at version (1.13.1) - date of change: 01.24.24
+##    - libvpx had an update that would not compile so I manually set it back to version (1.13.1) - date of change: 01.24.24
 ##    - added or removed apt packages for all distros to fix errors or update as the code requires.
 ##    - removed the need to use github api which avoids the user having to replace the code manually.
 ##    - improved the regex coding to avoid downloading a release candidate of a program during each api call (rev2)
@@ -69,24 +69,24 @@
 ##  Removed:
 ##
 ##    - python3 build code that became useless
-##    - removed support for debian 10 (buster)
-##    - removed support for ubuntu 18.04 (bionic)
+##    - removed support for debian 10 (Buster)
+##    - removed support for Ubuntu 18.04 (bionic)
 ##
 ##  Fixed:
 ##
-##    - libvpx has a bug in their code in file vpx_ext_ratectrl.h and i used the sed command to edit the code and fix it.
-##    - libant would not build unexpectedly so I had edited APT to download java v8 which works for some unknown reason.
+##    - libvpx has a bug in their code in file vpx_ext_ratectrl.h and I used the sed command to edit the code and fix it.
+##    - libant would not build unexpectedly so I edited APT to download Java v8 which works for some unknown reason.
 ##    - a missing library related to libc6 for x265 to compile on windows wsl
 ##    - an issue with libtesseract regarding the file libcurl.a during it's build
 ##    - gpac was missing a required .so file from libjpeg-turbo
 ##    - gpac build issue due to the sdl2 library not being found in the workspace folder
-##    - the nvidia-smi command not being installed for debian os versions
+##    - the nvidia-smi command is not being installed for Debian OS versions
 ##    - libheif not building the specified plugins
 ##    - the code that prompts the user to install the cuda sdk toolkit
 ##    - a broken download url for the wsl version of the cuda sdk toolkit
 ##    - apt package errors for debian 11 bullseye
-##    - arch linux error not being able to find a file tha does not exist on arch when installing cuda.
-##      the script will get the information sought by executing a different command that arch does provide.
+##    - Arch Linux error not being able to find a file that does not exist on Arch when installing cuda.
+##      The script will get the information sought by executing a different command that arch provides.
 ##
 #############################################################################################################################
 
