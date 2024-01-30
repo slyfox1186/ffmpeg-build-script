@@ -35,7 +35,7 @@ Use this script at your own risk. I maintain this script in my spare time. Pleas
 This command clones the build script and starts the build.
 
 ```bash
-git clone 'https://github.com/slyfox1186/ffmpeg-build-script.git'
+git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd 'ffmpeg-build-script' || exit 1
 bash 'build-ffmpeg' --build --latest
 ```
