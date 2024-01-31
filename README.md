@@ -30,14 +30,14 @@ Use this script at your own risk. I maintain this script in my spare time. Pleas
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
 
 #### The standard build script will build everything minus the NDI library.
-[build-ffmpeg](https://github.com/slyfox1186/ffmpeg-build-script/blob/main/build-ffmpeg)
+[build-ffmpeg](https://github.com/slyfox1186/ffmpeg-build-script/blob/main/build-ffmpeg.sh)
 
-This command clones the build script and starts the build.
+You can git clone the repository using the commands below
 
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd ffmpeg-build-script || exit 1
-bash build-ffmpeg --build --latest
+bash build-ffmpeg.sh --build --latest
 ```
 
 #### The NDI build script is not officially supported by either FFmpeg or the NDI creators and I take no responsibility for people who use it in ways the developers have told you not to. I do not support or condone this behavior. If you want to use it use it within the aspects of the law.
