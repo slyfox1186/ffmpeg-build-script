@@ -37,7 +37,7 @@ This command clones the build script and starts the build.
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd ffmpeg-build-script || exit 1
-bash build-ffmpeg --build --latest
+bash build-ffmpeg.sh --build --latest
 ```
 
 #### The NDI build script is not officially supported by either FFmpeg or the NDI creators and I take no responsibility for people who use it in ways the developers have told you not to. I do not support or condone this behavior. If you want to use it use it within the aspects of the law.
