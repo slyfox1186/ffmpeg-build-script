@@ -15,7 +15,7 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
     - Other debian style distros may work as well
 
 # Major update 01.31.2024
-  - Change how the code processes git repositories. The script will not get the specific branch version of each git repo and compare it to the last time the script was run. If an update has occurred it will install the latest version.
+  - Changed how the code processes git repositories. The script will not get the specific branch version of each git repo and compare it to the last time the script was run. If an update has occurred it will install the latest version.
 
 ## Disclaimer And Data Privacy Notice
 
