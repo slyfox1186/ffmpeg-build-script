@@ -32,7 +32,7 @@ Use this script at your own risk. I maintain this script in my spare time. Pleas
 #### The standard build script will build everything minus the NDI library.
 [build-ffmpeg](https://github.com/slyfox1186/ffmpeg-build-script/blob/main/build-ffmpeg)
 
-To Git Clone this repository run the below commands in a terminal
+You can git clone the repository using the commands below
 
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
