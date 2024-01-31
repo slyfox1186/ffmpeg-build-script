@@ -16,8 +16,6 @@ The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FF
 
 # Major update 01.31.2024
   - Change how the code processes git repositories. The script will not get the specific branch version of each git repo and compare it to the last time the script was run. If an update has occurred it will install the latest version.
-# Major update
-  - Removed the need to use GitHub's API. This frees the user from having to manually modify the code to avoid going over the API call limit. Just run the code and it should work.
 
 ## Disclaimer And Data Privacy Notice
 
