@@ -1066,7 +1066,7 @@ install_cuda_fn() {
 pkgs_fn() {
     local missing_pkg missing_packages pkg pkgs available_packages unavailable_packages
 
-    openjdk_pkg=$(apt-cache search --names-only '^openjdk-[0-9]+-jdk$' | awk '{print $1}' | sort -rV | head -n1)
+    openjdk_pkg=$(apt search --names-only '^openjdk-[0-9]+-jdk$' 2>/dev/null | grep -oP '^openjdk-\d+-jdk/' | sed 's|/||' | sort -rV | head -n1)
     libcpp_pkg=$(sudo apt list libc++* 2>&1 | grep -Eo 'libc\+\+-[0-9\-]+-dev' | uniq | sort -r | head -n1)
     libcppabi_pkg=$(sudo apt list libc++abi* 2>/dev/null | grep -Eo 'libc\+\+abi-[0-9]+-dev' | uniq | sort -r | head -n1)
     libunwind_pkg=$(sudo apt list libunwind* 2>/dev/null | grep -Eo 'libunwind-[0-9]+-dev' | uniq | sort -r | head -n1)
@@ -1443,8 +1443,8 @@ esac
 
 # SET THE JAVA VARIABLES
 path_fn
-locate_java=$(sudo find /usr/lib/jvm/ -type d -name 'java-*-openjdk*' | sort | head -n1)
-java_include=$(sudo find /usr/lib/jvm/ -type f -name 'javac' | sort | head -n1 | xargs dirname | sed 's/bin/include/')
+locate_java=$(sudo find /usr/lib/jvm/ -type d -name 'java-*-openjdk*' | sort -rV | head -n1)
+java_include=$(sudo find /usr/lib/jvm/ -type f -name 'javac' | sort -rV | head -n1 | xargs dirname | sed 's/bin/include/')
 export CPPFLAGS+=" -I$java_include"
 export JDK_HOME="$locate_java"
 export JAVA_HOME="$locate_java"
