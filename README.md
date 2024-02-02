@@ -3,19 +3,15 @@
 [ffmpeg-build-script](https://ffmpeg.org/download.html)
 ==========
 
-The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary with **non-free and GPL codecs** by using API calls to download the latest source code available.
+The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary with **non-free and GPL codecs** by parsing and downloading the latest release version of each repository.
   - See https://ffmpeg.org/legal.html)
-
-- **Compiles the latest updates from source code by issuing API calls to each repository backend**
   - **The CUDA SDK Toolkit which unlocks Hardware Acceleration is available during the installation to make things as easy as possible**
-  - **Supported OS:**
-    - Arch Linux
-    - Debian - 11/12
-    - Ubuntu - (20/22/23).04
-    - Other debian style distros may work as well
 
-# Major update 01.31.2024
-  - Changed how the code processes git repositories. The script will now get the specific branch version of each git repo and compare it to the last time the script was run. If an update has occurred it will install the latest version.
+Supported OS:
+  - Arch Linux
+  - Debian - 11/12
+  - Ubuntu - (20/22/23).04
+  - Other debian style distros may work as well
 
 ## Disclaimer And Data Privacy Notice
 
