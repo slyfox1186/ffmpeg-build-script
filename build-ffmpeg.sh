@@ -2336,15 +2336,15 @@ if build "libflac" "$g_ver"; then
 fi
 
 find_git_repo "mstorsjo/fdk-aac" "1" "T"
-if build "libfdk-aac" "2.0.2"; then
-    download "https://phoenixnap.dl.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-2.0.3.tar.gz" "libfdk-aac-2.0.2.tar.gz"
+if build "libfdk-aac" "2.0.3"; then
+    download "https://phoenixnap.dl.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-2.0.3.tar.gz" "libfdk-aac-2.0.3.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" \
                         --{build,host}="$pc_type" \
                         --disable-shared
     execute make "-j$cpu_threads"
     execute make install
-    build_done "libfdk-aac" "2.0.2"
+    build_done "libfdk-aac" "2.0.3"
 fi
 ffmpeg_libraries+=("--enable-libfdk-aac")
 
