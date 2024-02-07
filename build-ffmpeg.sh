@@ -2901,8 +2901,8 @@ if [[ "$cuda_compile_flag" -eq 1 ]]; then
             CFLAGS+=" -I/opt/cuda/include -I/opt/cuda/targets/x86_64-linux/include"
             LDFLAGS+=" -L/opt/cuda/lib64 -L/opt/cuda/lib -L/opt/cuda/targets/x86_64-linux/lib"
         else
-            CFLAGS+=" -I$workspace/cuda/include"
-            LDFLAGS+=" -L$workspace/cuda/lib64"
+            CFLAGS+=" -I/usr/local/cuda/include"
+            LDFLAGS+=" -L/usr/local/cuda/lib64"
         fi
 
         ffmpeg_libraries+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
