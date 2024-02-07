@@ -5,9 +5,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.4.3
+##  Script version: 3.4.4
 ##
-##  Updated: 02.03.24
+##  Updated: 02.07.24
 ##
 ##  Purpose:
 ##
@@ -50,6 +50,7 @@
 ##
 ##  Fixed:
 ##
+##    - Regex parsing error for libencode
 ##    - Fixed an error output cause by a missing cuda json file
 ##    - libvpx has a bug in their code in file vpx_ext_ratectrl.h and I used the sed command to edit the code and fix it.
 ##    - libant would not build unexpectedly so I edited APT to download Java v8 which works for some unknown reason.
@@ -67,7 +68,7 @@ fi
 #
 
 script_name="${0}"
-script_ver=3.4.3
+script_ver=3.4.4
 cuda_pin_url=https://developer.download.nvidia.com/compute/cuda/repos
 cwd="$PWD/ffmpeg-build-script"
 packages="$cwd/packages"
@@ -1089,7 +1090,7 @@ pkgs_fn() {
         libvlccore-dev libvo-amrwbenc-dev libvpx-dev libx11-dev libx264-dev libxcursor-dev libxext-dev
         libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzimg-dev
         libzmq3-dev libzstd-dev libzvbi-dev libzzip-dev llvm lshw lzma-dev m4 mesa-utils meson nasm
-        ninja-build nvidia-smi pandoc python3 python3-pip python3-venv ragel re2c scons texi2html
+        ninja-build pandoc python3 python3-pip python3-venv ragel re2c scons texi2html
         texinfo tk-dev unzip valgrind wget xmlto zlib1g-dev
 )
 
@@ -1405,7 +1406,7 @@ get_os_version_1() {
     fi
 
     nvidia_utils_ver=$(apt list nvidia-utils-* 2>/dev/null | grep -Eo '^nvidia-utils-[0-9]{3}' | sort -rV | uniq | head -n1)
-    nvidia_encode_var=$(apt list libnvidia-encode* 2>&1 | grep -Eo 'libnvidia-encode[1-]+[0-9]*$' | sort -rV | head -n1)
+    nvidia_encode_var=$(apt list libnvidia-encode* 2>&1 | grep -Eo 'libnvidia-encode-[0-9]{3}' | sort -rV | head -n1)
 }
 get_os_version_1
 
@@ -1417,7 +1418,7 @@ get_os_version_2() {
     if [[ $(grep -i "Microsoft" /proc/version) ]]; then
         wsl_flag="yes_wsl"
         OS="WSL2"
-        wsl_common_pkgs="cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0 libsharp-dev libdmalloc5 libnvidia-encode1"
+        wsl_common_pkgs="cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0 libsharp-dev libdmalloc5 libnvidia-encode1 nvidia-smi"
     fi
 }
 get_os_version_2
@@ -1437,8 +1438,8 @@ case "$OS" in
     Ubuntu)         ubuntu_os_ver_fn "$nvidia_encode_var $nvidia_utils_ver" ;;
     WSL2)           get_os_version_1
                     case "$OS" in
-                        Debian|n/a)     debian_os_ver_fn "$nvidia_encode_var $nvidia_utils_ver" "$wsl_flag" "$wsl_common_pkgs" ;;
-                        Ubuntu)         ubuntu_os_ver_fn "$nvidia_encode_var $nvidia_utils_ver" "$wsl_flag" "$wsl_common_pkgs" ;;
+                        Debian|n/a)     debian_os_ver_fn "$nvidia_encode_var $nvidia_utils_ver $wsl_common_pkgs" "$wsl_flag" ;;
+                        Ubuntu)         ubuntu_os_ver_fn "$nvidia_encode_var $nvidia_utils_ver $wsl_common_pkgs" "$wsl_flag" ;;
                     esac
                     ;;
 esac
