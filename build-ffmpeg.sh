@@ -5,9 +5,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.4.4
+##  Script version: 3.4.5
 ##
-##  Updated: 02.07.24
+##  Updated: 02.09.24
 ##
 ##  Purpose:
 ##
@@ -38,12 +38,14 @@
 ##
 ##  Added:
 ##
+##    - a check to skip compiling libbluray if the OS is Ubuntu Jammy due to compile issues. Use the APT version instead.
+##    - code to get the latest OpenSSL version 3.1.X
 ##    - ubuntu 23.10 (manic) support
 ##    - set the x265 libs to be built with clang because it gives better fps output than when built with gcc
 ##
 ##  Removed:
 ##
-##    - unncessary compiler flags
+##    - unnecessary compiler flags
 ##    - python3 build code that became useless
 ##    - removed support for debian 10 (Buster)
 ##    - removed support for Ubuntu 18.04 (bionic)
@@ -51,7 +53,7 @@
 ##  Fixed:
 ##
 ##    - Regex parsing error for libencode
-##    - Fixed an error output cause by a missing cuda json file
+##    - Fixed an error output caused by a missing Cuda JSON file
 ##    - libvpx has a bug in their code in file vpx_ext_ratectrl.h and I used the sed command to edit the code and fix it.
 ##    - libant would not build unexpectedly so I edited APT to download Java v8 which works for some unknown reason.
 ##    - a missing library related to libc6 for x265 to compile on windows wsl
@@ -68,7 +70,7 @@ fi
 #
 
 script_name="${0}"
-script_ver=3.4.4
+script_ver=3.4.5
 cuda_pin_url=https://developer.download.nvidia.com/compute/cuda/repos
 cwd="$PWD/ffmpeg-build-script"
 packages="$cwd/packages"
@@ -1281,6 +1283,10 @@ dl_libjxl_fn() {
     fi
 }
 
+get_openssl_version() {
+    g_ver="$(curl -s "https://www.openssl.org/source/" | grep -oP 'openssl-3.1.[0-9]+.tar.gz' | sort -V | tail -1 | grep -oP '3.1.[0-9]+')"
+}
+
 # PATCH FUNCTIONS
 patch_ffmpeg_fn() {
     execute curl -LsSo "mathops.patch" "https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/patches/mathops.patch"
@@ -1580,7 +1586,7 @@ else
                                   --buildtype=release \
                                   --default-library=static \
                                   --strip \
-                                  -Dstatic_analyze=true \
+                                  -Dstatic_analyze=false \
                                   -Dtest=false
         execute ninja "-j$cpu_threads" -C build
         execute ninja -C build install
@@ -1597,8 +1603,9 @@ if build "zlib" "$g_ver"; then
     build_done "zlib" "$g_ver"
 fi
 
-if build "openssl" "3.1.5"; then
-    download "https://www.openssl.org/source/openssl-3.1.5.tar.gz"
+get_openssl_version
+if build "openssl" "$g_ver"; then
+    download "https://www.openssl.org/source/openssl-$g_ver.tar.gz"
     execute ./Configure --prefix="$workspace" \
                         enable-egd \
                         enable-fips \
@@ -1612,7 +1619,7 @@ if build "openssl" "3.1.5"; then
     execute make "-j$cpu_threads"
     execute make install_sw
     execute make install_fips
-    build_done "openssl" "3.1.5"
+    build_done "openssl" "$g_ver"
 fi
 ffmpeg_libraries+=("--enable-openssl")
 
@@ -2627,26 +2634,29 @@ else
     fi
 fi
 
-find_git_repo "206" "2" "T"
-if build "libbluray" "$g_ver1"; then
-    download "https://code.videolan.org/videolan/libbluray/-/archive/$g_ver1/$g_ver1.tar.gz" "libbluray-$g_ver1.tar.gz"
-    execute autoreconf -fi
-    execute ./configure --prefix="$workspace" \
-                        --{build,host}="$pc_type" \
-                        --disable-doxygen-doc \
-                        --disable-doxygen-dot \
-                        --disable-doxygen-html \
-                        --disable-doxygen-ps \
-                        --disable-doxygen-pdf \
-                        --disable-examples \
-                        --disable-extra-warnings \
-                        --disable-shared \
-                        --without-libxml2
-    execute make "-j$cpu_threads"
-    execute make install
-    build_done "libbluray" "$g_ver1"
+# Ubuntu Jammy gives an error so use the APT version instead
+if [[ ! "$VER" == 22.04 ]]; then
+    find_git_repo "206" "2" "T"
+    if build "libbluray" "$g_ver1"; then
+        download "https://code.videolan.org/videolan/libbluray/-/archive/$g_ver1/$g_ver1.tar.gz" "libbluray-$g_ver1.tar.gz"
+        execute autoreconf -fi
+        execute ./configure --prefix="$workspace" \
+                            --{build,host}="$pc_type" \
+                            --disable-doxygen-doc \
+                            --disable-doxygen-dot \
+                            --disable-doxygen-html \
+                            --disable-doxygen-ps \
+                            --disable-doxygen-pdf \
+                            --disable-examples \
+                            --disable-extra-warnings \
+                            --disable-shared \
+                            --without-libxml2
+        execute make "-j$cpu_threads"
+        execute make install
+        build_done "libbluray" "$g_ver1"
+    fi
+    ffmpeg_libraries+=("--enable-libbluray")
 fi
-ffmpeg_libraries+=("--enable-libbluray")
 
 find_git_repo "mediaarea/zenLib" "1" "T"
 if build "zenlib" "$g_ver"; then
