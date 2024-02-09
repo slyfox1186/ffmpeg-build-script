@@ -5,7 +5,7 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.4.5
+##  Script version: 3.4.6
 ##
 ##  Updated: 02.09.24
 ##
@@ -52,6 +52,7 @@
 ##
 ##  Fixed:
 ##
+##    - python pip virtual environment build errors
 ##    - Regex parsing error for libencode
 ##    - Fixed an error output caused by a missing Cuda JSON file
 ##    - libvpx has a bug in their code in file vpx_ext_ratectrl.h and I used the sed command to edit the code and fix it.
@@ -70,7 +71,7 @@ fi
 #
 
 script_name="${0}"
-script_ver=3.4.5
+script_ver=3.4.6
 cuda_pin_url=https://developer.download.nvidia.com/compute/cuda/repos
 cwd="$PWD/ffmpeg-build-script"
 packages="$cwd/packages"
@@ -626,7 +627,7 @@ setup_python_venv_and_install_packages() {
     echo "Activating the virtual environment..."
     source "$parse_path/bin/activate" || fail_fn "Failed to activate virtual environment"
 
-    echo "Installing Python packages: ${packages[*]}..."
+    echo "Installing Python packages: ${parse_package[*]}..."
     pip install "${parse_package[@]}" || fail_fn "Failed to install packages"
 
     echo "Deactivating the virtual environment..."
@@ -2070,7 +2071,15 @@ if build "$repo_name" "${version//\$ /}"; then
     venv_packages=("lxml" "Markdown" "Pygments" "rdflib")
     setup_python_venv_and_install_packages "$venv_path" "${venv_packages[@]}"
 
-    # Assuming the build process continues here
+    # Set PYTHONPATH to include the virtual environment's site-packages directory
+    PYTHONPATH="$venv_path/lib/python$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')/site-packages"
+    export PYTHONPATH
+
+    # Optionally, ensure the virtual environment's Python is the first in PATH
+    PATH="$venv_path/bin:$PATH"
+    export PATH
+
+    # Assuming the build process continues here with Meson and Ninja
     execute meson setup build --prefix="$workspace" \
                               --buildtype=release \
                               --default-library=static \
@@ -2971,11 +2980,21 @@ if build "vapoursynth" "R65"; then
     venv_packages=("Cython==0.29.36")
     setup_python_venv_and_install_packages "$venv_path" "${venv_packages[@]}"
 
+    # Activate the virtual environment for the build process
+    source "$venv_path/bin/activate" || fail_fn "Failed to re-activate virtual environment"
+
+    # Explicitly set the PYTHON environment variable to the virtual environment's Python
+    export PYTHON="$venv_path/bin/python"
+
     # Assuming autogen, configure, make, and install steps for VapourSynth
-    execute ./autogen.sh
-    execute ./configure --prefix="$workspace" --disable-shared
-    execute make "-j$cpu_threads"
-    execute make install
+    ./autogen.sh || fail_fn "Failed to execute autogen.sh"
+    ./configure --prefix="$workspace" --disable-shared || fail_fn "Failed to configure"
+    make -j"$cpu_threads" || fail_fn "Failed to make"
+    make install || fail_fn "Failed to make install"
+    
+    # Deactivate the virtual environment after the build
+    deactivate
+
     build_done "vapoursynth" "R65"
 fi
 ffmpeg_libraries+=("--enable-vapoursynth")
