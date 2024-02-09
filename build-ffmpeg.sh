@@ -627,7 +627,7 @@ setup_python_venv_and_install_packages() {
     source "$parse_path/bin/activate" || fail_fn "Failed to activate virtual environment"
 
     echo "Installing Python packages: ${packages[*]}..."
-    pip install --break-system-packages "${parse_package[@]}" || fail_fn "Failed to install packages"
+    pip install "${parse_package[@]}" || fail_fn "Failed to install packages"
 
     echo "Deactivating the virtual environment..."
     deactivate
