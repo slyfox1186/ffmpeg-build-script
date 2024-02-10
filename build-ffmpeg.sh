@@ -2790,7 +2790,6 @@ if build "x264" "$g_sver"; then
     build_done "x264" "$g_sver"
 fi
 ffmpeg_libraries+=("--enable-libx264")
-source_flags_fn
 
 if build "x265" "3.5"; then
     fix_missing_x265_lib
@@ -2970,10 +2969,10 @@ if build "vapoursynth" "R65"; then
     export PYTHON="$venv_path/bin/python"
 
     # Assuming autogen, configure, make, and install steps for VapourSynth
-    ./autogen.sh || fail_fn "Failed to execute autogen.sh"
-    ./configure --prefix="$workspace" --disable-shared || fail_fn "Failed to configure"
-    make -j"$cpu_threads" || fail_fn "Failed to make"
-    make install || fail_fn "Failed to make install"
+    execute ./autogen.sh || fail_fn "Failed to execute autogen.sh"
+    execute ./configure --prefix="$workspace" --disable-shared || fail_fn "Failed to configure"
+    execute make -j"$cpu_threads" || fail_fn "Failed to make"
+    execute make install || fail_fn "Failed to make install"
     
     # Deactivate the virtual environment after the build
     deactivate
