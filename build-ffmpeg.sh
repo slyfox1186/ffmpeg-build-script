@@ -2644,7 +2644,7 @@ else
 fi
 
 # Ubuntu Jammy gives an error so use the APT version instead
-if [[ ! "$VER" == 22.04 ]]; then
+if [[ ! "$OS" == "Ubuntu" ]]; then
     find_git_repo "206" "2" "T"
     if build "libbluray" "$g_ver1"; then
         download "https://code.videolan.org/videolan/libbluray/-/archive/$g_ver1/$g_ver1.tar.gz" "libbluray-$g_ver1.tar.gz"
