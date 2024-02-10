@@ -5,9 +5,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.4.6
+##  Script version: 3.4.7
 ##
-##  Updated: 02.09.24
+##  Updated: 02.10.24
 ##
 ##  Purpose:
 ##
@@ -45,6 +45,7 @@
 ##
 ##  Removed:
 ##
+##    - let APT manage libdav1d
 ##    - unnecessary compiler flags
 ##    - python3 build code that became useless
 ##    - removed support for debian 10 (Buster)
@@ -71,7 +72,7 @@ fi
 #
 
 script_name="${0}"
-script_ver=3.4.6
+script_ver=3.4.7
 cuda_pin_url=https://developer.download.nvidia.com/compute/cuda/repos
 cwd="$PWD/ffmpeg-build-script"
 packages="$cwd/packages"
@@ -83,7 +84,7 @@ LDEXEFLAGS=""
 ffmpeg_libraries=()
 latest=false
 regex_str='(rc|RC|master)+[0-9]*$' # SET THE REGEX VARIABLE TO CHECK FOR RELEASE CANDIDATES
-debug=OFF # CHANGE THE DEBUG VARIABLE TO "ON" FOR HELP TROUBLESHOOTING ISSUES
+debug=OFF
 
 #
 # SET THE AVAILABLE CPU THREAD AND CORE COUNT FOR PARALLEL PROCESSING (SPEEDS UP THE BUILD PROCESS)
@@ -132,7 +133,7 @@ source_flags_fn() {
     CC=gcc
     CXX=g++
     CFLAGS="-g -O3 -march=native"
-    CXXFLAGS="-g -O3 -march=native"
+    CXXFLAGS="$CFLAGS"
     EXTRALIBS="-lm -lpthread -lz -lstdc++ -lgcc_s -lrt -ldl -lnuma"
     export CC CFLAGS CPPFLAGS CXX CXXFLAGS
 }
@@ -1075,7 +1076,7 @@ pkgs_fn() {
         google-perftools gperf gtk-doc-tools guile-3.0-dev help2man jq junit ladspa-sdk
         lib32stdc++6 libamd2 libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0
         libbluray-dev libbpf-dev libbs2b-dev libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev
-        libcamd2 libccolamd2 libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libcholmod3
+        libcamd2 libccolamd2 libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libcholmod3 libdav1d-dev
         libchromaprint-dev libcjson-dev libcodec2-dev libcolamd2 libcrypto++-dev libcurl4-openssl-dev
         libdbus-1-dev libde265-dev libdevil-dev libdmalloc-dev libdrm-dev libdvbpsi-dev libebml-dev
         libegl1-mesa-dev libffi-dev libgbm-dev libgdbm-dev libgegl-0.4-0 libgegl-common libgimp2.0
@@ -2542,21 +2543,6 @@ if build "av1" "$aom_sver"; then
 fi
 ffmpeg_libraries+=("--enable-libaom")
 
-find_git_repo "198" "2" "T"
-if build "dav1d" "$g_ver1"; then
-    download "https://code.videolan.org/videolan/dav1d/-/archive/$g_ver1/dav1d-$g_ver1.tar.bz2"
-    extracmds=("-D"{enable_tests,logging}"=false")
-    execute meson setup build --prefix="$workspace" \
-                              --buildtype=release \
-                              --default-library=static \
-                              --strip \
-                               "${extracmds[@]}"
-    execute ninja "-j$cpu_threads" -C build
-    execute ninja -C build install
-    build_done "dav1d" "$g_ver1"
-fi
-ffmpeg_libraries+=("--enable-libdav1d")
-
 # RAV1E FAILS TO BUILD ON UBUNTU BIONIC AND DEBIAN 11 BULLSEYE
 if [[ "$VER" != "18.04" ]] && [[ "$VER" != "11" ]]; then
     find_git_repo "xiph/rav1e" "1" "T" "enabled"
@@ -2885,9 +2871,6 @@ EOF
 fi
 ffmpeg_libraries+=("--enable-libx265")
 
-# CHANGE THE COMPILERS BACK TO GCC FOR THE REST OF THE BUILD
-source_flags_fn
-
 # Vaapi doesn"t work well with static links FFmpeg.
 if [[ -z "$LDEXEFLAGS" ]]; then
     # If the libva development SDK is installed, enable vaapi.
@@ -3056,18 +3039,13 @@ find_git_repo "strukturag/libheif" "1" "T"
 if build "libheif" "$g_ver"; then
     download "https://github.com/strukturag/libheif/archive/refs/tags/v$g_ver.tar.gz" "libheif-$g_ver.tar.gz"
     source_flags_fn
-    {CFLAGS,CXXFLAGS}="-g -O3 -fno-lto -pipe -march=native"
+    CFLAGS="-g -O3 -fno-lto -pipe -march=native"
+    CXXFLAGS="-g -O3 -fno-lto -pipe -march=native"
     export CFLAGS CXXFLAGS
-    libde265_libs=$(find /usr -type f -name "libde265.so")
+    libde265_libs=$(find /usr/ -type f -name "libde265.so")
     if [[ -f "$libde265_libs" ]] && [[ ! -f "/usr/lib/x86_64-linux-gnu/libde265.so" ]]; then
         cp -f "$libde265_libs" "/usr/lib/x86_64-linux-gnu"
         chmod 755 "/usr/lib/x86_64-linux-gnu/libde265.so"
-    fi
-    if [[ -f "$workspace/lib/libdav1d.a" ]] && [[ ! -f "$workspace/lib/x86_64-linux-gnu/libdav1d.a" ]]; then
-        if [[ ! -d "$workspace/lib/x86_64-linux-gnu" ]]; then
-            mkdir -p "$workspace/lib/x86_64-linux-gnu"
-        fi
-        cp -f "$workspace/lib/libdav1d.a"  "$workspace/lib/x86_64-linux-gnu/libdav1d.a"
     fi
     case "$VER" in
         18.04|20.04)    pixbuf_switch="OFF" ;;
@@ -3079,15 +3057,13 @@ if build "libheif" "$g_ver"; then
                   -DBUILD_SHARED_LIBS=OFF \
                   -DAOM_INCLUDE_DIR="$workspace/include" \
                   -DAOM_LIBRARY="$workspace/lib/libaom.a" \
-                  -DDAV1D_INCLUDE_DIR="$workspace/include" \
-                  -DDAV1D_LIBRARY="$workspace/lib/x86_64-linux-gnu/libdav1d.a" \
                   -DLIBDE265_INCLUDE_DIR="$workspace/include" \
                   -DLIBDE265_LIBRARY=/usr/lib/x86_64-linux-gnu/libde265.so \
                   -DLIBSHARPYUV_INCLUDE_DIR="$workspace/include/webp" \
                   -DLIBSHARPYUV_LIBRARY="$workspace/lib/libsharpyuv.so" \
                   -DWITH_AOM_DECODER=ON \
                   -DWITH_AOM_ENCODER=ON \
-                  -DWITH_DAV1D=ON \
+                  -DWITH_DAV1D=OFF \
                   -DWITH_EXAMPLES=OFF \
                   -DWITH_GDK_PIXBUF="$pixbuf_switch" \
                   -DWITH_LIBDE265=ON \
@@ -3151,7 +3127,7 @@ curl -LsSo "$workspace/include/objbase.h" "https://raw.githubusercontent.com/win
 cp -f "$workspace/include/objbase.h" "$workspace"
 
 if [[ -n "$ffmpeg_archive" ]]; then
-    ff_cmd="$ffmpeg_archive"
+    ff_cmd="ffmpeg-$ffmpeg_archive"
 fi
 
 # Get the latest FFmpeg version by parsing its repository
@@ -3166,6 +3142,8 @@ if [[ ! "$ffmpeg_ver_check" == "$ffmpeg_ver" ]]; then
         "The script detected a new version: $ffmpeg_ver_check" \
         "You can modify the variable \"ffmpeg_ver\" if desired to change versions."
 fi
+
+source_flags_fn
 
 if build "ffmpeg" "$ffmpeg_ver"; then
     download $ffmpeg_url $ff_cmd
