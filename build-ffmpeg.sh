@@ -1219,6 +1219,25 @@ binaries=("ffmpeg" "ffplay" "ffprobe")
     done
 }
 
+find_latest_nasm_version() {
+    # URL of the NASM stable releases directory
+    local url="https://www.nasm.us/pub/nasm/stable/"
+    
+    # Fetch the HTML, extract links, sort them, and get the last one
+    local latest_version=$(curl -s $url | grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' | sort -V | tail -n 1)
+    
+    if [ -z "$latest_version" ]; then
+        echo "Failed to find the latest NASM version."
+        return 1
+    fi
+
+    # Print the version and download link without additional messages
+    echo "$latest_version"
+}
+
+# To use the function and store its result in a variable:
+latest_nasm_version=$(find_latest_nasm_version)
+
 install_libjxl_fn() {
     local i
 
@@ -1639,8 +1658,9 @@ if build "yasm" "$g_ver"; then
     build_done "yasm" "$g_ver"
 fi
 
-if build "nasm" "2.16.01"; then
-    download "https://www.nasm.us/pub/nasm/stable/nasm-2.16.01.tar.xz"
+if build "nasm" "$latest_nasm_version"; then
+    find_latest_nasm_version
+    download "https://www.nasm.us/pub/nasm/stable/nasm-$latest_nasm_version.tar.xz"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" \
                         --{build,host,target}="$pc_type" \
@@ -1648,7 +1668,7 @@ if build "nasm" "2.16.01"; then
                         --enable-ccache
     execute make "-j$cpu_threads"
     execute make install
-    build_done "nasm" "2.16.01"
+    build_done "nasm" "$latest_nasm_version"
 fi
 
 if build "giflib" "5.2.1"; then
