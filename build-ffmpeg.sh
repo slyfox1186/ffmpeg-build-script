@@ -3172,7 +3172,7 @@ if build "ffmpeg" "$ffmpeg_ver"; then
 
     mkdir build
     cd build || exit 1
-    LDFLAGS+=" -Wl,-rpath,$ORIGIN:$ORIGIN/../lib"
+    LDFLAGS+=" -Wl,-rpath,$install_dir/bin:$install_dir/../lib"
     ../configure --prefix="$install_dir" \
                  --arch=$(uname -m) \
                  --cc="$CC" \
