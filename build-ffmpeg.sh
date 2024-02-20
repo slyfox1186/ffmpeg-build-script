@@ -2831,11 +2831,11 @@ fi
 
 if [[ "$cuda_compile_flag" -eq 1 ]]; then
     if [[ -n "$iscuda" ]]; then
-        if build "nv-codec-headers" "12.0.16.1"; then
-            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.0.16.1/nv-codec-headers-12.0.16.1.tar.gz"
+        if build "nv-codec-headers" "12.1.14.0"; then
+            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.1.14.0/nv-codec-headers-12.1.14.0.tar.gz"
             execute make "-j$cpu_threads"
             execute make PREFIX="$workspace" install
-            build_done "nv-codec-headers" "12.0.16.1"
+            build_done "nv-codec-headers" "12.1.14.0"
         fi
 
         get_os_version_1
