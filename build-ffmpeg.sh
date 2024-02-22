@@ -130,8 +130,8 @@ printf "\n%s\n\n" "Utilizing $cpu_threads CPU threads"
 #
 
 source_flags_fn() {
-    CC=clang
-    CXX=clang++
+    CC=gcc
+    CXX=g++
     CFLAGS="-g -O3 -march=native"
     CXXFLAGS="$CFLAGS"
     EXTRALIBS="-lm -lpthread -lz -lstdc++ -lgcc_s -lrt -ldl -lnuma"
