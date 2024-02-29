@@ -1022,7 +1022,7 @@ install_cuda() {
         echo "Nvidia GPU not detected"
     fi
 
-    if [[ -n "$nvidia_gpu_status" ]] || [[ -n "$(grep -i microsoft /proc/version)" ]]; then
+    if [[ "$nvidia_gpu_status" == "Nvidia GPU detected" ]] || [[ -n "$(grep -i microsoft /proc/version)" ]]; then
         get_os_version
         if [[ "$OS" == "Arch" ]]; then
             find_nvcc=$(find /opt/ -type f -name nvcc)
