@@ -19,8 +19,9 @@ This script will download different packages with different licenses from variou
 These sources are in control of the developers of each script which I have no control over.
 
 **Importantly**, this script creates a <ins>**non-free**</ins> and unredistributable binary at its end, AND by downloading and using this script, you are <ins>**fully aware of this**</ins>.
-
 Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems other than those based on Debian or Arch Linux.
+
+**To create a free version of the build**, pass `--enable-gpl-and-non-free` to the script to build a non-free version of FFmpeg. I let FFmpeg tell me whether or not a program was free so I only know if they are based on that. ***You must do your own research*** to ensure you are not infringing on someone's **intellectual property**.
 
 ## Install methods
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
