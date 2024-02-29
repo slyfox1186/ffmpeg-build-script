@@ -73,7 +73,7 @@ fi
 
 # Define global variables
 script_name="${0}"
-script_ver=3.4.8
+script_ver=3.5.0
 ffmpeg_release_version=n6.1.1
 cwd="$PWD/ffmpeg-build-script"
 packages="$cwd/packages"
