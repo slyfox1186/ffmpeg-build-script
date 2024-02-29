@@ -34,7 +34,7 @@ You can git clone the repository using the commands below
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd ffmpeg-build-script || exit 1
-sudo bash build-ffmpeg.sh --build --latest
+sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
 ```
 
 #### The NDI build script is not officially supported by either FFmpeg or the NDI creators and I take no responsibility for people who use it in ways the developers have told you not to. I do not support or condone this behavior. If you want to use it use it within the aspects of the law.
