@@ -19,8 +19,9 @@ This script will download different packages with different licenses from variou
 These sources are in control of the developers of each script which I have no control over.
 
 **Importantly**, this script creates a <ins>**non-free**</ins> and unredistributable binary at its end, AND by downloading and using this script, you are <ins>**fully aware of this**</ins>.
-
 Use this script at your own risk. I maintain this script in my spare time. Please do not file bug reports for systems other than those based on Debian or Arch Linux.
+
+**To create a free version of the build**, omit `--enable-gpl-and-non-free` from the arguments passed to the script. I let FFmpeg tell me whether or not a program was free so I only know if they are based on that. <ins>***You must do your own research***</ins> to ensure you are not infringing on someone's **intellectual property**.
 
 ## Install methods
 ### With GPL and non-free software, see https://ffmpeg.org/legal.html
@@ -33,7 +34,7 @@ You can git clone the repository using the commands below
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd ffmpeg-build-script || exit 1
-sudo bash build-ffmpeg.sh --build --latest
+sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
 ```
 
 #### The NDI build script is not officially supported by either FFmpeg or the NDI creators and I take no responsibility for people who use it in ways the developers have told you not to. I do not support or condone this behavior. If you want to use it use it within the aspects of the law.
