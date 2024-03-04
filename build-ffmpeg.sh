@@ -118,7 +118,7 @@ MAKEFLAGS="-j$cpu_threads"
 export MAKEFLAGS
 
 # Create output directories
-mkdir -p "$packages"
+mkdir -p "$packages" "$workspace"
 
 # Set the CC/CPP compilers + customized compiler optimization flags
 source_flags() {
