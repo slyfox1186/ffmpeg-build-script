@@ -2,7 +2,7 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-##  Script version: 3.5.0
+##  Script version: 3.5.1
 ##  Updated: 03.08.24
 ##  Purpose: build ffmpeg from source code with addon development libraries
 ##           also compiled from source to help ensure the latest functionality
@@ -19,7 +19,7 @@ fi
 
 # Define global variables
 script_name="${0}"
-script_ver=3.5.0
+script_ver=3.5.1
 ffmpeg_current_version=n6.1.1
 cwd="$PWD/ffmpeg-build-script"
 packages="$cwd/packages"
