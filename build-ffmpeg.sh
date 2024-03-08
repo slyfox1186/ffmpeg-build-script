@@ -4,8 +4,8 @@
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##  Script version: 3.5.0
 ##  Updated: 03.08.24
-##  Purpose: build ffmpeg from source code with addon development libraries also compiled from
-##           source to help ensure the latest functionality
+##  Purpose: build ffmpeg from source code with addon development libraries
+##           also compiled from source to help ensure the latest functionality
 ##  Supported Distros: Arch Linux
 ##                     Debian 11|12
 ##                     Ubuntu (20|22|23).04 & 23.10
