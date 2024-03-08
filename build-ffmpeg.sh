@@ -1,70 +1,16 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
-#############################################################################################################################
-##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-##
 ##  Script version: 3.5.0
-##
-##  Updated: 02.29.24
-##
-##  Purpose:
-##
-##    - build ffmpeg from source code with addon development libraries also compiled from
-##      source to help ensure the latest functionality
-##
-##  Supported Distro:
-##
-##    - arch linux
-##    - debian 11|12
-##    - ubuntu (20|22|23).04 & 23.10
-##
+##  Updated: 03.08.24
+##  Purpose: build ffmpeg from source code with addon development libraries also compiled from
+##           source to help ensure the latest functionality
+##  Supported Distros: Arch Linux
+##                     Debian 11|12
+##                     Ubuntu (20|22|23).04 & 23.10
 ##  Supported architecture: x86_64
-##
-##  Arch Linux:
-##
-##    - required pacman packages for archlinux
-##    - updated the source code libraries to compile successfully using a partial mix of aur (arch user repository)
-##    - removed the aur install of libbluray as it was not needed and can be done with the github repository
-##
-##  GeForce CUDA SDK Toolkit:
-##
-##    - updated to version 12.3.2 (01.08.2024)
-##
-##  Updated:
-##
-##    - ffmpeg to retrieve the latest release version
-##    - AV1/AOM to pull the latest git commit
-##
-##  Added:
-##
-##    - the user can choose either a free or non-free build of FFmpeg by passing '--enable-gpl-and-non-free' to the script.
-##    - colored text
-##    - additional functions to warn or alert the user in terminal
-##    - a check to skip compiling libbluray if the OS is Ubuntu Jammy due to compile issues. Use the APT version instead.
-##    - code to get the latest OpenSSL version 3.1.X
-##    - ubuntu 23.10 (manic) support
-##    - set the x265 libs to be built with clang because it gives better fps output than when built with gcc
-##
-##  Removed:
-##
-##    - let APT manage libdav1d
-##    - unnecessary compiler flags
-##    - python3 build code that became useless
-##    - removed support for debian 10 (Buster)
-##    - removed support for Ubuntu 18.04 (bionic)
-##
-##  Fixed:
-##
-##    - python pip virtual environment build errors
-##    - Regex parsing error for libencode
-##    - Fixed an error output caused by a missing Cuda JSON file
-##    - libvpx has a bug in their code in file vpx_ext_ratectrl.h and I used the sed command to edit the code and fix it.
-##    - libant would not build unexpectedly so I edited APT to download Java v8 which works for some unknown reason.
-##    - a missing library related to libc6 for x265 to compile on windows wsl
-##
-#############################################################################################################################
+##  CUDA SDK Toolkit: Updated to version 12.4.0
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script with root or sudo."
@@ -178,7 +124,7 @@ cleanup() {
 
     case "$choice" in
         1) rm -fr "$cwd" ;;
-        2) return ;;
+        2) ;;
         *) unset choice
            cleanup
            ;;
@@ -301,8 +247,7 @@ check_and_install_cargo_c() {
 install_rustc() {
     get_rustc_ver=$(rustc --version |
                     grep -Eo '[0-9 \.]+' |
-                    head -n1
-                )
+                    head -n1)
     if [[ "$get_rustc_ver" != "1.75.0" ]]; then
         echo "Installing RustUp"
         curl -sS --proto "=https" --tlsv1.2 "https://sh.rustup.rs" | sh -s -- -y &>/dev/null
@@ -322,8 +267,7 @@ check_ffmpeg_version() {
                               awk -F'/' '/n[0-9]+(\.[0-9]+)*(-dev)?$/ {print $3}' |
                               grep -Ev '\-dev' |
                               sort -rV |
-                              head -n1
-                          )
+                              head -n1)
     echo "$ffmpeg_git_version"
 }
 
@@ -365,10 +309,9 @@ git_clone() {
                       if (tag !~ /\^\{\}$/) print tag
                   }' |
                   sort -rV |
-                  head -n1
-              )
+                  head -n1)
     elif [[ "$repo_flag" == "ffmpeg" ]]; then
-        version=$(git ls-remote --tags https://git.ffmpeg.org/ffmpeg.git |
+        version=$(git ls-remote --tags "https://git.ffmpeg.org/ffmpeg.git" |
                   awk -F/ '/\/n?[0-9]+\.[0-9]+(\.[0-9]+)?(\^\{\})?$/ {
                       tag = $3;
                       sub(/^[v]/, "", tag);
@@ -376,8 +319,7 @@ git_clone() {
                   }' |
                   grep -v '\^{}' |
                   sort -rV |
-                  head -n1
-             )
+                  head -n1)
     else
         version=$(git ls-remote --tags "$repo_url" |
                   awk -F'/' '/\/v?[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9]+)?(\^\{\})?$/ {
@@ -387,15 +329,12 @@ git_clone() {
                   }' |
                   grep -v '\^{}' |
                   sort -rV |
-                  head -n1
-             )
-
+                  head -n1)
         # If no tags found, use the latest commit hash as the version
         if [[ -z "$version" ]]; then
             version=$(git ls-remote "$repo_url" |
                       grep "HEAD" |
-                      awk '{print substr($1,1,7)}'
-                 )
+                      awk '{print substr($1,1,7)}')
             if [[ -z "$version" ]]; then
                 version="unknown"
             fi
@@ -455,8 +394,7 @@ github_repo() {
         if [[ "$url_flag" -eq 1 ]]; then
             curl_cmd=$(curl -sSL "https://github.com/xiph/rav1e/tags" |
                        grep -Eo 'href="[^"]*v?[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz"' |
-                       head -n1
-                   )
+                       head -n1)
         else
             curl_cmd=$(curl -sSL "https://github.com/$repo/$url" | grep -o 'href="[^"]*\.tar\.gz"')
         fi
@@ -652,7 +590,7 @@ execute() {
 
 build() {
     echo
-    echo -e "${GREEN}Building${NC} ${YELLOW}$1${NC} - ${GREEN}version $2${NC}"
+    echo -e "${GREEN}Building${NC} ${YELLOW}$1${NC} - ${GREEN}version ${YELLOW}$2${NC}"
     echo "========================================================"
 
     if [[ -f "$packages/$1.done" ]]; then
@@ -722,50 +660,34 @@ usage() {
     echo
     echo "Options:"
     echo "    -h, --help                       Display usage information"
-    echo "        --version                    Display version information"
+    echo "    -v, --version                    Display the current script version"
     echo "    -c, --cleanup                    Remove all working dirs"
     echo "    -b, --build                      Starts the build process"
-    echo "      --enable-gpl-and-non-free      Enable GPL and non-free codecs  - https://ffmpeg.org/legal.html"
+    echo "    -n, --enable-gpl-and-non-free    Enable GPL and non-free codecs - https://ffmpeg.org/legal.html"
     echo "    -l, --latest                     Force the script to build the latest version of dependencies if newer version is available"
     echo
-    echo "Example: $script_name --build --latest"
+    echo "Example: sudo bash $script_name --build -n --latest"
     echo
 }
 
+CONFIGURE_OPTIONS=()
+NONFREE_AND_GPL=false
+LATEST=false
+
 while (("$#" > 0)); do
     case "$1" in
-        -h|--help) usage
-                   echo
-                   exit 0
-                   ;;
-        --version) echo "The script version is: $script_ver"
-                   echo
-                   exit 0
-                   ;;
-        -*)        if [[ "$1" == "--build" || "$1" =~ "-b" ]]; then
-                       bflag="-b"
-                   fi
-                   if [[ "$1" == "--enable-gpl-and-non-free" ]]; then
-                       CONFIGURE_OPTIONS+=("--enable-"{gpl,libsmbclient,libcdio,nonfree})
-                       NONFREE_AND_GPL=true
-                   fi
-                   if [[ "$1" == "--cleanup" || "$1" =~ "-c" && ! "$1" =~ "--" ]]; then
-                       cflag="-c"
-                       cleanup
-                   fi
-                   if [[ "$1" == "--full-static" ]]; then
-                       LDEXEFLAGS="-static"
-                   fi
-                   if [[ "$2" == "--latest" || "$2" =~ "-l" ]]; then
-                       LATEST=true
-                   fi
-                   shift
-                   ;;
-        *)         usage
-                   echo
-                   exit 1
-                   ;;
+        -h|--help) usage; exit 0 ;;
+        -v|--version) echo; log "The script version is: $script_ver"; exit 0 ;;
+        -n|--enable-gpl-and-non-free) 
+            CONFIGURE_OPTIONS+=("--enable-"{gpl,libsmbclient,libcdio,nonfree})
+            NONFREE_AND_GPL=true
+            ;;
+        -b|--build) bflag="-b" ;;
+        -c|--cleanup) cflag="-c"; cleanup ;;
+        -l|--latest) LATEST=true ;;
+        *) usage; exit 1 ;;
     esac
+    shift
 done
 
 if [[ -z "$bflag" ]]; then
@@ -857,7 +779,11 @@ check_remote_cuda_version() {
         remote_cuda_version="$base_version"
 
         # Append the update number if present
-        [[ -n "$update_version" ]] && remote_cuda_version+=".$update_version"
+        if [[ -n "$update_version" ]]; then
+            remote_cuda_version+=".$update_version"
+        else
+            remote_cuda_version+=".0"
+        fi
     fi
 }
 
@@ -865,14 +791,12 @@ set_java_variables() {
     source_path
     locate_java=$(find /usr/lib/jvm/ -type d -name 'java-*-openjdk*' |
                   sort -rV |
-                  head -n1
-              )
+                  head -n1)
     java_include=$(find /usr/lib/jvm/ -type f -name 'javac' |
                    sort -rV |
                    head -n1 |
                    xargs dirname |
-                   sed 's/bin/include/'
-               )
+                   sed 's/bin/include/')
     CPPFLAGS+=" -I$java_include"
     export CPPFLAGS
     export JDK_HOME="$locate_java"
@@ -952,8 +876,10 @@ nvidia_architecture() {
 }
 
 cuda_download() {
+    local choice distro installer_path pin_file pkg_ext version
+
     echo
-    echo "Pick your Linux distro from the list below:"
+    echo "Pick your Linux version from the list below:"
     echo "Supported architecture: x86_64"
     echo
     echo "[1] Debian 10"
@@ -965,45 +891,85 @@ cuda_download() {
     echo "[7] Arch Linux"
     echo "[8] Exit"
     echo
-
     read -p "Your choices are (1 to 8): " choice
+
     local cuda_version_number="$remote_cuda_version"
     local cuda_pin_url="https://developer.download.nvidia.com/compute/cuda/repos"
     local cuda_url="https://developer.download.nvidia.com/compute/cuda/$cuda_version_number"
-    local distro installer_path pin_file pkg_ext
 
     case "$choice" in
-        1) distro="debian10"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian10-12-3-local_${cuda_version_number}-545.23.08-1_amd64.deb" ;;
-        2) distro="debian11"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian11-12-3-local_${cuda_version_number}-545.23.08-1_amd64.deb" ;;
-        3) distro="debian12"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian12-12-3-local_${cuda_version_number}-545.23.08-1_amd64.deb" ;;
-        4) distro="ubuntu2004"; pkg_ext="pin"; pin_file="ubuntu2004/x86_64/cuda-ubuntu2004.pin"; installer_path="local_installers/cuda-repo-ubuntu2004-12-3-local_${cuda_version_number}-545.23.08-1_amd64.deb" ;;
-        5) distro="ubuntu2204"; pkg_ext="pin"; pin_file="ubuntu2204/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-ubuntu2204-12-3-local_${cuda_version_number}-545.23.08-1_amd64.deb" ;;
-        6) distro="wsl-ubuntu"; pkg_ext="pin"; pin_file="wsl-ubuntu/x86_64/cuda-wsl-ubuntu.pin"; installer_path="local_installers/cuda-repo-wsl-ubuntu-12-3-local_${cuda_version_number}-545.23.08-1_amd64.deb" ;;
-        7) git clone -q "https://gitlab.archlinux.org/archlinux/packaging/packages/cuda.git" && cd cuda && makepkg -sif -C --needed --noconfirm; return ;;
-        8) return ;;
-        *) echo "Invalid choice. Please try again."; cuda_download ;;
+        1) distro=debian10
+           version=10-12-4
+           pkg_ext=deb
+           installer_path="local_installers/cuda-repo-debian${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+           ;;
+        2) distro=debian11
+           version=11-12-4
+           pkg_ext=deb
+           installer_path="local_installers/cuda-repo-debian${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+           ;;
+        3) distro=debian12
+           version=12-12-4
+           pkg_ext=deb
+           installer_path="local_installers/cuda-repo-debian${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+           ;;
+        4) distro=ubuntu2004
+           version=12-4
+           pkg_ext=pin
+           pin_file="$distro/x86_64/cuda-ubuntu2004.pin"
+           installer_path="local_installers/cuda-repo-${distro}-${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+           ;;
+        5) distro=ubuntu2204
+           version=12-4
+           pkg_ext=pin
+           pin_file="$distro/x86_64/cuda-ubuntu2204.pin"
+           installer_path="local_installers/cuda-repo-${distro}-${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+           ;;
+        6) distro=wsl-ubuntu
+           version=12-4
+           pkg_ext=pin
+           pin_file="$distro/x86_64/cuda-wsl-ubuntu.pin"
+           installer_path="local_installers/cuda-repo-${distro}-${version}-local_${cuda_version_number}-1_amd64.deb"
+           ;;
+        7) git clone -q "https://gitlab.archlinux.org/archlinux/packaging/packages/cuda.git" || fail "The script failed to clone the Arch Linux CUDA repository. Line: $LINENO"
+           cd cuda || fail "Unable to cd into the Arch Linux \"cuda\" directory. Line: $LINENO"
+           makepkg -sif -C --needed --noconfirm || fail "The command \"makepkg\" failed to execute. Line: $LINENO"
+           return
+           ;;
+        8) ;;
+        *) echo "Invalid choice. Please try again."
+           cuda_download
+           ;;
     esac
 
-    echo "Downloading CUDA SDK Toolkit - version $cuda_version_number"
+    echo
+    echo "Downloading the CUDA SDK Toolkit - version $cuda_version_number"
+    echo
+
     mkdir -p "$packages/nvidia-cuda"
 
-    if [[ "$pkg_ext" == "deb" ]]; then
+    # Trim the last two numbers in the debian distro variable to make the wget commands work
+    if [[ "$distro" == debian* ]]; then
+        distro="${distro//[0-9][0-9]}"
+    fi
+
+    if [[ "$pkg_ext" == deb ]]; then
         local package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.$pkg_ext"
         wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
         dpkg -i "$package_name"
-        cp -f /var/cuda-repo-${distro}-12-3-local/cuda-*-keyring.gpg /usr/share/keyrings/
+        cp -f /var/cuda-repo-${distro}${version}-local/cuda-*-keyring.gpg /usr/share/keyrings/
         [[ "$distro" == debian* ]] && add-apt-repository -y contrib
-    elif [[ "$pkg_ext" == "pin" ]]; then
+    elif [[ "$pkg_ext" == pin ]]; then
         wget --show-progress -cqO "/etc/apt/preferences.d/cuda-repository-pin-600" "$cuda_pin_url/$pin_file"
         local package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.deb"
         wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
         dpkg -i "$package_name"
-        cp -f /var/cuda-repo-${distro}-12-3-local/cuda-*-keyring.gpg /usr/share/keyrings/
+        cp -f /var/cuda-repo-${distro}-12-4-local/cuda-*-keyring.gpg /usr/share/keyrings/
     fi
 
     # Update the apt packages then install the CUDA SDK Toolkit
-    apt update
-    apt install cuda-toolkit-12-3
+    apt-get update
+    apt-get install cuda-toolkit-12-4
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
@@ -1072,7 +1038,7 @@ install_cuda() {
         local_cuda_version=$(cat /usr/local/cuda/version.json 2>/dev/null | jq -r '.cuda.version' 2>/dev/null)
         # Determine the installed CUDA version if any
         if [[ -n "$remote_cuda_version" ]]; then
-            log "The installed CUDA version is: $remote_cuda_version"
+            log "The installed CUDA version is: $local_cuda_version"
         else
             warn "CUDA is not installed"
         fi
@@ -1116,11 +1082,15 @@ install_cuda() {
         return 0
     fi
 
-    if [[ "$is_nvidia_gpu_present" == "Nvidia GPU detected" ]] || [[ -n "$(grep -i microsoft /proc/version)" ]]; then
+    if [[ "$is_nvidia_gpu_present" == "Nvidia GPU detected" ]] || [[ -n $(grep -i microsoft /proc/version) ]]; then
         get_os_version
-        [[ "$OS" == "Arch" ]] && find_nvcc=$(find /opt/ -type f -name nvcc)
 
-        if [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
+        if [[ "$OS" == "Arch" ]]; then
+            find_nvcc=$(find /opt/ -type f -name nvcc)
+            cuda_path="$find_nvcc"
+        fi
+
+        if [[ ! "$local_cuda_version" == "$remote_cuda_version" ]]; then
             echo
             echo "Do you want to update/reinstall CUDA?"
             echo
@@ -1230,7 +1200,8 @@ apt_pkgs() {
     # Install available missing packages
     if [[ "${#available_packages[@]}" -gt 0 ]]; then
         warn "Installing available missing packages: ${available_packages[*]}"
-        apt install "${available_packages[@]}"
+        apt-get update
+        apt-get install "${available_packages[@]}"
         echo
     else
         log "No missing packages to install or all missing packages are unavailable."
@@ -1281,8 +1252,7 @@ libpulse_fix_libs() {
     local libpulse_lib=$(find "$workspace/lib/" -type f -name "libpulsecommon-*.so" | head -n1)
     local libpulse_trim=$(echo "$libpulse_lib" |
                           sed 's:.*/::' |
-                          head -n1
-                      )
+                          head -n1)
 
     if [[ "$OS" == "Arch" ]]; then
         if [[ ! -d /usr/lib/pulseaudio ]]; then
@@ -1312,9 +1282,8 @@ find_latest_nasm_version() {
     # Fetch the HTML, extract links, sort them, and get the last one
     local latest_version=$(curl -s $url |
                            grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
-                           sort -V |
-                           tail -n 1
-                       )
+                           sort -rV |
+                           head -n1)
 
     if [[ -z "$latest_version" ]]; then
         echo "Failed to find the latest NASM version."
@@ -1329,12 +1298,16 @@ find_latest_nasm_version() {
 latest_nasm_version=$(find_latest_nasm_version)
 
 get_openssl_version() {
-    repo_version="$(curl -s "https://www.openssl.org/source/" | grep -oP 'openssl-3.1.[0-9]+.tar.gz' | sort -V | tail -1 | grep -oP '3.1.[0-9]+')"
+    repo_version=$(curl -s "https://www.openssl.org/source/" |
+                   grep -oP 'openssl-3.1.[0-9]+.tar.gz' |
+                   sort -rV |
+                   head -n1 |
+                   grep -oP '3.1.[0-9]+')
 }
 
 # Patch functions
 patch_ffmpeg() {
-    execute curl -sSLo mathops.patch https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/patches/mathops.patch
+    execute curl -sSLo "mathops.patch" "https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/patches/mathops.patch"
     execute patch -d "libavcodec/x86" -i "../../mathops.patch"
 }
 
@@ -1364,8 +1337,7 @@ arch_os_ver() {
                libmusicbrainz5 libnghttp2 libwebp libyuv meson nasm
                ninja numactl opencv pd perl-datetime texlive-basic
                texlive-binextra tk valgrind webp-pixbuf-loader xterm
-               yasm
-           )
+               yasm)
 
     # Check for Pacman lock file and if Pacman is running
     if [[ -f /var/lib/pacman/db.lck ]]; then
@@ -1406,8 +1378,7 @@ debian_os_version() {
     debian_pkgs=(cppcheck libnvidia-encode1 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
                  libyuv-utils libyuv0 libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev
                  libdmalloc5 libumfpack5 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2
-                 libcamd2 libamd2 software-properties-common
-             )
+                 libcamd2 libamd2 software-properties-common)
 
     case "$VER" in
         msft)          apt_pkgs $debian_wsl_pkgs "${debian_pkgs[@]}" librist-dev ;;
@@ -1433,25 +1404,20 @@ ubuntu_os_version() {
     fi
 
     local ubuntu_common_pkgs=(cppcheck libamd2 libcamd2 libccolamd2 libcholmod3
-                              libcolamd2 libsuitesparseconfig5 libumfpack5
-                          )
+                              libcolamd2 libsuitesparseconfig5 libumfpack5)
     local focal_pkgs=(libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev
                       libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev
                       libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1
-                      libyuv-dev nvidia-utils-535
-                 )
+                      libyuv-dev nvidia-utils-535)
     local jammy_pkgs=(libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev
                       libpipewire-0.3-dev libpsl-dev libreadline-dev
                       librust-jemalloc-sys-dev librust-malloc-buf-dev
                       libsrt-doc libsvtav1-dev libsvtav1dec-dev
-                      libsvtav1enc-dev libtbbmalloc2 libwayland-dev
-                 )
+                      libsvtav1enc-dev libtbbmalloc2 libwayland-dev)
     local lunar_kenetic_pkgs=(libhwy-dev libjxl-dev librist-dev libsrt-gnutls-dev
-                              libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev
-                         )
+                              libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev)
     local mantic_pkgs=(libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
-                       libhwy-dev libsrt-gnutls-dev libyuv-dev
-                  )
+                       libhwy-dev libsrt-gnutls-dev libyuv-dev)
     case "$VER" in
         msft)        ubuntu_msft ;;
         23.10)       apt_pkgs $1 "${mantic_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" "${focal_pkgs[@]}" ;;
@@ -1480,17 +1446,15 @@ get_os_version() {
     fi
 
     nvidia_utils_version=$(apt list nvidia-utils-* 2>/dev/null |
-                       grep -Eo '^nvidia-utils-[0-9]{3}' |
-                       sort -rV |
-                       uniq |
-                       head -n1
-                   )
+                           grep -Eo '^nvidia-utils-[0-9]{3}' |
+                           sort -rV |
+                           uniq |
+                           head -n1)
 
     nvidia_encode_version=$(apt list libnvidia-encode* 2>&1 |
-                        grep -Eo 'libnvidia-encode-[0-9]{3}' |
-                        sort -rV |
-                        head -n1
-                    )
+                            grep -Eo 'libnvidia-encode-[0-9]{3}' |
+                            sort -rV |
+                            head -n1)
 }
 get_os_version
 
@@ -1501,8 +1465,7 @@ get_wsl_version() {
         OS="WSL2"
         wsl_common_pkgs=(cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
                          libyuv-utils libyuv0 libsharp-dev libdmalloc5 libnvidia-encode1
-                         nvidia-smi
-                     )
+                         nvidia-smi)
     fi
 }
 get_wsl_version
