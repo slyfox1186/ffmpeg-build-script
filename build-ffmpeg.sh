@@ -1103,9 +1103,10 @@ apt_pkgs() {
 }
 
 fix_missing_x265_libs() {
-    if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30" ]]; then
-        echo "$ ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30 /usr/lib/x86_64-linux-gnu/libstdc++.so"
-        ln -sf "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
+    libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | head -n1)
+    if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
+        echo "$ ln -sf $libstdc_path /usr/lib/x86_64-linux-gnu/libstdc++.so"
+        ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
     fi
 }
 
