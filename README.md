@@ -131,11 +131,11 @@ This script supports a wide range of codecs and features, including x264, x265, 
 
 ### Hardware Acceleration
 
-The script provides options for hardware acceleration using Nvidia's CUDA SDK Toolkit or AMD's AMF. Make sure to follow the installation instructions closely to enable these features.
+#### The script provides options for hardware acceleration using Nvidia's CUDA SDK Toolkit or AMD's AMF. Make sure to follow the installation instructions closely to enable these features.
 
-* `nv-codec`: [CUDA SDK Toolkit Download](https://developer.nvidia.com/cuda-downloads/).
-  Follow the script's instructions to install the latest updates.
-  These encoders/decoders will only be available if a CUDA installation was found while building ffmpeg.
+ - [CUDA SDK Toolkit Download](https://developer.nvidia.com/cuda-downloads)
+ - Follow the script's instructions to install the latest updates.
+ - These encoders/decoders will only be available if a CUDA installation was found while building ffmpeg.
    * Decoders
         * H264 `h264_cuvid`
         * H265 `hevc_cuvid`
@@ -149,9 +149,9 @@ The script provides options for hardware acceleration using Nvidia's CUDA SDK To
     * Encoders
         * H264 `nvenc_h264`
         * H265 `nvenc_hevc`
-* `vaapi`: [Video Acceleration API](https://trac.ffmpeg.org/wiki/Hardware/VAAPI). These encoders/decoders will only be
+**vaapi**: [Video Acceleration API](https://trac.ffmpeg.org/wiki/Hardware/VAAPI). These encoders/decoders will only be
   available if a libva driver installation was found while building the binary. Follow [these](#Vaapi-installation)
-  instructions for installation. Supported codecs in vaapi:
+  instructions for installation.
     * Encoders
         * H264 `h264_vaapi`
         * H265 `hevc_vaapi`
@@ -159,8 +159,8 @@ The script provides options for hardware acceleration using Nvidia's CUDA SDK To
         * MPEG2 video `mpeg2_vaapi`
         * VP8 `vp8_vaapi`
         * VP9 `vp9_vaapi`
-* `AMF`: [AMD's Advanced Media Framework](https://github.com/GPUOpen-LibrariesAndSDKs/AMF). These encoders will only
-  be available if `amdgpu` drivers are detected in use on the system with `lspci -v`.
+**AMF**: [AMD's Advanced Media Framework](https://github.com/GPUOpen-LibrariesAndSDKs/AMF).
+  These encoders will only be available if `amdgpu` drivers are detected during the build.
     * Encoders
         * H264 `h264_amf`
 
