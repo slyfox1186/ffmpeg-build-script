@@ -100,36 +100,27 @@ cleanup() {
     local choice
 
     echo
-    echo "========================================================"
-    echo "        Do you want to clean up the build files?        "
-    echo "========================================================"
-    echo
-    echo "[1] Yes"
-    echo "[2] No"
-    echo
-
-    read -p "Your choices are (1 or 2): " choice
+    read -p "Do you want to clean up the build files? (yes/no): " choice
 
     case "$choice" in
-        1) rm -fr "$CWD" ;;
-        2) ;;
-        *) unset choice
-           cleanup
-           ;;
+        [yY]*|[yY][eE][sS]*)
+            rm -fr "$CWD"
+            ;;
+        [nN]*|[nN][oO]*)
+            ;;
+        *)
+            unset choice
+            cleanup
+            ;;
     esac
 }
 
 show_installed_versions() {
     echo
-    echo "========================================================"
-    echo "                     FFmpeg Version                     "
-    echo "========================================================"
-    echo
-
-    local show_version=("ffmpeg" "ffprobe" "ffplay")
-    for name in ${show_version[@]}; do
-        if [[ -f "/usr/local/bin/$name" ]]; then
-            "/usr/local/bin/$name" -version
+    local versions=("ffmpeg" "ffprobe" "ffplay")
+    for version in ${versions[@]}; do
+        if command -v "$version" >/dev/null 2>&1; then
+            "$version" -version
             echo
         fi
     done
@@ -178,9 +169,7 @@ download() {
         echo "Download Completed"
     fi
 
-    if [[ -d "$target_directory" ]]; then
-        rm -fr "$target_directory"
-    fi
+    rm -fr "$target_directory" 2>/dev/null
     mkdir -p "$target_directory"
 
     if [[ -n "$3" ]]; then
@@ -203,10 +192,10 @@ download() {
 # Function to ensure no cargo or rustc processes are running
 ensure_no_cargo_or_rustc_processes() {
     local running_processes=$(pgrep -fl 'cargo|rustc')
-    if [ ! -z "$running_processes" ]; then
+    if [ -n "$running_processes" ]; then
         echo -e "${YELLOW}Waiting for cargo or rustc processes to finish...${NC}"
         while pgrep -x cargo &>/dev/null || pgrep -x rustc &>/dev/null; do
-            sleep 1
+            sleep 5
         done
         log "No cargo or rustc processes running."
     fi
@@ -252,10 +241,10 @@ check_ffmpeg_version() {
     local ffmpeg_repo="$1"
 
     ffmpeg_git_version=$(git ls-remote --tags "$ffmpeg_repo" |
-                              awk -F'/' '/n[0-9]+(\.[0-9]+)*(-dev)?$/ {print $3}' |
-                              grep -Ev '\-dev' |
-                              sort -rV |
-                              head -n1)
+                         awk -F'/' '/n[0-9]+(\.[0-9]+)*(-dev)?$/ {print $3}' |
+                         grep -Ev '\-dev' |
+                         sort -rV |
+                         head -n1)
     echo "$ffmpeg_git_version"
 }
 
@@ -265,19 +254,12 @@ git_caller() {
     third_flag="$3"
     recurse_flag=""
 
-    if [[ "$3" == "recurse" ]]; then
-        recurse_flag=1
-    elif [[ "$3" == "ant" ]]; then
-        version=$(git_clone "$git_url" "$repo_name" "$third_flag")
-    elif [[ "$3" == "av1" ]]; then
-        version=$(git_clone "$git_url" "$repo_name" "$third_flag")
-    elif [[ "$3" == "ffmpeg" ]]; then
-        version=$(git_clone "$git_url" "$repo_name" "$third_flag")
-    else
-        version=$(git_clone "$git_url" "$repo_name")
-    fi
+if [[ "$3" == "recurse" ]]; then
+    recurse_flag=1
+fi
 
-    version="${version//Cloning completed: /}"
+version=$(git_clone "$git_url" "$repo_name" "$third_flag")
+version="${version//Cloning completed: /}"
 }
 
 git_clone() {
@@ -513,7 +495,7 @@ build() {
         if grep -Fx "$2" "$packages/$1.done" >/dev/null; then
             echo "$1 version $2 already built. Remove $packages/$1.done lockfile to rebuild it."
             return 1
-        elif $latest; then
+        elif $LATEST; then
             echo "$1 is outdated and will be rebuilt with latest version $2"
             return 0
         else
@@ -562,8 +544,6 @@ find_cuda_json_file() {
         locate_cuda_json_file=/opt/cuda/version.json
     elif [[ -f /usr/local/cuda/version.json ]]; then
         locate_cuda_json_file=/usr/local/cuda/version.json
-    else
-        locate_cuda_json_file=""
     fi
 
     echo "$locate_cuda_json_file"
@@ -661,11 +641,11 @@ if [[ -n "$LDEXEFLAGS" ]]; then
 fi
 
 # Set the path variable
-if find /usr/local -maxdepth 1 -name "cuda" &>/dev/null | head -n1; then
-    cuda_bin_path=$(find /usr/local -maxdepth 1 -name "cuda" &>/dev/null | head -n1)
+if find /usr/local/ -maxdepth 1 -name cuda >/dev/null | head -n1; then
+    cuda_bin_path=$(find /usr/local/ -maxdepth 1 -name "cuda" >/dev/null | head -n1)
     cuda_bin_path+=/bin
-elif find /opt -maxdepth 1 -name "cuda" &>/dev/null | head -n1; then
-    cuda_bin_path=$(find /opt -maxdepth 1 -name "cuda" &>/dev/null | head -n1)
+elif find /opt/ -maxdepth 1 -name cuda 2>/dev/null | head -n1; then
+    cuda_bin_path=$(find /opt/ -maxdepth 1 -name "cuda" 2>/dev/null | head -n1)
     cuda_bin_path+=/bin
 fi
 
@@ -676,7 +656,6 @@ else
 fi
 
 source_path() {
-    PATH=""
     PATH="$set_ccache_dir:$cuda_bin_path:$workspace/bin:$HOME/.local/bin:/usr/local/ant/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     export PATH
 }
@@ -935,9 +914,7 @@ check_nvidia_gpu() {
 
 get_local_cuda_version() {
     if [[ -f /usr/local/cuda/version.json ]]; then
-        echo $(cat /usr/local/cuda/version.json | jq -r '.cuda.version')
-    else
-        echo ""
+        echo "$(cat /usr/local/cuda/version.json | jq -r '.cuda.version')"
     fi
 }
 
@@ -945,68 +922,47 @@ get_local_cuda_version() {
 install_cuda() {
     local choice
 
-    echo "Checking GPU Status"
+    log "Checking GPU Status"
     echo "========================================================"
     amd_gpu_test=$(check_amd_gpu)
     check_nvidia_gpu
 
-    # If AMD GPU exists and NVIDIA GPU does not exist, return and end function
-    if [[ -n "$amd_gpu_test" ]] && [[ "$is_nvidia_gpu_present" == "NVIDIA GPU not detected" ]]; then
+    if [[ -n "$amd_gpu_test" && "$is_nvidia_gpu_present" == "NVIDIA GPU not detected" ]]; then
         return 0
     fi
 
-    # If NVIDIA GPU exists
     if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
         log "Nvidia GPU detected"
         log "Determining if CUDA is installed..."
         check_remote_cuda_version
-        local_cuda_version=$(cat /usr/local/cuda/version.json 2>/dev/null | jq -r '.cuda.version' 2>/dev/null)
+        local_cuda_version=$(get_local_cuda_version)
 
-        # If CUDA is not installed
         if [[ -z "$local_cuda_version" ]]; then
             echo
             echo "The latest CUDA version available is: $remote_cuda_version"
             echo "CUDA is not currently installed."
             echo
-            echo "[1] Install the latest CUDA version"
-            echo "[2] Continue without installing"
-            echo
-            read -p "Your choices are (1 or 2): " choice
+            read -p "Do you want to install the latest CUDA version? (y/n): " choice
             case "$choice" in
-                1) cuda_download ;;
-                2) return 0 ;;
-                *) unset choice
-                   install_cuda
-                   ;;
+                y|Y) cuda_download ;;
+                *) return 0 ;;
             esac
-        # If CUDA is installed and up to date
         elif [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
             log "CUDA is already installed and up to date."
             return 0
-        # If CUDA is installed but not up to date
         else
             echo
             echo "The installed CUDA version is: $local_cuda_version"
             echo "The latest CUDA version available is: $remote_cuda_version"
             echo
-            echo "[1] Update/Reinstall CUDA to the latest version"
-            echo "[2] Continue without updating"
-            echo
-            read -p "Your choices are (1 or 2): " choice
+            read -p "Do you want to update/reinstall CUDA to the latest version? (y/n): " choice
             case "$choice" in
-                1) cuda_download ;;
-                2) return 0 ;;
-                *) unset choice
-                   echo
-                   install_cuda
-                   ;;
+                y|Y) cuda_download ;;
+                *) return 0 ;;
             esac
         fi
 
-        if [[ "$OS" == "Arch" ]]; then
-            find_nvcc=$(find /opt/ -type f -name "nvcc")
-            cuda_path="$find_nvcc"
-        fi
+        [[ "$OS" == "Arch" ]] && cuda_path=$(find /opt/cuda* -type f -name nvcc)
 
         export PATH="$PATH:$cuda_path"
     else
@@ -1059,15 +1015,17 @@ apt_pkgs() {
         libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzimg-dev
         libzmq3-dev libzstd-dev libzvbi-dev libzzip-dev llvm lsb-release lshw lzma-dev m4 mesa-utils meson nasm
         ninja-build pandoc python3 python3-pip python3-venv ragel re2c scons texi2html texinfo tk-dev unzip valgrind
-        wget xmlto zlib1g-dev
+        wget xmlto zlib1g-dev libclang-16-dev gcc-13-plugin-dev
     )
 
-    [[ "$OS" == "Debian" ]] && pkgs+=" nvidia-smi"
+    [[ "$OS" == "Debian" ]] && pkgs+=("nvidia-smi")
 
     # Initialize arrays for missing, available, and unavailable packages
     missing_packages=()
     available_packages=()
     unavailable_packages=()
+
+    log "Checking package installation status..."
 
     # Loop through the array to find missing packages
     for pkg in "${pkgs[@]}"; do
@@ -1087,12 +1045,17 @@ apt_pkgs() {
 
     # Print unavailable packages
     if [[ "${#unavailable_packages[@]}" -gt 0 ]]; then
-        warn "Unavailable packages: ${unavailable_packages[*]}"
+        echo
+        warn "Unavailable packages:"
+        printf "          %s\n" "${unavailable_packages[@]}"
     fi
 
     # Install available missing packages
     if [[ "${#available_packages[@]}" -gt 0 ]]; then
-        warn "Installing available missing packages: ${available_packages[*]}"
+        echo
+        log "Installing available missing packages:"
+        printf "       %s\n" "${available_packages[@]}"
+        echo
         apt-get update
         apt-get install "${available_packages[@]}"
         echo
@@ -1149,13 +1112,9 @@ libpulse_fix_libs() {
                           head -n1)
 
     if [[ "$OS" == "Arch" ]]; then
-        if [[ ! -d /usr/lib/pulseaudio ]]; then
-            mkdir -p /usr/lib/pulseaudio
-        fi
+        mkdir -p /usr/lib/pulseaudio
     else
-        if [[ ! -d /usr/lib/x86_64-linux-gnu/pulseaudio ]]; then
-            mkdir -p /usr/lib/x86_64-linux-gnu/pulseaudio
-        fi
+        mkdir -p /usr/lib/x86_64-linux-gnu/pulseaudio
     fi
 
     if [[ -n "$libpulse_lib" ]]; then
@@ -1275,18 +1234,18 @@ debian_os_version() {
                  libcamd2 libamd2 software-properties-common)
 
     case "$VER" in
-        msft)          apt_pkgs $debian_wsl_pkgs "${debian_pkgs[@]}" librist-dev ;;
-        12|trixie|sid) apt_pkgs $1 "${debian_pkgs[@]}" librist-dev ;;
-        11)            apt_pkgs $1 "${debian_pkgs[@]}" ;;
+        msft)          apt_pkgs "$debian_wsl_pkgs" "${debian_pkgs[@]}" "librist-dev" ;;
+        12|trixie|sid) apt_pkgs "$1" "${debian_pkgs[@]}" "librist-dev" ;;
+        11)            apt_pkgs "$1" "${debian_pkgs[@]}" ;;
         *)             fail "Could not detect the Debian release version. Line: $LINENO" ;;
     esac
 }
 
 ubuntu_msft() {
     case "$OS" in
-        23.04) apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" $ubuntu_wsl_pkgs ;;
-        22.04) apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" $ubuntu_wsl_pkgs ;;
-        20.04) apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${focal_pkgs[@]}" $ubuntu_wsl_pkgs ;;
+        23.04) apt_pkgs "$1" "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" "$ubuntu_wsl_pkgs" ;;
+        22.04) apt_pkgs "$1" "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" "$ubuntu_wsl_pkgs" ;;
+        20.04) apt_pkgs "$1" "${ubuntu_common_pkgs[@]}" "${focal_pkgs[@]}" "$ubuntu_wsl_pkgs" ;;
         *)     fail "Faield to parse the Ubutnu MSFT version. Line: $LINENO" ;;
     esac
 }
@@ -1314,10 +1273,10 @@ ubuntu_os_version() {
                        libhwy-dev libsrt-gnutls-dev libyuv-dev)
     case "$VER" in
         msft)        ubuntu_msft ;;
-        23.10)       apt_pkgs $1 "${mantic_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" "${focal_pkgs[@]}" ;;
-        23.04|22.10) apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" ;;
-        22.04)       apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" ;;
-        20.04)       apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${focal_pkgs[@]}" ;;
+        23.10)       apt_pkgs "$1" "${mantic_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" "${focal_pkgs[@]}" ;;
+        23.04|22.10) apt_pkgs "$1" "${ubuntu_common_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" ;;
+        22.04)       apt_pkgs "$1" "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" ;;
+        20.04)       apt_pkgs "$1" "${ubuntu_common_pkgs[@]}" "${focal_pkgs[@]}" ;;
         *)           fail "Could not detect the Ubuntu release version. Line: $LINENO" ;;
     esac
 }
@@ -1373,10 +1332,9 @@ case "$OS" in
     Arch)       arch_os_ver ;;
     Debian|n/a) debian_os_version "$nvidia_encode_version $nvidia_utils_version" ;;
     Ubuntu)     ubuntu_os_version "$nvidia_encode_version $nvidia_utils_version" ;;
-    WSL2)       get_os_version
-                case "$OS" in
-                    Debian|n/a) debian_os_version "$nvidia_encode_version $nvidia_utils_version ${wsl_common_pkgs[@]}" "$wsl_flag" ;;
-                    Ubuntu)     ubuntu_os_version "$nvidia_encode_version $nvidia_utils_version ${wsl_common_pkgs[@]}" "$wsl_flag" ;;
+    WSL2)       case "$OS" in
+                    Debian|n/a) debian_os_version "$nvidia_encode_version $nvidia_utils_version ${wsl_common_pkgs[*]}" "$wsl_flag" ;;
+                    Ubuntu)     ubuntu_os_version "$nvidia_encode_version $nvidia_utils_version ${wsl_common_pkgs[*]}" "$wsl_flag" ;;
                 esac
                 ;;
 esac
@@ -2403,17 +2361,10 @@ box_out_banner_video() {
 }
 box_out_banner_video "Installing Video Tools"
 
-# Need to update this repo from time to time manually
-# aom_ver=8a3dfd53958db24f0e29ed43275fe3379acd164e
-# aom_sver="${aom_ver::7}"
-# download "https://aomedia.googlesource.com/aom/+archive/$aom_ver.tar.gz" "av1-$aom_sver.tar.gz" "av1"
-
 git_caller "https://aomedia.googlesource.com/aom" "av1-git" "av1"
 if build "$repo_name" "${version//\$ /}"; then
     echo "Cloning \"$repo_name\" saving version \"$version\""
     git_clone "$git_url"
-    mkdir -p "$packages/aom_build"
-    cd "$packages/aom_build" || exit 1
     execute cmake -B build \
                   -DCMAKE_INSTALL_PREFIX="$workspace" \
                   -DCMAKE_BUILD_TYPE=Release \
@@ -3045,8 +2996,7 @@ if build "$repo_name" "${version//\$ /}"; then
 
     [[ "$OS" == "Arch" ]] && patch_ffmpeg
 
-    mkdir build
-    cd build || exit 1
+    mkdir build; cd build
     ../configure --prefix=/usr/local \
                  --arch=$(uname -m) \
                  --cc="$CC" \
