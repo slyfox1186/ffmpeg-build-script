@@ -584,7 +584,7 @@ build() {
         if grep -Fx "$2" "$packages/$1.done" >/dev/null; then
             echo "$1 version $2 already built. Remove $packages/$1.done lockfile to rebuild it."
             return 1
-        elif $latest; then
+        elif $LATEST; then
             echo "$1 is outdated and will be rebuilt with latest version $2"
             return 0
         else
