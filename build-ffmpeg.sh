@@ -1171,9 +1171,9 @@ apt_pkgs() {
           libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev libvpx-dev
           libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev
           libxrandr-dev libxss-dev libxvidcore-dev libzimg-dev libzmq3-dev libzstd-dev
-          libzvbi-dev libzzip-dev llvm lshw lzma-dev m4 mesa-utils meson nasm ninja-build
-          pandoc python3 python3-pip python3-venv ragel re2c scons texi2html texinfo tk-dev
-          unzip valgrind wget xmlto zlib1g-dev
+          libzvbi-dev libzzip-dev llvm lsb-release lshw lzma-dev m4 mesa-utils meson nasm
+          ninja-build pandoc python3 python3-pip python3-venv ragel re2c scons texi2html
+          texinfo tk-dev unzip valgrind wget xmlto zlib1g-dev
 )
 
     # Initialize arrays for missing, available, and unavailable packages
