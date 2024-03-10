@@ -13,8 +13,8 @@ The FFmpeg build script provides an easy way to build a **$\textcolor{yellow}{\t
 
 Supported OS:
   - $\textcolor{orange}{\textsf{Arch Linux}}$
-  - $\textcolor{orange}{\textsf{Debian}}$  $\textcolor{white}{\textsf{-}}$ $\textcolor{white}{\textsf{11}}$ | $\textcolor{white}{\textsf{12}}$
-  - $\textcolor{orange}{\textsf{Ubuntu}}$  $\textcolor{white}{\textsf{-}}$ $\textcolor{white}{\textsf{20}}$ | $\textcolor{white}{\textsf{22}}$ | $\textcolor{white}{\textsf{23.04}}$
+  - $\textcolor{orange}{\textsf{Debian}}$  $\textcolor{cyan}{\textsf{-}}$ $\textcolor{white}{\textsf{11}}$ | $\textcolor{white}{\textsf{12}}$
+  - $\textcolor{orange}{\textsf{Ubuntu}}$  $\textcolor{cyan}{\textsf{-}}$ $\textcolor{white}{\textsf{20}}$ | $\textcolor{white}{\textsf{22}}$ | $\textcolor{white}{\textsf{23.04}}$
 
 ## Disclaimer And Data Privacy Notice
 
