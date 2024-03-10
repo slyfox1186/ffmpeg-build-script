@@ -17,7 +17,7 @@ The script downloads packages under various licenses from different sources, whi
 
 **Important:**
 - The script allows the creation of a **non-free** binary. By using this script, you acknowledge this fact and assume all associated risks.
-- Use this script at your own risk. It is a community-supported project, and support is limited to Debian-based and Arch Linux systems.
+- This is a community-supported project and support is limited to Debian-based and Arch Linux systems.
 - To ensure compliance with all applicable laws and intellectual property rights, you may need to perform additional research. For a GPL-compliant build, omit `--enable-gpl-and-non-free` from the script arguments.
 
 ## Installation
