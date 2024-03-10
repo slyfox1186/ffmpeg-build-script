@@ -4,10 +4,11 @@
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##  Script version: 3.5.2
 ##  Updated: 03.10.24
-##  Purpose: Compile FFmpeg with additional libraries from source code to ensure the latest functionality
+##  Purpose: build ffmpeg from source code with addon development libraries
+##           also compiled from source to help ensure the latest functionality
 ##  Supported Distros: Arch Linux
-##                     Debian 11 | 12
-##                     Ubuntu (20|22|23).04 | 23.10
+##                     Debian 11|12
+##                     Ubuntu (20|22|23).04 & 23.10
 ##  Supported architecture: x86_64
 ##  CUDA SDK Toolkit: Updated to version 12.4.0
 
@@ -26,7 +27,7 @@ NONFREE_AND_GPL=false
 LDEXEFLAGS=""
 CONFIGURE_OPTIONS=()
 LATEST=false
-GIT_REGEX='(rc|RC|master)+[0-9]*$' # Set the regex variable to exclude release candidates
+GIT_REGEX='(rc|RC|Rc|rC|alpha|beta)+[0-9]*$' # Set the regex variable to exclude release candidates
 DEBUG=OFF
 
 # Pre-defined color variables
@@ -421,118 +422,46 @@ github_repo() {
     done
 }
 
-videolan_repo() {
-    local repo="$1"
-    local url="$2"
+fetch_repo_version() {
+    local base_url="$1"
+    local project="$2"
+    local api_path="$3"
+    local version_jq_filter="$4"
+    local short_id_jq_filter="$5"
+    local commit_id_jq_filter="$6"
     local count=0
-    repo_version=""
 
-    if [[ -z "$repo" || -z "$url" ]]; then
-        echo -e "${RED}[ERROR]${NC} Repository and URL are required."
-        return 1
+    local api_url="$base_url/$project/$api_path" # Adjust per_page as needed to fetch more tags if necessary
+
+    if ! response=$(curl -fsS "$api_url"); then
+        fail "Failed to fetch data from $api_url in the function \"fetch_repo_version\". Line: $LINENO"
     fi
 
-    if curl_cmd=$(curl -sS "https://code.videolan.org/api/v4/projects/$repo/repository/$url"); then
-        repo_version=$(echo "$curl_cmd" | jq -r ".[0].commit.id")
-        repo_short_version_1=$(echo "$curl_cmd" | jq -r ".[0].commit.short_id" | cut -c1-7)
-        repo_version_1=$(echo "$curl_cmd" | jq -r ".[0].name" | sed -e 's/^v//')
-    fi
+    local version=""
+    local short_id=""
+    local commit_id=""
+    local version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
 
-    # Deny installing a release candidate
-    while [[ $repo_version =~ $GIT_REGEX ]]; do
-        if curl_cmd=$(curl -sS "https://code.videolan.org/api/v4/projects/$repo/repository/$url"); then
-            repo_version=$(echo "$curl_cmd" | jq -r ".[$count].name" | sed -e 's/^v//')
-        fi
-        ((count++))
-    done
-}
-
-gitlab_repo() {
-    local repo="$1"
-    local url="$2"
-    local count=0
-    repo_version=""
-    repo_version_1=""
-    repo_short_version_1=""
-
-    if curl_cmd=$(curl -sS "https://gitlab.com/api/v4/projects/$repo/repository/$url"); then
-        repo_version=$(echo "$curl_cmd" | jq -r ".[0].name" | sed -e 's/^v//')
-        repo_version_1=$(echo "$curl_cmd" | jq -r ".[0].commit.id" | sed -e 's/^v//')
-        repo_short_version_1=$(echo "$curl_cmd" | jq -r ".[0].commit.short_id" | sed -e 's/^VTM-//')
-    fi
-
-    # Deny installing a release candidate
-    while [[ $repo_version =~ $GIT_REGEX ]]; do
-        if curl_cmd=$(curl -sS "https://gitlab.com/api/v4/projects/$repo/repository/$url"); then
-            repo_version=$(echo "$curl_cmd" | jq -r ".[$count].name" | sed -e 's/^v//')
-        fi
-        ((count++))
-    done
-}
-
-gitlab_freedesktop_repo() {
-    local repo="$1"
-    local count=0
-    repo_version=""
-
-    while true; do
-        if curl_cmd=$(curl -sS "https://gitlab.freedesktop.org/api/v4/projects/$repo/repository/tags"); then
-            repo_version=$(echo "$curl_cmd" | jq -r ".[$count].name" | sed -e 's/^v//')
-
-            # Check if repo_version contains "RC" and skip it
-            if [[ $repo_version =~ $GIT_REGEX ]]; then
-                ((count++))
-            else
-                break # Exit the loop when a non-RC version is found
+    if [[ ! "$base_url" == 536 ]]; then
+        # Loop through responses to exclude Release candidates and find the first valid version
+        while [[ $version =~ $GIT_REGEX ]]; do
+            version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
+            if [[ -z "$version" || "$version" == "null" ]]; then
+                fail "No suitable version found in the function \"fetch_repo_version\". Line: $LINENO"
             fi
-        else
-            fail "Failed to fetch data from GitLab API."
-        fi
-    done
-}
-
-gitlab_gnome_repo() {
-    local repo="$1"
-    local count=0
-    repo_version=""
-
-    if [[ -z "$repo" ]]; then
-        fail "Repository name is required."
+            ((count++))
+        done
     fi
 
-    if curl_cmd=$(curl -sS "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags"); then
-        repo_version=$(echo "$curl_cmd" | jq -r ".[0].name" | sed -e 's/^v//')
-    fi
+    local short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
+    local commit_id=$(echo "$response" | jq -r ".[$count]$commit_id_jq_filter")
 
-    # Deny installing a release candidate
-    while [[ $repo_version =~ $GIT_REGEX ]]; do
-        if curl_cmd=$(curl -sS "https://gitlab.gnome.org/api/v4/projects/$repo/repository/tags"); then
-            repo_version=$(echo "$curl_cmd" | jq -r ".[$count].name" | sed -e 's/^v//')
-        fi
-        ((count++))
-    done
-}
+    # Remove leading 'v' from version
+    repo_version="${version#v}"
+    repo_version_1="$commit_id"
+    repo_short_version_1="$short_id"
 
-debian_salsa_repo() {
-    local repo="$1"
-    local count=0
-    repo_version=""
-
-    if [[ -z "$repo" ]]; then
-        fail "Repository name is required."
-    fi
-
-    if curl_cmd=$(curl -sS "https://salsa.debian.org/api/v4/projects/$repo/repository/tags"); then
-        repo_version=$(echo "$curl_cmd" | jq -r ".[0].name" | sed -e 's/^v//')
-    fi
-
-    # Deny installing a release candidate
-    while [[ $repo_version =~ $GIT_REGEX ]]; do
-        if curl_cmd=$(curl -sS "https://salsa.debian.org/api/v4/projects/$repo/repository/tags"); then
-            repo_version=$(echo "$curl_cmd" | jq -r ".[$count].name" | sed -e 's/^v//')
-        fi
-        ((count++))
-    done
+    return 0
 }
 
 find_git_repo() {
@@ -540,20 +469,20 @@ find_git_repo() {
     local git_repo="$2"
     local url_action="$3"
 
-    case "$git_repo" in
-        1) set_repo="github_repo" ;;
-        2) set_repo="videolan_repo" ;;
-        3) set_repo="gitlab_repo" ;;
-        4) set_repo="gitlab_freedesktop_repo" ;;
-        5) set_repo="gitlab_gnome_repo" ;;
-        6) set_repo="debian_salsa_repo" ;;
-        *) fail "Could not detect the variable \"\$git_repo\" in the function \"find_git_repo\". Line: $LINENO"
-    esac
-
     case "$url_action" in
         B) set_type="branches" ;;
         T) set_type="tags" ;;
         *) set_type="$3" ;;
+    esac
+
+    case "$git_repo" in
+        1) set_repo="github_repo" ;;
+        2) fetch_repo_version "https://code.videolan.org/api/v4/projects" "$url" "repository/$set_type" ".name" ".commit.short_id" ".commit.id"; return 0 ;;
+        3) fetch_repo_version "https://gitlab.com/api/v4/projects" "$url" "repository/tags" ".name" ".commit.short_id" ".commit.id"; return 0 ;;
+        4) fetch_repo_version "https://gitlab.freedesktop.org/api/v4/projects" "$url" "repository/tags" ".name" ".commit.short_id" ".commit.id"; return 0 ;;
+        5) fetch_repo_version "https://gitlab.gnome.org/api/v4/projects" "$url" "repository/tags" ".name" ".commit.short_id" ".commit.id"; return 0 ;;
+        6) fetch_repo_version "https://salsa.debian.org/api/v4/projects" "$url" "repository/tags" ".name" ".commit.short_id" ".commit.id"; return 0 ;;
+        *) fail "Unsupported repository type in the function \"find_git_repo\". Line: $LINENO" ;;
     esac
 
     "$set_repo" "$url" "$set_type" 2>/dev/null
@@ -584,7 +513,7 @@ build() {
         if grep -Fx "$2" "$packages/$1.done" >/dev/null; then
             echo "$1 version $2 already built. Remove $packages/$1.done lockfile to rebuild it."
             return 1
-        elif $LATEST; then
+        elif $latest; then
             echo "$1 is outdated and will be rebuilt with latest version $2"
             return 0
         else
@@ -1094,10 +1023,11 @@ apt_pkgs() {
 
     # Function to find the latest version of a package by pattern
     find_latest_pkg_version() {
-        apt-cache search --names-only "$1" 2>/dev/null | awk '{print $1}' | grep -E "$2" | sort -rV | head -n1
+        apt-cache search --names-only "$1" 2>/dev/null | awk '{print $1}' | grep -Eo "$2" | sort -rV | head -n1
     }
 
     # Use the function to find the latest versions of specific packages
+    nvidia_utils=$(find_latest_pkg_version 'nvidia-utils-[0-9]+$' 'nvidia-utils-[0-9]+$')
     openjdk_pkg=$(find_latest_pkg_version '^openjdk-[0-9]+-jdk$' '^openjdk-[0-9]+-jdk')
     libcpp_pkg=$(find_latest_pkg_version 'libc++*' 'libc\+\+-[0-9\-]+-dev')
     libcppabi_pkg=$(find_latest_pkg_version 'libc++abi*' 'libc\+\+abi-[0-9]+-dev')
@@ -1105,9 +1035,9 @@ apt_pkgs() {
 
     # Define an array of apt package names
     pkgs=(
-        $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg $openjdk_pkg ant apt asciidoc autoconf autoconf-archive automake
-        autopoint binutils bison build-essential cargo cargo-c ccache checkinstall clang cmake curl doxygen fcitx-libs-dev
-        flex flite1-dev freeglut3-dev frei0r-plugins-dev gawk gcc gettext gimp-data git gnome-desktop-testing
+        $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg $nvidia_utils $openjdk_pkg ant apt asciidoc autoconf autoconf-archive
+        automake autopoint binutils bison build-essential cargo cargo-c ccache checkinstall clang cmake curl doxygen
+        fcitx-libs-dev flex flite1-dev freeglut3-dev frei0r-plugins-dev gawk gcc gettext gimp-data git gnome-desktop-testing
         gnustep-gui-runtime google-perftools gperf gtk-doc-tools guile-3.0-dev help2man jq junit ladspa-sdk
         lib32stdc++6 libamd2 libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev
         libbpf-dev libbs2b-dev libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev libcamd2 libccolamd2 libcdio-dev
@@ -1128,9 +1058,11 @@ apt_pkgs() {
         libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev libvpx-dev libx11-dev libxcursor-dev
         libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzimg-dev
         libzmq3-dev libzstd-dev libzvbi-dev libzzip-dev llvm lsb-release lshw lzma-dev m4 mesa-utils meson nasm
-        ninja-build nvidia-smi pandoc python3 python3-pip python3-venv ragel re2c scons texi2html texinfo tk-dev unzip
-        valgrind wget xmlto zlib1g-dev
+        ninja-build pandoc python3 python3-pip python3-venv ragel re2c scons texi2html texinfo tk-dev unzip valgrind
+        wget xmlto zlib1g-dev
     )
+
+    [[ "$OS" == "Debian" ]] && pkgs+=" nvidia-smi"
 
     # Initialize arrays for missing, available, and unavailable packages
     missing_packages=()
@@ -1556,8 +1488,8 @@ if [[ "$OS" == "Arch" ]]; then
     librist_arch
 else
     find_git_repo "816" "2" "T"
-    if build "librist" "$repo_version_1"; then
-        download "https://code.videolan.org/rist/librist/-/archive/v$repo_version_1/librist-v$repo_version_1.tar.bz2" "librist-$repo_version_1.tar.bz2"
+    if build "librist" "$repo_version"; then
+        download "https://code.videolan.org/rist/librist/-/archive/v$repo_version/librist-v$repo_version.tar.bz2" "librist-$repo_version.tar.bz2"
         execute meson setup build --prefix="$workspace" \
                                   --buildtype=release \
                                   --default-library=static \
@@ -1566,7 +1498,7 @@ else
                                   -Dtest=false
         execute ninja "-j$cpu_threads" -C build
         execute ninja -C build install
-        build_done "librist" "$repo_version_1"
+        build_done "librist" "$repo_version"
     fi
 fi
 
@@ -2550,23 +2482,23 @@ fi
 CONFIGURE_OPTIONS+=("--enable-libkvazaar")
 
 find_git_repo "76" "2" "T"
-if build "libdvdread" "$repo_version_1"; then
-    download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version_1/libdvdread-$repo_version_1.tar.bz2"
+if build "libdvdread" "$repo_version"; then
+    download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version/libdvdread-$repo_version.tar.bz2"
     execute autoreconf -fi
     execute ./configure --prefix="$workspace" --disable-apidoc --disable-shared
     execute make "-j$cpu_threads"
     execute make install
-    build_done "libdvdread" "$repo_version_1"
+    build_done "libdvdread" "$repo_version"
 fi
 
 find_git_repo "363" "2" "T"
-if build "udfread" "$repo_version_1"; then
-    download "https://code.videolan.org/videolan/libudfread/-/archive/$repo_version_1/libudfread-$repo_version_1.tar.bz2"
+if build "udfread" "$repo_version"; then
+    download "https://code.videolan.org/videolan/libudfread/-/archive/$repo_version/libudfread-$repo_version.tar.bz2"
     execute autoreconf -fi
     execute ./configure --prefix="$workspace" --disable-shared
     execute make "-j$cpu_threads"
     execute make install
-    build_done "udfread" "$repo_version_1"
+    build_done "udfread" "$repo_version"
 fi
 
 if [[ "$OS" == "Arch" ]]; then
@@ -2586,8 +2518,8 @@ fi
 # Ubuntu Jammy gives an error so use the APT version instead
 if [[ ! "$OS" == "Ubuntu" ]]; then
     find_git_repo "206" "2" "T"
-    if build "libbluray" "$repo_version_1"; then
-        download "https://code.videolan.org/videolan/libbluray/-/archive/$repo_version_1/$repo_version_1.tar.gz" "libbluray-$repo_version_1.tar.gz"
+    if build "libbluray" "$repo_version"; then
+        download "https://code.videolan.org/videolan/libbluray/-/archive/$repo_version/$repo_version.tar.gz" "libbluray-$repo_version.tar.gz"
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" \
                             --disable-doxygen-doc \
@@ -2601,7 +2533,7 @@ if [[ ! "$OS" == "Ubuntu" ]]; then
                             --without-libxml2
         execute make "-j$cpu_threads"
         execute make install
-        build_done "libbluray" "$repo_version_1"
+        build_done "libbluray" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libbluray")
 fi
@@ -2686,13 +2618,13 @@ else
         echo "Cloning \"$repo_name\" saving version \"$version\""
         git_clone "$git_url"
         execute ./configure --prefix="$workspace" \
-                                 --static-bin \
-                                 --static-modules \
-                                 --use-a52=local \
-                                 --use-faad=local \
-                                 --use-freetype=local \
-                                 --use-mad=local \
-                                 --sdl-cfg="$workspace/include/SDL3"
+                            --static-bin \
+                            --static-modules \
+                            --use-a52=local \
+                            --use-faad=local \
+                            --use-freetype=local \
+                            --use-mad=local \
+                            --sdl-cfg="$workspace/include/SDL3"
         execute make "-j$cpu_threads"
         execute make install
         execute cp -f bin/gcc/MP4Box /usr/local/
@@ -2700,22 +2632,22 @@ else
     fi
 fi
 
-# Versions >= 1.4.0 Breaks ffmpeg during the build
 find_git_repo "24327400" "3" "T"
 if build "svt-av1" "1.8.0"; then
     download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.8.0/SVT-AV1-v1.8.0.tar.bz2" "svt-av1-1.8.0.tar.bz2"
-    execute cmake -S . -B Build/linux \
-                       -DCMAKE_INSTALL_PREFIX="$workspace" \
-                       -DCMAKE_BUILD_TYPE=Release \
-                       -DBUILD_SHARED_LIBS=OFF \
-                       -DBUILD_APPS=OFF \
-                       -DBUILD_DEC=ON \
-                       -DBUILD_ENC=ON \
-                       -DBUILD_TESTING=OFF \
-                       -DENABLE_AVX512=OFF \
-                       -DENABLE_NASM=ON \
-                       -DNATIVE=ON \
-                       -G Ninja
+    execute cmake -S . \
+                  -B Build/linux \
+                  -DCMAKE_INSTALL_PREFIX="$workspace" \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DBUILD_SHARED_LIBS=OFF \
+                  -DBUILD_APPS=OFF \
+                  -DBUILD_DEC=ON \
+                  -DBUILD_ENC=ON \
+                  -DBUILD_TESTING=OFF \
+                  -DENABLE_AVX512=OFF \
+                  -DENABLE_NASM=ON \
+                  -DNATIVE=ON \
+                  -G Ninja
     execute ninja "-j$cpu_threads" -C Build/linux
     execute ninja "-j$cpu_threads" -C Build/linux install
     cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
@@ -2726,9 +2658,8 @@ CONFIGURE_OPTIONS+=("--enable-libsvtav1")
 
 if $NONFREE_AND_GPL; then
     find_git_repo "536" "2" "B"
-    repo_short_version_1="${repo_version::8}"
     if build "x264" "$repo_short_version_1"; then
-        download "https://code.videolan.org/videolan/x264/-/archive/$repo_version/x264-$repo_version.tar.bz2" "x264-$repo_short_version_1.tar.bz2"
+        download "https://code.videolan.org/videolan/x264/-/archive/$repo_version_1/x264-$repo_version_1.tar.bz2" "x264-$repo_short_version_1.tar.bz2"
         execute ./configure --prefix="$workspace" \
                             --bit-depth=all \
                             --chroma-format=all \
