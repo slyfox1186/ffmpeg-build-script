@@ -1,11 +1,15 @@
 ### If you like the script, please $\textcolor{yellow}{\textsf{★}}$ this project!
 
+[//]: # (Define Variables)
+
+[legal]: https://ffmpeg.org/legal.html
+
 [ffmpeg-build-script](https://ffmpeg.org/download.html)
 ==========
 
-The FFmpeg build script provides an easy way to build a **<ins>static</ins>** FFmpeg binary with **non-free and GPL codecs** by parsing and downloading the latest release version of each repository.
-  - See https://ffmpeg.org/legal.html)
-  - **The CUDA SDK Toolkit which unlocks Hardware Acceleration is available during the installation to make things as easy as possible**
+The FFmpeg build script provides an easy way to build a **$\textcolor{yellow}{\textsf{Static FFmpeg binary}}$** with **$\textcolor{magenta}{\textsf{non-free and GPL codecs}}$** by parsing and downloading the latest release version of each repository.
+  - [FFmpeg Legal Documents](https://ffmpeg.org/legal.html)
+  - **The $\textcolor{cyan}{\textsf{CUDA SDK Toolkit}}$** which unlocks **$\textcolor{yellow}{\textsf{Hardware Acceleration}}$** is available during the installation to make things as easy as possible**
 
 Supported OS:
   - Arch Linux
