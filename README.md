@@ -1,4 +1,4 @@
-### If you like the script, please <code style="yellow : name_color">★</code> this project!
+### If you like the script, please $\textcolor{yellow}{\textsf{★}}$ this project!
 
 [ffmpeg-build-script](https://ffmpeg.org/download.html)
 ==========
