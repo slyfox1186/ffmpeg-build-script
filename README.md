@@ -197,7 +197,7 @@ Downloading "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz" saving as "m4-latest.t
 Download Completed
 File extracted: m4-latest.tar.xz
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-nls --enable-c++ --enable-threads=posix
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-nls --enable-c++ --enable-threads=posix
 $ make -j32
 $ make install
 
@@ -208,7 +208,7 @@ Download Completed
 File extracted: autoconf-latest.tar.xz
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace M4=/home/jman/tmp/ffmpeg-build-script/workspace/bin/m4
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace M4=/home/user/tmp/ffmpeg-build-script/workspace/bin/m4
 $ make -j32
 $ make install
 
@@ -218,7 +218,7 @@ Downloading "https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.xz" saving as "li
 Download Completed
 File extracted: libtool-2.4.7.tar.xz
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --with-pic M4=/home/jman/tmp/ffmpeg-build-script/workspace/bin/m4
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --with-pic M4=/home/user/tmp/ffmpeg-build-script/workspace/bin/m4
 $ make -j32
 $ make install
 
@@ -229,7 +229,7 @@ Download Completed
 File extracted: pkg-config-0.29.2.tar.gz
 
 $ autoconf
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-silent-rules --with-pc-path=/home/jman/tmp/ffmpeg-build-script/workspace/lib64/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/share/pkgconfig:/usr/local/lib64/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/lib64/pkgconfig:/lib/x86_64-linux-gnu/pkgconfig:/lib/pkgconfig
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --enable-silent-rules --with-pc-path=/home/user/tmp/ffmpeg-build-script/workspace/lib64/pkgconfig:/home/user/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu/pkgconfig:/home/user/tmp/ffmpeg-build-script/workspace/lib/pkgconfig:/home/user/tmp/ffmpeg-build-script/workspace/share/pkgconfig:/usr/local/lib64/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/lib64/pkgconfig:/lib/x86_64-linux-gnu/pkgconfig:/lib/pkgconfig
 $ make -j32
 $ make install
 
@@ -240,7 +240,7 @@ Download Completed
 File extracted: meson-1.3.2.tar.gz
 
 $ python3 setup.py build
-$ python3 setup.py install --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
+$ python3 setup.py install --prefix=/home/user/tmp/ffmpeg-build-script/workspace
 
 Building librist - version 0.2.10
 ========================================================
@@ -248,7 +248,7 @@ Downloading "https://code.videolan.org/rist/librist/-/archive/v0.2.10/librist-v0
 Download Completed
 File extracted: librist-0.2.10.tar.bz2
 
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbuilt_tools=false -Dtest=false
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbuilt_tools=false -Dtest=false
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -258,7 +258,7 @@ Downloading "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.
 Download Completed
 File extracted: zlib-1.3.1.tar.gz
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace
 $ make -j32
 $ make install
 
@@ -268,7 +268,7 @@ Downloading "https://www.openssl.org/source/openssl-3.1.5.tar.gz" saving as "ope
 Download Completed
 File extracted: openssl-3.1.5.tar.gz
 
-$ ./Configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace enable-egd enable-fips enable-md2 enable-rc5 enable-trace threads zlib --with-rand-seed=os --with-zlib-include=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-zlib-lib=/home/jman/tmp/ffmpeg-build-script/workspace/lib
+$ ./Configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace enable-egd enable-fips enable-md2 enable-rc5 enable-trace threads zlib --with-rand-seed=os --with-zlib-include=/home/user/tmp/ffmpeg-build-script/workspace/include --with-zlib-lib=/home/user/tmp/ffmpeg-build-script/workspace/lib
 $ make -j32
 $ make install_sw install_fips
 
@@ -279,7 +279,7 @@ Download Completed
 File extracted: yasm-1.3.0.tar.gz
 
 $ autoreconf -fi
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -291,7 +291,7 @@ Download Completed
 File extracted: nasm-2.16.01.tar.xz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-pedantic --enable-ccache
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-pedantic --enable-ccache
 $ make -j32
 $ make install
 
@@ -302,7 +302,7 @@ Download Completed
 File extracted: giflib-5.2.1.tar.gz
 
 $ make
-$ make PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace install
+$ make PREFIX=/home/user/tmp/ffmpeg-build-script/workspace install
 
 Building libxml2 - version 2.11.7
 ========================================================
@@ -311,7 +311,7 @@ Download Completed
 File extracted: libxml2-2.11.7.tar.bz2
 
 $ ./autogen.sh
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -323,7 +323,7 @@ File extracted: libpng-1.6.43.tar.gz
 
 $ autoupdate
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-hardware-optimizations=yes --with-pic
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --enable-hardware-optimizations=yes --with-pic
 $ make -j32
 $ make install-header-links install-library-links install
 
@@ -334,7 +334,7 @@ Download Completed
 File extracted: libtiff-4.6.0.tar.bz2
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-docs --disable-sphinx --disable-tests --enable-cxx --with-pic
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-docs --disable-sphinx --disable-tests --enable-cxx --with-pic
 $ make -j32
 $ make install
 
@@ -345,7 +345,7 @@ Download Completed
 File extracted: aribb24-1.0.3.tar.gz
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --with-pic
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared --with-pic
 $ make -j32
 $ make install
 
@@ -356,7 +356,7 @@ Download Completed
 File extracted: freetype-2.13.2.tar.bz2
 
 $ ./autogen.sh
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dharfbuzz=disabled -Dpng=disabled -Dbzip2=disabled -Dbrotli=disabled -Dzlib=disabled -Dtests=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dharfbuzz=disabled -Dpng=disabled -Dbzip2=disabled -Dbrotli=disabled -Dzlib=disabled -Dtests=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -368,7 +368,7 @@ File extracted: fontconfig-2.15.0.tar.bz2
 
 $ ./autogen.sh --noconf
 $ autoupdate
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-docbook --disable-docs --disable-nls --disable-shared --enable-iconv --enable-static --with-arch=x86_64 --with-libiconv-prefix=/usr
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-docbook --disable-docs --disable-nls --disable-shared --enable-iconv --enable-static --with-arch=x86_64 --with-libiconv-prefix=/usr
 $ make -j32
 $ make install
 
@@ -379,7 +379,7 @@ Download Completed
 File extracted: harfbuzz-8.3.0.tar.gz
 
 $ ./autogen.sh
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbenchmark=disabled -Dcairo=disabled -Ddocs=disabled -Dglib=disabled -Dgobject=disabled -Dicu=disabled -Dintrospection=disabled -Dtests=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbenchmark=disabled -Dcairo=disabled -Ddocs=disabled -Dglib=disabled -Dgobject=disabled -Dicu=disabled -Dintrospection=disabled -Dtests=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -387,7 +387,7 @@ Building c2man-git - version 577ed40
 ========================================================
 Cloning "c2man-git" saving version "577ed40"
 Cloning completed: 577ed40
-$ ./Configure -desO -D bin=/home/jman/tmp/ffmpeg-build-script/workspace/bin -D cc=/usr/bin/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D gcc=/usr/bin/gcc -D installmansrc=/home/jman/tmp/ffmpeg-build-script/workspace/share/man -D ldflags=-L/home/jman/tmp/ffmpeg-build-script/workspace/lib64 -L/home/jman/tmp/ffmpeg-build-script/workspace/lib -DLIBXML_STATIC -D libpth=/usr/lib64 /usr/lib /lib64 /lib -D locincpth=/home/jman/tmp/ffmpeg-build-script/workspace/include /usr/local/include /usr/include -D loclibpth=/home/jman/tmp/ffmpeg-build-script/workspace/lib64 /home/jman/tmp/ffmpeg-build-script/workspace/lib /usr/local/lib64 /usr/local/lib -D osname=Debian -D prefix=/home/jman/tmp/ffmpeg-build-script/workspace -D privlib=/home/jman/tmp/ffmpeg-build-script/workspace/lib/c2man -D privlibexp=/home/jman/tmp/ffmpeg-build-script/workspace/lib/c2man
+$ ./Configure -desO -D bin=/home/user/tmp/ffmpeg-build-script/workspace/bin -D cc=/usr/bin/cc -D d_gnu=/usr/lib/x86_64-linux-gnu -D gcc=/usr/bin/gcc -D installmansrc=/home/user/tmp/ffmpeg-build-script/workspace/share/man -D ldflags=-L/home/user/tmp/ffmpeg-build-script/workspace/lib64 -L/home/user/tmp/ffmpeg-build-script/workspace/lib -DLIBXML_STATIC -D libpth=/usr/lib64 /usr/lib /lib64 /lib -D locincpth=/home/user/tmp/ffmpeg-build-script/workspace/include /usr/local/include /usr/include -D loclibpth=/home/user/tmp/ffmpeg-build-script/workspace/lib64 /home/user/tmp/ffmpeg-build-script/workspace/lib /usr/local/lib64 /usr/local/lib -D osname=Debian -D prefix=/home/user/tmp/ffmpeg-build-script/workspace -D privlib=/home/user/tmp/ffmpeg-build-script/workspace/lib/c2man -D privlibexp=/home/user/tmp/ffmpeg-build-script/workspace/lib/c2man
 $ make depend
 $ make -j32
 $ make install
@@ -399,7 +399,7 @@ Download Completed
 File extracted: fribidi-1.0.13.tar.gz
 
 $ autoreconf -fi
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=false -Dtests=false
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=false -Dtests=false
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -410,7 +410,7 @@ Download Completed
 File extracted: libass-0.17.1.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -420,7 +420,7 @@ Downloading "https://github.com/freeglut/freeglut/releases/download/v3.4.0/freeg
 Download Completed
 File extracted: freeglut-3.4.0.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DFREEGLUT_BUILD_SHARED_LIBS=OFF -DFREEGLUT_BUILD_STATIC_LIBS=ON -DFREEGLUT_PRINT_ERRORS=OFF -DFREEGLUT_PRINT_WARNINGS=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DFREEGLUT_BUILD_SHARED_LIBS=OFF -DFREEGLUT_BUILD_STATIC_LIBS=ON -DFREEGLUT_PRINT_ERRORS=OFF -DFREEGLUT_PRINT_WARNINGS=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -429,7 +429,7 @@ Building libwebp-git - version 1.3.2
 Cloning "libwebp-git" saving version "1.3.2"
 Cloning completed: 1.3.2
 $ autoreconf -fi
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DWEBP_BUILD_ANIM_UTILS=OFF -DWEBP_BUILD_CWEBP=ON -DWEBP_BUILD_DWEBP=ON -DWEBP_BUILD_EXTRAS=OFF -DWEBP_BUILD_VWEBP=OFF -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR=/home/user/tmp/ffmpeg-build-script/workspace/include -DWEBP_BUILD_ANIM_UTILS=OFF -DWEBP_BUILD_CWEBP=ON -DWEBP_BUILD_DWEBP=ON -DWEBP_BUILD_EXTRAS=OFF -DWEBP_BUILD_VWEBP=OFF -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -439,7 +439,7 @@ Downloading "https://github.com/google/highway/archive/refs/tags/1.1.0.tar.gz" s
 Download Completed
 File extracted: libhwy-1.1.0.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DHWY_ENABLE_TESTS=OFF -DBUILD_TESTING=OFF -DHWY_ENABLE_EXAMPLES=OFF -DHWY_FORCE_STATIC_LIBS=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DHWY_ENABLE_TESTS=OFF -DBUILD_TESTING=OFF -DHWY_ENABLE_EXAMPLES=OFF -DHWY_FORCE_STATIC_LIBS=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -449,7 +449,7 @@ Downloading "https://github.com/google/brotli/archive/refs/tags/v1.1.0.tar.gz" s
 Download Completed
 File extracted: brotli-1.1.0.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -460,7 +460,7 @@ Download Completed
 File extracted: lcms2-2.16.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --with-pic --with-threaded
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --with-pic --with-threaded
 $ make -j32
 $ make install
 
@@ -470,7 +470,7 @@ Downloading "https://github.com/gflags/gflags/archive/refs/tags/v2.2.2.tar.gz" s
 Download Completed
 File extracted: gflags-2.2.2.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_gflags_LIB=ON -DBUILD_STATIC_LIBS=ON -DINSTALL_HEADERS=ON -DREGISTER_BUILD_DIR=ON -DREGISTER_INSTALL_PREFIX=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_gflags_LIB=ON -DBUILD_STATIC_LIBS=ON -DINSTALL_HEADERS=ON -DREGISTER_BUILD_DIR=ON -DREGISTER_INSTALL_PREFIX=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -478,7 +478,7 @@ Building opencl-sdk-git - version 1.3.2
 ========================================================
 Cloning "opencl-sdk-git" saving version "1.3.2"
 Cloning completed: 2023.12.14
-$ cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DBUILD_DOCS=OFF -DBUILD_EXAMPLES=OFF -DOPENCL_SDK_BUILD_SAMPLES=ON -DOPENCL_SDK_TEST_SAMPLES=OFF -DCMAKE_C_FLAGS=-g -O3 -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -DCMAKE_CXX_FLAGS=-g -O3 -march=native -DHWY_COMPILE_ALL_ATTAINABLE -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF -DOPENCL_ICD_LOADER_BUILD_SHARED_LIBS=ON -DOPENCL_SDK_BUILD_OPENGL_SAMPLES=OFF -DOPENCL_SDK_BUILD_SAMPLES=OFF -DOPENCL_SDK_TEST_SAMPLES=OFF -DTHREADS_PREFER_PTHREAD_FLAG=ON -G Ninja
+$ cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DBUILD_DOCS=OFF -DBUILD_EXAMPLES=OFF -DOPENCL_SDK_BUILD_SAMPLES=ON -DOPENCL_SDK_TEST_SAMPLES=OFF -DCMAKE_C_FLAGS=-g -O3 -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -DCMAKE_CXX_FLAGS=-g -O3 -march=native -DHWY_COMPILE_ALL_ATTAINABLE -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF -DOPENCL_ICD_LOADER_BUILD_SHARED_LIBS=ON -DOPENCL_SDK_BUILD_OPENGL_SAMPLES=OFF -DOPENCL_SDK_BUILD_SAMPLES=OFF -DOPENCL_SDK_TEST_SAMPLES=OFF -DTHREADS_PREFER_PTHREAD_FLAG=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -489,7 +489,7 @@ Download Completed
 File extracted: leptonica-1.84.1.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --with-pic
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --with-pic
 $ make -j32
 $ make install
 
@@ -500,7 +500,7 @@ Download Completed
 File extracted: tesseract-5.3.4.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-doc --with-extra-includes=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-extra-libraries=/home/jman/tmp/ffmpeg-build-script/workspace/lib --with-pic --without-archive --without-curl
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-doc --with-extra-includes=/home/user/tmp/ffmpeg-build-script/workspace/include --with-extra-libraries=/home/user/tmp/ffmpeg-build-script/workspace/lib --with-pic --without-archive --without-curl
 $ make -j32
 $ make install
 
@@ -508,7 +508,7 @@ Building jpeg-turbo-git - version 575eddd
 ========================================================
 Cloning "jpeg-turbo-git" saving version "575eddd"
 Cloning completed: 575eddd
-$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED=ON -DENABLE_STATIC=ON -G Ninja
+$ cmake -S . -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED=ON -DENABLE_STATIC=ON -G Ninja
 $ ninja -j32
 $ ninja -j32 install
 build-ffmpeg.sh: line 1925: jpeg-turbo-git: command not found
@@ -517,7 +517,7 @@ Building rubberband-git - version 6c80b8d
 ========================================================
 Cloning "rubberband-git" saving version "6c80b8d"
 Cloning completed: 6c80b8d
-$ make -j32 PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace install-static
+$ make -j32 PREFIX=/home/user/tmp/ffmpeg-build-script/workspace install-static
 
 Building c-ares - version 1.27.0
 ========================================================
@@ -526,7 +526,7 @@ Download Completed
 File extracted: c-ares-1_27_0.tar.gz
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-debug --disable-warnings --with-pic
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-debug --disable-warnings --with-pic
 $ make -j32
 $ make install
 
@@ -534,7 +534,7 @@ Building lv2-git - version 1.18.10
 ========================================================
 Cloning "lv2-git" saving version "1.18.10"
 Cloning completed: 1.18.10
-Creating a Python virtual environment at /home/jman/tmp/ffmpeg-build-script/workspace/python_virtual_environment/lv2-git...
+Creating a Python virtual environment at /home/user/tmp/ffmpeg-build-script/workspace/python_virtual_environment/lv2-git...
 Activating the virtual environment...
 Installing Python packages: lxml Markdown Pygments rdflib...
 Collecting lxml
@@ -555,7 +555,7 @@ Installing collected packages: six, pyparsing, Pygments, Markdown, lxml, isodate
 Successfully installed Markdown-3.5.2 Pygments-2.17.2 isodate-0.6.1 lxml-5.1.0 pyparsing-3.1.2 rdflib-7.0.0 six-1.16.0
 Deactivating the virtual environment...
 Python virtual environment setup and package installation completed.
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Donline_docs=false -Dplugins=disabled -Dtests=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Donline_docs=false -Dplugins=disabled -Dtests=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -572,7 +572,7 @@ Downloading "https://gitlab.com/drobilla/serd/-/archive/v0.32.2/serd-v0.32.2.tar
 Download Completed
 File extracted: serd-0.32.2.tar.bz2
 
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dstatic=true -Ddocs=disabled -Dhtml=disabled -Dman=disabled -Dman_html=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtools=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dstatic=true -Ddocs=disabled -Dhtml=disabled -Dman=disabled -Dman_html=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtools=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -583,7 +583,7 @@ Download Completed
 File extracted: pcre2-10.43.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-jit --enable-valgrind --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --enable-jit --enable-valgrind --disable-shared
 $ make -j32
 $ make install
 
@@ -593,7 +593,7 @@ Downloading "https://gitlab.com/drobilla/zix/-/archive/v0.4.2/zix-v0.4.2.tar.bz2
 Download Completed
 File extracted: zix-0.4.2.tar.bz2
 
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbenchmarks=disabled -Ddocs=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtests_cpp=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Dbenchmarks=disabled -Ddocs=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtests_cpp=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -603,7 +603,7 @@ Downloading "https://gitlab.com/drobilla/sord/-/archive/c7f822f14aae0367e184c847
 Download Completed
 File extracted: sord-c7f822f1.tar.bz2
 
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dtests=disabled -Dtools=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dtests=disabled -Dtools=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -613,7 +613,7 @@ Downloading "https://gitlab.com/lv2/sratom/-/archive/v0.6.16/sratom-v0.6.16.tar.
 Download Completed
 File extracted: sratom-0.6.16.tar.bz2
 
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dhtml=disabled -Dsinglehtml=disabled -Dtests=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dhtml=disabled -Dsinglehtml=disabled -Dtests=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -623,7 +623,7 @@ Downloading "https://gitlab.com/lv2/lilv/-/archive/v0.24.24/lilv-v0.24.24.tar.bz
 Download Completed
 File extracted: lilv-0.24.24.tar.bz2
 
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dhtml=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtools=disabled
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddocs=disabled -Dhtml=disabled -Dsinglehtml=disabled -Dtests=disabled -Dtools=disabled
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -637,7 +637,7 @@ $ autoconf -f -W all,no-obsolete
 $ autoheader -f -W all
 $ automake -a -c -f -W all,no-portability
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-static --with-cpu=x86-64
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --enable-static --with-cpu=x86-64
 $ make -j32
 $ make install
 
@@ -648,7 +648,7 @@ Download Completed
 File extracted: jansson-2.14.tar.gz
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -659,7 +659,7 @@ Download Completed
 File extracted: jemalloc-5.3.0.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-debug --disable-doc --disable-fill --disable-log --disable-shared --disable-prof --disable-stats --enable-autogen --enable-static --enable-xmalloc
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-debug --disable-doc --disable-fill --disable-log --disable-shared --disable-prof --disable-stats --enable-autogen --enable-static --enable-xmalloc
 $ make -j32
 $ make install
 
@@ -668,7 +668,7 @@ Building cunit-git - version 2.1-3
 Cloning "cunit-git" saving version "2.1-3"
 Cloning completed: 2.1-3
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -682,7 +682,7 @@ Building sdl2-git - version b9ab326
 ========================================================
 Cloning "sdl2-git" saving version "b9ab326"
 Cloning completed: b9ab326
-$ cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_DISABLE_INSTALL_DOCS=ON -DSDL_CCACHE=ON -G Ninja
+$ cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_DISABLE_INSTALL_DOCS=ON -DSDL_CCACHE=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -693,7 +693,7 @@ Download Completed
 File extracted: libsndfile-1.2.2.tar.xz
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-static --with-pic --with-pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --enable-static --with-pic --with-pkgconfigdir=/home/user/tmp/ffmpeg-build-script/workspace/lib/pkgconfig
 $ make -j32
 $ make install
 
@@ -701,10 +701,10 @@ Building pulseaudio-git - version 17.0
 ========================================================
 Cloning "pulseaudio-git" saving version "17.0"
 Cloning completed: 17.0
-$ meson setup build --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddaemon=false -Ddoxygen=false -Dipv6=false -Dman=false -Dtests=false
+$ meson setup build --prefix=/home/user/tmp/ffmpeg-build-script/workspace --buildtype=release --default-library=static --strip -Ddaemon=false -Ddoxygen=false -Dipv6=false -Dman=false -Dtests=false
 $ ninja -j32 -C build
 $ ninja -C build install
-$ cp -f /home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu/pulseaudio/libpulsecommon-.0.so /usr/lib/x86_64-linux-gnu/pulseaudio/libpulsecommon-17.0.so
+$ cp -f /home/user/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu/pulseaudio/libpulsecommon-.0.so /usr/lib/x86_64-linux-gnu/pulseaudio/libpulsecommon-17.0.so
 $ ln -sf /usr/lib/x86_64-linux-gnu/pulseaudio/libpulsecommon-17.0.so /usr/lib/x86_64-linux-gnu
 
 Building libogg - version 1.3.5
@@ -714,7 +714,7 @@ Download Completed
 File extracted: libogg-1.3.5.tar.gz
 
 $ autoreconf -fi
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DCPACK_BINARY_DEB=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DCPACK_BINARY_DEB=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -725,7 +725,7 @@ Download Completed
 File extracted: libflac-1.4.3.tar.gz
 
 $ ./autogen.sh
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DINSTALL_CMAKE_CONFIG_MODULE=ON -DINSTALL_MANPAGES=OFF -DBUILD_CXXLIBS=ON -DBUILD_PROGRAMS=ON -DWITH_ASM=ON -DWITH_AVX=ON -DWITH_FORTIFY_SOURCE=ON -DWITH_STACK_PROTECTOR=ON -DWITH_OGG=ON -DENABLE_64_BIT_WORDS=ON -DBUILD_DOCS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DINSTALL_CMAKE_CONFIG_MODULE=ON -DINSTALL_MANPAGES=OFF -DBUILD_CXXLIBS=ON -DBUILD_PROGRAMS=ON -DWITH_ASM=ON -DWITH_AVX=ON -DWITH_FORTIFY_SOURCE=ON -DWITH_STACK_PROTECTOR=ON -DWITH_OGG=ON -DENABLE_64_BIT_WORDS=ON -DBUILD_DOCS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -736,7 +736,7 @@ Download Completed
 File extracted: libfdk-aac-2.0.3.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -747,7 +747,7 @@ Download Completed
 File extracted: vorbis-1.3.7.tar.gz
 
 $ ./autogen.sh
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DOGG_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DOGG_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib/libogg.so -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DOGG_INCLUDE_DIR=/home/user/tmp/ffmpeg-build-script/workspace/include -DOGG_LIBRARY=/home/user/tmp/ffmpeg-build-script/workspace/lib/libogg.so -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -758,7 +758,7 @@ Download Completed
 File extracted: opus-1.5.1.tar.gz
 
 $ autoreconf -fis
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -768,7 +768,7 @@ Downloading "https://github.com/hoene/libmysofa/archive/refs/tags/v1.3.2.tar.gz"
 Download Completed
 File extracted: libmysofa-1.3.2.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -779,7 +779,7 @@ Download Completed
 File extracted: libvpx-1.14.0.tar.gz
 
 $ sed -i s/#include "\.\/vpx_tpl\.h"/#include ".\/vpx\/vpx_tpl.h"/ vpx/vpx_ext_ratectrl.h
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --as=yasm --disable-unit-tests --disable-shared --disable-examples --enable-small --enable-multi-res-encoding --enable-webm-io --enable-libyuv --enable-vp8 --enable-vp9 --enable-postproc --enable-vp9-postproc --enable-better-hw-compatibility --enable-vp9-highbitdepth
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --as=yasm --disable-unit-tests --disable-shared --disable-examples --enable-small --enable-multi-res-encoding --enable-webm-io --enable-libyuv --enable-vp8 --enable-vp9 --enable-postproc --enable-vp9-postproc --enable-better-hw-compatibility --enable-vp9-highbitdepth
 $ make -j32
 $ make install
 
@@ -789,7 +789,7 @@ Downloading "https://salsa.debian.org/multimedia-team/opencore-amr/-/archive/deb
 Download Completed
 File extracted: opencore-amr-0.1.6-1.tar.bz2
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -799,7 +799,7 @@ Downloading "https://zenlayer.dl.sourceforge.net/project/lame/lame/3.100/lame-3.
 Download Completed
 File extracted: lame-3.100.tar.gz
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared --disable-gtktest --enable-nasm --with-libiconv-prefix=/usr
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared --disable-gtktest --enable-nasm --with-libiconv-prefix=/usr
 $ make -j32
 $ make install
 
@@ -813,7 +813,7 @@ $ ./autogen.sh
 $ mv configure.patched configure
 $ rm config.guess
 $ curl -sSLo config.guess https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-examples --disable-oggtest --disable-sdltest --disable-vorbistest --with-ogg=/home/jman/tmp/ffmpeg-build-script/workspace --with-ogg-includes=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-ogg-libraries=/home/jman/tmp/ffmpeg-build-script/workspace/lib --with-vorbis=/home/jman/tmp/ffmpeg-build-script/workspace --with-vorbis-includes=/home/jman/tmp/ffmpeg-build-script/workspace/include --with-vorbis-libraries=/home/jman/tmp/ffmpeg-build-script/workspace/lib --with-pic
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-examples --disable-oggtest --disable-sdltest --disable-vorbistest --with-ogg=/home/user/tmp/ffmpeg-build-script/workspace --with-ogg-includes=/home/user/tmp/ffmpeg-build-script/workspace/include --with-ogg-libraries=/home/user/tmp/ffmpeg-build-script/workspace/lib --with-vorbis=/home/user/tmp/ffmpeg-build-script/workspace --with-vorbis-includes=/home/user/tmp/ffmpeg-build-script/workspace/include --with-vorbis-libraries=/home/user/tmp/ffmpeg-build-script/workspace/lib --with-pic
 $ make -j32
 $ make install
 
@@ -827,7 +827,7 @@ Building av1-git - version 3.8.1
 ========================================================
 Cloning "av1-git" saving version "3.8.1"
 Cloning completed: 3.8.1
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCONFIG_AV1_DECODER=1 -DCONFIG_AV1_ENCODER=1 -DCONFIG_AV1_HIGHBITDEPTH=1 -DCONFIG_AV1_TEMPORAL_DENOISING=1 -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 -DENABLE_CCACHE=1 -DENABLE_EXAMPLES=0 -DENABLE_TESTS=0 -G Ninja /home/jman/tmp/ffmpeg-build-script/packages/av1
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCONFIG_AV1_DECODER=1 -DCONFIG_AV1_ENCODER=1 -DCONFIG_AV1_HIGHBITDEPTH=1 -DCONFIG_AV1_TEMPORAL_DENOISING=1 -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 -DENABLE_CCACHE=1 -DENABLE_EXAMPLES=0 -DENABLE_TESTS=0 -G Ninja /home/user/tmp/ffmpeg-build-script/packages/av1
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -839,7 +839,7 @@ Downloading "https://github.com/xiph/rav1e/archive/refs/tags/v0.7.1.tar.gz" savi
 Download Completed
 File extracted: rav1e-0.7.1.tar.gz
 
-$ cargo cinstall --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --library-type=staticlib --crt-static --release
+$ cargo cinstall --prefix=/home/user/tmp/ffmpeg-build-script/workspace --library-type=staticlib --crt-static --release
 
 Building avif - version 1.0.4
 ========================================================
@@ -847,7 +847,7 @@ Downloading "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v1.0.4.ta
 Download Completed
 File extracted: avif-1.0.4.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_DECODE=ON -DAVIF_CODEC_AOM_ENCODE=ON -DAVIF_ENABLE_GTEST=OFF -DAVIF_ENABLE_WERROR=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_DECODE=ON -DAVIF_CODEC_AOM_ENCODE=ON -DAVIF_ENABLE_GTEST=OFF -DAVIF_ENABLE_WERROR=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -856,7 +856,7 @@ Building kvazaar-git - version 2.3.0
 Cloning "kvazaar-git" saving version "2.3.0"
 Cloning completed: 2.3.0
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -867,7 +867,7 @@ Download Completed
 File extracted: libdvdread-6.1.3.tar.bz2
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-apidoc --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-apidoc --disable-shared
 $ make -j32
 $ make install
 
@@ -878,7 +878,7 @@ Download Completed
 File extracted: libudfread-1.1.2.tar.bz2
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -895,7 +895,7 @@ Download Completed
 File extracted: libbluray-1.3.4.tar.gz
 
 $ autoreconf -fi
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-doxygen-doc --disable-doxygen-dot --disable-doxygen-html --disable-doxygen-ps --disable-doxygen-pdf --disable-examples --disable-extra-warnings --disable-shared --without-libxml2
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-doxygen-doc --disable-doxygen-dot --disable-doxygen-html --disable-doxygen-ps --disable-doxygen-pdf --disable-examples --disable-extra-warnings --disable-shared --without-libxml2
 $ make -j32
 $ make install
 
@@ -906,7 +906,7 @@ Download Completed
 File extracted: zenlib-0.4.41.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -917,7 +917,7 @@ Download Completed
 File extracted: mediainfo-lib-24.01.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -928,10 +928,10 @@ Download Completed
 File extracted: mediainfo-cli-24.01.1.tar.gz
 
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-staticlibs --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --enable-staticlibs --disable-shared
 $ make -j32
 $ make install
-$ cp -f /home/jman/tmp/ffmpeg-build-script/packages/mediainfo-cli-24.01.1/Project/GNU/CLI/mediainfo /usr/local/bin/
+$ cp -f /home/user/tmp/ffmpeg-build-script/packages/mediainfo-cli-24.01.1/Project/GNU/CLI/mediainfo /usr/local/bin/
 
 Building vid-stab - version 1.1.1
 ========================================================
@@ -939,7 +939,7 @@ Downloading "https://github.com/georgmartius/vid.stab/archive/refs/tags/v1.1.1.t
 Download Completed
 File extracted: vid-stab-1.1.1.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -949,7 +949,7 @@ Downloading "https://github.com/dyne/frei0r/archive/refs/tags/v2.3.2.tar.gz" sav
 Download Completed
 File extracted: frei0r-2.3.2.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWITHOUT_OPENCV=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWITHOUT_OPENCV=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -957,7 +957,7 @@ Building gpac-git - version 2.2.1
 ========================================================
 Cloning "gpac-git" saving version "2.2.1"
 Cloning completed: 2.2.1
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --static-bin --static-modules --use-a52=local --use-faad=local --use-freetype=local --use-mad=local --sdl-cfg=/home/jman/tmp/ffmpeg-build-script/workspace/include/SDL3
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --static-bin --static-modules --use-a52=local --use-faad=local --use-freetype=local --use-mad=local --sdl-cfg=/home/user/tmp/ffmpeg-build-script/workspace/include/SDL3
 $ make -j32
 $ make install
 $ cp -f bin/gcc/MP4Box /usr/local/
@@ -968,7 +968,7 @@ Downloading "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v1.8.0/SVT-AV1-v1
 Download Completed
 File extracted: svt-av1-1.8.0.tar.bz2
 
-$ cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=ON -DBUILD_ENC=ON -DBUILD_TESTING=OFF -DENABLE_AVX512=OFF -DENABLE_NASM=ON -DNATIVE=ON -G Ninja
+$ cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=ON -DBUILD_ENC=ON -DBUILD_TESTING=OFF -DENABLE_AVX512=OFF -DENABLE_NASM=ON -DNATIVE=ON -G Ninja
 $ ninja -j32 -C Build/linux
 $ ninja -j32 -C Build/linux install
 
@@ -978,7 +978,7 @@ Downloading "https://code.videolan.org/videolan/x264/-/archive/be4f0200ed007c466
 Download Completed
 File extracted: x264-be4f0200.tar.bz2
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --bit-depth=all --chroma-format=all --enable-debug --enable-gprof --enable-lto --enable-pic --enable-static --enable-strip CFLAGS=-g -O3 -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I/home/jman/tmp/ffmpeg-build-script/workspace/include/serd-0 -fPIC CXXFLAGS=-g -O3 -march=native -DHWY_COMPILE_ALL_ATTAINABLE
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --bit-depth=all --chroma-format=all --enable-debug --enable-gprof --enable-lto --enable-pic --enable-static --enable-strip CFLAGS=-g -O3 -march=native -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I/home/user/tmp/ffmpeg-build-script/workspace/include/serd-0 -fPIC CXXFLAGS=-g -O3 -march=native -DHWY_COMPILE_ALL_ATTAINABLE
 $ make -j32
 $ make install
 $ make install-lib-static
@@ -990,13 +990,13 @@ Download Completed
 File extracted: x265-3.5.tar.gz
 
 $ making 12bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBVMAF=OFF -DENABLE_CLI=OFF -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DMAIN12=ON -G Ninja -Wno-dev
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBVMAF=OFF -DENABLE_CLI=OFF -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DMAIN12=ON -G Ninja -Wno-dev
 $ ninja -j32
 $ making 10bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBVMAF=OFF -DENABLE_CLI=OFF -DENABLE_HDR10_PLUS=ON -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBVMAF=OFF -DENABLE_CLI=OFF -DENABLE_HDR10_PLUS=ON -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
 $ ninja -j32
 $ making 8bit binaries
-$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBVMAF=OFF -DENABLE_PIC=ON -DENABLE_SHARED=ON -DEXTRA_LIB=x265_main10.a;x265_main12.a -DEXTRA_LINK_FLAGS=-L. -DHIGH_BIT_DEPTH=ON -DLINKED_10BIT=ON -DLINKED_12BIT=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
+$ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBVMAF=OFF -DENABLE_PIC=ON -DENABLE_SHARED=ON -DEXTRA_LIB=x265_main10.a;x265_main12.a -DEXTRA_LINK_FLAGS=-L. -DHIGH_BIT_DEPTH=ON -DLINKED_10BIT=ON -DLINKED_12BIT=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
 $ ninja -j32
 $ ar -M
 $ ninja install
@@ -1008,7 +1008,7 @@ Download Completed
 File extracted: nv-codec-headers-12.1.14.0.tar.gz
 
 $ make -j32
-$ make PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace install
+$ make PREFIX=/home/user/tmp/ffmpeg-build-script/workspace install
 
 Building srt - version 1.5.3
 ========================================================
@@ -1016,7 +1016,7 @@ Downloading "https://github.com/Haivision/srt/archive/refs/tags/v1.5.3.tar.gz" s
 Download Completed
 File extracted: srt-1.5.3.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DENABLE_APPS=OFF -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DUSE_STATIC_LIBSTDCXX=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DENABLE_APPS=OFF -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DUSE_STATIC_LIBSTDCXX=ON -G Ninja
 $ ninja -C build -j32
 $ ninja -C build -j32 install
 
@@ -1026,7 +1026,7 @@ Downloading "https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v3.7.3.t
 Download Completed
 File extracted: avisynth-3.7.3.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DHEADERS_ONLY=OFF
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DHEADERS_ONLY=OFF
 $ make -j32 -C build VersionGen install
 
 Building vapoursynth - version R65
@@ -1035,7 +1035,7 @@ Downloading "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R65.ta
 Download Completed
 File extracted: vapoursynth-R65.tar.gz
 
-Creating a Python virtual environment at /home/jman/tmp/ffmpeg-build-script/workspace/python_virtual_environment/vapoursynth...
+Creating a Python virtual environment at /home/user/tmp/ffmpeg-build-script/workspace/python_virtual_environment/vapoursynth...
 Activating the virtual environment...
 Installing Python packages: Cython==0.29.36...
 Collecting Cython==0.29.36
@@ -1045,7 +1045,7 @@ Successfully installed Cython-0.29.36
 Deactivating the virtual environment...
 Python virtual environment setup and package installation completed.
 $ ./autogen.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --disable-shared
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace --disable-shared
 $ make -j32
 $ make install
 
@@ -1054,7 +1054,7 @@ Building libgav1-git - version 0.19.0
 Cloning "libgav1-git" saving version "0.19.0"
 Cloning completed: 0.19.0
 $ git clone -q -b 20220623.1 --depth 1 https://github.com/abseil/abseil-cpp.git third_party/abseil-cpp
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DABSL_ENABLE_INSTALL=ON -DABSL_PROPAGATE_CXX_STD=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DABSL_ENABLE_INSTALL=ON -DABSL_PROPAGATE_CXX_STD=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -1065,7 +1065,7 @@ Download Completed
 File extracted: xvidcore-1.3.7-1.tar.bz2
 
 $ ./bootstrap.sh
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
+$ ./configure --prefix=/home/user/tmp/ffmpeg-build-script/workspace
 $ make -j32
 $ make install
 
@@ -1081,7 +1081,7 @@ Downloading "https://github.com/strukturag/libheif/archive/refs/tags/v1.17.6.tar
 Download Completed
 File extracted: libheif-1.17.6.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DAOM_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DAOM_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib/libaom.a -DLIBDE265_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include -DLIBDE265_LIBRARY=/usr/lib/x86_64-linux-gnu/libde265.so -DLIBSHARPYUV_INCLUDE_DIR=/home/jman/tmp/ffmpeg-build-script/workspace/include/webp -DLIBSHARPYUV_LIBRARY=/home/jman/tmp/ffmpeg-build-script/workspace/lib/libsharpyuv.so -DWITH_AOM_DECODER=ON -DWITH_AOM_ENCODER=ON -DWITH_DAV1D=OFF -DWITH_EXAMPLES=OFF -DWITH_GDK_PIXBUF=ON -DWITH_LIBDE265=ON -DWITH_X265=OFF -DWITH_LIBSHARPYUV=ON -DWITH_REDUCED_VISIBILITY=OFF -DWITH_SvtEnc=OFF -DWITH_SvtEnc_PLUGIN=OFF -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DAOM_INCLUDE_DIR=/home/user/tmp/ffmpeg-build-script/workspace/include -DAOM_LIBRARY=/home/user/tmp/ffmpeg-build-script/workspace/lib/libaom.a -DLIBDE265_INCLUDE_DIR=/home/user/tmp/ffmpeg-build-script/workspace/include -DLIBDE265_LIBRARY=/usr/lib/x86_64-linux-gnu/libde265.so -DLIBSHARPYUV_INCLUDE_DIR=/home/user/tmp/ffmpeg-build-script/workspace/include/webp -DLIBSHARPYUV_LIBRARY=/home/user/tmp/ffmpeg-build-script/workspace/lib/libsharpyuv.so -DWITH_AOM_DECODER=ON -DWITH_AOM_ENCODER=ON -DWITH_DAV1D=OFF -DWITH_EXAMPLES=OFF -DWITH_GDK_PIXBUF=ON -DWITH_LIBDE265=ON -DWITH_X265=OFF -DWITH_LIBSHARPYUV=ON -DWITH_REDUCED_VISIBILITY=OFF -DWITH_SvtEnc=OFF -DWITH_SvtEnc_PLUGIN=OFF -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -1091,7 +1091,7 @@ Downloading "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/v2.
 Download Completed
 File extracted: openjpeg-2.5.2.tar.gz
 
-$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DBUILD_THIRDPARTY=ON -G Ninja
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=/home/user/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DBUILD_THIRDPARTY=ON -G Ninja
 $ ninja -j32 -C build
 $ ninja -C build install
 
@@ -1109,7 +1109,7 @@ Building ffmpeg-git - version n6.1.1
 Cloning "ffmpeg-git" saving version "n6.1.1"
 Cloning completed: n6.1.1
 install prefix            /usr/local
-source path               /home/jman/tmp/ffmpeg-build-script/packages/ffmpeg
+source path               /home/user/tmp/ffmpeg-build-script/packages/ffmpeg
 C compiler                gcc
 C library                 glibc
 ARCH                      x86 (generic)
@@ -1498,7 +1498,7 @@ Do you want to print the installed FFmpeg & FFprobe versions? (yes/no): yes
 
 ffmpeg version git-2024-03-10-2c82ec9 Copyright (c) 2000-2024 the FFmpeg developers
 built with gcc 12 (Debian 12.2.0-14)
-configuration: --prefix=/usr/local --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-ladspa --enable-gpl --enable-libsmbclient --enable-libcdio --enable-nonfree --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libtesseract --enable-librubberband --enable-lv2 --enable-libpulse --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvdec --enable-nvenc --enable-ffnvcodec --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-chromaprint --enable-libbs2b --enable-libcaca --enable-libgme --enable-libmodplug --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-libzvbi --enable-lto --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-version3 --extra-cflags='-g -O3 -march=native' --extra-cxxflags='-g -O3 -march=native' --extra-libs='-ldl -lpthread -lm -lz' --extra-ldflags=-pie --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/bin/strip
+configuration: --prefix=/usr/local --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-ladspa --enable-gpl --enable-libsmbclient --enable-libcdio --enable-nonfree --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libtesseract --enable-librubberband --enable-lv2 --enable-libpulse --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvdec --enable-nvenc --enable-ffnvcodec --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-chromaprint --enable-libbs2b --enable-libcaca --enable-libgme --enable-libmodplug --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-libzvbi --enable-lto --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-version3 --extra-cflags='-g -O3 -march=native' --extra-cxxflags='-g -O3 -march=native' --extra-libs='-ldl -lpthread -lm -lz' --extra-ldflags=-pie --pkg-config-flags=--static --pkg-config=/home/user/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/user/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/bin/strip
 libavutil      59.  1.100 / 59.  1.100
 libavcodec     61.  1.100 / 61.  1.100
 libavformat    61.  0.100 / 61.  0.100
@@ -1510,7 +1510,7 @@ libpostproc    58.  0.100 / 58.  0.100
 
 ffprobe version git-2024-03-10-2c82ec9 Copyright (c) 2007-2024 the FFmpeg developers
 built with gcc 12 (Debian 12.2.0-14)
-configuration: --prefix=/usr/local --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-ladspa --enable-gpl --enable-libsmbclient --enable-libcdio --enable-nonfree --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libtesseract --enable-librubberband --enable-lv2 --enable-libpulse --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvdec --enable-nvenc --enable-ffnvcodec --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-chromaprint --enable-libbs2b --enable-libcaca --enable-libgme --enable-libmodplug --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-libzvbi --enable-lto --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-version3 --extra-cflags='-g -O3 -march=native' --extra-cxxflags='-g -O3 -march=native' --extra-libs='-ldl -lpthread -lm -lz' --extra-ldflags=-pie --pkg-config-flags=--static --pkg-config=/home/jman/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/bin/strip
+configuration: --prefix=/usr/local --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-doc --disable-large-tests --disable-shared --enable-ladspa --enable-gpl --enable-libsmbclient --enable-libcdio --enable-nonfree --enable-openssl --enable-libxml2 --enable-libaribb24 --enable-libfreetype --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libwebp --enable-lcms2 --enable-libtesseract --enable-librubberband --enable-lv2 --enable-libpulse --enable-libfdk-aac --enable-libvorbis --enable-libopus --enable-libmysofa --enable-libvpx --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libaom --enable-librav1e --enable-libkvazaar --enable-libbluray --enable-libvidstab --enable-frei0r --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvdec --enable-nvenc --enable-ffnvcodec --nvccflags='-gencode arch=compute_86,code=sm_86' --enable-libsrt --enable-avisynth --enable-vapoursynth --enable-libxvid --enable-libopenjpeg --enable-chromaprint --enable-libbs2b --enable-libcaca --enable-libgme --enable-libmodplug --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-libzvbi --enable-lto --enable-opengl --enable-pic --enable-pthreads --enable-small --enable-static --enable-version3 --extra-cflags='-g -O3 -march=native' --extra-cxxflags='-g -O3 -march=native' --extra-libs='-ldl -lpthread -lm -lz' --extra-ldflags=-pie --pkg-config-flags=--static --pkg-config=/home/user/tmp/ffmpeg-build-script/workspace/bin/pkg-config --pkgconfigdir=/home/user/tmp/ffmpeg-build-script/workspace/lib/pkgconfig --strip=/bin/strip
 libavutil      59.  1.100 / 59.  1.100
 libavcodec     61.  1.100 / 61.  1.100
 libavformat    61.  0.100 / 61.  0.100
