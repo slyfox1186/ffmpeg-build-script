@@ -1,8 +1,6 @@
-### If you like the script, please $\textcolor{yellow}{\textsf{★}}$ this project!
-
 # FFmpeg Build Script Guide
 
-If you find this script useful, please star (★) this project!
+If you find this script useful, please $\textcolor{yellow}{\textsf{★}}$ this project!
 
 ## Introduction
 
