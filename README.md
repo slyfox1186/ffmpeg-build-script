@@ -44,7 +44,7 @@ bash <(curl -fsSL https://ffmpeg.optimizethis.net&rpar) --build --latest
 
 The **NDI build script** offers functionality not officially supported by FFmpeg or NDI developers. Use it within legal boundaries and at your own risk.
 
-[NDI Build Script](https://github.com/slyfox1186/script-repo/blob/main/Bash/Installer%20Scripts/FFmpeg/build-ffmpeg-NDI)
+You can find the NDI build script at this [Link](https://github.com/slyfox1186/script-repo/blob/main/Bash/Installer%20Scripts/FFmpeg/build-ffmpeg-NDI)
 
 ## Supported Codecs and Features
 
