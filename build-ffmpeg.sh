@@ -2682,8 +2682,8 @@ fi
 
 if $NONFREE_AND_GPL; then
     if build "x265" "3.5"; then
-        fix_libstd_libs
         download "https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz" "x265-3.5.tar.gz"
+        fix_libstd_libs
         cd build/linux || exit 1
         rm -fr {8,10,12}bit 2>/dev/null
         mkdir -p {8,10,12}bit
