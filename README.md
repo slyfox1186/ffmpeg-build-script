@@ -33,13 +33,6 @@ cd ffmpeg-build-script || exit
 sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
 ```
 
-### Quick Installation
-
-Run the following command for a fast setup:
-```bash
-bash <(curl -fsSL https://ffmpeg.optimizethis.net&rpar) --build --latest
-```
-
 ### NDI Support
 
 The **NDI build script** offers functionality not officially supported by FFmpeg or NDI developers. Use it within legal boundaries and at your own risk.
