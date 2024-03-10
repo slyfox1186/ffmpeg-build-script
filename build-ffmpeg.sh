@@ -879,14 +879,14 @@ cuda_download() {
         package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.$pkg_ext"
         wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
         dpkg -i "$package_name"
-        cp -f "/var/cuda-repo-${distro}${version}-local/cuda-*-keyring.gpg" "/usr/share/keyrings/"
+        cp -f /var/cuda-repo-${distro}${version}-local/cuda-*-keyring.gpg "/usr/share/keyrings/"
         [[ "$distro" == "debian"* ]] && add-apt-repository -y contrib
     elif [[ "$pkg_ext" == "pin" ]]; then
         wget --show-progress -cqO "/etc/apt/preferences.d/cuda-repository-pin-600" "$cuda_pin_url/$pin_file"
         package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.deb"
         wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
         dpkg -i "$package_name"
-        cp -f "/var/cuda-repo-${distro}-12-4-local/cuda-*-keyring.gpg" "/usr/share/keyrings/"
+        cp -f /var/cuda-repo-${distro}-12-4-local/cuda-*-keyring.gpg "/usr/share/keyrings/"
     fi
 
     apt-get update
