@@ -32,7 +32,7 @@ git clone https://github.com/slyfox1186/ffmpeg-build-script.git
 cd ffmpeg-build-script || exit
 sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
 ```
-   
+
 ### Quick Installation
 
 Run the following command for a fast setup:
@@ -159,10 +159,10 @@ The script provides options for hardware acceleration using Nvidia's CUDA SDK To
         * MPEG2 video `mpeg2_vaapi`
         * VP8 `vp8_vaapi`
         * VP9 `vp9_vaapi`
-* `AMF`: [AMD's Advanced Media Framework](https://github.com/GPUOpen-LibrariesAndSDKs/AMF). These encoders will only 
-  be available if `amdgpu` drivers are detected in use on the system with `lspci -v`. 
+* `AMF`: [AMD's Advanced Media Framework](https://github.com/GPUOpen-LibrariesAndSDKs/AMF). These encoders will only
+  be available if `amdgpu` drivers are detected in use on the system with `lspci -v`.
     * Encoders
-        * H264 `h264_amf` 
+        * H264 `h264_amf`
 
 ## Requirements
 
@@ -1475,7 +1475,7 @@ License: nonfree and unredistributable
 $ make -j32
 $ make install
 ============================================
-               FFmpeg Version               
+               FFmpeg Version
 ============================================
 
 ffmpeg version 5.1.3-963937e Copyright (c) 2000-2022 the FFmpeg developers
@@ -1492,13 +1492,13 @@ libpostproc    56.  6.100 / 56.  6.100
 
 Would you like to install the static binaries system-wide? [/usr/local/bin]
 
-[1] Yes 
+[1] Yes
 [2] No
 
 Your choices are (1 or 2): 1
 
 ============================================
-  Do you want to clean up the build files?  
+  Do you want to clean up the build files?
 ============================================
 
 [1] Yes
