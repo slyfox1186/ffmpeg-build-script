@@ -9,13 +9,12 @@
 
 The FFmpeg build script provides an easy way to build a **$\textcolor{yellow}{\textsf{Static FFmpeg binary}}$** with **$\textcolor{magenta}{\textsf{non-free and GPL codecs}}$** by parsing and downloading the latest release version of each repository.
   - [FFmpeg Legal Documents](https://ffmpeg.org/legal.html)
-  - **The $\textcolor{cyan}{\textsf{CUDA SDK Toolkit}}$** which unlocks **$\textcolor{yellow}{\textsf{Hardware Acceleration}}$** is available during the installation to make things as easy as possible**
+  - The **$\textcolor{yellow}{\textsf{CUDA SDK Toolkit}}$** which unlocks **$\textcolor{yellow}{\textsf{Hardware Acceleration}}$** is available during the installation to make things as easy as possible.
 
 Supported OS:
-  - Arch Linux
-  - Debian - 11/12
-  - Ubuntu - (20/22/23).04
-  - Other debian style distros may work as well
+  - $\textcolor{orange}{\textsf{Arch Linux}}$
+  - $\textcolor{orange}{\textsf{Debian}}$  $\textcolor{white}{\textsf{-}}$ $\textcolor{white}{\textsf{11}}$ | $\textcolor{white}{\textsf{12}}$
+  - $\textcolor{orange}{\textsf{Ubuntu}}$  $\textcolor{white}{\textsf{-}}$ $\textcolor{white}{\textsf{20}}$ | $\textcolor{white}{\textsf{22}}$ | $\textcolor{white}{\textsf{23.04}}$
 
 ## Disclaimer And Data Privacy Notice
 
