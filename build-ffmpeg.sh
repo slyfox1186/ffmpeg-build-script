@@ -115,7 +115,7 @@ cleanup() {
     esac
 }
 
-show_installed_versions() {
+display_ffmpeg_versions() {
     echo
     local versions=("ffmpeg" "ffprobe" "ffplay")
     for version in ${versions[@]}; do
@@ -126,76 +126,25 @@ show_installed_versions() {
     done
 }
 
-show_versions() {
+prompt_ffmpeg_versions() {
     local choice
 
     echo
     read -p "Do you want to print the installed FFmpeg & FFprobe versions? (yes/no): " choice
 
     case "$choice" in
-        yes|y) show_installed_versions ;;
+        yes|y) display_ffmpeg_versions ;;
         no|n)  ;;
     esac
-}
-
-download() {
-    download_path="$packages"
-    download_url="$1"
-    download_file="${2:-"${1##*/}"}"
-
-    if [[ "$download_file" =~ tar. ]]; then
-        output_directory="${download_file%.*}"
-        output_directory="${3:-"${output_directory%.*}"}"
-    else
-        output_directory="${3:-"${download_file%.*}"}"
-    fi
-
-    target_file="$download_path/$download_file"
-    target_directory="$download_path/$output_directory"
-
-    if [[ -f "$target_file" ]]; then
-        echo "$download_file is already downloaded."
-    else
-        echo "Downloading \"$download_url\" saving as \"$download_file\""
-        if ! curl -sSLo "$target_file" "$download_url"; then
-            echo
-            warn "Failed to download \"$download_file\". Second attempt in 10 seconds..."
-            echo
-            sleep 10
-            if ! curl -sSLo "$target_file" "$download_url"; then
-                fail "Failed to download \"$download_file\". Exiting... Line: $LINENO"
-            fi
-        fi
-        echo "Download Completed"
-    fi
-
-    rm -fr "$target_directory" 2>/dev/null
-    mkdir -p "$target_directory"
-
-    if [[ -n "$3" ]]; then
-        if ! tar -xf "$target_file" -C "$target_directory" 2>/dev/null; then
-           rm "$target_file"
-           fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
-        fi
-    else
-        if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 2>/dev/null; then
-            rm "$target_file"
-            fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
-        fi
-    fi
-
-    printf "%s\n\n" "File extracted: $download_file"
-
-    cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
 }
 
 # Function to ensure no cargo or rustc processes are running
 ensure_no_cargo_or_rustc_processes() {
     local running_processes=$(pgrep -fl 'cargo|rustc')
     if [ -n "$running_processes" ]; then
-        echo -e "${YELLOW}Waiting for cargo or rustc processes to finish...${NC}"
+        warn "Waiting for cargo or rustc processes to finish..."
         while pgrep -x cargo &>/dev/null || pgrep -x rustc &>/dev/null; do
-            sleep 5
+            sleep 3
         done
         log "No cargo or rustc processes running."
     fi
@@ -221,17 +170,21 @@ check_and_install_cargo_c() {
     fi
 }
 
+install_windows_hardware_acceleration() {
+    curl -fsSLo "$workspace/include/dxva2api.h" "https://download.videolan.org/pub/contrib/dxva2api.h"
+    curl -fsSLo "$workspace/include/objbase.h" "https://raw.githubusercontent.com/wine-mirror/wine/master/include/objbase.h"
+    cp -f "$workspace/include/objbase.h" "$workspace/include/dxva2api.h" "/usr/include"
+}
+
 install_rustc() {
     get_rustc_ver=$(rustc --version |
                     grep -Eo '[0-9 \.]+' |
                     head -n1)
-    if [[ "$get_rustc_ver" != "1.75.0" ]]; then
+    if [[ ! "$get_rustc_ver" == "1.76.0" ]]; then
         echo "Installing RustUp"
-        curl -sS --proto "=https" --tlsv1.2 "https://sh.rustup.rs" | sh -s -- -y &>/dev/null
+        curl -fsS --proto '=https' --tlsv1.2 https://sh.rustup.rs | sh -s -- --default-toolchain stable -y &>/dev/null
         source "$HOME/.cargo/env"
-        if [[ -f "$HOME/.zshrc" ]]; then
-            source "$HOME/.zshrc"
-        else
+        if ! source "$HOME/.zshrc"; then
             source "$HOME/.bashrc"
         fi
     fi
@@ -246,6 +199,57 @@ check_ffmpeg_version() {
                          sort -rV |
                          head -n1)
     echo "$ffmpeg_git_version"
+}
+
+download() {
+    download_path="$packages"
+    download_url="$1"
+    download_file="${2:-"${1##*/}"}"
+
+    if [[ "$download_file" =~ tar. ]]; then
+        output_directory="${download_file%.*}"
+        output_directory="${3:-"${output_directory%.*}"}"
+    else
+        output_directory="${3:-"${download_file%.*}"}"
+    fi
+
+    target_file="$download_path/$download_file"
+    target_directory="$download_path/$output_directory"
+
+    if [[ -f "$target_file" ]]; then
+        echo "$download_file is already downloaded."
+    else
+        echo "Downloading \"$download_url\" saving as \"$download_file\""
+        if ! curl -fsSLo "$target_file" "$download_url"; then
+            echo
+            warn "Failed to download \"$download_file\". Second attempt in 10 seconds..."
+            echo
+            sleep 10
+            if ! curl -fsSLo "$target_file" "$download_url"; then
+                fail "Failed to download \"$download_file\". Exiting... Line: $LINENO"
+            fi
+        fi
+        echo "Download Completed"
+    fi
+
+    rm -fr "$target_directory" 2>/dev/null
+    mkdir -p "$target_directory"
+
+    if [[ -n "$3" ]]; then
+        if ! tar -xf "$target_file" -C "$target_directory" 2>/dev/null; then
+           rm "$target_file"
+           fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
+        fi
+    else
+        if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 2>/dev/null; then
+            rm "$target_file"
+            fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
+        fi
+    fi
+
+    printf "%s\n\n" "File extracted: $download_file"
+
+    cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
 }
 
 git_caller() {
@@ -323,9 +327,9 @@ git_clone() {
         # Clone the repository
         if ! git clone --depth 1 $recurse -q "$repo_url" "$target_directory"; then
             echo
-            echo -e "${RED}[ERROR]${NC} Failed to clone \"$target_directory\". Second attempt in 10 seconds..."
+            warn "Failed to clone \"$target_directory\". Second attempt in 10 seconds..."
             echo
-            sleep 10
+            sleep 3
             if ! git clone --depth 1 $recurse -q "$repo_url" "$target_directory"; then
                 fail "Failed to clone \"$target_directory\". Exiting script. Line: $LINENO"
             fi
@@ -340,7 +344,7 @@ git_clone() {
 # Parse each git repoitory to find the latest release version number for each program
 gnu_repo() {
     local url="$1"
-    version=$(curl -sS "$url" |
+    version=$(curl -fsS "$url" |
               grep -oP '[a-z]+-\K(([0-9\.]*[0-9]+)){2,}' |
               sort -rV |
               head -n1)
@@ -364,11 +368,11 @@ github_repo() {
 
     while [ $count -le $max_attempts ]; do
         if [[ "$url_flag" -eq 1 ]]; then
-            curl_cmd=$(curl -sSL "https://github.com/xiph/rav1e/tags" |
+            curl_cmd=$(curl -fsSL "https://github.com/xiph/rav1e/tags" |
                        grep -Eo 'href="[^"]*v?[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz"' |
                        head -n1)
         else
-            curl_cmd=$(curl -sSL "https://github.com/$repo/$url" | grep -o 'href="[^"]*\.tar\.gz"')
+            curl_cmd=$(curl -fsSL "https://github.com/$repo/$url" | grep -o 'href="[^"]*\.tar\.gz"')
         fi
 
         # Extract the specific line
@@ -387,7 +391,7 @@ github_repo() {
 
     # Deny installing a release candidate
     while [[ $repo_version =~ $GIT_REGEX ]]; do
-        curl_cmd=$(curl -sSL "https://github.com/$repo/$url" | grep -o 'href="[^"]*\.tar\.gz"')
+        curl_cmd=$(curl -fsSL "https://github.com/$repo/$url" | grep -o 'href="[^"]*\.tar\.gz"')
 
         # Extract the specific line
         line=$(echo "$curl_cmd" | grep -o 'href="[^"]*\.tar\.gz"' | sed -n "${count}p")
@@ -697,7 +701,7 @@ check_remote_cuda_version() {
     local url="https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html"
 
     # Use curl to fetch the HTML content of the page
-    local content=$(curl -sS "$url")
+    local content=$(curl -fsS "$url")
 
     # Parse the version directly from the fetched content
     local cuda_regex='CUDA\ ([0-9]+\.[0-9]+)(\ Update\ ([0-9]+))?'
@@ -1133,7 +1137,7 @@ find_latest_nasm_version() {
     local url="https://www.nasm.us/pub/nasm/stable/"
 
     # Fetch the HTML, extract links, sort them, and get the last one
-    local latest_version=$(curl -s $url |
+    local latest_version=$(curl -fsS $url |
                            grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
                            sort -rV |
                            head -n1)
@@ -1151,7 +1155,7 @@ find_latest_nasm_version() {
 latest_nasm_version=$(find_latest_nasm_version)
 
 get_openssl_version() {
-    repo_version=$(curl -s "https://www.openssl.org/source/" |
+    repo_version=$(curl -fsS "https://www.openssl.org/source/" |
                    grep -oP 'openssl-3.1.[0-9]+.tar.gz' |
                    sort -rV |
                    head -n1 |
@@ -1160,7 +1164,7 @@ get_openssl_version() {
 
 # Patch functions
 patch_ffmpeg() {
-    execute curl -sSLo "mathops.patch" "https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/patches/mathops.patch"
+    execute curl -fsSLo "mathops.patch" "https://raw.githubusercontent.com/slyfox1186/ffmpeg-build-script/main/patches/mathops.patch"
     execute patch -d "libavcodec/x86" -i "../../mathops.patch"
 }
 
@@ -1197,7 +1201,7 @@ arch_os_ver() {
         echo "Pacman lock file found. Checking if Pacman is running..."
         while pgrep -x pacman >/dev/null; do
             echo "Pacman is currently running. Waiting for it to finish..."
-            sleep 5
+            sleep 3
         done
 
         if ! pgrep -x pacman >/dev/null; then
@@ -2324,7 +2328,7 @@ if build "libtheora" "1.1.1"; then
     chmod +x configure.patched
     execute mv configure.patched configure
     execute rm config.guess
-    execute curl -sSLo "config.guess" "https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess"
+    execute curl -fsSLo "config.guess" "https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess"
     chmod +x config.guess
     execute ./configure --prefix="$workspace" \
                         --disable-examples \
@@ -2953,10 +2957,11 @@ else
     ladspa_switch="--enable-ladspa"
 fi
 
-curl -sSLo "$workspace/include/dxva2api.h" "https://download.videolan.org/pub/contrib/dxva2api.h"
-cp -f "$workspace/include/dxva2api.h" "/usr/include"
-curl -sSLo "$workspace/include/objbase.h" "https://raw.githubusercontent.com/wine-mirror/wine/master/include/objbase.h"
-cp -f "$workspace/include/objbase.h" "$workspace"
+# Get DXVA2 and other essential windows header files
+get_wsl_version
+if [[ "$wsl_flag=" == "yes_wsl" ]]; then
+    install_windows_hardware_acceleration
+fi
 
 # Check the last build version of ffmpeg if it exists to determine if an update has occured
 if [[ -f "$packages/ffmpeg-git.done" ]]; then
@@ -3045,7 +3050,7 @@ fi
 ldconfig 2>/dev/null
 
 # Display the version of each of the programs
-show_versions
+prompt_ffmpeg_versions
 
 # Prompt the user to clean up the build files
 cleanup
