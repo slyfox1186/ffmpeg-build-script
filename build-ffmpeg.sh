@@ -108,33 +108,39 @@ cleanup() {
             ;;
         [nN]*|[nN][oO]*)
             ;;
-        *)
-            unset choice
+        *)  unset choice
             cleanup
             ;;
     esac
 }
 
 display_ffmpeg_versions() {
+    local file
+    local files=(ffmpeg ffprobe ffplay)
+
     echo
-    local versions=("ffmpeg" "ffprobe" "ffplay")
-    for version in ${versions[@]}; do
-        if command -v "$version" >/dev/null 2>&1; then
-            "$version" -version
+    for file in ${files[@]}; do
+        if command -v "$file" >/dev/null 2>&1; then
+            "$file" -version
             echo
         fi
     done
 }
 
-prompt_ffmpeg_versions() {
+prompt_show_versions() {
     local choice
 
     echo
-    read -p "Do you want to print the installed FFmpeg & FFprobe versions? (yes/no): " choice
+    read -p "Display the installed versions? (yes/no): " choice
 
     case "$choice" in
-        yes|y) display_ffmpeg_versions ;;
-        no|n)  ;;
+        [yY]*|[yY][eE][sS]*)
+            display_ffmpeg_versions ;;
+        [nN]*|[nN][oO]*)
+            ;;
+        *)  unset choice
+            prompt_show_versions
+            ;;
     esac
 }
 
@@ -3057,7 +3063,7 @@ fi
 ldconfig
 
 # Display the version of each of the programs
-prompt_ffmpeg_versions
+prompt_show_versions
 
 # Prompt the user to clean up the build files
 cleanup
