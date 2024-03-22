@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
-##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-##  Script version: 3.5.3
-##  Updated: 03.16.24
-##  Purpose: build ffmpeg from source code with addon development libraries
-##           also compiled from source to help ensure the latest functionality
-##  Supported Distros: Arch Linux
-##                     Debian 11|12
-##                     Ubuntu (20|22|23).04 & 23.10
-##  Supported architecture: x86_64
-##  CUDA SDK Toolkit: Updated to version 12.4.0
+## GitHub: https://github.com/slyfox1186/ffmpeg-build-script
+## Script version: 3.5.3
+## Updated: 03.16.24
+## Purpose: build ffmpeg from source code with addon development libraries
+##          also compiled from source to help ensure the latest functionality
+## Supported Distros: Arch Linux
+##                    Debian 11|12
+##                    Ubuntu (20|22|23).04 & 23.10
+## Supported architecture: x86_64
+## CUDA SDK Toolkit: Updated to version 12.4.0
+## Fixed: Removed a hidden binary symbol in script that should not have been there
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script with root or sudo."
@@ -1303,7 +1304,7 @@ ubuntu_os_version() {
 
     ubuntu_common_pkgs=(cppcheck libamd2 libcamd2 libccolamd2 libcholmod3
                               libcolamd2 libsuitesparseconfig5 libumfpack5)
-    focal_pkgs=(libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev
+    focal_pkgs=(libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev
                       libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev
                       libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1
                       libyuv-dev nvidia-utils-535)
