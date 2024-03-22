@@ -11,7 +11,7 @@
 ##                    Ubuntu (20|22|23).04 & 23.10
 ## Supported architecture: x86_64
 ## CUDA SDK Toolkit: Updated to version 12.4.0
-## Fixed: Removed a hidden binary symbol in script that should not have been there
+## Fixed: Removed a hidden binary symbol in the script that should not have been there
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script with root or sudo."
