@@ -2,8 +2,8 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.5.3
-# Updated: 03.16.24
+# Script version: 3.5.4
+# Updated: 03.22.24
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
 # Supported Distros: Arch Linux
@@ -11,7 +11,6 @@
 #                    Ubuntu (20|22|23).04 & 23.10
 # Supported architecture: x86_64
 # CUDA SDK Toolkit: Updated to version 12.4.0
-# Fixed: Removed a hidden binary symbol in the script that should not have been there
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script with root or sudo."
@@ -1262,16 +1261,16 @@ arch_os_ver() {
 debian_msft() {
     get_os_version
     case "$VER" in
-        11) apt_pkgs "${debian_pkgs[@]}" "$debian_wsl_pkgs" ;;
-        12) apt_pkgs "${debian_pkgs[@]}" "$debian_wsl_pkgs" ;;
+        11) apt_pkgs "$debian_pkgs $debian_wsl_pkgs" ;;
+        12) apt_pkgs "$debian_pkgs $debian_wsl_pkgs" ;;
         *)     fail "Failed to parse the Debian MSFT version. Line: $LINENO" ;;
     esac
 }
 
 debian_os_version() {
     if [[ "$2" == "yes_wsl" ]]; then
-        VER=msft
-        debian_wsl_pkgs=$3
+        VER="msft"
+        debian_wsl_pkgs="$3"
     fi
 
     debian_pkgs=(cppcheck libnvidia-encode1 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
@@ -1281,48 +1280,40 @@ debian_os_version() {
 
     case "$VER" in
         msft)          debian_msft ;;
-        12|trixie|sid) apt_pkgs $1 "${debian_pkgs[@]}" "librist-dev" ;;
-        11)            apt_pkgs $1 "${debian_pkgs[@]}" ;;
+        12|trixie|sid) apt_pkgs "$1 $debian_pkgs librist-dev" ;;
+        11)            apt_pkgs "$1 $debian_pkgs" ;;
         *)             fail "Could not detect the Debian release version. Line: $LINENO" ;;
     esac
 }
 
 ubuntu_msft() {
     case "$VER" in
-        23.04) apt_pkgs "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" "$ubuntu_wsl_pkgs" ;;
-        22.04) apt_pkgs "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" "$ubuntu_wsl_pkgs" ;;
-        20.04) apt_pkgs "${ubuntu_common_pkgs[@]}" "${focal_pkgs[@]}" "$ubuntu_wsl_pkgs" ;;
+        23.04) apt_pkgs "$ubuntu_common_pkgs $jammy_pkgs $ubuntu_wsl_pkgs" ;;
+        22.04) apt_pkgs "$ubuntu_common_pkgs $jammy_pkgs $ubuntu_wsl_pkgs" ;;
+        20.04) apt_pkgs "$ubuntu_common_pkgs $focal_pkgs $ubuntu_wsl_pkgs" ;;
         *)     fail "Failed to parse the Ubutnu MSFT version. Line: $LINENO" ;;
     esac
 }
 
 ubuntu_os_version() {
     if [[ "$2" = "yes_wsl" ]]; then
-        VER=msft
-        ubuntu_wsl_pkgs=$3
+        VER="msft"
+        ubuntu_wsl_pkgs="$3"
     fi
 
-    ubuntu_common_pkgs=(cppcheck libamd2 libcamd2 libccolamd2 libcholmod3
-                              libcolamd2 libsuitesparseconfig5 libumfpack5)
-    focal_pkgs=(libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev
-                      libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev
-                      libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1
-                      libyuv-dev nvidia-utils-535)
-    jammy_pkgs=(libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev
-                      libpipewire-0.3-dev libpsl-dev libreadline-dev
-                      librust-jemalloc-sys-dev librust-malloc-buf-dev
-                      libsrt-doc libsvtav1-dev libsvtav1dec-dev
-                      libsvtav1enc-dev libtbbmalloc2 libwayland-dev)
-    lunar_kenetic_pkgs=(libhwy-dev libjxl-dev librist-dev libsrt-gnutls-dev
-                              libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev)
-    mantic_pkgs=(libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
-                       libhwy-dev libsrt-gnutls-dev libyuv-dev)
+    ubuntu_common_pkgs="cppcheck libamd2 libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5"
+    focal_pkgs="libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev"
+    focal_pkgs+=" libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1 libyuv-dev nvidia-utils-535"
+    jammy_pkgs="libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-devlibrust-jemalloc-sys-dev"
+    jammy_pkgs+=" librust-malloc-buf-devlibsrt-doc libsvtav1-dev libsvtav1dec-devlibsvtav1enc-dev libtbbmalloc libwayland-dev"
+    lunar_kenetic_pkgs="libhwy-dev libjxl-dev librist-dev libsrt-gnutls-dev libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev"
+    mantic_pkgs="libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libhwy-dev libsrt-gnutls-dev libyuv-dev"
     case "$VER" in
         msft)        ubuntu_msft ;;
-        23.10)       apt_pkgs $1 "${mantic_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" "${focal_pkgs[@]}" ;;
-        23.04|22.10) apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${lunar_kenetic_pkgs[@]}" "${jammy_pkgs[@]}" ;;
-        22.04)       apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${jammy_pkgs[@]}" ;;
-        20.04)       apt_pkgs $1 "${ubuntu_common_pkgs[@]}" "${focal_pkgs[@]}" ;;
+        23.10)       apt_pkgs "$1 $mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs" ;;
+        23.04|22.10) apt_pkgs "$1 $ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs" ;;
+        22.04)       apt_pkgs "$1 $ubuntu_common_pkgs $jammy_pkgs" ;;
+        20.04)       apt_pkgs "$1 $ubuntu_common_pkgs $focal_pkgs" ;;
         *)           fail "Could not detect the Ubuntu release version. Line: $LINENO" ;;
     esac
 }
