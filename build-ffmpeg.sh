@@ -1542,7 +1542,7 @@ else
     if build "nettle" "$version"; then
         download "https://ftp.gnu.org/gnu/nettle/nettle-$version.tar.gz"
         execute ./configure --prefix="$workspace" --disable-shared --enable-static --disable-openssl --disable-documentation \
-                            --libdir="$workspace"/lib CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+                            --libdir="$workspace/lib" CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
         execute make install
         build_done "nettle" "$version"
