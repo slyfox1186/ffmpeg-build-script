@@ -1541,7 +1541,8 @@ else
     gnu_repo "https://ftp.gnu.org/gnu/nettle/"
     if build "nettle" "$version"; then
         download "https://ftp.gnu.org/gnu/nettle/nettle-$version.tar.gz"
-        execute ./configure --prefix="$workspace" --disable-shared --enable-static --disable-openssl --disable-documentation --libdir="$workspace"/lib CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+        execute ./configure --prefix="$workspace" --disable-shared --enable-static --disable-openssl --disable-documentation \
+                            --libdir="$workspace"/lib CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
         execute make install
         build_done "nettle" "$version"
@@ -1549,7 +1550,9 @@ else
     gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
     if build "gnutls" "$version"; then
         download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$version.tar.xz"
-        execute ./configure --prefix="$workspace" --disable-shared --enable-static --disable-doc --disable-tools --disable-cxx --disable-tests --disable-gtk-doc-html --disable-libdane --disable-nls --enable-local-libopts --disable-guile --with-included-libtasn1 --with-included-unistring --without-p11-kit CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+        execute ./configure --prefix="$workspace" --disable-shared --enable-static --disable-doc --disable-tools --disable-cxx --disable-tests \
+                            --disable-gtk-doc-html --disable-libdane --disable-nls --enable-local-libopts --disable-guile --with-included-libtasn1 \
+                            --with-included-unistring --without-p11-kit CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
         execute make install
         build_done "gnutls" "$version"
