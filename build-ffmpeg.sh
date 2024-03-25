@@ -2,8 +2,8 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.5.4
-# Updated: 03.22.24
+# Script version: 3.5.5
+# Updated: 03.24.24
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
 # Supported Distros: Arch Linux
@@ -27,7 +27,7 @@ NONFREE_AND_GPL="false"
 LDEXEFLAGS=""
 CONFIGURE_OPTIONS=()
 LATEST="false"
-GIT_REGEX='(rc|RC|Rc|rC|alpha|beta)+[0-9]*$' # Set the regex variable to exclude release candidates
+GIT_REGEX='(rc|RC|Rc|rC|alpha|beta|early|init|next|pending|pre|rc|tentative)+[0-9]*$' # Set the regex variable to exclude release candidates
 DEBUG=OFF
 
 # Pre-defined color variables
@@ -35,7 +35,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 MAGENTA='\033[0;35m'
 YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Print script banner
 echo
@@ -59,8 +59,8 @@ mkdir -p "$packages" "$workspace"
 
 # Set the CC/CPP compilers + customized compiler optimization flags
 source_compiler_flags() {
-    CFLAGS="-g -O3 -fno-lto -pipe -fPIE -fPIC -march=native"
-    CXXFLAGS="-g -O3 -fno-lto -pipe -fPIE -fPIC -march=native"
+    CFLAGS="-g -O3 -pipe -fPIC -march=native"
+    CXXFLAGS="-g -O3 -pipe -fPIC -march=native"
     LDFLAGS="-L$workspace/lib64 -L$workspace/lib"
     CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include"
     EXTRALIBS="-ldl -lpthread -lm -lz"
@@ -1498,6 +1498,7 @@ else
         execute ninja -C build install
         build_done "librist" "$repo_version"
     fi
+    CONFIGURE_OPTIONS+=("--enable-librist")
 fi
 
 find_git_repo "madler/zlib" "1" "T"
@@ -1508,7 +1509,6 @@ if build "zlib" "$repo_version"; then
     execute make install
     build_done "zlib" "$repo_version"
 fi
-
 
 if "$NONFREE_AND_GPL"; then
     get_openssl_version
@@ -1703,6 +1703,7 @@ if [[ "$VER" != "18.04" ]]; then
         execute ninja -C build install
         build_done "harfbuzz" "$repo_version"
     fi
+    CONFIGURE_OPTIONS+=("--enable-libharfbuzz")
 fi
 
 git_caller "https://github.com/fribidi/c2man.git" "c2man-git"
@@ -1885,6 +1886,7 @@ if build "$repo_name" "${version//\$ /}"; then
     execute ninja -C build install
     build_done "$repo_name" "$version"
 fi
+CONFIGURE_OPTIONS+=("--enable-opencl")
 
 git_caller "https://github.com/imageMagick/jpeg-turbo.git" "jpeg-turbo-git"
 if build "$repo_name" "${version//\$ /}"; then
