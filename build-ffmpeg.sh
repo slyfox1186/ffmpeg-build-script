@@ -10,7 +10,7 @@
 #                    Debian 11|12
 #                    Ubuntu (20|22|23).04 & 23.10
 # Supported architecture: x86_64
-# CUDA SDK Toolkit: Updated to version 12.4.0
+# CUDA SDK Toolkit: Updated to version 12.4.1
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script as root or with sudo."
