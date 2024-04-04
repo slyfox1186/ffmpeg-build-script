@@ -835,46 +835,49 @@ cuda_download() {
         "Arch Linux"
         "Exit"
     )
+
+    version_serial="12.4.1-550.54.15-1"
     select choice in "${options[@]}"; do
         case "$choice" in
             "Debian 10")
                 distro="debian10"
                 version="10-12-4"
                 pkg_ext="deb"
-                installer_path="local_installers/cuda-repo-debian${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+                installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb"
                 ;;
             "Debian 11")
                 distro="debian11"
                 version="11-12-4"
                 pkg_ext="deb"
-                installer_path="local_installers/cuda-repo-debian${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+                installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb"
                 ;;
             "Debian 12")
                 distro="debian12"
                 version="12-12-4"
                 pkg_ext="deb"
-                installer_path="local_installers/cuda-repo-debian${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+                installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb"
                 ;;
             "Ubuntu 20.04")
                 distro="ubuntu2004"
                 version="12-4"
                 pkg_ext="pin"
                 pin_file="$distro/x86_64/cuda-ubuntu2004.pin"
-                installer_path="local_installers/cuda-repo-${distro}-${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+                installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
                 ;;
             "Ubuntu 22.04")
                 distro="ubuntu2204"
                 version="12-4"
                 pkg_ext="pin"
                 pin_file="$distro/x86_64/cuda-ubuntu2204.pin"
-                installer_path="local_installers/cuda-repo-${distro}-${version}-local_${cuda_version_number}-550.54.14-1_amd64.deb"
+                installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
                 ;;
             "Ubuntu WSL")
                 distro="wsl-ubuntu"
                 version="12-4"
+                version_ext="12.4.1-1"
                 pkg_ext="pin"
                 pin_file="$distro/x86_64/cuda-wsl-ubuntu.pin"
-                installer_path="local_installers/cuda-repo-${distro}-${version}-local_${cuda_version_number}-1_amd64.deb"
+                installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_ext}_amd64.deb"
                 ;;
             "Arch Linux")
                 git clone -q "https://gitlab.archlinux.org/archlinux/packaging/packages/cuda.git" || fail "Failed to clone Arch Linux CUDA repository"
@@ -1068,7 +1071,7 @@ apt_pkgs() {
         libvidstab-dev libvlccore-dev libvo-amrwbenc-dev libvpx-dev libx11-dev libxcursor-dev libxext-dev libxfixes-dev
         libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzimg-dev libzmq3-dev libzstd-dev libzvbi-dev
         libzzip-dev llvm lsb-release lshw lzma-dev m4 mesa-utils meson nasm ninja-build pandoc python3 python3-pip python3-venv
-        ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto libclang-16-dev libsctp-dev
+        ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto libsctp-dev
     )
 
     [[ "$OS" == "Debian" ]] && pkgs+=("nvidia-smi")
@@ -1285,7 +1288,7 @@ debian_os_version() {
     debian_pkgs=(cppcheck libnvidia-encode1 libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
                  libyuv-utils libyuv0 libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev
                  libdmalloc5 libumfpack5 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2
-                 libcamd2 libamd2 software-properties-common)
+                 libcamd2 libamd2 software-properties-common libclang-16-dev)
 
     case "$VER" in
         msft)          debian_msft ;;
@@ -1314,8 +1317,8 @@ ubuntu_os_version() {
     ubuntu_common_pkgs="cppcheck libamd2 libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5"
     focal_pkgs="libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev"
     focal_pkgs+=" libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1 libyuv-dev nvidia-utils-535"
-    jammy_pkgs="libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-devlibrust-jemalloc-sys-dev"
-    jammy_pkgs+=" librust-malloc-buf-devlibsrt-doc libsvtav1-dev libsvtav1dec-devlibsvtav1enc-dev libtbbmalloc libwayland-dev"
+    jammy_pkgs="libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-dev librust-jemalloc-sys-dev"
+    jammy_pkgs+=" librust-malloc-buf-dev libsrt-doc libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libtbbmalloc2 libwayland-dev libclang1-15"
     lunar_kenetic_pkgs="libhwy-dev libjxl-dev librist-dev libsrt-gnutls-dev libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev"
     mantic_pkgs="libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libhwy-dev libsrt-gnutls-dev libyuv-dev"
     case "$VER" in
