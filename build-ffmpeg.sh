@@ -21,8 +21,20 @@ fi
 SCRIPT_NAME="${0}"
 SCRIPT_VERSION="3.5.6"
 CWD="$PWD/ffmpeg-build-script"
-packages="$CWD/packages"
-workspace="$CWD/workspace"
+mkdir -p "$CWD" && cd "$CWD"
+if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
+    clear
+    cd ../
+    sudo rm -fr ffmpeg-build-script
+fi
+packages="$PWD/packages"
+workspace="$PWD/workspace"
+clear
+echo "CWD: $CWD"
+echo "PWD: $PWD"
+echo "packages: $packages"
+echo "workspace: $workspace"
+exit
 # Set a regex string to match and then exclude any found release candidate versions of a program. We want stable releases only.
 GIT_REGEX='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|rc|tentative)+[0-9]*$'
 DEBUG=OFF
