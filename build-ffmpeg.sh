@@ -30,13 +30,7 @@ if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
 fi
 packages="$CWD/packages"
 workspace="$CWD/workspace"
-clear
-echo "CWD: $CWD"
-echo "PWD: $PWD"
-echo "packages: $packages"
-echo "workspace: $workspace"
-exit
-# Set a regex string to match and then exclude any found release candidate versions of a program. We want stable releases only.
+# Set a regex string to match and then exclude any found release candidate versions of a program. Utilize stable releases only.
 GIT_REGEX='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|rc|tentative)+[0-9]*$'
 DEBUG=OFF
 
