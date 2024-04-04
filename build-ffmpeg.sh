@@ -26,9 +26,10 @@ if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
     clear
     cd ../
     sudo rm -fr ffmpeg-build-script
+    CWD="$PWD"
 fi
-packages="$PWD/packages"
-workspace="$PWD/workspace"
+packages="$CWD/packages"
+workspace="$CWD/workspace"
 clear
 echo "CWD: $CWD"
 echo "PWD: $PWD"
