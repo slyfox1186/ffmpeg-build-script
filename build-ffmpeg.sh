@@ -2,7 +2,7 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.5.6
+# Script version: 3.5.7
 # Updated: 04.03.24
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -19,7 +19,7 @@ fi
 
 # Define global variables
 SCRIPT_NAME="${0}"
-SCRIPT_VERSION="3.5.6"
+SCRIPT_VERSION="3.5.7"
 CWD="$PWD/ffmpeg-build-script"
 mkdir -p "$CWD" && cd "$CWD"
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -3025,8 +3025,10 @@ log_update "Installed FFmpeg version: $ffmpeg_current_version"
 log_update "Latest FFmpeg release version available: $ffmpeg_version"
 
 # Build FFmpeg from source using the latest git clone
-if build "ffmpeg" "$ffmpeg_version"; then
-    download "https://ffmpeg.org/releases/ffmpeg-$ffmpeg_version_trimmed.tar.xz" "ffmpeg-$ffmpeg_version.tar.xz"
+# FFmpeg release version 7 does not build as it has too many bugs and is too new.
+# We must stick with the latest version that works
+if build "ffmpeg" "n6.1.1"; then
+    download "https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz" "ffmpeg-n6.1.1.tar.xz"
     [[ "$OS" == "Arch" ]] && patch_ffmpeg
     mkdir build; cd build
     ../configure --prefix=/usr/local \
@@ -3070,7 +3072,7 @@ if build "ffmpeg" "$ffmpeg_version"; then
                  --strip=$(type -P strip)
     execute make "-j$threads"
     execute make install
-    build_done "ffmpeg" "$ffmpeg_version"
+    build_done "ffmpeg" "n6.1.1"
 fi
 
 # Execute the ldconfig command to ensure that all library changes are detected by ffmpeg
