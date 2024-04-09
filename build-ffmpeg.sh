@@ -2,7 +2,7 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.5.7
+# Script version: 3.5.6
 # Updated: 04.03.24
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -19,9 +19,9 @@ fi
 
 # Define global variables
 SCRIPT_NAME="${0}"
-SCRIPT_VERSION="3.5.7"
+SCRIPT_VERSION="3.5.6"
 CWD="$PWD/ffmpeg-build-script"
-mkdir -p "$CWD" && cd "$CWD"
+mkdir -p "$CWD" && cd "$CWD" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
     clear
     cd ../
@@ -37,7 +37,6 @@ DEBUG=OFF
 # Pre-defined color variables
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-MAGENTA='\033[0;35m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
@@ -45,7 +44,7 @@ NC='\033[0m'
 echo
 box_out_banner() {
     input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 $input_char); do printf "-"; done)
+    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
     tput bold
     line=$(tput setaf 3)$line
     space="${line//-/ }"
@@ -121,7 +120,7 @@ cleanup() {
 
 display_ffmpeg_versions() {
     local file
-    local files=(ffmpeg ffprobe ffplay)
+    local files=( [0]=ffmpeg [1]=ffprobe [2]=ffplay )
 
     echo
     for file in ${files[@]}; do
@@ -151,7 +150,8 @@ prompt_show_versions() {
 
 # Function to ensure no cargo or rustc processes are running
 ensure_no_cargo_or_rustc_processes() {
-    local running_processes=$(pgrep -fl 'cargo|rustc')
+    local running_processes
+    running_processes=$(pgrep -fl 'cargo|rustc')
     if [[ -n "$running_processes" ]]; then
         warn "Waiting for cargo or rustc processes to finish..."
         while pgrep -x cargo &>/dev/null || pgrep -x rustc &>/dev/null; do
@@ -448,11 +448,12 @@ fetch_repo_version() {
     if ! response=$(curl -fsS "$api_url"); then
         fail "Failed to fetch data from $api_url in the function \"fetch_repo_version\". Line: $LINENO"
     fi
-
-    local version=""
-    local short_id=""
-    local commit_id=""
-    local version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
+    
+    local version commit_id short_id
+    version=""
+    short_id=""
+    commit_id=""
+    version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
 
     if [[ ! "$base_url" == 536 ]]; then
         # Loop through responses to exclude any release candidates and return the first valid release version
@@ -465,8 +466,9 @@ fetch_repo_version() {
         done
     fi
 
-    local short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
-    local commit_id=$(echo "$response" | jq -r ".[$count]$commit_id_jq_filter")
+    local commit_id short_id
+    short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
+    commit_id=$(echo "$response" | jq -r ".[$count]$commit_id_jq_filter")
 
     # Remove leading 'v' from version
     repo_version="${version#v}"
@@ -640,7 +642,7 @@ while (("$#" > 0)); do
             LATEST="true"
             ;;
         --compiler=gcc|--compiler=clang)
-            compiler_flag="${1#*=}"
+            COMPILER_FLAG="${1#*=}"
             shift
             ;;
         -j|--jobs)
@@ -700,11 +702,11 @@ if [[ -n "$LDEXEFLAGS" ]]; then
 fi
 
 # Set the path variable
-if find /usr/local/ -maxdepth 1 -type l -name "cuda" >/dev/null | head -n1; then
-    cuda_bin_path=$(find /usr/local/ -maxdepth 1 -type l -name "cuda" >/dev/null | head -n1)
+if find /usr/local/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1; then
+    cuda_bin_path=$(find /usr/local/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1)
     cuda_bin_path+="/bin"
-elif find /opt/ -maxdepth 1 -type l -name "cuda" >/dev/null | head -n1; then
-    cuda_bin_path=$(find /opt/ -maxdepth 1 -type l -name "cuda" >/dev/null | head -n1)
+elif find /opt/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1; then
+    cuda_bin_path=$(find /opt/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1)
     cuda_bin_path+="/bin"
 else
     warn "Unable to set the variable \$cuda_bin_path. Line: $LINENO"
@@ -743,13 +745,15 @@ check_amd_gpu() {
 
 check_remote_cuda_version() {
     # Use curl to fetch the HTML content of the page
-    local html=$(curl -fsS "https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html")
+    local base_version cuda_regex html update_version
+
+    html=$(curl -fsS "https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html")
 
     # Parse the version directly from the fetched content
-    local cuda_regex='CUDA\ ([0-9]+\.[0-9]+)(\ Update\ ([0-9]+))?'
+    cuda_regex='CUDA\ ([0-9]+\.[0-9]+)(\ Update\ ([0-9]+))?'
     if [[ "$html" =~ $cuda_regex ]]; then
-        local base_version="${BASH_REMATCH[1]}"
-        local update_version="${BASH_REMATCH[3]}"
+        base_version="${BASH_REMATCH[1]}"
+        update_version="${BASH_REMATCH[3]}"
         remote_cuda_version="$base_version"
 
         # Append the update number if present
@@ -964,7 +968,7 @@ check_nvidia_gpu() {
 
 get_local_cuda_version() {
     if [[ -f /usr/local/cuda/version.json ]]; then
-        echo "$(cat /usr/local/cuda/version.json | jq -r '.cuda.version')"
+        < /usr/local/cuda/version.json cat | jq -r '.cuda.version'
     fi
 }
 
@@ -1054,8 +1058,8 @@ apt_pkgs() {
         curl doxygen fcitx-libs-dev flex flite1-dev frei0r-plugins-dev gawk gcc gettext gimp-data git gnome-desktop-testing
         gnustep-gui-runtime google-perftools gperf gtk-doc-tools guile-3.0-dev help2man jq junit ladspa-sdk lib32stdc++6
         libamd2 libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev libbpf-dev libbs2b-dev
-        libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev libcamd2 libccolamd2 libcdio-dev libcdio-paranoia-dev
-        libcdparanoia-dev libcholmod3 libchromaprint-dev libcjson-dev libcodec2-dev libcolamd2 libcrypto++-dev
+        libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev libcdio-dev libcdio-paranoia-dev
+        libcdparanoia-dev libchromaprint-dev libcjson-dev libcodec2-dev libcrypto++-dev
         libcurl4-openssl-dev libdav1d-dev libdbus-1-dev libde265-dev libdevil-dev libdmalloc-dev libdrm-dev libdvbpsi-dev
         libebml-dev libegl1-mesa-dev libffi-dev libgbm-dev libgdbm-dev libgegl-0.4-0 libgegl-common libgimp2.0 libgl1-mesa-dev
         libgles2-mesa-dev libglib2.0-dev libgme-dev libgmock-dev libgnutls28-dev libgnutls30 libgoogle-perftools-dev
@@ -1066,8 +1070,8 @@ apt_pkgs() {
         libopus-dev libpango1.0-dev libperl-dev libplacebo-dev libpocketsphinx-dev libpsl-dev libpstoedit-dev libpulse-dev
         librabbitmq-dev libraqm-dev libraw-dev librsvg2-dev librtmp-dev librubberband-dev librust-gstreamer-base-sys-dev libserd-dev
         libshine-dev libsmbclient-dev libsnappy-dev libsndio-dev libsord-dev libsoxr-dev libspeex-dev libsphinxbase-dev
-        libsqlite3-dev libsratom-dev libssh-dev libssl-dev libsuitesparseconfig5 libsystemd-dev libtalloc-dev libtesseract-dev
-        libtheora-dev libticonv-dev libtool libtool-bin libtwolame-dev libudev-dev libumfpack5 libv4l-dev libva-dev libvdpau-dev
+        libsqlite3-dev libsratom-dev libssh-dev libssl-dev libsystemd-dev libtalloc-dev libtesseract-dev
+        libtheora-dev libticonv-dev libtool libtool-bin libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev
         libvidstab-dev libvlccore-dev libvo-amrwbenc-dev libvpx-dev libx11-dev libxcursor-dev libxext-dev libxfixes-dev
         libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzimg-dev libzmq3-dev libzstd-dev libzvbi-dev
         libzzip-dev llvm lsb-release lshw lzma-dev m4 mesa-utils meson nasm ninja-build pandoc python3 python3-pip python3-venv
@@ -1314,20 +1318,39 @@ ubuntu_os_version() {
         ubuntu_wsl_pkgs="$3"
     fi
 
-    ubuntu_common_pkgs="cppcheck libamd2 libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5"
+    ubuntu_common_pkgs="cppcheck libamd2"
     focal_pkgs="libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev"
-    focal_pkgs+=" libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1 libyuv-dev nvidia-utils-535"
+    focal_pkgs+=" libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1 libyuv-dev nvidia-utils-535 libcamd2 libccolamd2 libcholmod3"
+    focal_pkgs+=" libcolamd2 libsuitesparseconfig5 libumfpack5"
     jammy_pkgs="libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-dev librust-jemalloc-sys-dev"
     jammy_pkgs+=" librust-malloc-buf-dev libsrt-doc libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libtbbmalloc2 libwayland-dev libclang1-15"
+    jammy_pkgs+=" libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5"
     lunar_kenetic_pkgs="libhwy-dev libjxl-dev librist-dev libsrt-gnutls-dev libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev"
-    mantic_pkgs="libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libhwy-dev libsrt-gnutls-dev libyuv-dev"
+    lunar_kenetic_pkgs+=" libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5"
+    mantic_pkgs="libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libhwy-dev libsrt-gnutls-dev libyuv-dev libcamd2 libccolamd2 libcholmod3"
+    mantic_pkgs+=" libsuitesparseconfig5 libumfpack5"
+    noble_pkgs="libcamd3 libccolamd3 libcholmod5 libcolamd3 libsuitesparseconfig7 libumfpack6"
     case "$VER" in
-        msft)        ubuntu_msft ;;
-        23.10)       apt_pkgs "$1 $mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs" ;;
-        23.04|22.10) apt_pkgs "$1 $ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs" ;;
-        22.04)       apt_pkgs "$1 $ubuntu_common_pkgs $jammy_pkgs" ;;
-        20.04)       apt_pkgs "$1 $ubuntu_common_pkgs $focal_pkgs" ;;
-        *)           fail "Could not detect the Ubuntu release version. Line: $LINENO" ;;
+        msft)
+            ubuntu_msft
+            ;;
+        24.04)
+        apt_pkgs "$1 $noble_pkgs"
+            ;;
+        23.10)
+            apt_pkgs "$1 $mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
+            ;;
+        23.04|22.10)
+            apt_pkgs "$1 $ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs"
+            ;;
+        22.04)
+            apt_pkgs "$1 $ubuntu_common_pkgs $jammy_pkgs"
+            ;;
+        20.04)
+            apt_pkgs "$1 $ubuntu_common_pkgs $focal_pkgs"
+            ;;
+        *)  fail "Could not detect the Ubuntu release version. Line: $LINENO"
+            ;;
     esac
 }
 
@@ -1412,7 +1435,7 @@ ldconfig
 echo
 box_out_banner_global() {
     input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 $input_char); do printf "-"; done)
+    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
     tput bold
     line="$(tput setaf 3)$line"
     space="${line//-/ }"
@@ -2133,7 +2156,7 @@ fi
 echo
 box_out_banner_audio() {
     input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 $input_char); do printf "-"; done)
+    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
     tput bold
     line="$(tput setaf 3)$line"
     space="${line//-/ }"
@@ -2384,7 +2407,7 @@ CONFIGURE_OPTIONS+=("--enable-libtheora")
 echo
 box_out_banner_video() {
     input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 $input_char); do printf "-"; done)
+    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
     tput bold
     line="$(tput setaf 3)$line"
     space="${line//-/ }"
@@ -2886,7 +2909,7 @@ fi
 echo
 box_out_banner_images() {
     input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 $input_char); do printf "-"; done)
+    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
     tput bold
     line="$(tput setaf 3)$line"
     space="${line//-/ }"
@@ -2968,7 +2991,7 @@ CONFIGURE_OPTIONS+=("--enable-libopenjpeg")
 echo
 box_out_banner_ffmpeg() {
     input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 $input_char); do printf "-"; done)
+    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
     tput bold
     line="$(tput setaf 3)$line"
     space="${line//-/ }"
