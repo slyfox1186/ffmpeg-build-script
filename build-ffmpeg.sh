@@ -62,10 +62,10 @@ mkdir -p "$packages" "$workspace"
 
 # Set the CC/CPP compilers + customized compiler optimization flags
 source_compiler_flags() {
-    CFLAGS="-g -O3 -pipe -fPIC -march=native"
-    CXXFLAGS="-g -O3 -pipe -fPIC -march=native"
-    LDFLAGS="-L$workspace/lib64 -L$workspace/lib"
-    CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include"
+    CFLAGS="-O2 -pipe -fPIC -march=native -mtune=native"
+    CXXFLAGS="$CFLAGS"
+    CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include -D_FORTIFY_SOURCE=2"
+    LDFLAGS="-L$workspace/lib64 -L$workspace/lib -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now,-rpath,$install_dir/lib"
     EXTRALIBS="-ldl -lpthread -lm -lz"
     export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
 }
