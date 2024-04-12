@@ -2,8 +2,8 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.5.6
-# Updated: 04.03.24
+# Script version: 3.5.7
+# Updated: 04.12.24
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
 # Supported Distros: Arch Linux
@@ -19,7 +19,7 @@ fi
 
 # Define global variables
 SCRIPT_NAME="${0}"
-SCRIPT_VERSION="3.5.6"
+SCRIPT_VERSION="3.5.7"
 CWD="$PWD/ffmpeg-build-script"
 mkdir -p "$CWD" && cd "$CWD" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -702,12 +702,14 @@ if [[ -n "$LDEXEFLAGS" ]]; then
 fi
 
 # Set the path variable
-if find /usr/local/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1; then
-    cuda_bin_path=$(find /usr/local/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1)
-    cuda_bin_path+="/bin"
-elif find /opt/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1; then
-    cuda_bin_path=$(find /opt/ -maxdepth 1 -type l -name "cuda" | tee /dev/null | head -n1)
-    cuda_bin_path+="/bin"
+cuda_bin_path1=$(find /usr/local/ -maxdepth 1 -type l -name cuda >/dev/null | tee /dev/null | head -n1)
+cuda_bin_path2=$(find /opt/ -maxdepth 1 -type l -name cuda | tee /dev/null | head -n1)
+if [[ -n "$cuda_bin_path1" ]]; then
+    cuda_bin_path1+="/bin"
+    cuda_bin_path="$cuda_bin_path1"
+elif [[ -n "$cuda_bin_path2" ]]; then
+    cuda_bin_path2+="/bin"
+    cuda_bin_path="$cuda_bin_path2"
 else
     warn "Unable to set the variable \$cuda_bin_path. Line: $LINENO"
 fi
@@ -1044,6 +1046,7 @@ apt_pkgs() {
     }
 
     # Use the function to find the latest versions of specific packages
+    nvidia_driver=$(find_latest_pkg_version 'nvidia-driver-[0-9]+$' 'nvidia-driver-[0-9]+$')
     nvidia_utils=$(find_latest_pkg_version 'nvidia-utils-[0-9]+$' 'nvidia-utils-[0-9]+$')
     openjdk_pkg=$(find_latest_pkg_version '^openjdk-[0-9]+-jdk$' '^openjdk-[0-9]+-jdk')
     libcpp_pkg=$(find_latest_pkg_version 'libc++*' 'libc\+\+-[0-9\-]+-dev')
@@ -1053,9 +1056,9 @@ apt_pkgs() {
 
     # Define an array of apt package names
     pkgs=(
-        $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg $nvidia_utils $openjdk_pkg $gcc_plugin_pkg ant apt asciidoc autoconf
-        autoconf-archive automake autopoint binutils bison build-essential cargo cargo-c ccache checkinstall clang cmake
-        curl doxygen fcitx-libs-dev flex flite1-dev frei0r-plugins-dev gawk gcc gettext gimp-data git gnome-desktop-testing
+        $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg $nvidia_driver $nvidia_utils $openjdk_pkg $gcc_plugin_pkg ant apt
+        asciidoc autoconf autoconf-archive automake autopoint binutils bison build-essential cargo cargo-c ccache checkinstall
+        clang cmake curl doxygen fcitx-libs-dev flex flite1-dev frei0r-plugins-dev gawk gcc gettext gimp-data git gnome-desktop-testing
         gnustep-gui-runtime google-perftools gperf gtk-doc-tools guile-3.0-dev help2man jq junit ladspa-sdk lib32stdc++6
         libamd2 libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev libbpf-dev libbs2b-dev
         libbz2-dev libc6 libc6-dev libcaca-dev libcairo2-dev libcdio-dev libcdio-paranoia-dev
@@ -1118,6 +1121,7 @@ apt_pkgs() {
         echo
         apt update
         apt install "${available_packages[@]}"
+        apt -y autoremove
         echo
     else
         log "No missing packages to install or all missing packages are unavailable."
@@ -1128,8 +1132,8 @@ apt_pkgs() {
 fix_libstd_libs() {
     local libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
     if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
-        echo "$ ln -sf $libstdc_path /usr/lib/x86_64-linux-gnu/libstdc++.so"
-        ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
+
+        exec ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
     fi
 }
 
@@ -2632,7 +2636,7 @@ else
                             --sdl-cfg="$workspace/include/SDL3"
         execute make "-j$threads"
         execute make install
-        execute cp -f bin/gcc/MP4Box /usr/local/
+        execute cp -f bin/gcc/MP4Box /usr/local/bin
         build_done "$repo_name" "$version"
     fi
 fi
@@ -2684,7 +2688,7 @@ if "$NONFREE_AND_GPL"; then
     CONFIGURE_OPTIONS+=("--enable-libx264")
 fi
 
-version="a845f6ee6a609036785806093816da574dd29ad1"
+version="dd1ef69b25ec26cc80be0fc8d9afeeef6563762b"
 version_trim="${version::7}"
 if "$NONFREE_AND_GPL"; then
     if build "x265" "$version_trim"; then
