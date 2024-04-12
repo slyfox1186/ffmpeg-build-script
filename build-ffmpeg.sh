@@ -922,8 +922,8 @@ cuda_download() {
         cp -f /var/cuda-repo-${distro}-12-4-local/cuda-*-keyring.gpg "/usr/share/keyrings/"
     fi
 
-    apt-get update
-    apt-get install cuda-toolkit-12-4
+    apt update
+    apt install -y cuda-toolkit-12-4
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
@@ -1116,8 +1116,8 @@ apt_pkgs() {
         log "Installing available missing packages:"
         printf "       %s\n" "${available_packages[@]}"
         echo
-        apt-get update
-        apt-get install "${available_packages[@]}"
+        apt update
+        apt install "${available_packages[@]}"
         echo
     else
         log "No missing packages to install or all missing packages are unavailable."
