@@ -20,28 +20,26 @@ The script downloads packages under various licenses from different sources, whi
 - This is a community-supported project and support is limited to Debian-based and Arch Linux systems.
 - To ensure compliance with all applicable laws and intellectual property rights, you may need to perform additional research. For a free license build, omit `--enable-gpl-and-non-free` from the script arguments.
 
-## Installation
+## Installation Instructions
 
 ### Standard Installation
 
-To build FFmpeg with GPL and non-free codecs:
-
-1. Clone the repository:
+  * To compile FFmpeg with non-free codecs, clone the repository:
 ```bash
 git clone https://github.com/slyfox1186/ffmpeg-build-script.git
-cd ffmpeg-build-script || exit
+cd ffmpeg-build-script || exit 1
 sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
 ```
 
-### NDI Support
+### NDI Installation Support
 
-The **NDI build script** offers functionality not officially supported by FFmpeg or NDI developers. Use it within legal boundaries and at your own risk.
+The **NDI build script** offers functionality not officially supported by FFmpeg or NDI developers. ***You must stay within the boundaries of the law and at your own risk.***
 
 You can find the NDI build script on my other GitHub project [script-repo](https://github.com/slyfox1186/script-repo/blob/main/Bash/Installer%20Scripts/FFmpeg/build-ffmpeg-NDI)
 
 ## Supported Codecs and Features
 
-This script supports a wide range of codecs and features, including x264, x265, CUDA for Nvidia hardware acceleration, and many others. For a complete list, please refer to the [FFmpeg Legal Documents](https://ffmpeg.org/legal.html).
+This script supports a range of codecs and features, including **x264**, **x265**, **Nvidia CUDA** for hardware acceleration, **AV1**, **Rav1e**, **Libbluray** and many others. For a complete list of codecs and modules, please refer to the [FFmpeg Legal Documents](https://ffmpeg.org/legal.html).
 
 * `alsa`: Advanced Linux Sound Architecture (ALSA) project. A library to interface with ALSA in the Linux kernel and virtual devices using a plugin system
 * `aom`: AV1 Video Codec (Experimental and very slow!)
@@ -76,6 +74,7 @@ This script supports a wide range of codecs and features, including x264, x265, 
 * `libmp3lame`: MPEG-1 or MPEG-2 Audio Layer III
 * `libmysofa`: Is a simple set of C functions to read AES SOFA files, if they contain HRTFs stored according to the AES69-2015 standard
 * `libopencore_amr`: OpenCORE Adaptive Multi-Rate (AMR) speech codec library implementation
+* `libopenmpt`: A free Windows/Wine-based tracker and libopenmpt, a library to render tracker music (MOD, XM, S3M, IT MPTM, and dozens of other legacy formats) to a PCM audio stream
 * `libopus`: Lossy audio coding format
 * `libpulse`: A featureful, general-purpose sound server
 * `librubberband`: An audio time-stretching and pitch-shifting library and utility program
@@ -84,7 +83,7 @@ This script supports a wide range of codecs and features, including x264, x265, 
 * `libsnappy`: Snappy is a compression/decompression library
 * `libsoxr`: The SoX Resampler library `libsoxr' performs one-dimensional sample-rate conversion
 * `libspeex`: Is an Open Source/Free Software patent-free audio compression format designed for speech
-* `libssh`: Is a multiplatform C library implementing the SSHv2 protocol on the client and server side
+* `libssh`: Is a multiplatform C library implementing the SSHv2 protocol on the client and server-side
 * `libtesseract`: This package contains an OCR engine - libtesseract and a command line program - tesseract
 * `libtiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
 * `libtwolame`: Is an optimized MPEG Audio Layer 2 (MP2) encoder based on tooLAME by Mike Cheng, which in turn is based upon the ISO dist10 code and portions of LAME
@@ -159,7 +158,7 @@ This script supports a wide range of codecs and features, including x264, x265, 
 
 ## Requirements
 
-The script is designed to handle all necessary package downloads automatically. Ensure your system meets the supported operating systems criteria for a smooth installation process.
+The script is designed to handle all necessary package downloads automatically with minimal user input required. Please ensure your system meets the supported operating systems criteria for a smooth installation process.
 
 Example Output
 -------
