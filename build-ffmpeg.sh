@@ -702,7 +702,7 @@ if [[ -n "$LDEXEFLAGS" ]]; then
 fi
 
 # Set the path variable
-cuda_bin_path1=$(find /usr/local/ -maxdepth 1 -type l -name cuda >/dev/null | tee /dev/null | head -n1)
+cuda_bin_path1=$(find /usr/local/ -maxdepth 1 -type l -name cuda | tee /dev/null | head -n1)
 cuda_bin_path2=$(find /opt/ -maxdepth 1 -type l -name cuda | tee /dev/null | head -n1)
 if [[ -n "$cuda_bin_path1" ]]; then
     cuda_bin_path1+="/bin"
