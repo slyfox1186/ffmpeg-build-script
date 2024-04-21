@@ -898,7 +898,8 @@ apt_pkgs() {
         libtool libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev
         libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev
         libzmq3-dev libzvbi-dev libzzip-dev lsb-release lshw lzma-dev m4 mesa-utils pandoc python3 python3-pip python3-venv
-        ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto libsctp-dev libflac-dev
+        ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto libsctp-dev libflac-dev libglfw3-dev libgl1-mesa-dev
+        libglu1-mesa-dev
     )
 
     [[ "$OS" == "Debian" ]] && pkgs+=("nvidia-smi")
