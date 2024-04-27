@@ -1,7 +1,6 @@
-# ignore folders
-run-scripts/
-.git/
+# Ignore Folders
+/run-scripts/
 
-# ignore files
-.gitignore
-LICENSE
+# Ignore Files
+/.gitignore
+/LICENSE
