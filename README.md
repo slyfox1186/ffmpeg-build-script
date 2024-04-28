@@ -41,84 +41,84 @@ You can find the NDI build script on my other GitHub project [script-repo](https
 
 This script supports a range of codecs and features, including **x264**, **x265**, **Nvidia CUDA** for hardware acceleration, **AV1**, **Rav1e**, **Libbluray** and many others. For a complete list of codecs and modules, please refer to the [FFmpeg Legal Documents](https://ffmpeg.org/legal.html).
 
-* `alsa`: Advanced Linux Sound Architecture (ALSA) project. A library to interface with ALSA in the Linux kernel and virtual devices using a plugin system
-* `aom`: AV1 Video Codec (Experimental and very slow!)
-* `avisynth`: A powerful tool for video post-production
-* `bzlib` A general-purpose data compression library
-* `chromaprint`: Is an audio fingerprinting library that calculates fingerprints used by the Acoustid service. It's the core component of the AcoustID project.
-* `cuda`: Hardware acceleration for Nvidia graphics cards
-* `dav1d`: Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities and sponsored by the AOMedia (only available if `meson` and `ninja` are installed)
-* `DeckLink`: DeckLink cards are open standard capture cards and are perfect for the development of Linux based video applications
-* `ff-nvcodec-headers`: FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
-* `flac`: Free Lossless Audio Codec is open-source software that can reduce the amount of storage space needed to store digital audio signals without needing to remove information in doing so
-* `fontconfig`: Font configuration and customization library
-* `freetype`: A freely available software library to render fonts
+* `alsa:` Advanced Linux Sound Architecture (ALSA) project. A library to interface with ALSA in the Linux kernel and virtual devices using a plugin system
+* `aom:` AV1 Video Codec (Experimental and very slow!)
+* `avisynth:` A powerful tool for video post-production
+* `bzlib:` A general-purpose data compression library
+* `chromaprint:` Is an audio fingerprinting library that calculates fingerprints used by the Acoustid service. It's the core component of the AcoustID project.
+* `cuda:` Hardware acceleration for Nvidia graphics cards
+* `dav1d:` Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities and sponsored by the AOMedia (only available if `meson` and `ninja` are installed)
+* `DeckLink:` DeckLink cards are open standard capture cards and are perfect for the development of Linux based video applications
+* `ff-nvcodec-headers:` FFmpeg version of headers required to interface with Nvidias codec APIs (Hardware Acceleration)
+* `flac:` Free Lossless Audio Codec is open-source software that can reduce the amount of storage space needed to store digital audio signals without needing to remove information in doing so
+* `fontconfig:` Font configuration and customization library
+* `freetype:` A freely available software library to render fonts
 * `frei0r` A collection of free and open source video effects plugins that can be used with a variety of video editing and processing software
-* `fribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
-* `harfbuzz`: Text shaping image processor
-* `iconv`: Used to convert some text in one encoding into another encoding
-* `jxl`: JPEG XL offers significantly better image quality and compression ratios than legacy JPEG, plus a shorter specification
-* `kvazaar`: An open-source HEVC encoder licensed under 3-clause BSD
-* `ladspa`: Is an acronym for Linux Audio Developer's Simple Plugin API
-* `lcms2`: A free, open-source, CMM engine. It provides fast transforms between ICC profiles
-* `libaribb24`: A library for ARIB STD-B24, decoding JIS 8 bit characters and parsing MPEG-TS stream
-* `libass`: A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
-* `libbluray`: An open-source library designed for Blu-Ray Discs playback
-* `libbs2b`: Is designed to improve headphone listening of stereo audio records
-* `libcaca`: Is a graphics library that outputs text instead of pixels, so that it can work on older video cards or text terminals
-* `libcdio`: Is a library for CD-ROM and CD image access
-* `libfdk_aac`: Fraunhofer FDK AAC Codec
-* `libflite`: Provides a high-level text-to-speech interface for English based on the 'libflite' library
-* `libgme`: Is a collection of video game music file emulators
-* `libmodplug`: A library which was part of the Modplug-xmms project: http://modplug-xmms.sf.net/
-* `libmp3lame`: MPEG-1 or MPEG-2 Audio Layer III
-* `libmysofa`: Is a simple set of C functions to read AES SOFA files, if they contain HRTFs stored according to the AES69-2015 standard
-* `libopencore_amr`: OpenCORE Adaptive Multi-Rate (AMR) speech codec library implementation
-* `libopenmpt`: A free Windows/Wine-based tracker and libopenmpt, a library to render tracker music (MOD, XM, S3M, IT MPTM, and dozens of other legacy formats) to a PCM audio stream
-* `libopus`: Lossy audio coding format
-* `libpulse`: A featureful, general-purpose sound server
-* `librubberband`: An audio time-stretching and pitch-shifting library and utility program
-* `libshine`: Shine is a fixed-point MP3 encoder. It has a far better performance on platforms without an FPU, e.g. armel CPUs, and some phones and tablets
-* `libsmbclient`: Is a library toolset that permits applications to manipulate CIFS/SMB network resources using many of the standards POSIX functions available for manipulating local UNIX/Linux files
-* `libsnappy`: Snappy is a compression/decompression library
-* `libsoxr`: The SoX Resampler library `libsoxr' performs one-dimensional sample-rate conversion
-* `libspeex`: Is an Open Source/Free Software patent-free audio compression format designed for speech
-* `libssh`: Is a multiplatform C library implementing the SSHv2 protocol on the client and server-side
-* `libtesseract`: This package contains an OCR engine - libtesseract and a command line program - tesseract
-* `libtiff`: This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
-* `libtwolame`: Is an optimized MPEG Audio Layer 2 (MP2) encoder based on tooLAME by Mike Cheng, which in turn is based upon the ISO dist10 code and portions of LAME
-* `libv4l2`: Is a collection of libraries that adds a thin abstraction layer on top of video4linux2 devices
-* `libvo_amrwbenc`: This library contains an encoder implementation of the Adaptive Multi-Rate Wideband (AMR-WB) audio codec
-* `libxvid`: Xvid MPEG-4 Part 2 encoder wrapper
-* `libzimg`: The "z" library implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion
-* `lv2`: Is an extensible open standard for audio plugins
-* `lzma`: Is an algorithm used to perform lossless data compression
-* `mediainfo`: A convenient unified display of the most relevant technical and tag data for video and audio files
-* `mp4box/gpac`: Modular Multimedia framework for packaging, streaming, and playing your favorite content, see http://netflix.gpac.io
-* `ogg`: Free, open container format
-* `opencl`: An open-source project that uses Boost. Compute as a high-level C++ wrapper over the OpenCL API
-* `opencore-amr`: Adaptive Multi-Rate (AMR) speech codec library implementation
-* `opengl`: Is a cross-language, cross-platform application programming interface for rendering 2D and 3D vector graphics
-* `openjpeg`: Is an open-source JPEG 2000 codec written in C language
-* `openssl`: Is a software library for applications that provide secure communications over computer networks against eavesdropping, and identify the party at the other end
-* `rav1e`: rust based AV1 encoder
-* `sdl2`: A cross-platform development library designed to provide low-level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
-* `sndio`: Is a small audio and MIDI framework part of the OpenBSD project and ported to FreeBSD, Linux and NetBSD
-* `srt`: Secure Reliable Transport (SRT) is a transport protocol for ultra-low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
-* `svtav1`: SVT-AV1 Encoder and Decoder
-* `theora`: Free lossy video compression format
-* `vapoursynth`: An application for video manipulation.
-* `vidstab`: A video stabilization library which can be plugged in with Ffmpeg and Transcode
-* `vorbis`: Lossy audio compression format
-* `vpx`: VP8 / VP9 Video Codec for the WebM video file format
-* `webp`: Image format both lossless and lossy
-* `x264`: H.264 Video Codec (MPEG-4 AVC)
-* `x265`: H.265 Video Codec (HEVC)
-* `xcb`: A C language interface to the X Window System protocol, which replaces the traditional Xlib interface
-* `xlib`: Is a C subroutine library that application programs (clients) use to interface with the window system by means of a stream connection
-* `xml2`: XML parser and toolkit
-* `xvidcore`: MPEG-4 video coding standard
-* `zlib`: Is a general-purpose data compression library
+* `fribidi:` The Free Implementation of the Unicode Bidirectional Algorithm
+* `harfbuzz:` Text shaping image processor
+* `iconv:` Used to convert some text in one encoding into another encoding
+* `jxl:` JPEG XL offers significantly better image quality and compression ratios than legacy JPEG, plus a shorter specification
+* `kvazaar:` An open-source HEVC encoder licensed under 3-clause BSD
+* `ladspa:` Is an acronym for Linux Audio Developer's Simple Plugin API
+* `lcms2:` A free, open-source, CMM engine. It provides fast transforms between ICC profiles
+* `libaribb24:` A library for ARIB STD-B24, decoding JIS 8 bit characters and parsing MPEG-TS stream
+* `libass:` A portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format
+* `libbluray:` An open-source library designed for Blu-Ray Discs playback
+* `libbs2b:` Is designed to improve headphone listening of stereo audio records
+* `libcaca:` Is a graphics library that outputs text instead of pixels, so that it can work on older video cards or text terminals
+* `libcdio:` Is a library for CD-ROM and CD image access
+* `libfdk_aac:` Fraunhofer FDK AAC Codec
+* `libflite:` Provides a high-level text-to-speech interface for English based on the 'libflite' library
+* `libgme:` Is a collection of video game music file emulators
+* `libmodplug:` A library which was part of the Modplug-xmms project: http://modplug-xmms.sf.net/
+* `libmp3lame:` MPEG-1 or MPEG-2 Audio Layer III
+* `libmysofa:` Is a simple set of C functions to read AES SOFA files, if they contain HRTFs stored according to the AES69-2015 standard
+* `libopencore_amr:` OpenCORE Adaptive Multi-Rate (AMR) speech codec library implementation
+* `libopenmpt:` A free Windows/Wine-based tracker and libopenmpt, a library to render tracker music (MOD, XM, S3M, IT MPTM, and dozens of other legacy formats) to a PCM audio stream
+* `libopus:` Lossy audio coding format
+* `libpulse:` A featureful, general-purpose sound server
+* `librubberband:` An audio time-stretching and pitch-shifting library and utility program
+* `libshine:` Shine is a fixed-point MP3 encoder. It has a far better performance on platforms without an FPU, e.g. armel CPUs, and some phones and tablets
+* `libsmbclient:` Is a library toolset that permits applications to manipulate CIFS/SMB network resources using many of the standards POSIX functions available for manipulating local UNIX/Linux files
+* `libsnappy:` Snappy is a compression/decompression library
+* `libsoxr:` The SoX Resampler library performs one-dimensional sample-rate conversion
+* `libspeex:` Is an Open Source/Free Software patent-free audio compression format designed for speech
+* `libssh:` Is a multiplatform C library implementing the SSHv2 protocol on the client and server-side
+* `libtesseract:` This package contains an OCR engine - libtesseract and a command line program - tesseract
+* `libtiff:` This software provides support for the Tag Image File Format (TIFF), a widely used format for storing image data
+* `libtwolame:` Is an optimized MPEG Audio Layer 2 (MP2) encoder based on tooLAME by Mike Cheng, which in turn is based upon the ISO dist10 code and portions of LAME
+* `libv4l2:` Is a collection of libraries that adds a thin abstraction layer on top of video4linux2 devices
+* `libvo_amrwbenc:` This library contains an encoder implementation of the Adaptive Multi-Rate Wideband (AMR-WB) audio codec
+* `libxvid:` Xvid MPEG-4 Part 2 encoder wrapper
+* `libzimg:` The "z" library implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion
+* `lv2:` Is an extensible open standard for audio plugins
+* `lzma:` Is an algorithm used to perform lossless data compression
+* `mediainfo:` A convenient unified display of the most relevant technical and tag data for video and audio files
+* `mp4box/gpac:` Modular Multimedia framework for packaging, streaming, and playing your favorite content, see http://netflix.gpac.io
+* `ogg:` Free, open container format
+* `opencl:` An open-source project that uses Boost. Compute as a high-level C++ wrapper over the OpenCL API
+* `opencore-amr:` Adaptive Multi-Rate (AMR) speech codec library implementation
+* `opengl:` Is a cross-language, cross-platform application programming interface for rendering 2D and 3D vector graphics
+* `openjpeg:` Is an open-source JPEG 2000 codec written in C language
+* `openssl:` Is a software library for applications that provide secure communications over computer networks against eavesdropping, and identify the party at the other end
+* `rav1e:` rust based AV1 encoder
+* `sdl2:` A cross-platform development library designed to provide low-level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D
+* `sndio:` Is a small audio and MIDI framework part of the OpenBSD project and ported to FreeBSD, Linux and NetBSD
+* `srt:` Secure Reliable Transport (SRT) is a transport protocol for ultra-low (sub-second) latency live video and audio streaming, as well as for generic bulk data transfer
+* `svtav1:` SVT-AV1 Encoder and Decoder
+* `theora:` Free lossy video compression format
+* `vapoursynth:` An application for video manipulation.
+* `vidstab:` A video stabilization library which can be plugged in with Ffmpeg and Transcode
+* `vorbis:` Lossy audio compression format
+* `vpx:` VP8 / VP9 Video Codec for the WebM video file format
+* `webp:` Image format both lossless and lossy
+* `x264:` H.264 Video Codec (MPEG-4 AVC)
+* `x265:` H.265 Video Codec (HEVC)
+* `xcb:` A C language interface to the X Window System protocol, which replaces the traditional Xlib interface
+* `xlib:` Is a C subroutine library that application programs (clients) use to interface with the window system by means of a stream connection
+* `xml2:` XML parser and toolkit
+* `xvidcore:` MPEG-4 video coding standard
+* `zlib:` Is a general-purpose data compression library
 
 
 ### Hardware Acceleration
