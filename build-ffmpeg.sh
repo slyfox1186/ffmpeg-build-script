@@ -721,7 +721,10 @@ nvidia_architecture() {
             "NVIDIA H100")
                 nvidia_arch_type="compute_90,code=sm_90"
                 ;;
-            *) fail "Failed to set the variable \"nvidia_arch_type\". Line: $LINENO" ;;
+            *) echo "If you get a driver version \"mismatch\" when executing the command \"nvidia-smi\", reboot your PC and rerun the script."
+               echo
+               fail "Failed to set the variable \"nvidia_arch_type\". Line: $LINENO"
+               ;;
         esac
     else
         return 1
