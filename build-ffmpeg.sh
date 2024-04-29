@@ -169,15 +169,11 @@ check_and_install_cargo_c() {
         ensure_no_cargo_or_rustc_processes
 
         # Perform cleanup only when it's safe
-        cargo clean
+        execute cargo clean
         find "$HOME/.cargo/registry/index" -type f -name ".cargo-lock" -delete
 
-        if ! cargo install cargo-c; then
-            fail "Failed to execute: cargo install cargo-c."
-        fi
-        log_update "cargo-c installation completed."
-    else
-        log "cargo-c is already installed."
+        # Install cargo-c
+        execute cargo install cargo-c
     fi
 }
 
@@ -774,6 +770,7 @@ cuda_download() {
         break
     done
 
+    echo
     echo "Downloading the CUDA SDK Toolkit - version $cuda_version_number"
 
     mkdir -p "$packages/nvidia-cuda"
