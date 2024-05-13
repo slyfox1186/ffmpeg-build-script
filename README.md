@@ -6,9 +6,8 @@ This repository provides a streamlined script to build a static FFmpeg binary wi
 
 ## Supported Operating Systems
 
-- Arch Linux
-- Debian (Versions 11 and 12)
-- Ubuntu (Versions 20, 22, 23.04)
+- Debian 11|12
+- Ubuntu (20|22|23|24).04
 
 ## Features
 
