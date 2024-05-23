@@ -2,8 +2,13 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.7.2
-# Updated: 05.14.24
+# Script version: 3.8.0
+# Updated: 05.23.24
+#
+## Fixed a major issue with the download folder location. The apt_pkgs function
+## was corrupt up and I am sorry for the issues people have experienced.
+## FFmpeg is building normally on Windows WSL and native Ubuntu 24.04 for me now.
+#
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
 # Supported Distros: Debian 11|12
@@ -19,7 +24,7 @@ fi
 
 # Define global variables
 script_name="$0"
-script_version="3.7.2"
+script_version="3.8.0"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -778,7 +783,12 @@ nvidia_architecture() {
 download_cuda() {
     local -a options
     local choice cuda_pin_url cuda_url cuda_version_number distro installer_path pin_file pkg_ext version version_serial
-    cuda_version_number="$remote_cuda_version"
+    cuda_last_known_update="12.5.0"
+    if [[ ! "$remote_cuda_version" == "$remote_cuda_version" ]]; then
+        fail "The script needs to be updated manually. Please report and skip this section until the next update."
+    else
+        cuda_version_number="$remote_cuda_version"
+    fi
     cuda_pin_url="https://developer.download.nvidia.com/compute/cuda/repos"
     cuda_url="https://developer.download.nvidia.com/compute/cuda/$cuda_version_number"
 
@@ -786,6 +796,7 @@ download_cuda() {
     echo "Pick your Linux version from the list below:"
     echo "Supported architecture: x86_64"
     echo
+
     options=(
         "Debian 10"
         "Debian 11"
@@ -797,23 +808,23 @@ download_cuda() {
         "Exit"
     )
 
-    version_serial="12.4.1-550.54.15-1"
+    version_serial="12.5.0-555.42.02-1"
     select choice in "${options[@]}"; do
         case "$choice" in
-            "Debian 10") distro="debian10"; version="10-12-4"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
-            "Debian 11") distro="debian11"; version="11-12-4"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
-            "Debian 12") distro="debian12"; version="12-12-4"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
-            "Ubuntu 20.04") distro="ubuntu2004"; version="12-4"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2004.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
-            "Ubuntu 22.04") distro="ubuntu2204"; version="12-4"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
+            "Debian 10") distro="debian10"; version="10-12-5"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
+            "Debian 11") distro="debian11"; version="11-12-5"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
+            "Debian 12") distro="debian12"; version="12-12-5"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
+            "Ubuntu 20.04") distro="ubuntu2004"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2004.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
+            "Ubuntu 22.04") distro="ubuntu2204"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
             "Ubuntu 24.04")
                 echo "deb http://security.ubuntu.com/ubuntu jammy-security main universe" | tee "/etc/apt/sources.list.d/install-cuda-on-noble.list" >/dev/null
                 apt update
                 apt -y upgrade
-                echo "export PATH=/usr/local/cuda-12.4/bin\${PATH:+:\${PATH}}" | tee -a "$HOME/.bashrc" >/dev/null
-                distro="ubuntu2204"; version="12-4"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
+                echo "export PATH=/usr/local/cuda/bin\${PATH:+:\${PATH}}" | tee -a "$HOME/.bashrc" >/dev/null
+                distro="ubuntu2204"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
                 ;;
-            "Ubuntu WSL") distro="wsl-ubuntu"; version="12-4"; version_ext="12.4.1-1"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-wsl-ubuntu.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_ext}_amd64.deb" ;;
-            "Exit") return ;;
+            "Ubuntu WSL") distro="wsl-ubuntu"; version="12-5"; version_ext="12.5.0-1"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-wsl-ubuntu.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_ext}_amd64.deb" ;;
+            Exit) return ;;
             *) echo "Invalid choice. Please try again."; continue ;;
         esac
         break
@@ -839,11 +850,11 @@ download_cuda() {
         package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.deb"
         wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
         dpkg -i "$package_name"
-        cp -f "/var/cuda-repo-${distro}-12-4-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
+        cp -f "/var/cuda-repo-${distro}-12-5-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
     fi
 
     apt update
-    apt install -y cuda-toolkit-12-4
+    apt install -y cuda-toolkit-12-5
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
@@ -939,6 +950,7 @@ nvidia_encode_utils_version() {
 }
 
 # Required build packages
+# Required build packages
 apt_pkgs() {
     local -a available_packages missing_packages pkgs unavailable_packages
     local libcpp_pkg libcppabi_pkg libunwind_pkg openjdk_pkg pkg reboot_choice
@@ -957,36 +969,21 @@ apt_pkgs() {
     libunwind_pkg=$(find_latest_version '^libunwind-[0-9]+-dev$')
     gcc_plugin_pkg=$(find_latest_version '^gcc-[1-3]*-plugin-dev$')
 
-    # Define the package names in a multiline string
-    package_names="
-    $libcppabi_pkg
-    $libcpp_pkg
-    $libunwind_pkg
-    $nvidia_driver
-    $nvidia_utils
-    $openjdk_pkg
-    $gcc_plugin_pkg
-    "
-
-    # Use mapfile to read the package names into an array
-    mapfile -t packages <<< "$package_names"
-
     # Define an array of apt package names
     pkgs=(
-        "$1" "${packages[@]}"
+        $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg $nvidia_driver $nvidia_utils $openjdk_pkg $gcc_plugin_pkg
         asciidoc autoconf autoconf-archive automake autopoint bc binutils bison build-essential cargo ccache checkinstall
         curl doxygen fcitx-libs-dev flex flite1-dev gawk gcc gettext gimp-data git gnome-desktop-testing gnustep-gui-runtime
         google-perftools gperf gtk-doc-tools guile-3.0-dev help2man imagemagick jq junit ladspa-sdk lib32stdc++6 libasound2-dev
         libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev libbpf-dev libbs2b-dev libbz2-dev libc6 libc6-dev
-        libcaca-dev libcairo2-dev libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev libcjson-dev
-        libcodec2-dev libcrypto++-dev libcurl4-openssl-dev libdav1d-dev libdbus-1-dev libde265-dev libdevil-dev libdmalloc-dev
-        libdrm-dev libdvbpsi-dev libebml-dev libegl1-mesa-dev libffi-dev libflac-dev libgbm-dev libgdbm-dev
-        libgegl-common libgl1-mesa-dev libgles2-mesa-dev libglfw3-dev libglib2.0-dev libglu1-mesa-dev libgme-dev libgmock-dev
-        libgnutls28-dev libgoogle-perftools-dev libgsm1-dev libgtest-dev libgvc6 libibus-1.0-dev libintl-perl
-        libladspa-ocaml-dev libldap2-dev libleptonica-dev liblilv-dev liblz-dev liblzma-dev liblzo2-dev libmathic-dev
-        libmatroska-dev libmbedtls-dev libmetis5 libmfx-dev libmodplug-dev libmp3lame-dev libmusicbrainz5-dev libnuma-dev
-        libpango1.0-dev libperl-dev libplacebo-dev libpocketsphinx-dev libportaudio-ocaml-dev libpsl-dev libpstoedit-dev
-        libpulse-dev librabbitmq-dev libraw-dev librsvg2-dev librtmp-dev librubberband-dev librust-gstreamer-base-sys-dev
+        libcaca-dev libcairo2-dev libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev libcjson-dev libcodec2-dev
+        libcrypto++-dev libcurl4-openssl-dev libdav1d-dev libdbus-1-dev libde265-dev libdevil-dev libdmalloc-dev libdrm-dev
+        libdvbpsi-dev libebml-dev libegl1-mesa-dev libffi-dev libflac-dev libgbm-dev libgdbm-dev libgegl-common libgl1-mesa-dev
+        libgles2-mesa-dev libglfw3-dev libglib2.0-dev libglu1-mesa-dev libgme-dev libgmock-dev libgnutls28-dev libgoogle-perftools-dev
+        libgsm1-dev libgtest-dev libgvc6 libibus-1.0-dev libintl-perl libladspa-ocaml-dev libldap2-dev libleptonica-dev liblilv-dev
+        liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmatroska-dev libmbedtls-dev libmetis5 libmfx-dev libmodplug-dev libmp3lame-dev
+        libmusicbrainz5-dev libnuma-dev libpango1.0-dev libperl-dev libplacebo-dev libpocketsphinx-dev libportaudio-ocaml-dev libpsl-dev
+        libpstoedit-dev libpulse-dev librabbitmq-dev libraw-dev librsvg2-dev librtmp-dev librubberband-dev librust-gstreamer-base-sys-dev
         libsctp-dev libserd-dev libshine-dev libsmbclient-dev libsnappy-dev libsndio-dev libsoxr-dev libspeex-dev libsphinxbase-dev
         libsqlite3-dev libsratom-dev libssh-dev libssl-dev libsystemd-dev libtalloc-dev libtesseract-dev libticonv-dev libtool
         libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev libx11-dev
