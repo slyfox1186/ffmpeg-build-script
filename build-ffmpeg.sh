@@ -1335,6 +1335,15 @@ if build "pkg-config" "$version"; then
     build_done "pkg-config" "$version"
 fi
 
+find_git_repo "Kitware/CMake" "1" "T"
+if build "cmake" "$repo_version"; then
+    download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
+    execute ./bootstrap --prefix="$workspace" --parallel="$threads" --enable-ccache
+    execute make "-j$threads"
+    execute make install
+    build_done "cmake" "$repo_version"
+fi
+
 find_git_repo "mesonbuild/meson" "1" "T"
 if build "meson" "$repo_version"; then
     download "https://github.com/mesonbuild/meson/archive/refs/tags/$repo_version.tar.gz" "meson-$repo_version.tar.gz"
@@ -1428,15 +1437,6 @@ else
         execute make install
         build_done "gnutls" "$version"
     fi
-fi
-
-find_git_repo "Kitware/CMake" "1" "T"
-if build "cmake" "$repo_version"; then
-    download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
-    execute ./bootstrap --prefix="$workspace" --parallel="$threads" --enable-ccache
-    execute make "-j$threads"
-    execute make install
-    build_done "cmake" "$repo_version"
 fi
 
 find_git_repo "yasm/yasm" "1" "T"
