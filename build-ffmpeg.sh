@@ -2,12 +2,9 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.8.1
-# Updated: 05.24.24
 #
-## Fixed a major issue with the download folder location. The apt_pkgs function
-## was corrupt up and I am sorry for the issues people have experienced.
-## FFmpeg is building normally on Windows WSL and native Ubuntu 24.04 for me now.
+# Script version: 3.8.2
+# Updated: 05.24.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -24,7 +21,7 @@ fi
 
 # Define global variables
 script_name="$0"
-script_version="3.8.1"
+script_version="3.8.2"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -2578,6 +2575,9 @@ fi
 
 source_compiler_flags
 find_git_repo "FFmpeg/FFmpeg" "1" "T"
+case "$VER" in
+    11|12) repo_version="6.1.1" ;;
+esac
 if build "ffmpeg" "n${repo_version}"; then
     CFLAGS="$CFLAGS -flto -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
     download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
