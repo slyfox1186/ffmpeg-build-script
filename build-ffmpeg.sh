@@ -2,8 +2,8 @@
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-# Script version: 3.8.0
-# Updated: 05.23.24
+# Script version: 3.8.1
+# Updated: 05.24.24
 #
 ## Fixed a major issue with the download folder location. The apt_pkgs function
 ## was corrupt up and I am sorry for the issues people have experienced.
@@ -24,7 +24,7 @@ fi
 
 # Define global variables
 script_name="$0"
-script_version="3.8.0"
+script_version="3.8.1"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -723,10 +723,18 @@ check_remote_cuda_version() {
 
 set_java_variables() {
     source_path
-    locate_java=$(
-                 find /usr/lib/jvm/ -type d -name "java-*-openjdk*" |
-                 sort -ruV | head -n1
-              )
+    if [[ -d "/usr/lib/jvm/" ]]; then
+        locate_java=$(
+                     find /usr/lib/jvm/ -type d -name "java-*-openjdk*" |
+                     sort -ruV | head -n1
+                  )
+    else
+        if sudo apt -y install openjdk-17-jdk-headless; then
+            set_java_variables
+        else
+            fail "Could not install openjdk. Line: $LINENO"
+        fi
+    fi
     java_include=$(
                   find /usr/lib/jvm/ -type f -name "javac" |
                   sort -ruV | head -n1 | xargs dirname |
@@ -935,21 +943,6 @@ install_cuda() {
     return 0
 }
 
-nvidia_encode_utils_version() {
-    nvidia_utils_version=$(
-                           apt list nvidia-utils-* 2>/dev/null |
-                           grep -oP '^nvidia-utils-[0-9]{3}' |
-                           sort -ruV | head -n1
-                       )
-
-    nvidia_encode_version=$(
-                            apt list libnvidia-encode* 2>&1 |
-                            grep -oP 'libnvidia-encode-[0-9]{3}' |
-                            sort -ruV | head -n1
-                       )
-}
-
-# Required build packages
 # Required build packages
 apt_pkgs() {
     local -a available_packages missing_packages pkgs unavailable_packages
@@ -1109,7 +1102,7 @@ get_openssl_version() {
 }
 
 debian_msft() {
-    case "$STATIC_VER" in
+    case "$VER" in
         11) apt_pkgs "$debian_pkgs $debian_wsl_pkgs" ;;
         12) apt_pkgs "$debian_pkgs $debian_wsl_pkgs" ;;
         *) fail "Failed to parse the Debian MSFT version. Line: $LINENO" ;;
@@ -1117,30 +1110,22 @@ debian_msft() {
 }
 
 debian_os_version() {
-    if [[ "$2" == "yes_wsl" ]]; then
-        VER="msft"
-        debian_wsl_pkgs="$3"
+    if [[ "$1" == "yes_wsl" ]]; then
+        STATIC_VER="msft"
+        debian_wsl_pkgs="$2"
     fi
 
-    # Function to find the latest version of a package by pattern
-    find_latest_version_debian() {
-        apt-cache search "^libnvidia-encode-[0-9]+$" | sort -ruV | head -n1 | awk '{print $1}'
-    }
-
-    # Use the function to find the latest versions of specific packages
-    libnvidia_encode_debian=$(find_latest_version_debian '^libnvidia-encode-[0-9]+$')
-
     debian_pkgs=(
-                 cppcheck "$libnvidia_encode_debian" libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev
-                 libyuv-utils libyuv0 libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev
-                 libdmalloc5 libumfpack5 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2
-                 libcamd2 libamd2 software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4
+                 cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
+                 libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack5
+                 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
+                 software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4
             )
 
-    case "$VER" in
+    case "$STATIC_VER" in
         msft)          debian_msft ;;
-        12|trixie|sid) apt_pkgs "$1 ${debian_pkgs[*]} librist-dev" ;;
         11)            apt_pkgs "$1 ${debian_pkgs[*]}" ;;
+        12|trixie|sid) apt_pkgs "$1 ${debian_pkgs[*]} librist-dev" ;;
         *)             fail "Could not detect the Debian release version. Line: $LINENO" ;;
     esac
 }
@@ -1155,9 +1140,9 @@ ubuntu_msft() {
 }
 
 ubuntu_os_version() {
-    if [[ "$2" = "yes_wsl" ]]; then
+    if [[ "$1" = "yes_wsl" ]]; then
         VER="msft"
-        ubuntu_wsl_pkgs="$3"
+        ubuntu_wsl_pkgs="$2"
     fi
 
     ubuntu_common_pkgs="cppcheck libgegl-0.4-0 libgoogle-perftools4"
@@ -1173,7 +1158,7 @@ ubuntu_os_version() {
     mantic_pkgs+=" libccolamd2 libcholmod3 cargo-c libsuitesparseconfig5 libumfpack5 libjxl-dev libamd2"
     noble_pkgs="cargo-c libcamd3 libccolamd3 libcholmod5 libcolamd3 libsuitesparseconfig7"
     noble_pkgs+=" libumfpack6 libjxl-dev libamd3 libgegl-0.4-0t64 libgoogle-perftools4t64"
-    case "$VER" in
+    case "$STATIC_VER" in
         msft)
             ubuntu_msft
             ;;
@@ -1197,6 +1182,8 @@ ubuntu_os_version() {
             ;;
     esac
 }
+
+clear
 
 # Test the OS and its version
 find_lsb_release=$(find /usr/bin/ -type f -name lsb_release)
@@ -1222,14 +1209,12 @@ get_os_version
 # Check if running Windows WSL2
 if [[ $(grep -i "microsoft" /proc/version) ]]; then
     wsl_flag="yes_wsl"
-    OS="WSL2"
-fi
-if [[ "$OS" == "WSL2" ]]; then
     STATIC_OS="WSL2"
+[[ "$OS" == "WSL2" ]] && STATIC_OS="WSL2"
 fi
 
 # Use the function to find the latest versions of specific packages
-libnvidia_encode_wsl=$(apt-cache search '^libnvidia-encode-[0-9]+$' | sort -ruV | head -n1 | awk '{print $1}')
+libnvidia_encode_wsl=$(apt-cache search '^libnvidia-encode[0-9]+$' | sort -ruV | head -n1 | awk '{print $1}')
 wsl_common_pkgs="cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils"
 wsl_common_pkgs+=" libyuv0 libsharp-dev libdmalloc5 $libnvidia_encode_wsl"
 
@@ -1238,16 +1223,34 @@ echo "Installing the required APT packages"
 echo "========================================================"
 log "Checking installation status of each package..."
 
+nvidia_encode_utils_version() {
+    nvidia_utils_version=$(
+                           apt-cache search '^nvidia-utils-.*' 2>/dev/null |
+                           grep -oP '^nvidia-utils-[0-9]+' |
+                           sort -ruV | head -n1
+                       )
+
+    nvidia_encode_version=$(
+                            apt-cache search '^libnvidia-encode.*' 2>&1 |
+                            grep -oP '^libnvidia-encode-[0-9-]+' |
+                            sort -ruV | head -n1
+                       )
+}
+
 nvidia_encode_utils_version
 case "$STATIC_OS" in
-    WSL2) case "$STATIC_OS" in
-              Debian|n/a) debian_os_version "$nvidia_encode_version $nvidia_utils_version" "$wsl_flag" "$wsl_common_pkgs" ;;
-              Ubuntu)     ubuntu_os_version "$nvidia_encode_version $nvidia_utils_version" "$wsl_flag" "$wsl_common_pkgs" ;;
+    WSL2) case "$OS" in
+              Debian|n/a) debian_os_version "$wsl_flag" "$wsl_common_pkgs" ;;
+              Ubuntu)     ubuntu_os_version "$wsl_flag" "$wsl_common_pkgs" ;;
           esac
           ;;
     Debian|n/a) debian_os_version "$nvidia_encode_version" "$nvidia_utils_version" ;;
     Ubuntu)     ubuntu_os_version "$nvidia_encode_version" "$nvidia_utils_version" ;;
 esac
+
+echo
+read -p "Press enter to exit."
+exit
 
 # Check minimum disk space-requirements
 echo
@@ -1329,7 +1332,7 @@ gnu_repo "https://pkgconfig.freedesktop.org/releases/"
 if build "pkg-config" "$version"; then
     download "https://pkgconfig.freedesktop.org/releases/pkg-config-$version.tar.gz"
     execute autoconf
-    execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH"
+    execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH" --with-internal-glib
     execute make "-j$threads"
     execute make install
     build_done "pkg-config" "$version"
@@ -1471,7 +1474,7 @@ if build "giflib" "5.2.2"; then
 fi
 
 # UBUNTU BIONIC FAILS TO BUILD XML2
-if [[ "$VER" != "18.04" ]]; then
+if [[ "$STATIC_VER" != "18.04" ]]; then
     find_git_repo "1665" "5" "T"
     if build "libxml2" "$repo_version"; then
         download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2" "libxml2-$repo_version.tar.bz2"
@@ -2083,7 +2086,7 @@ fi
 CONFIGURE_OPTIONS+=("--enable-libaom")
 
 # Rav1e fails to build on Ubuntu Bionic and Debian 11 Bullseye
-if [[ "$VER" != "11" ]]; then
+if [[ "$STATIC_VER" != "11" ]]; then
     find_git_repo "xiph/rav1e" "1" "T" "enabled"
     if build "rav1e" "$repo_version"; then
         install_rustc
@@ -2506,7 +2509,7 @@ if build "libheif" "$repo_version"; then
         chmod 755 "/usr/lib/x86_64-linux-gnu/libde265.so"
     fi
 
-    case "$VER" in
+    case "$STATIC_VER" in
         20.04) pixbuf_switch=OFF ;;
         *)     pixbuf_switch=ON ;;
     esac
