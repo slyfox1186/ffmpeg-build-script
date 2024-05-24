@@ -2409,8 +2409,8 @@ if "$NONFREE_AND_GPL"; then
 fi
 
 # find_git_repo "vapoursynth/vapoursynth" "1" "T"
-if build "vapoursynth" "R65"; then
-    download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R65.tar.gz" "vapoursynth-R65.tar.gz"
+if build "vapoursynth" "R68"; then
+    download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R68.tar.gz" "vapoursynth-R68.tar.gz"
 
     venv_packages=("Cython==0.29.36")
     setup_python_venv_and_install_packages "$workspace/python_virtual_environment/vapoursynth" "${venv_packages[@]}"
@@ -2434,7 +2434,7 @@ if build "vapoursynth" "R65"; then
     # Deactivate the virtual environment after the build
     deactivate
 
-    build_done "vapoursynth" "R65"
+    build_done "vapoursynth" "R68"
 else
     # Explicitly set the PYTHON environment variable to the virtual environment's Python
     PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
