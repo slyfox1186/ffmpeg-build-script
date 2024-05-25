@@ -495,11 +495,11 @@ library_exists() {
 }
 
 determine_libtool_version() {
-    case "$VER" in
+    case "$STATIC_VER" in
         20.04|22.04|23.04|23.10)
             libtool_version="2.4.6"
             ;;
-        *)
+        11|12|24.04)
             libtool_version="2.4.7"
             ;;
     esac
