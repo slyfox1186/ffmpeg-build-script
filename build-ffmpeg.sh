@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.2
-# Updated: 05.24.24
+# Script version: 3.8.3
+# Updated: 05.29.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="$0"
-script_version="3.8.2"
+script_version="3.8.3"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -576,16 +576,20 @@ while (("$#" > 0)); do
         -n|--enable-gpl-and-non-free)
             CONFIGURE_OPTIONS+=("--enable-"{gpl,libsmbclient,libcdio,nonfree})
             NONFREE_AND_GPL=true
+            shift
             ;;
         -b|--build)
             bflag="-b"
+            shift
             ;;
         -c|--cleanup)
             cflag="-c"
             cleanup
+            shift
             ;;
         -l|--latest)
             LATEST=true
+            shift
             ;;
         --compiler=gcc|--compiler=clang)
             COMPILER_FLAG="${1#*=}"
@@ -600,7 +604,6 @@ while (("$#" > 0)); do
             exit 1
             ;;
     esac
-    shift
 done
 
 if [[ -z "$threads" ]]; then
@@ -623,15 +626,6 @@ else
     fail "Invalid compiler specified. Valid options are 'gcc' or 'clang'."
 fi
 export CC CXX MAKEFLAGS
-
-if [[ -z "$bflag" ]]; then
-    if [[ -z "$cflag" ]]; then
-        usage
-        echo
-        exit 1
-    fi
-    exit 0
-fi
 
 echo
 log "Utilizing $threads CPU threads"
