@@ -628,8 +628,8 @@ fi
 MAKEFLAGS="-j$threads"
 
 if [[ -z "$COMPILER_FLAG" ]] || [[ "$COMPILER_FLAG" == "gcc" ]]; then
-    CC="gcc-12"
-    CXX="g++-12"
+    CC="gcc"
+    CXX="g++"
 elif [[ "$COMPILER_FLAG" == "clang" ]]; then
     CC="clang"
     CXX="clang++"
