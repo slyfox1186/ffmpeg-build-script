@@ -64,7 +64,7 @@ mkdir -p "$packages" "$workspace"
 
 # Set the CC/CPP compilers + customized compiler optimization flags
 source_compiler_flags() {
-    CFLAGS="-O3 -pipe -fPIC -march=native"
+    CFLAGS="-O2 -pipe -fPIC -march=native"
     CXXFLAGS="$CFLAGS"
     CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include -D_FORTIFY_SOURCE=2"
     LDFLAGS="-L$workspace/lib64 -L$workspace/lib -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
@@ -2269,7 +2269,7 @@ if "$NONFREE_AND_GPL"; then
     if build "x264" "$repo_short_version_1"; then
         download "https://code.videolan.org/videolan/x264/-/archive/$repo_version_1/x264-$repo_version_1.tar.bz2" "x264-$repo_short_version_1.tar.bz2"
         execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all --enable-debug --enable-gprof \
-                            --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O3 -pipe -fPIC -march=native"
+                            --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O2 -pipe -fPIC -march=native"
         execute make "-j$threads"
         execute make install-lib-static install
         build_done "x264" "$repo_short_version_1"
@@ -2492,8 +2492,8 @@ find_git_repo "strukturag/libheif" "1" "T"
 if build "libheif" "$repo_version"; then
     download "https://github.com/strukturag/libheif/archive/refs/tags/v$repo_version.tar.gz" "libheif-$repo_version.tar.gz"
     source_compiler_flags
-    CFLAGS="-O3 -pipe -fno-lto -fPIC -march=native"
-    CXXFLAGS="-O3 -pipe -fno-lto -fPIC -march=native"
+    CFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
+    CXXFLAGS="-O2 -pipe -fPIC -march=native"
     export CFLAGS CXXFLAGS
     libde265_libs=$(sudo find /usr/ -type f -name 'libde265.s*')
     if [[ -f "$libde265_libs" ]] && [[ ! -e "/usr/lib/x86_64-linux-gnu/libde265.so" ]]; then
