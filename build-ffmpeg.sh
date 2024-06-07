@@ -20,7 +20,7 @@ if [[ "$EUID" -eq 0 ]]; then
 fi
 
 # Define global variables
-script_name="$0"
+script_name="${0##*/}"
 script_version="3.8.5"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
