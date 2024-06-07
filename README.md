@@ -2,18 +2,23 @@
 
 [![Star](https://img.shields.io/github/stars/slyfox1186/ffmpeg-build-script?style=social)](https://github.com/slyfox1186/ffmpeg-build-script)
 
-This repository provides a streamlined script to build a static FFmpeg binary with both non-free and GPL codecs. The script simplifies the process by automatically downloading the latest version of each required repository.
+This repository provides a **streamlined script** to build a static FFmpeg binary with both non-free and GPL codecs. The script simplifies the process by automatically downloading the latest version of each required repository.
+
+## Key Features
+
+- **Builds FFmpeg** with a wide range of **essential codecs and libraries**
+- Supports **hardware acceleration** using **Nvidia CUDA** and **AMD AMF**
+- Designed for **easy installation** on ***supported*** operating systems
 
 ## Supported Operating Systems
 
-- Debian 11|12
-- Ubuntu (20|22|23|24).04
-
-## Features
-
-- Builds FFmpeg with a wide range of codecs and libraries
-- Supports hardware acceleration using Nvidia CUDA and AMD AMF
-- Offers an optional NDI build script for advanced users
+| Distribution | Versions                 | Codenames                                        |
+|--------------|--------------------------|--------------------------------------------------|
+| **Debian**   | 11                       | Bullseye                                         |
+|              | 12                       | Bookworm                                         |
+| **Ubuntu**   | 20.04                    | Focal Fossa                                      |
+|              | 22.04                    | Jammy Jellyfish                                  |
+|              | 24.04                    | Noble Numbat                                     |
 
 ## Installation
 
@@ -28,95 +33,93 @@ This repository provides a streamlined script to build a static FFmpeg binary wi
    sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
    ```
 
-For detailed installation instructions, including hardware acceleration setup and the NDI build script, please refer to the [full readme](https://github.com/slyfox1186/ffmpeg-build-script#readme).
-
 ## Supported Codecs and Libraries
 
-The script supports a vast array of codecs and libraries, including:
-
-- `alsa`: Advanced Linux Sound Architecture (ALSA) project
-- `aom`: AV1 Video Codec (Experimental and very slow!)
-- `avisynth`: A powerful tool for video post-production
-- `bzlib`: A general-purpose data compression library
-- `chromaprint`: Audio fingerprinting library
-- `cuda`: Hardware acceleration for Nvidia graphics cards
-- `dav1d`: Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities
-- `decklink`: DeckLink capture cards support
-- `ff-nvcodec-headers`: Headers for Nvidia codec APIs (Hardware Acceleration)
-- `flac`: Free Lossless Audio Codec
-- `fontconfig`: Font configuration and customization library
-- `freetype`: A freely available software library to render fonts
-- `frei0r`: A collection of free and open-source video effects plugins
-- `fribidi`: The Free Implementation of the Unicode Bidirectional Algorithm
-- `harfbuzz`: Text shaping image processor
-- `iconv`: Used for converting text between encodings
-- `jxl`: JPEG XL, a better image quality and compression ratio compared to legacy JPEG
-- `kvazaar`: An open-source HEVC encoder
-- `ladspa`: Linux Audio Developer's Simple Plugin API
-- `lcms2`: A free, open-source, CMM engine for fast color transforms
-- `libaribb24`: A library for ARIB STD-B24, decoding JIS 8 bit characters and parsing MPEG-TS stream
-- `libass`: A portable subtitle renderer for the ASS/SSA subtitle format
-- `libbluray`: An open-source library for Blu-Ray Discs playback
-- `libbs2b`: Designed to improve headphone listening of stereo audio records
-- `libcaca`: A graphics library that outputs text instead of pixels
-- `libcdio`: A library for CD-ROM and CD image access
-- `libfdk_aac`: Fraunhofer FDK AAC Codec
-- `libflite`: Provides a high-level text-to-speech interface for English
-- `libgme`: A collection of video game music file emulators
-- `libmodplug`: A library for playing tracker music
-- `libmp3lame`: MPEG-1 or MPEG-2 Audio Layer III
-- `libmysofa`: A library to read AES SOFA files containing HRTFs
-- `libopencore_amr`: OpenCORE Adaptive Multi-Rate (AMR) speech codec library
-- `libopenmpt`: A library to render tracker music
-- `libopus`: Lossy audio coding format
-- `libpulse`: A featureful, general-purpose sound server
-- `librubberband`: An audio time-stretching and pitch-shifting library
-- `libshine`: Fixed-point MP3 encoder
-- `libsmbclient`: A library for manipulating CIFS/SMB network resources
-- `libsnappy`: Snappy compression/decompression library
-- `libsoxr`: The SoX Resampler library for sample-rate conversion
-- `libspeex`: Open Source/Free Software patent-free audio compression format
-- `libssh`: Multiplatform C library implementing the SSHv2 protocol
-- `libtesseract`: OCR engine and command-line program
-- `libtiff`: Support for the Tag Image File Format (TIFF)
-- `libtwolame`: Optimized MPEG Audio Layer 2 (MP2) encoder
-- `libv4l2`: A collection of libraries for video4linux2 devices
-- `libvo_amrwbenc`: Adaptive Multi-Rate Wideband (AMR-WB) audio codec encoder
-- `libvpx`: VP8 / VP9 Video Codec for the WebM video file format
-- `libwebp`: Image format for both lossless and lossy compression
-- `libx264`: H.264 Video Codec (MPEG-4 AVC)
-- `libx265`: H.265 Video Codec (HEVC)
-- `libxcb`: A C language interface to the X Window System protocol
-- `libxvid`: Xvid MPEG-4 Part 2 encoder wrapper
-- `libzimg`: The "z" library for image processing basics
-- `lv2`: An extensible open standard for audio plugins
-- `lzma`: An algorithm for lossless data compression
-- `mediainfo`: Unified display of technical and tag data for video and audio files
-- `mp4box/gpac`: Multimedia framework for packaging, streaming, and playback
-- `ogg`: Free, open container format
-- `opencl`: Open-source project for rendering 2D and 3D vector graphics
-- `opencore-amr`: Adaptive Multi-Rate (AMR) speech codec library implementation
-- `opengl`: Cross-language, cross-platform API for rendering 2D and 3D vector graphics
-- `openjpeg`: Open-source JPEG 2000 codec
-- `openssl`: Secure communications library
-- `rav1e`: Rust-based AV1 encoder
-- `sdl2`: Cross-platform development library for low-level access to hardware
-- `sndio`: Small audio and MIDI framework from the OpenBSD project
-- `srt`: Secure Reliable Transport (SRT) protocol for low-latency live streaming
-- `svtav1`: SVT-AV1 Encoder and Decoder
-- `theora`: Free lossy video compression format
-- `vapoursynth`: Application for video manipulation
-- `vidstab`: Video stabilization library
-- `vorbis`: Lossy audio compression format
-- `vpx`: VP8 / VP9 Video Codec for the WebM video file format
-- `webp`: Image format for both lossless and lossy compression
-- `x264`: H.264 Video Codec (MPEG-4 AVC)
-- `x265`: H.265 Video Codec (HEVC)
-- `xcb`: C language interface to the X Window System protocol
-- `xlib`: C subroutine library for interfacing with the X Window System
-- `xml2`: XML parser and toolkit
-- `xvidcore`: MPEG-4 video coding standard
-- `zlib`: General-purpose data compression library
+| Library / Codec | Description |
+|-----------------|-------------|
+| **alsa** | Advanced Linux Sound Architecture (ALSA) project |
+| **aom** | AV1 Video Codec (Experimental and very slow!) |
+| **avisynth** | A powerful tool for video post-production |
+| **bzlib** | A general-purpose data compression library |
+| **chromaprint** | Audio fingerprinting library |
+| **cuda** | Hardware acceleration for Nvidia graphics cards |
+| **dav1d** | Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities |
+| **decklink** | DeckLink capture cards support |
+| **ff-nvcodec-headers** | Headers for Nvidia codec APIs (Hardware Acceleration) |
+| **flac** | Free Lossless Audio Codec |
+| **fontconfig** | Font configuration and customization library |
+| **freetype** | A freely available software library to render fonts |
+| **frei0r** | A collection of free and open-source video effects plugins |
+| **fribidi** | The Free Implementation of the Unicode Bidirectional Algorithm |
+| **harfbuzz** | Text shaping image processor |
+| **iconv** | Used for converting text between encodings |
+| **jxl** | JPEG XL, a better image quality and compression ratio compared to legacy JPEG |
+| **kvazaar** | An open-source HEVC encoder |
+| **ladspa** | Linux Audio Developer's Simple Plugin API |
+| **lcms2** | A free, open-source, CMM engine for fast color transforms |
+| **libaribb24** | A library for ARIB STD-B24, decoding JIS 8 bit characters and parsing MPEG-TS stream |
+| **libass** | A portable subtitle renderer for the ASS/SSA subtitle format |
+| **libbluray** | An open-source library for Blu-Ray Discs playback |
+| **libbs2b** | Designed to improve headphone listening of stereo audio records |
+| **libcaca** | A graphics library that outputs text instead of pixels |
+| **libcdio** | A library for CD-ROM and CD image access |
+| **libfdk_aac** | Fraunhofer FDK AAC Codec |
+| **libflite** | Provides a high-level text-to-speech interface for English |
+| **libgme** | A collection of video game music file emulators |
+| **libmodplug** | A library for playing tracker music |
+| **libmp3lame** | MPEG-1 or MPEG-2 Audio Layer III |
+| **libmysofa** | A library to read AES SOFA files containing HRTFs |
+| **libopencore_amr** | OpenCORE Adaptive Multi-Rate (AMR) speech codec library |
+| **libopenmpt** | A library to render tracker music |
+| **libopus** | Lossy audio coding format |
+| **libpulse** | A featureful, general-purpose sound server |
+| **librubberband** | An audio time-stretching and pitch-shifting library |
+| **libshine** | Fixed-point MP3 encoder |
+| **libsmbclient** | A library for manipulating CIFS/SMB network resources |
+| **libsnappy** | Snappy compression/decompression library |
+| **libsoxr** | The SoX Resampler library for sample-rate conversion |
+| **libspeex** | Open Source/Free Software patent-free audio compression format |
+| **libssh** | Multiplatform C library implementing the SSHv2 protocol |
+| **libtesseract** | OCR engine and command-line program |
+| **libtiff** | Support for the Tag Image File Format (TIFF) |
+| **libtwolame** | Optimized MPEG Audio Layer 2 (MP2) encoder |
+| **libv4l2** | A collection of libraries for video4linux2 devices |
+| **libvo_amrwbenc** | Adaptive Multi-Rate Wideband (AMR-WB) audio codec encoder |
+| **libvpx** | VP8 / VP9 Video Codec for the WebM video file format |
+| **libwebp** | Image format for both lossless and lossy compression |
+| **libx264** | H.264 Video Codec (MPEG-4 AVC) |
+| **libx265** | H.265 Video Codec (HEVC) |
+| **libxcb** | A C language interface to the X Window System protocol |
+| **libxvid** | Xvid MPEG-4 Part 2 encoder wrapper |
+| **libzimg** | The "z" library for image processing basics |
+| **lv2** | An extensible open standard for audio plugins |
+| **lzma** | An algorithm for lossless data compression |
+| **mediainfo** | Unified display of technical and tag data for video and audio files |
+| **mp4box/gpac** | Multimedia framework for packaging, streaming, and playback |
+| **ogg** | Free, open container format |
+| **opencl** | Open-source project for rendering 2D and 3D vector graphics |
+| **opencore-amr** | Adaptive Multi-Rate (AMR) speech codec library implementation |
+| **opengl** | Cross-language, cross-platform API for rendering 2D and 3D vector graphics |
+| **openjpeg** | Open-source JPEG 2000 codec |
+| **openssl** | Secure communications library |
+| **rav1e** | Rust-based AV1 encoder |
+| **sdl2** | Cross-platform development library for low-level access to hardware |
+| **sndio** | Small audio and MIDI framework from the OpenBSD project |
+| **srt** | Secure Reliable Transport (SRT) protocol for low-latency live streaming |
+| **svtav1** | SVT-AV1 Encoder and Decoder |
+| **theora** | Free lossy video compression format |
+| **vapoursynth** | Application for video manipulation |
+| **vidstab** | Video stabilization library |
+| **vorbis** | Lossy audio compression format |
+| **vpx** | VP8 / VP9 Video Codec for the WebM video file format |
+| **webp** | Image format for both lossless and lossy compression |
+| **x264** | H.264 Video Codec (MPEG-4 AVC) |
+| **x265** | H.265 Video Codec (HEVC) |
+| **xcb** | C language interface to the X Window System protocol |
+| **xlib** | C subroutine library for interfacing with the X Window System |
+| **xml2** | XML parser and toolkit |
+| **xvidcore** | MPEG-4 video coding standard |
+| **zlib** | General-purpose data compression library |
 
 For a complete list of supported codecs and libraries, please refer to the [FFmpeg Legal Documents](https://ffmpeg.org/legal.html).
 
