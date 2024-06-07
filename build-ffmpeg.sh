@@ -1128,8 +1128,8 @@ fix_x265_libs() {
     x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' | sort -rV | head -n1)
     x265_libs_trim=$(echo "$x265_libs" | sed "s:.*/::" | head -n1)
 
-    cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
-    ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
+    sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
+    sudo ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
 }
 
 find_latest_nasm_version() {
