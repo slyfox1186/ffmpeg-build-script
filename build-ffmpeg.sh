@@ -1169,7 +1169,7 @@ ubuntu_os_version() {
             ubuntu_msft
             ;;
         24.04)
-            apt_pkgs "$1 $noble_pkgs"
+            apt_pkgs "$2 $noble_pkgs"
             ;;
         23.10)
             apt_pkgs "$1 $mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
