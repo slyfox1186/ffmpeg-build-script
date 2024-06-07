@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.5
-# Updated: 06.06.24
+# Script version: 3.8.6
+# Updated: 06.07.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -14,14 +14,14 @@
 # Supported architecture: x86_64
 # CUDA SDK Toolkit: Updated to version 12.5.0
 
-if [[ "$EUID" -eq 0 ]]; then
-    echo "You must run this script without root or with sudo."
+if [[ "$EUID" -ne 0 ]]; then
+    echo "You must run this script as root or with sudo."
     exit 1
 fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.8.5"
+script_version="3.8.6"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -64,10 +64,10 @@ mkdir -p "$packages" "$workspace"
 
 # Set the CC/CPP compilers + customized compiler optimization flags
 source_compiler_flags() {
-    CFLAGS="-O2 -pipe -march=native"
+    CFLAGS="-O3 -pipe -fPIC -march=native"
     CXXFLAGS="$CFLAGS"
-    CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include"
-    LDFLAGS="-L$workspace/lib64 -L$workspace/lib -Wl,-O1,--sort-common,--as-needed"
+    CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include -D_FORTIFY_SOURCE=2"
+    LDFLAGS="-L$workspace/lib64 -L$workspace/lib -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
     EXTRALIBS="-ldl -lpthread -lm -lz"
     export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
 }
@@ -112,7 +112,7 @@ cleanup() {
 
     case "$choice" in
         [yY]*|[yY][eE][sS]*)
-            sudo rm -fr "$cwd"
+            rm -fr "$cwd"
             ;;
         [nN]*|[nN][oO]*)
             ;;
@@ -692,7 +692,7 @@ export PKG_CONFIG_PATH
 check_amd_gpu() {
     if lshw -C display 2>&1 | grep -Eioq "amdgpu|amd"; then
         echo "AMD GPU detected"
-    elif sudo dpkg -l 2>&1 | grep -iq "amdgpu"; then
+    elif dpkg -l 2>&1 | grep -iq "amdgpu"; then
         echo "AMD GPU detected"
     elif lspci 2>&1 | grep -i "amd"; then
         echo "AMD GPU detected"
@@ -727,22 +727,22 @@ set_java_variables() {
     source_path
     if [[ -d "/usr/lib/jvm/" ]]; then
         locate_java=$(
-                     sudo find /usr/lib/jvm/ -type d -name "java-*-openjdk*" |
+                     find /usr/lib/jvm/ -type d -name "java-*-openjdk*" |
                      sort -ruV | head -n1
                   )
     else
         latest_openjdk_version=$(
-                                 sudo apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
+                                 apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
                                  sort -ruV | head -n1 | awk '{print $1}'
                              )
-        if sudo apt -y install $latest_openjdk_version; then
+        if apt -y install $latest_openjdk_version; then
             set_java_variables
         else
             fail "Could not install openjdk. Line: $LINENO"
         fi
     fi
     java_include=$(
-                  sudo find /usr/lib/jvm/ -type f -name "javac" |
+                  find /usr/lib/jvm/ -type f -name "javac" |
                   sort -ruV | head -n1 | xargs dirname |
                   sed 's/bin/include/'
               )
@@ -843,14 +843,14 @@ download_cuda() {
                 case "$user_choice" in
                     yes)
                         # Set PATH before proceeding with the keyring code
-                        echo "deb http://security.ubuntu.com/ubuntu jammy-security main universe" | sudo tee "/etc/apt/sources.list.d/install-cuda-on-noble.list" >/dev/null
-                        sudo apt update
-                        sudo apt -y upgrade
-                        echo "export PATH=/usr/local/cuda/bin\${PATH:+:\${PATH}}" | sudo tee -a "$HOME/.bashrc" >/dev/null
+                        echo "deb http://security.ubuntu.com/ubuntu jammy-security main universe" | tee "/etc/apt/sources.list.d/install-cuda-on-noble.list" >/dev/null
+                        apt update
+                        apt -y upgrade
+                        echo "export PATH=/usr/local/cuda/bin\${PATH:+:\${PATH}}" | tee -a "$HOME/.bashrc" >/dev/null
                         # Add GPG key for Ubuntu 24.04 without user prompt
                         key_url="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub"
                         keyring_file="/usr/share/keyrings/cuda-archive-keyring.gpg"
-                        if wget -qO- "$key_url" | sudo gpg --dearmor -o "$keyring_file"; then
+                        if wget -qO- "$key_url" | gpg --dearmor -o "$keyring_file"; then
                             echo "GPG key successfully added."
                         else
                             echo "Failed to add the GPG key."
@@ -892,15 +892,15 @@ download_cuda() {
     case "$pkg_ext" in
         "deb")
             wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
-            sudo dpkg -i "$package_name"
-            sudo cp -f "/var/cuda-repo-${distro}${version}-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
-            [[ "$distro" == "debian"* ]] && sudo add-apt-repository -y contrib
+            dpkg -i "$package_name"
+            cp -f "/var/cuda-repo-${distro}${version}-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
+            [[ "$distro" == "debian"* ]] && add-apt-repository -y contrib
             ;;
         "pin")
-            sudo wget --show-progress -cqO "/etc/apt/preferences.d/cuda-repository-pin-600" "$cuda_pin_url/$pin_file"
+            wget --show-progress -cqO "/etc/apt/preferences.d/cuda-repository-pin-600" "$cuda_pin_url/$pin_file"
             wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
-            sudo dpkg -i "$package_name"
-            sudo cp -f "/var/cuda-repo-${distro}-12-5-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
+            dpkg -i "$package_name"
+            cp -f "/var/cuda-repo-${distro}-12-5-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
             ;;
         *)
             echo "Unsupported package extension: $pkg_ext"
@@ -908,8 +908,8 @@ download_cuda() {
             ;;
     esac
 
-    sudo apt update
-    sudo apt -y --allow-unauthenticated install cuda-toolkit-12-5
+    apt update
+    apt -y --allow-unauthenticated install cuda-toolkit-12-5
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
@@ -997,7 +997,7 @@ apt_pkgs() {
 
     # Function to find the latest version of a package by pattern
     find_latest_version() {
-        sudo apt-cache search "$1" | sort -ruV | head -n1 | awk '{print $1}'
+        apt-cache search "$1" | sort -ruV | head -n1 | awk '{print $1}'
     }
 
     # Use the function to find the latest versions of specific packages
@@ -1026,10 +1026,10 @@ apt_pkgs() {
         libpstoedit-dev libpulse-dev librabbitmq-dev libraw-dev librsvg2-dev librtmp-dev librubberband-dev librust-gstreamer-base-sys-dev
         libsctp-dev libserd-dev libshine-dev libsmbclient-dev libsnappy-dev libsndio-dev libsoxr-dev libspeex-dev libsphinxbase-dev
         libsqlite3-dev libsratom-dev libssh-dev libssl-dev libsystemd-dev libtalloc-dev libtesseract-dev libticonv-dev libtool
-        libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev libx11-dev
-        libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev libzmq3-dev
-        libzvbi-dev libzzip-dev lsb-release lshw lzma-dev m4 mesa-utils pandoc python3 python3-pip python3-venv ragel re2c scons
-        texi2html texinfo tk-dev unzip valgrind wget xmlto
+        libwavpack-dev libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev
+        libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev
+        libzmq3-dev libzvbi-dev libzzip-dev lsb-release lshw lzma-dev m4 mesa-utils pandoc python3 python3-pip python3-venv ragel
+        re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto
     )
 
     [[ "$OS" == "Debian" ]] && pkgs+=("nvidia-smi")
@@ -1050,7 +1050,7 @@ apt_pkgs() {
 
     # Check availability of missing packages and categorize them
     for pkg in "${missing_packages[@]}"; do
-        if sudo apt-cache show "$pkg" >/dev/null 2>&1; then
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
             available_packages+=("$pkg")
         else
             unavailable_packages+=("$pkg")
@@ -1070,9 +1070,9 @@ apt_pkgs() {
         log "Installing available missing packages:"
         printf "       %s\n" "${available_packages[@]}"
         echo
-        sudo apt update
-        sudo apt install "${available_packages[@]}"
-        sudo apt -y autoremove
+        apt update
+        apt install "${available_packages[@]}"
+        apt -y autoremove
         echo
     else
         log "No missing packages to install or all missing packages are unavailable."
@@ -1117,7 +1117,7 @@ check_avx512() {
 
 fix_libstd_libs() {
     local libstdc_path
-    libstdc_path=$(sudo find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
+    libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
     if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
         ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
     fi
@@ -1128,8 +1128,8 @@ fix_x265_libs() {
     x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' | sort -rV | head -n1)
     x265_libs_trim=$(echo "$x265_libs" | sed "s:.*/::" | head -n1)
 
-    sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
-    sudo ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
+    cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
+    ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
 }
 
 find_latest_nasm_version() {
@@ -1233,7 +1233,7 @@ ubuntu_os_version() {
 clear
 
 # Test the OS and its version
-find_lsb_release=$(sudo find /usr/bin/ -type f -name lsb_release)
+find_lsb_release=$(find /usr/bin/ -type f -name lsb_release)
 
 get_os_version() {
     if [[ -f /etc/os-release ]]; then
@@ -1261,7 +1261,7 @@ if [[ $(grep -i "Microsoft" /proc/version) ]]; then
 fi
 
 # Use the function to find the latest versions of specific packages
-libnvidia_encode_wsl=$(sudo apt-cache search '^libnvidia-encode[0-9]+$' | sort -ruV | head -n1 | awk '{print $1}')
+libnvidia_encode_wsl=$(apt-cache search '^libnvidia-encode[0-9]+$' | sort -ruV | head -n1 | awk '{print $1}')
 wsl_common_pkgs="cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils"
 wsl_common_pkgs+=" libyuv0 libsharp-dev libdmalloc5 $libnvidia_encode_wsl"
 
@@ -1272,13 +1272,13 @@ log "Checking installation status of each package..."
 
 nvidia_encode_utils_version() {
     nvidia_utils_version=$(
-                           sudo apt-cache search '^nvidia-utils-.*' 2>/dev/null |
+                           apt-cache search '^nvidia-utils-.*' 2>/dev/null |
                            grep -oP '^nvidia-utils-[0-9]+' |
                            sort -ruV | head -n1
                        )
 
     nvidia_encode_version=$(
-                            sudo apt-cache search '^libnvidia-encode.*' 2>&1 |
+                            apt-cache search '^libnvidia-encode.*' 2>&1 |
                             grep -oP '^libnvidia-encode-[0-9-]+' |
                             sort -ruV | head -n1
                        )
@@ -1307,14 +1307,14 @@ echo
 set_java_variables
 
 # Check if the CUDA folder exists to determine the installation status
-iscuda=$(sudo find /usr/local/cuda/ -type f -name nvcc 2>/dev/null | sort -ruV | head -n1)
-cuda_path=$(sudo find /usr/local/cuda/ -type f -name nvcc 2>/dev/null | sort -ruV | head -n1 | grep -oP '^.*/bin?')
+iscuda=$(find /usr/local/cuda/ -type f -name nvcc 2>/dev/null | sort -ruV | head -n1)
+cuda_path=$(find /usr/local/cuda/ -type f -name nvcc 2>/dev/null | sort -ruV | head -n1 | grep -oP '^.*/bin?')
 
 # Prompt the user to install the GeForce CUDA SDK-Toolkit
 install_cuda
 
 # Update the ld linker search paths
-sudo ldconfig
+ldconfig
 
 #
 # Install the Global Tools
@@ -1352,6 +1352,16 @@ if build "m4" "latest"; then
     build_done "m4" "latest"
 fi
 
+if build "autoconf" "2.71"; then
+    download "https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.xz"
+    execute autoupdate
+    execute autoreconf -fi
+    execute ./configure --prefix="$workspace" M4="$workspace/bin/m4"
+    execute make "-j$threads"
+    execute make install
+    build_done "autoconf" "2.71"
+fi
+
 determine_libtool_version
 if build "libtool" "$libtool_version"; then
     download "https://ftp.gnu.org/gnu/libtool/libtool-$libtool_version.tar.xz"
@@ -1382,27 +1392,9 @@ fi
 
 find_git_repo "mesonbuild/meson" "1" "T"
 if build "meson" "$repo_version"; then
-    echo "Setting up Python virtual environment for Meson..."
-    venv_path="$workspace/python_virtual_environment/meson-$repo_version"
-    python3 -m venv "$venv_path" || fail "Failed to create virtual environment for Meson"
-
-    echo "Activating the virtual environment..."
-    source "$venv_path/bin/activate" || fail "Failed to activate virtual environment for Meson"
-
-    echo "Installing Meson..."
-    pip install meson=="$repo_version" || fail "Failed to install Meson"
-
-    echo "Deactivating the virtual environment..."
-    deactivate
-
-    echo "Setting PYTHONPATH to include the virtual environment's site-packages directory"
-    PYTHONPATH="$venv_path/lib/python$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')/site-packages"
-    export PYTHONPATH
-
-    PATH="$venv_path/bin:$PATH"
-    export PATH
-    remove_duplicate_paths
-
+    download "https://github.com/mesonbuild/meson/archive/refs/tags/$repo_version.tar.gz" "meson-$repo_version.tar.gz"
+    execute python3 setup.py build
+    execute python3 setup.py install --prefix=/usr/local
     build_done "meson" "$repo_version"
 fi
 
@@ -1518,7 +1510,6 @@ fi
 
 if build "giflib" "5.2.2"; then
     download "https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
-    download "https://netactuate.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
     # Parellel building not available for this library
     execute make
     execute make PREFIX="$workspace" install
@@ -1635,7 +1626,7 @@ if build "$repo_name" "${version//\$ /}"; then
                         -D privlibexp="$workspace/lib/c2man"
     execute make depend
     execute make "-j$threads"
-    execute sudo make install
+    execute make install
     build_done "$repo_name" "$version"
 fi
 
@@ -2212,7 +2203,7 @@ git_caller "https://github.com/apache/ant.git" "ant-git"
 if build "$repo_name" "${version//\$ /}"; then
     echo "Cloning \"$repo_name\" saving version \"$version\""
     git_clone "$git_url"
-    execute sudo chmod 777 -R "$workspace/ant"
+    execute chmod 777 -R "$workspace/ant"
     execute sh build.sh install-lite
     build_done "$repo_name" "$version"
 fi
@@ -2268,7 +2259,7 @@ if build "mediainfo-cli" "$repo_version"; then
     execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
     execute make "-j$threads"
     execute make install
-    execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
+    execute cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
     build_done "mediainfo-cli" "$repo_version"
 fi
 
@@ -2305,7 +2296,7 @@ if build "$repo_name" "${version//\$ /}"; then
     execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --sdl-cfg="$workspace/include/SDL3"
     execute make "-j$threads"
     execute make install
-    execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
+    execute cp -f bin/gcc/MP4Box /usr/local/bin
     build_done "$repo_name" "$version"
 fi
 
@@ -2552,9 +2543,9 @@ if build "libheif" "$repo_version"; then
     download "https://github.com/strukturag/libheif/archive/refs/tags/v$repo_version.tar.gz" "libheif-$repo_version.tar.gz"
     source_compiler_flags
     CFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
-    CXXFLAGS="-O2 -pipe -fPIC -march=native"
+    CXXFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
     export CFLAGS CXXFLAGS
-    libde265_libs=$(sudo find /usr/ -type f -name 'libde265.s*')
+    libde265_libs=$(find /usr/ -type f -name 'libde265.s*')
     if [[ -f "$libde265_libs" ]] && [[ ! -e "/usr/lib/x86_64-linux-gnu/libde265.so" ]]; then
         ln -sf "$libde265_libs" "/usr/lib/x86_64-linux-gnu/libde265.so"
         chmod 755 "/usr/lib/x86_64-linux-gnu/libde265.so"
@@ -2632,31 +2623,37 @@ else
 fi
 
 source_compiler_flags
+CFLAGS="$CFLAGS -flto -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I$workspace/include/serd-0 -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
+LDFLAGS="$LDFLAGS -DLIBXML_STATIC"
+if [[ -n "$iscuda" ]]; then
+    CFLAGS+=" -I/usr/local/cuda/include"
+    LDFLAGS+=" -L/usr/local/cuda/lib64"
+fi
+
 find_git_repo "FFmpeg/FFmpeg" "1" "T"
 case "$VER" in
     11|12) repo_version="6.1.1" ;;
 esac
 if build "ffmpeg" "n${repo_version}"; then
-    CFLAGS="$CFLAGS -flto -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
     download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
     mkdir build; cd build || exit 1
-    ../configure --prefix=/usr/local --arch="amd64" --cc="$CC" --cxx="$CXX" \
-                 --disable-{debug,doc,shared} "${CONFIGURE_OPTIONS[@]}" \
+    ../configure --prefix="/usr/local" --arch="$(uname -m)" --cc="$CC" --cxx="$CXX" \
+                 --disable-{debug,shared} "${CONFIGURE_OPTIONS[@]}" \
                  --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme,libmodplug} \
                  --enable-{libshine,libsnappy,libsoxr,libspeex,libssh,libtesseract} \
                  --enable-{libtwolame,libv4l2,libvo-amrwbenc,libzimg,libzvbi} \
-                 --enable-{lto,opengl,pic,rpath,small,static,version3} \
-                 --extra-{cflags,cxxflags}="$CFLAGS" \
-                 --extra-libs="$EXTRALIBS" --extra-ldflags="$LDFLAGS" \
-                 --pkg-config-flags="--static" --pkg-config="$workspace/bin/pkg-config" \
-                 --pkgconfigdir="$workspace/lib/pkgconfig" --strip="$(type -P strip)"
+                 --enable-{lto,opengl,pic,pthreads,rpath,small,static,version3} \
+                 --extra-{cflags,cxxflags}="$CFLAGS" --extra-libs="$EXTRALIBS" \
+                 --extra-ldflags="$LDFLAGS" --pkg-config-flags="--static" \
+                 --extra-ldexeflags="$LDEXEFLAGS" --pkg-config="$workspace/bin/pkg-config" \
+                 --pkgconfigdir="$PKG_CONFIG_PATH" --strip="$(type -P strip)"
     execute make "-j$threads"
-    execute sudo make install
+    execute make install
     build_done "ffmpeg" "n${repo_version}"
 fi
 
-# Execute the sudo ldconfig command to ensure that all library changes are detected by ffmpeg
-sudo ldconfig
+# Execute the ldconfig command to ensure that all library changes are detected by ffmpeg
+ldconfig
 
 # Display the version of each of the programs
 show_versions
