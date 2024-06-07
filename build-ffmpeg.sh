@@ -2640,12 +2640,12 @@ if build "ffmpeg" "n${repo_version}"; then
     CFLAGS="$CFLAGS -flto -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
     download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
     mkdir build; cd build || exit 1
-    ../configure --prefix=/usr/local --arch="$(uname -m)" --cc="$CC" --cxx="$CXX" \
-                 --disable-{debug,doc,large-tests,shared} "${CONFIGURE_OPTIONS[@]}" \
+    ../configure --prefix=/usr/local --arch="amd64" --cc="$CC" --cxx="$CXX" \
+                 --disable-{debug,doc,shared} "${CONFIGURE_OPTIONS[@]}" \
                  --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme,libmodplug} \
                  --enable-{libshine,libsnappy,libsoxr,libspeex,libssh,libtesseract} \
                  --enable-{libtwolame,libv4l2,libvo-amrwbenc,libzimg,libzvbi} \
-                 --enable-{lto,opengl,pic,pthreads,rpath,small,static,version3} \
+                 --enable-{lto,opengl,pic,rpath,small,static,version3} \
                  --extra-{cflags,cxxflags}="$CFLAGS" \
                  --extra-libs="$EXTRALIBS" --extra-ldflags="$LDFLAGS" \
                  --pkg-config-flags="--static" --pkg-config="$workspace/bin/pkg-config" \
