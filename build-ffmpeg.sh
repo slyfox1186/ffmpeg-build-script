@@ -607,7 +607,7 @@ while (("$#" > 0)); do
             shift 2
             ;;
         -g|--google-speech)
-            google_speech_flag="true"
+            google_speech_flag=true
             shift
             ;;
         *)
