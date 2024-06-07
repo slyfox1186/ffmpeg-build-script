@@ -3,16 +3,16 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.4
-# Updated: 06.02.24
+# Script version: 3.8.5
+# Updated: 06.06.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
 # Supported Distros: Debian 11|12
-#                    Ubuntu (20|22|23|24).04 & 23.10
+#                    Ubuntu (20|22|24).04
 #                    Arch Linux (No longer supported due to the low need.)
 # Supported architecture: x86_64
-# CUDA SDK Toolkit: Updated to version 12.4.1
+# CUDA SDK Toolkit: Updated to version 12.5.0
 
 if [[ "$EUID" -eq 0 ]]; then
     echo "You must run this script without root or with sudo."
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="$0"
-script_version="3.8.4"
+script_version="3.8.5"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -796,7 +796,7 @@ nvidia_architecture() {
 
 download_cuda() {
     local -a options
-    local choice cuda_pin_url cuda_url cuda_version_number distro installer_path pin_file pkg_ext version version_serial
+    local choice cuda_pin_url cuda_url cuda_version_number distro installer_path pin_file pkg_ext user_choice version version_serial
     cuda_last_known_update="12.5.0"
     if [[ ! "$remote_cuda_version" == "$remote_cuda_version" ]]; then
         fail "The script needs to be updated manually. Please report and skip this section until the next update."
@@ -819,7 +819,7 @@ download_cuda() {
         "Ubuntu 22.04"
         "Ubuntu 24.04"
         "Ubuntu WSL"
-        "Exit"
+        "Skip"
     )
 
     version_serial="12.5.0-555.42.02-1"
@@ -831,14 +831,49 @@ download_cuda() {
             "Ubuntu 20.04") distro="ubuntu2004"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2004.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
             "Ubuntu 22.04") distro="ubuntu2204"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
             "Ubuntu 24.04")
-                echo "deb http://security.ubuntu.com/ubuntu jammy-security main universe" | tee "/etc/apt/sources.list.d/install-cuda-on-noble.list" >/dev/null
-                sudo apt update
-                sudo apt -y upgrade
-                echo "export PATH=/usr/local/cuda/bin\${PATH:+:\${PATH}}" | tee -a "$HOME/.bashrc" >/dev/null
-                distro="ubuntu2204"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
+                # Prompt user about the workaround
+                echo
+                echo "Until Ubuntu 24.04 has an officially released Debian file from Nvidia, we must use a workaround that"
+                echo "involves adding an \"unverified\" GPG key or CUDA will be uninstallable using this script."
+                echo
+                echo "The workaround involves using Ubuntu 22.04's Debian file instead as a crutch to overcome the disparity."
+                echo
+                # Prompt to continue or exit
+                read -p "Do you want to continue with this method? (yes/skip/exit): " user_choice
+                case "$user_choice" in
+                    yes)
+                        # Set PATH before proceeding with the keyring code
+                        echo "deb http://security.ubuntu.com/ubuntu jammy-security main universe" | sudo tee "/etc/apt/sources.list.d/install-cuda-on-noble.list" >/dev/null
+                        sudo apt update
+                        sudo apt -y upgrade
+                        echo "export PATH=/usr/local/cuda/bin\${PATH:+:\${PATH}}" | sudo tee -a "$HOME/.bashrc" >/dev/null
+                        # Add GPG key for Ubuntu 24.04 without user prompt
+                        key_url="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub"
+                        keyring_file="/usr/share/keyrings/cuda-archive-keyring.gpg"
+                        if wget -qO- "$key_url" | sudo gpg --dearmor -o "$keyring_file"; then
+                            echo "GPG key successfully added."
+                        else
+                            echo "Failed to add the GPG key."
+                            exit 1
+                        fi
+                        distro="ubuntu2204"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
+                        ;;
+                    skip)
+                        echo "Skipping CUDA installation for Ubuntu 24.04."
+                        return
+                        ;;
+                    exit)
+                        echo "Exiting script."
+                        exit 0
+                        ;;
+                    *)
+                        echo "Invalid choice. Exiting script."
+                        exit 1
+                        ;;
+                esac
                 ;;
             "Ubuntu WSL") distro="wsl-ubuntu"; version="12-5"; version_ext="12.5.0-1"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-wsl-ubuntu.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_ext}_amd64.deb" ;;
-            Exit) return ;;
+            Skip) return ;;
             *) echo "Invalid choice. Please try again."; continue ;;
         esac
         break
@@ -853,22 +888,28 @@ download_cuda() {
         distro="${distro//[0-9][0-9]}"
     fi
 
-    if [[ "$pkg_ext" == "deb" ]]; then
-        package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.$pkg_ext"
-        wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
-        sudo dpkg -i "$package_name"
-        cp -f "/var/cuda-repo-${distro}${version}-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
-        [[ "$distro" == "debian"* ]] && add-apt-repository -y contrib
-    elif [[ "$pkg_ext" == "pin" ]]; then
-        sudo wget --show-progress -cqO "/etc/apt/preferences.d/cuda-repository-pin-600" "$cuda_pin_url/$pin_file"
-        package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.deb"
-        wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
-        sudo dpkg -i "$package_name"
-        cp -f "/var/cuda-repo-${distro}-12-5-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
-    fi
+    package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.$pkg_ext"
+    case "$pkg_ext" in
+        "deb")
+            wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
+            sudo dpkg -i "$package_name"
+            sudo cp -f "/var/cuda-repo-${distro}${version}-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
+            [[ "$distro" == "debian"* ]] && sudo add-apt-repository -y contrib
+            ;;
+        "pin")
+            sudo wget --show-progress -cqO "/etc/apt/preferences.d/cuda-repository-pin-600" "$cuda_pin_url/$pin_file"
+            wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
+            sudo dpkg -i "$package_name"
+            sudo cp -f "/var/cuda-repo-${distro}-12-5-local/cuda-"*"-keyring.gpg" "/usr/share/keyrings/"
+            ;;
+        *)
+            echo "Unsupported package extension: $pkg_ext"
+            exit 1
+            ;;
+    esac
 
     sudo apt update
-    sudo apt -y install cuda-toolkit-12-5
+    sudo apt -y --allow-unauthenticated install cuda-toolkit-12-5
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
@@ -1109,8 +1150,8 @@ get_openssl_version() {
 
 debian_msft() {
     case "$VER" in
-        11) apt_pkgs "$debian_pkgs $debian_wsl_pkgs" ;;
-        12) apt_pkgs "$debian_pkgs $debian_wsl_pkgs" ;;
+        11) apt_pkgs "$debian_pkgs $1" ;;
+        12) apt_pkgs "$debian_pkgs $1" ;;
         *) fail "Failed to parse the Debian MSFT version. Line: $LINENO" ;;
     esac
 }
@@ -1129,7 +1170,7 @@ debian_os_version() {
             )
 
     case "$STATIC_VER" in
-        msft)          debian_msft ;;
+        msft)          debian_msft "$debian_wsl_pkgs" ;;
         11)            apt_pkgs "$1 ${debian_pkgs[*]}" ;;
         12|trixie|sid) apt_pkgs "$1 ${debian_pkgs[*]} librist-dev" ;;
         *)             fail "Could not detect the Debian release version. Line: $LINENO" ;;
@@ -1341,9 +1382,27 @@ fi
 
 find_git_repo "mesonbuild/meson" "1" "T"
 if build "meson" "$repo_version"; then
-    download "https://github.com/mesonbuild/meson/archive/refs/tags/$repo_version.tar.gz" "meson-$repo_version.tar.gz"
-    execute python3 setup.py build
-    execute python3 setup.py install --prefix="$workspace"
+    echo "Setting up Python virtual environment for Meson..."
+    venv_path="$workspace/python_virtual_environment/meson-$repo_version"
+    python3 -m venv "$venv_path" || fail "Failed to create virtual environment for Meson"
+
+    echo "Activating the virtual environment..."
+    source "$venv_path/bin/activate" || fail "Failed to activate virtual environment for Meson"
+
+    echo "Installing Meson..."
+    pip install meson=="$repo_version" || fail "Failed to install Meson"
+
+    echo "Deactivating the virtual environment..."
+    deactivate
+
+    echo "Setting PYTHONPATH to include the virtual environment's site-packages directory"
+    PYTHONPATH="$venv_path/lib/python$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')/site-packages"
+    export PYTHONPATH
+
+    PATH="$venv_path/bin:$PATH"
+    export PATH
+    remove_duplicate_paths
+
     build_done "meson" "$repo_version"
 fi
 
@@ -1355,7 +1414,7 @@ if build "ninja" "$repo_version"; then
                            -DRE2C="$re2c_path" -DBUILD_TESTING=OFF -Wno-dev
     execute make "-j$threads" -C build
     execute make -C build install
-    build_done "ninja" "$repo_version"  
+    build_done "ninja" "$repo_version"
 fi
 
 find_git_repo "facebook/zstd" "1" "T"
@@ -1576,7 +1635,7 @@ if build "$repo_name" "${version//\$ /}"; then
                         -D privlibexp="$workspace/lib/c2man"
     execute make depend
     execute make "-j$threads"
-    execute make install
+    execute sudo make install
     build_done "$repo_name" "$version"
 fi
 
