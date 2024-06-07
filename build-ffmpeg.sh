@@ -34,7 +34,7 @@ workspace="$cwd/workspace"
 google_speech_flag=false
 # Set a regex string to match and then exclude any found release candidate versions of a program. Utilize stable releases only.
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
-debug=OFF
+debug=ON
 
 # Pre-defined color variables
 GREEN='\033[0;32m'
@@ -2219,8 +2219,8 @@ fi
 PATH="$PATH:$workspace/ant/bin"
 remove_duplicate_paths
 
-# Ubuntu Jammy gives an error so use the APT version instead
-if [[ ! "$STATIC_VER" == "22.04" ]]; then
+# Ubuntu Jammy and Noble both give an error so instead we will use the APT version
+if [[ ! "$STATIC_VER" == "22.04" ]] && [[ ! "$STATIC_VER" == "24.04" ]]; then
     find_git_repo "206" "2" "T"
     if build "libbluray" "$repo_version"; then
         download "https://code.videolan.org/videolan/libbluray/-/archive/$repo_version/$repo_version.tar.gz" "libbluray-$repo_version.tar.gz"
