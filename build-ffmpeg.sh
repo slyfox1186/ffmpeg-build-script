@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.6
-# Updated: 06.07.24
+# Script version: 3.8.7
+# Updated: 06.09.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.8.6"
+script_version="3.8.7"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -64,12 +64,11 @@ mkdir -p "$packages" "$workspace"
 
 # Set the CC/CPP compilers + customized compiler optimization flags
 source_compiler_flags() {
-    CFLAGS="-O3 -pipe -fPIC -march=native"
+    CFLAGS="-O3 -pipe -fPIC -march=native -I$workspace/include -I/usr/x86_64-linux-gnu/include -D_FORTIFY_SOURCE=2"
     CXXFLAGS="$CFLAGS"
-    CPPFLAGS="-I$workspace/include -I/usr/x86_64-linux-gnu/include -D_FORTIFY_SOURCE=2"
     LDFLAGS="-L$workspace/lib64 -L$workspace/lib -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
     EXTRALIBS="-ldl -lpthread -lm -lz"
-    export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
+    export CFLAGS CXXFLAGS LDFLAGS
 }
 
 log() {
@@ -1014,22 +1013,22 @@ apt_pkgs() {
         $1 $libcppabi_pkg $libcpp_pkg $libunwind_pkg $nvidia_driver $nvidia_utils $openjdk_pkg $gcc_plugin_pkg
         asciidoc autoconf autoconf-archive automake autopoint bc binutils bison build-essential cargo ccache checkinstall
         curl doxygen fcitx-libs-dev flex flite1-dev gawk gcc gettext gimp-data git gnome-desktop-testing gnustep-gui-runtime
-        google-perftools gperf gtk-doc-tools guile-3.0-dev help2man imagemagick jq junit ladspa-sdk lib32stdc++6 libasound2-dev
-        libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev libbpf-dev libbs2b-dev libbz2-dev libc6 libc6-dev
-        libcaca-dev libcairo2-dev libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev libcjson-dev libcodec2-dev
-        libcrypto++-dev libcurl4-openssl-dev libdav1d-dev libdbus-1-dev libde265-dev libdevil-dev libdmalloc-dev libdrm-dev
-        libdvbpsi-dev libebml-dev libegl1-mesa-dev libffi-dev libflac-dev libgbm-dev libgdbm-dev libgegl-common libgl1-mesa-dev
-        libgles2-mesa-dev libglfw3-dev libglib2.0-dev libglu1-mesa-dev libgme-dev libgmock-dev libgnutls28-dev libgoogle-perftools-dev
-        libgsm1-dev libgtest-dev libgvc6 libibus-1.0-dev libintl-perl libladspa-ocaml-dev libldap2-dev libleptonica-dev liblilv-dev
-        liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmatroska-dev libmbedtls-dev libmetis5 libmfx-dev libmodplug-dev libmp3lame-dev
-        libmusicbrainz5-dev libnuma-dev libpango1.0-dev libperl-dev libplacebo-dev libpocketsphinx-dev libportaudio-ocaml-dev libpsl-dev
-        libpstoedit-dev libpulse-dev librabbitmq-dev libraw-dev librsvg2-dev librtmp-dev librubberband-dev librust-gstreamer-base-sys-dev
-        libsctp-dev libserd-dev libshine-dev libsmbclient-dev libsnappy-dev libsndio-dev libsoxr-dev libspeex-dev libsphinxbase-dev
-        libsqlite3-dev libsratom-dev libssh-dev libssl-dev libsystemd-dev libtalloc-dev libtesseract-dev libticonv-dev libtool
-        libwavpack-dev libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev libvlccore-dev libvo-amrwbenc-dev
-        libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxvidcore-dev
-        libzmq3-dev libzvbi-dev libzzip-dev lsb-release lshw lzma-dev m4 mesa-utils pandoc python3 python3-pip python3-venv ragel
-        re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto
+        golang-go google-perftools gperf gtk-doc-tools guile-3.0-dev help2man imagemagick jq junit ladspa-sdk lib32stdc++6
+        libasound2-dev libass-dev libaudio-dev libavfilter-dev libbabl-0.1-0 libbluray-dev libbpf-dev libbs2b-dev libbz2-dev
+        libc6 libc6-dev libcaca-dev libcairo2-dev libcdio-dev libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
+        libcjson-dev libcodec2-dev libcrypto++-dev libcurl4-openssl-dev libdav1d-dev libdbus-1-dev libde265-dev libdevil-dev
+        libdmalloc-dev libdrm-dev libdvbpsi-dev libebml-dev libegl1-mesa-dev libffi-dev libflac-dev libgbm-dev libgdbm-dev
+        libgegl-common libgl1-mesa-dev libgles2-mesa-dev libglfw3-dev libglib2.0-dev libglu1-mesa-dev libgme-dev libgmock-dev
+        libgnutls28-dev libgoogle-perftools-dev libgsm1-dev libgtest-dev libgvc6 libibus-1.0-dev libintl-perl libjack-dev
+        libladspa-ocaml-dev libldap2-dev libleptonica-dev liblilv-dev liblz-dev liblzma-dev liblzo2-dev libmathic-dev libmatroska-dev
+        libmbedtls-dev libmetis5 libmfx-dev libmodplug-dev libmp3lame-dev libmusicbrainz5-dev libnuma-dev libpango1.0-dev libperl-dev
+        libplacebo-dev libpocketsphinx-dev libportaudio-ocaml-dev libpsl-dev libpstoedit-dev libpulse-dev librabbitmq-dev libraw-dev
+        librtmp-dev librubberband-dev librust-gstreamer-base-sys-dev libsctp-dev libserd-dev libshine-dev libsmbclient-dev libsnappy-dev
+        libsndio-dev libspeex-dev libsphinxbase-dev libsqlite3-dev libsratom-dev libssh-dev libssl-dev libsystemd-dev libtalloc-dev
+        libtesseract-dev libticonv-dev libtool libwavpack-dev libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev
+        libvlccore-dev libvo-amrwbenc-dev libvpl-dev libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev
+        libxss-dev libxvidcore-dev libzmq3-dev libzvbi-dev libzzip-dev lsb-release lshw lzma-dev m4 mesa-utils pandoc python3 python3-pip
+        python3-venv ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto
     )
 
     [[ "$OS" == "Debian" ]] && pkgs+=("nvidia-smi")
@@ -1951,6 +1950,23 @@ box_out_banner_audio() {
 }
 box_out_banner_audio "Installing Audio Tools"
 
+find_git_repo "chirlu/soxr" "1" "T"
+if build "libsoxr" "$repo_version"; then
+    download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
+    execute mkdir build
+    execute cd build || exit 1
+    echo "\$ cmake -S ../ -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=\"$workspace\" -DBUILD_TESTS=ON"
+    cmake -S ../ -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_TESTS=ON &>/dev/null
+    echo "\$ make"
+    make &>/dev/null
+    echo "\$ make test"
+    make test &>/dev/null
+    echo "\$ make install"
+    make install &>/dev/null
+    build_done "libsoxr" "$repo_version"
+fi
+CONFIGURE_OPTIONS+=("--enable-libsoxr")
+
 git_caller "https://github.com/libsdl-org/SDL.git" "sdl2-git"
 if build "$repo_name" "${version//\$ /}"; then
     echo "Cloning \"$repo_name\" saving version \"$version\""
@@ -2638,9 +2654,10 @@ if build "ffmpeg" "n${repo_version}"; then
     ../configure --prefix="/usr/local" --arch="$(uname -m)" --cc="$CC" --cxx="$CXX" \
                  --disable-{debug,shared} "${CONFIGURE_OPTIONS[@]}" \
                  --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme,libmodplug} \
-                 --enable-{libshine,libsnappy,libsoxr,libspeex,libssh,libtesseract} \
+                 --enable-{libshine,libsnappy,libspeex,libssh,libtesseract} \
                  --enable-{libtwolame,libv4l2,libvo-amrwbenc,libzimg,libzvbi} \
                  --enable-{lto,opengl,pic,pthreads,rpath,small,static,version3} \
+                 --enable-{libgsm,libjack,libvpl} \
                  --extra-{cflags,cxxflags}="$CFLAGS" --extra-libs="$EXTRALIBS" \
                  --extra-ldflags="$LDFLAGS" --pkg-config-flags="--static" \
                  --extra-ldexeflags="$LDEXEFLAGS" --pkg-config="$workspace/bin/pkg-config" \
@@ -2661,3 +2678,4 @@ cleanup
 
 # Show exit message
 exit_fn
+        
