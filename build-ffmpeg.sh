@@ -1764,17 +1764,15 @@ if "$NONFREE_AND_GPL"; then
 fi
 
 find_git_repo "c-ares/c-ares" "1" "T"
-repo_version="${repo_version//c-ares-/}"
-repo_version_trim="${repo_version//_/\.}"
-if build "c-ares" "$repo_version_trim"; then
-    download "https://github.com/c-ares/c-ares/archive/refs/tags/cares-$repo_version.tar.gz" "c-ares-$repo_version_trim.tar.gz"
+if build "c-ares" "$repo_version"; then
+    download "https://github.com/c-ares/c-ares/archive/refs/tags/v$repo_version.tar.gz" "c-ares-$repo_version.tar.gz"
     execute autoreconf -fi
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                            -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,SHARED,SYMBOL_HIDING}=OFF \
                            -DCARES_{BUILD_TOOLS,STATIC,STATIC_PIC,THREADS}=ON -G Ninja -Wno-dev
     execute ninja "-j$threads" -C build
     execute ninja -C build install
-    build_done "c-ares" "$repo_version_trim"
+    build_done "c-ares" "$repo_version"
 fi
 
 git_caller "https://github.com/lv2/lv2.git" "lv2-git"
