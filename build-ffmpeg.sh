@@ -2679,11 +2679,11 @@ if build "ffmpeg" "n${repo_version}"; then
     mkdir build; cd build || exit 1
     ../configure --prefix="/usr/local" --arch="$(uname -m)" --cc="$CC" --cxx="$CXX" \
                  --disable-{debug,shared} "${CONFIGURE_OPTIONS[@]}" \
-                 --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme,libmodplug} \
-                 --enable-{libshine,libsnappy,libspeex,libssh,libtesseract} \
-                 --enable-{libtwolame,libv4l2,libvo-amrwbenc,libzimg,libzvbi} \
-                 --enable-{lto,opengl,pic,pthreads,rpath,small,static,version3} \
-                 --enable-{libgsm,libjack,libvpl} \
+                 --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme} \
+                 --enable-{libmodplug,libshine,libsnappy,libspeex,libssh} \
+                 --enable-{libtesseract,libtwolame,libv4l2,libvo-amrwbenc} \
+                 --enable-{libzimg,libzvbi,lto,opengl,pic,pthreads,rpath} \
+                 --enable-{small,static,version3,libgsm,libjack,libvpl} \
                  --extra-{cflags,cxxflags}="$CFLAGS" --extra-libs="$EXTRALIBS" \
                  --extra-ldflags="$LDFLAGS" --pkg-config-flags="--static" \
                  --extra-ldexeflags="$LDEXEFLAGS" --pkg-config="$workspace/bin/pkg-config" \
