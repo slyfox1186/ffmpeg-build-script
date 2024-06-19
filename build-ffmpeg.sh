@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.7
-# Updated: 06.09.24
+# Script version: 3.8.8
+# Updated: 06.19.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.8.7"
+script_version="3.8.8"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -391,6 +391,12 @@ github_repo() {
             ((count++))
         fi
     done
+}
+
+get_gnu_version() {
+    local repo
+    repo="$1"
+    repo_version=$(curl -fsS "https://ftp.gnu.org/gnu/$repo/" | grep -oP "$repo-\K([\d.]){4}" | sort -ruV | head -n1)
 }
 
 fetch_repo_version() {
@@ -1513,6 +1519,15 @@ if build "giflib" "5.2.2"; then
     execute make
     execute make PREFIX="$workspace" install
     build_done "giflib" "5.2.2"
+fi
+
+get_gnu_version "libiconv"
+if build "libiconv" "$repo_version"; then
+    download "https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz"
+    execute ./configure --prefix="$workspace" --enable-static --with-pic
+    execute make "-j$threads"
+    execute make install
+    build_done "libiconv" "$repo_version"
 fi
 
 # UBUNTU BIONIC FAILS TO BUILD XML2
@@ -2678,4 +2693,3 @@ cleanup
 
 # Show exit message
 exit_fn
-        
