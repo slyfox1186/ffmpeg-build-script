@@ -3,7 +3,7 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.9
+# Script version: 3.9.0
 # Updated: 06.19.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.8.9"
+script_version="3.9.0"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -86,7 +86,7 @@ warn() {
 exit_fn() {
     echo
     echo -e "${GREEN}[INFO]${NC} Make sure to ${YELLOW}star${NC} this repository to show your support!"
-    echo -e "${GREEN}[INFO]${NC} https://github.com/slyfox1186/ffmpeg-build-script"
+    echo -e "${GREEN}[INFO]${NC} https://github.com/slyfox1186/script-repo"
     echo
     exit 0
 }
@@ -95,7 +95,7 @@ fail() {
     echo
     echo -e "${RED}[ERROR]${NC} $1"
     echo
-    echo -e "${GREEN}[INFO]${NC} For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues"
+    echo -e "${GREEN}[INFO]${NC} For help or to report a bug create an issue at: https://github.com/slyfox1186/script-repo/issues"
     echo
     if $google_speech_flag; then
         google_speech "The FFmpeg build script encountered a fatal error." &>/dev/null
@@ -1124,7 +1124,8 @@ check_avx512() {
 
 fix_libiconv() {
     if [[ -f "$workspace/lib/libiconv.so.2" ]]; then
-        execute cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/x86_64-linux-gnu/libiconv.so.2"
+        execute cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/libiconv.so.2"
+        execute ln -sf "/usr/lib/libiconv.so.2" "/usr/lib/libiconv.so"
     else
         fail "Unable to locate the file \"$workspace/lib/libiconv.so.2\""
     fi
@@ -2418,11 +2419,11 @@ fi
 
 if "$NONFREE_AND_GPL"; then
     if [[ -n "$iscuda" ]]; then
-        if build "nv-codec-headers" "12.2.72.0"; then
-            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.2.72.0/nv-codec-headers-12.2.72.0.tar.gz"
+        if build "nv-codec-headers" "12.1.14.0"; then
+            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.1.14.0/nv-codec-headers-12.1.14.0.tar.gz"
             execute make "-j$threads"
             execute make PREFIX="$workspace" install
-            build_done "nv-codec-headers" "12.2.72.0"
+            build_done "nv-codec-headers" "12.1.14.0"
         fi
 
         CONFIGURE_OPTIONS+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
@@ -2663,8 +2664,8 @@ else
 fi
 
 source_compiler_flags
-CFLAGS="$CFLAGS -flto -DNOLIBTOOL -DFREEGLUT_STATIC -DHWY_COMPILE_ALL_ATTAINABLE -I$workspace/include/serd-0 -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
-LDFLAGS="$LDFLAGS -DLIBXML_STATIC"
+CFLAGS="$CFLAGS -I$workspace/include/serd-0 -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
+LDFLAGS="$LDFLAGS"
 if [[ -n "$iscuda" ]]; then
     CFLAGS+=" -I/usr/local/cuda/include"
     LDFLAGS+=" -L/usr/local/cuda/lib64"
