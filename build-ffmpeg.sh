@@ -3,7 +3,7 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.8.8
+# Script version: 3.8.9
 # Updated: 06.19.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.8.8"
+script_version="3.8.9"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -334,8 +334,8 @@ git_clone() {
         fi
         [[ -d "$target_directory" ]] && rm -fr "$target_directory"
         if ! git clone --depth 1 $recurse -q "$repo_url" "$target_directory"; then
-            warn "Failed to clone \"$target_directory\". Second attempt in 3 seconds..."
-            sleep 3
+            warn "Failed to clone \"$target_directory\". Second attempt in 5 seconds..."
+            sleep 5
             git clone --depth 1 $recurse -q "$repo_url" "$target_directory" || fail "Failed to clone \"$target_directory\". Exiting script. Line: $LINENO"
         fi
         cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
@@ -345,7 +345,9 @@ git_clone() {
 }
 
 gnu_repo() {
-    version=$(curl -fsS "$1" | grep -oP '[a-z]+-\K(([0-9.]*[0-9]+)){2,}' | sort -ruV | head -n1)
+    local repo
+    repo="$1"
+    repo_version=$(curl -fsS "$repo" | grep -oP '[a-z]+-\K(([0-9.]*[0-9]+)){2,}' | sort -ruV | head -n1)
 }
 
 github_repo() {
@@ -360,16 +362,22 @@ github_repo() {
 
     while [[ "$count" -le "$max_attempts" ]]; do
         if [[ "$url_flag" -eq 1 ]]; then
-            repo_version=$(curl -fsSL "https://github.com/xiph/rav1e/tags/" |
-                           grep -oP 'p[0-9]+\.tar\.gz' | sed 's/\.tar\.gz//g' |
-                           head -n1)
+            repo_version=$(
+                        curl -fsSL "https://github.com/xiph/rav1e/tags/" |
+                        grep -oP 'p[0-9]+\.tar\.gz' | sed 's/\.tar\.gz//g' |
+                        head -n1
+                   )
             if [[ -n "$repo_version" ]]; then
                 return 0
             else
                 continue
             fi
         else
-            curl_cmd=$(curl -fsSL "https://github.com/$repo/$url" | grep -oP 'href="[^"]*\.tar\.gz"')
+            if [[ "$repo" == "FFmpeg/FFmpeg" ]]; then
+                curl_cmd=$(curl -fsSL "https://github.com/FFmpeg/FFmpeg/tags" | grep -oP 'href="[^"]*[0-9]\..*\.tar\.gz"' | grep -v '\-dev' | sort -ruV)
+            else
+                curl_cmd=$(curl -fsSL "https://github.com/$repo/$url" | grep -oP 'href="[^"]*\.tar\.gz"')
+            fi
         fi
 
         line=$(echo "$curl_cmd" | grep -oP 'href="[^"]*\.tar\.gz"' | sed -n "${count}p")
@@ -391,12 +399,6 @@ github_repo() {
             ((count++))
         fi
     done
-}
-
-get_gnu_version() {
-    local repo
-    repo="$1"
-    repo_version=$(curl -fsS "https://ftp.gnu.org/gnu/$repo/" | grep -oP "$repo-\K([\d.]){4}" | sort -ruV | head -n1)
 }
 
 fetch_repo_version() {
@@ -1120,6 +1122,14 @@ check_avx512() {
     fi
 }
 
+fix_libiconv() {
+    if [[ -f "$workspace/lib/libiconv.so.2" ]]; then
+        execute cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/x86_64-linux-gnu/libiconv.so.2"
+    else
+        fail "Unable to locate the file \"$workspace/lib/libiconv.so.2\""
+    fi
+}
+
 fix_libstd_libs() {
     local libstdc_path
     libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
@@ -1377,13 +1387,13 @@ if build "libtool" "$libtool_version"; then
 fi
 
 gnu_repo "https://pkgconfig.freedesktop.org/releases/"
-if build "pkg-config" "$version"; then
-    download "https://pkgconfig.freedesktop.org/releases/pkg-config-$version.tar.gz"
+if build "pkg-config" "$repo_version"; then
+    download "https://pkgconfig.freedesktop.org/releases/pkg-config-$repo_version.tar.gz"
     execute autoconf
     execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH" --with-internal-glib
     execute make "-j$threads"
     execute make install
-    build_done "pkg-config" "$version"
+    build_done "pkg-config" "$repo_version"
 fi
 
 find_git_repo "Kitware/CMake" "1" "T"
@@ -1462,31 +1472,31 @@ if "$NONFREE_AND_GPL"; then
     CONFIGURE_OPTIONS+=("--enable-openssl")
 else
     gnu_repo "https://ftp.gnu.org/gnu/gmp/"
-    if build "gmp" "$version"; then
-        download "https://ftp.gnu.org/gnu/gmp/gmp-$version.tar.xz"
+    if build "gmp" "$repo_version"; then
+        download "https://ftp.gnu.org/gnu/gmp/gmp-$repo_version.tar.xz"
         execute ./configure --prefix="$workspace" --disable-shared --enable-static
         execute make "-j$threads"
         execute make install
-        build_done "gmp" "$version"
+        build_done "gmp" "$repo_version"
     fi
     gnu_repo "https://ftp.gnu.org/gnu/nettle/"
-    if build "nettle" "$version"; then
-        download "https://ftp.gnu.org/gnu/nettle/nettle-$version.tar.gz"
+    if build "nettle" "$repo_version"; then
+        download "https://ftp.gnu.org/gnu/nettle/nettle-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
                             --libdir="$workspace/lib" CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
         execute make install
-        build_done "nettle" "$version"
+        build_done "nettle" "$repo_version"
     fi
     gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
-    if build "gnutls" "$version"; then
-        download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$version.tar.xz"
+    if build "gnutls" "$repo_version"; then
+        download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
         execute ./configure --prefix="$workspace" --disable-{cxx,doc,gtk-doc-html,guile,libdane,nls,shared,tests,tools} \
                             --enable-{local-libopts,static} --with-included-{libtasn1,unistring} --without-p11-kit \
                             CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
         execute make install
-        build_done "gnutls" "$version"
+        build_done "gnutls" "$repo_version"
     fi
 fi
 
@@ -1521,12 +1531,13 @@ if build "giflib" "5.2.2"; then
     build_done "giflib" "5.2.2"
 fi
 
-get_gnu_version "libiconv"
+gnu_repo "https://ftp.gnu.org/gnu/libiconv/"
 if build "libiconv" "$repo_version"; then
     download "https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz"
     execute ./configure --prefix="$workspace" --enable-static --with-pic
     execute make "-j$threads"
     execute make install
+    fix_libiconv
     build_done "libiconv" "$repo_version"
 fi
 
@@ -2407,11 +2418,11 @@ fi
 
 if "$NONFREE_AND_GPL"; then
     if [[ -n "$iscuda" ]]; then
-        if build "nv-codec-headers" "12.1.14.0"; then
-            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.1.14.0/nv-codec-headers-12.1.14.0.tar.gz"
+        if build "nv-codec-headers" "12.2.72.0"; then
+            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.2.72.0/nv-codec-headers-12.2.72.0.tar.gz"
             execute make "-j$threads"
             execute make PREFIX="$workspace" install
-            build_done "nv-codec-headers" "12.1.14.0"
+            build_done "nv-codec-headers" "12.2.72.0"
         fi
 
         CONFIGURE_OPTIONS+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
