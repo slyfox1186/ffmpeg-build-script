@@ -3,7 +3,7 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.9.0
+# Script version: 3.9.1
 # Updated: 06.19.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
@@ -21,7 +21,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.9.0"
+script_version="3.9.1"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd" && cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -860,9 +860,12 @@ download_cuda() {
                         if wget -qO- "$key_url" | gpg --dearmor -o "$keyring_file"; then
                             echo "GPG key successfully added."
                         else
-                            echo "Failed to add the GPG key."
-                            exit 1
+                            fail "Failed to add the CUDA GPG key. Line: $LINENO"
                         fi
+                        # Modify the content of the GPG key file using sed to add 'trusted=yes'. This is to avoid verbose errors when running APT.
+                        modified_text=$(echo "/etc/apt/sources.list.d/cuda-ubuntu2204.list" | sed 's/\[/[trusted=yes /')
+                        # Save the modified content back to the file
+                        echo "$modified_text" > "$file_path"
                         distro="ubuntu2204"; version="12-5"; pkg_ext="pin"; pin_file="$distro/x86_64/cuda-ubuntu2204.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb"
                         ;;
                     skip)
