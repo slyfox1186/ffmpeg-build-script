@@ -1631,7 +1631,6 @@ find_git_repo "harfbuzz/harfbuzz" "1" "T"
 if build "harfbuzz" "$repo_version"; then
     download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/$repo_version.tar.gz" "harfbuzz-$repo_version.tar.gz"
     extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}"=disabled")
-    execute ./autogen.sh
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
     execute ninja "-j$threads" -C build
     execute ninja -C build install
