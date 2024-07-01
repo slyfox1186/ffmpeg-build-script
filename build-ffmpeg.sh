@@ -23,7 +23,7 @@ fi
 script_name="${0##*/}"
 script_version="3.9.2"
 cwd="$PWD/ffmpeg-build-script"
-mkdir -p "$cwd" && cd "$cwd" || exit 1
+mkdir -p "$cwd"; cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
     cd ../
     rm -fr ffmpeg-build-script
