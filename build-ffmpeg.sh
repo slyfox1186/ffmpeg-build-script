@@ -1259,7 +1259,7 @@ nvidia_encode_utils_version() {
 
     nvidia_encode_version=$(
                             apt-cache search '^libnvidia-encode.*' 2>&1 |
-                            grep -oP '^libnvidia-encode-[0-9-]+' |
+                            grep -oP '^libnvidia-encode-[0-9]+' |
                             sort -ruV | head -n1
                        )
 }
