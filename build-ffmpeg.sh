@@ -2630,7 +2630,7 @@ fi
 
 find_git_repo "FFmpeg/FFmpeg" "1" "T"
 case "$VER" in
-    11|12) repo_version="6.1.1" ;;
+    11|12) repo_version="6.1.2" ;;
 esac
 if build "ffmpeg" "n${repo_version}"; then
     download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
