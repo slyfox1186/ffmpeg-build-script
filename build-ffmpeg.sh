@@ -1091,7 +1091,7 @@ fix_x265_libs() {
 
 find_latest_nasm_version() {
     latest_nasm_version=$(
-                    curl -fsS "https://www.nasm.us/pub/nasm/stable/" |
+                    curl -fsS "https://openssl-library.org/source/" |
                     grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
                     sort -ruV | head -n1
                 )
