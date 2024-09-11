@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 4.0.0
-# Updated: 09.11.24
+# Script version: 3.9.7
+# Updated: 08.25.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -23,7 +23,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.0"
+script_version="3.9.7"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -1410,7 +1410,7 @@ else
     if build "nettle" "$repo_version"; then
         download "https://ftp.gnu.org/gnu/nettle/nettle-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
-                            --libdir="$workspace/lib" CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+                            --libdir="$workspace/lib" CPPFLAGS="-O2 -fno-lto -fPIC -march=native" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
         execute make install
         build_done "nettle" "$repo_version"
