@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.9.7
-# Updated: 08.25.24
+# Script version: 3.9.9
+# Updated: 09.11.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -23,7 +23,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.9.7"
+script_version="3.9.9"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -244,6 +244,32 @@ check_ffmpeg_version() {
     echo "$ffmpeg_git_version"
 }
 
+parallel_download() {
+    local urls=("$@")
+    printf '%s\n' "${urls[@]}" | xargs -P 4 -I {} bash -c 'download "{}"'
+}
+
+cache_check() {
+    local package=$1
+    local version=$2
+    local cache_dir="$cwd/cache"
+    
+    if [[ -f "$cache_dir/$package-$version.tar.gz" ]]; then
+        log "Using cached version of $package-$version"
+        return 0
+    fi
+    return 1
+}
+
+cache_store() {
+    local package=$1
+    local version=$2
+    local cache_dir="$cwd/cache"
+    
+    mkdir -p "$cache_dir"
+    cp "$packages/$package-$version.tar.gz" "$cache_dir/"
+}
+
 download() {
     local download_file download_path download_url giflib_regex output_directory target_directory target_file
     download_path="$packages"
@@ -261,7 +287,9 @@ download() {
     target_file="$download_path/$download_file"
     target_directory="$download_path/$output_directory"
 
-    if [[ -f "$target_file" ]]; then
+    if cache_check "$output_directory" "${download_file##*-}"; then
+        cp "$cwd/cache/$download_file" "$target_file"
+    elif [[ -f "$target_file" ]]; then
         log "$download_file is already downloaded."
     else
         log "Downloading \"$download_url\" saving as \"$download_file\""
@@ -271,6 +299,7 @@ download() {
             curl -LSso "$target_file" "$download_url" || fail "Failed to download \"$download_file\". Exiting... Line: $LINENO"
         fi
         log "Download Completed"
+        cache_store "$output_directory" "${download_file##*-}"
     fi
 
     [[ -d "$target_directory" ]] && rm -fr "$target_directory"
@@ -468,12 +497,12 @@ execute() {
         if [[ "$debug" == "ON" ]]; then
             if ! output=$("$@"); then
                 notify-send -t 5000 "Failed to execute $*" 2>/dev/null
-                fail "Failed to execute $*"
+                fail "Failed to execute $*\nError output: $output"
             fi
         else
-            if ! output=$("$@" 2>/dev/null); then
+            if ! output=$("$@" 2>&1); then
                 notify-send -t 5000 "Failed to execute $*" 2>/dev/null
-                fail "Failed to execute $*"
+                fail "Failed to execute $*\nError output: $output"
             fi
         fi
 }
@@ -806,17 +835,7 @@ nvidia_architecture() {
 
 download_cuda() {
     local -a options
-    local choice cuda_pin_url cuda_url cuda_version_number distro installer_path pin_file pkg_ext version version_serial
-    cuda_last_known_update="12.6.0"
-    remote_cuda_version="12.6.0"  # Updated to the latest version
-    if [[ ! "$remote_cuda_version" == "$remote_cuda_version" ]]; then
-        echo "The script needs to be updated manually. Please report and skip this section until the next update."
-        return
-    else
-        cuda_version_number="$remote_cuda_version"
-    fi
-    cuda_pin_url="https://developer.download.nvidia.com/compute/cuda/repos"
-    cuda_url="https://developer.download.nvidia.com/compute/cuda/$cuda_version_number"
+    local choice distro cuda_version="12.6.1"
 
     echo
     echo "Pick your Linux version from the list below:"
@@ -833,69 +852,49 @@ download_cuda() {
         "Skip"
     )
 
-    version_serial="12.6.0-560.28.03-1"
     select choice in "${options[@]}"; do
         case "$choice" in
-            "Debian 11") distro="debian11"; version="11-12-6"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
-            "Debian 12") distro="debian12"; version="12-12-6"; pkg_ext="deb"; installer_path="local_installers/cuda-repo-debian${version}-local_${version_serial}_amd64.deb" ;;
-            "Ubuntu 20.04") distro="ubuntu2004"; version="12-6"; pkg_ext="deb"; pin_file="${distro}/x86_64/cuda-${distro}.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
-            "Ubuntu 22.04") distro="ubuntu2204"; version="12-6"; pkg_ext="deb"; pin_file="${distro}/x86_64/cuda-${distro}.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
-            "Ubuntu 24.04") distro="ubuntu2404"; version="12-6"; pkg_ext="deb"; pin_file="${distro}/x86_64/cuda-${distro}.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_serial}_amd64.deb" ;;
-            "Ubuntu WSL") distro="wsl-ubuntu"; version="12-6"; version_ext="12.6.0-1"; pkg_ext="deb"; pin_file="${distro}/x86_64/cuda-${distro}.pin"; installer_path="local_installers/cuda-repo-${distro}-${version}-local_${version_ext}_amd64.deb" ;;
+            "Debian 11") distro="debian11" ;;
+            "Debian 12") distro="debian12" ;;
+            "Ubuntu 20.04") distro="ubuntu2004" ;;
+            "Ubuntu 22.04") distro="ubuntu2204" ;;
+            "Ubuntu 24.04") distro="ubuntu2404" ;;
+            "Ubuntu WSL") distro="wsl-ubuntu" ;;
             Skip) return ;;
             *) echo "Invalid choice. Please try again."; continue ;;
         esac
         break
     done
 
-    echo
-    echo "Downloading the CUDA SDK Toolkit - version $cuda_version_number"
-
     mkdir -p "$packages/nvidia-cuda"
 
     if [[ "$distro" == debian* ]]; then
-        distro="${distro//[0-9][0-9]}"
+        wget --show-progress -cqO "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb" \
+             "https://developer.download.nvidia.com/compute/cuda/$cuda_version/local_installers/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
+        sudo dpkg -i "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
+        sudo cp /var/cuda-repo-$distro-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
+        sudo add-apt-repository contrib
+        sudo apt-get update
+        sudo apt-get -y install cuda-toolkit-12-6
+    elif [[ "$distro" == ubuntu* || "$distro" == "wsl-ubuntu" ]]; then
+        wget --show-progress -cqO "$packages/nvidia-cuda/cuda-$distro.pin" \
+             "https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/cuda-$distro.pin"
+        sudo mv "$packages/nvidia-cuda/cuda-$distro.pin" /etc/apt/preferences.d/cuda-repository-pin-600
+        if [[ "$distro" == "wsl-ubuntu" ]]; then
+            wget --show-progress -cqO "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-1_amd64.deb" \
+                 "https://developer.download.nvidia.com/compute/cuda/$cuda_version/local_installers/cuda-repo-$distro-12-6-local_$cuda_version-1_amd64.deb"
+            sudo dpkg -i "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-1_amd64.deb"
+        else
+            wget --show-progress -cqO "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb" \
+                 "https://developer.download.nvidia.com/compute/cuda/$cuda_version/local_installers/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
+            sudo dpkg -i "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
+        fi
+        sudo cp /var/cuda-repo-$distro-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
+        sudo apt-get update
+        sudo apt-get -y install cuda-toolkit-12-6
     fi
 
-    package_name="$packages/nvidia-cuda/cuda-$distro-$cuda_version_number.$pkg_ext"
-    
-    if [[ "$distro" == ubuntu* ]]; then
-        wget --show-progress -cqO "$packages/nvidia-cuda/cuda-$distro.pin" "$cuda_pin_url/$pin_file"
-        mv "$packages/nvidia-cuda/cuda-$distro.pin" /etc/apt/preferences.d/cuda-repository-pin-600
-    fi
-    
-    wget --show-progress -cqO "$package_name" "$cuda_url/$installer_path"
-    dpkg -i "$package_name"
-    
-    # Copy the CUDA keyring file
-    sudo cp -f /var/cuda-repo-${distro}${version//./-}-local/cuda-*-keyring.gpg /usr/share/keyrings/
-    echo "Copied CUDA keyring file to /usr/share/keyrings/"
-    
-    if [ -n "$cuda_keyring_file" ]; then
-        cp -f "$cuda_keyring_file" /usr/share/keyrings/
-        echo "Copied CUDA keyring file: $cuda_keyring_file"
-        
-        # Add the CUDA repository to sources.list
-        echo "deb [signed-by=/usr/share/keyrings/$(basename "$cuda_keyring_file")] file://$cuda_repo_dir /" | tee /etc/apt/sources.list.d/cuda-repository.list
-        
-        # Update package lists
-        apt update
-        
-        # Install cuda-keyring package
-        apt install -y cuda-keyring
-    else
-        echo "CUDA keyring file not found in $cuda_repo_dir. Manual intervention may be required."
-    fi
-
-    if [[ "$distro" == ubuntu* ]]; then
-        echo "Pin file downloaded and moved to /etc/apt/preferences.d/cuda-repository-pin-600"
-    elif [[ "$distro" == debian* ]]; then
-        add-apt-repository -y contrib
-    fi
-
-    # Update package lists again and install CUDA toolkit
-    apt update
-    apt install -y cuda-toolkit-12-6
+    echo "CUDA SDK Toolkit version $cuda_version has been installed."
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
@@ -1011,7 +1010,7 @@ apt_pkgs() {
         libtesseract-dev libticonv-dev libtool libwavpack-dev libtwolame-dev libudev-dev libv4l-dev libva-dev libvdpau-dev libvidstab-dev
         libvlccore-dev libvo-amrwbenc-dev libvpl-dev libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev
         libxss-dev libxvidcore-dev libzmq3-dev libzvbi-dev libzzip-dev lsb-release lshw lzma-dev m4 mesa-utils pandoc python3 python3-pip
-        python3-venv ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto ccache and libssl-dev
+        python3-venv ragel re2c scons texi2html texinfo tk-dev unzip valgrind wget xmlto
     )
 
     [[ "$OS" == "Debian" && "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] && pkgs+=("nvidia-smi")
@@ -1313,8 +1312,13 @@ fi
 # Source the compiler flags
 source_compiler_flags
 
+parallel_download \
+    "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz" \
+    "https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz" \
+    "https://ftp.gnu.org/gnu/libtool/libtool-$libtool_version.tar.xz" \
+    "https://pkgconfig.freedesktop.org/releases/pkg-config-$repo_version.tar.gz"
+
 if build "m4" "latest"; then
-    download "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz"
     execute ./configure --prefix="$workspace" --enable-c++ --enable-threads=posix
     execute make "-j$threads"
     execute make install
@@ -1322,7 +1326,6 @@ if build "m4" "latest"; then
 fi
 
 if build "autoconf" "2.72"; then
-    download "https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz"
     execute autoreconf -fi
     execute ./configure --prefix="$workspace" M4="$workspace/bin/m4"
     execute make "-j$threads"
@@ -1332,7 +1335,6 @@ fi
 
 determine_libtool_version
 if build "libtool" "$libtool_version"; then
-    download "https://ftp.gnu.org/gnu/libtool/libtool-$libtool_version.tar.xz"
     execute ./configure --prefix="$workspace" --with-pic M4="$workspace/bin/m4"
     execute make "-j$threads"
     execute make install
@@ -1341,7 +1343,6 @@ fi
 
 gnu_repo "https://pkgconfig.freedesktop.org/releases/"
 if build "pkg-config" "$repo_version"; then
-    download "https://pkgconfig.freedesktop.org/releases/pkg-config-$repo_version.tar.gz"
     execute autoconf
     execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH" --with-internal-glib
     execute make "-j$threads"
@@ -1351,7 +1352,6 @@ fi
 
 find_git_repo "Kitware/CMake" "1" "T"
 if build "cmake" "$repo_version"; then
-    download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
     execute ./bootstrap --prefix="$workspace" --parallel="$threads" --enable-ccache
     execute make "-j$threads"
     execute make install
@@ -1360,7 +1360,6 @@ fi
 
 find_git_repo "mesonbuild/meson" "1" "T"
 if build "meson" "$repo_version"; then
-    download "https://github.com/mesonbuild/meson/archive/refs/tags/$repo_version.tar.gz" "meson-$repo_version.tar.gz"
     execute python3 setup.py build
     execute python3 setup.py install --prefix=/usr/local
     build_done "meson" "$repo_version"
@@ -1368,7 +1367,6 @@ fi
 
 find_git_repo "ninja-build/ninja" "1" "T"
 if build "ninja" "$repo_version"; then
-    download "https://github.com/ninja-build/ninja/archive/refs/tags/v$repo_version.tar.gz" "ninja-$repo_version.tar.gz"
     re2c_path="$(command -v re2c)"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                            -DRE2C="$re2c_path" -DBUILD_TESTING=OFF -Wno-dev
@@ -1379,7 +1377,6 @@ fi
 
 find_git_repo "facebook/zstd" "1" "T"
 if build "libzstd" "$repo_version"; then
-    download "https://github.com/facebook/zstd/archive/refs/tags/v$repo_version.tar.gz" "libzstd-$repo_version.tar.gz"
     cd "build/meson" || exit 1
     execute meson setup build --prefix="$workspace" \
                               --buildtype=release \
@@ -1393,7 +1390,6 @@ fi
 
 find_git_repo "816" "2" "T"
 if build "librist" "$repo_version"; then
-    download "https://code.videolan.org/rist/librist/-/archive/v$repo_version/librist-v$repo_version.tar.bz2" "librist-$repo_version.tar.bz2"
     execute meson setup build --prefix="$workspace" --buildtype=release \
                               --default-library=static --strip -D{built_tools,test}=false
     execute ninja "-j$threads" -C build
@@ -1404,7 +1400,6 @@ CONFIGURE_OPTIONS+=("--enable-librist")
 
 find_git_repo "madler/zlib" "1" "T"
 if build "zlib" "$repo_version"; then
-    download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.gz"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE="Release" \
                   -DINSTALL_BIN_DIR="$workspace/bin" -DINSTALL_INC_DIR="$workspace/include" \
                   -DINSTALL_LIB_DIR="$workspace/lib" -DINSTALL_MAN_DIR="$workspace/share/man" \
@@ -1418,7 +1413,6 @@ fi
 if "$NONFREE_AND_GPL"; then
     get_openssl_version
     if build "openssl" "$openssl_version"; then
-        download "https://www.openssl.org/source/openssl-$openssl_version.tar.gz"
         execute ./Configure --prefix="$workspace" enable-{egd,md2,rc5,trace} threads zlib \
                             --with-rand-seed=os --with-zlib-include="$workspace/include" \
                             --with-zlib-lib="$workspace/lib"
@@ -1430,7 +1424,6 @@ if "$NONFREE_AND_GPL"; then
 else
     gnu_repo "https://ftp.gnu.org/gnu/gmp/"
     if build "gmp" "$repo_version"; then
-        download "https://ftp.gnu.org/gnu/gmp/gmp-$repo_version.tar.xz"
         execute ./configure --prefix="$workspace" --disable-shared --enable-static
         execute make "-j$threads"
         execute make install
@@ -1438,7 +1431,6 @@ else
     fi
     gnu_repo "https://ftp.gnu.org/gnu/nettle/"
     if build "nettle" "$repo_version"; then
-        download "https://ftp.gnu.org/gnu/nettle/nettle-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
                             --libdir="$workspace/lib" CPPFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
         execute make "-j$threads"
@@ -1447,7 +1439,6 @@ else
     fi
     gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
     if build "gnutls" "$repo_version"; then
-        download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
         execute ./configure --prefix="$workspace" --disable-{cxx,doc,gtk-doc-html,guile,libdane,nls,shared,tests,tools} \
                             --enable-{local-libopts,static} --with-included-{libtasn1,unistring} --without-p11-kit \
                             CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS"
@@ -1459,7 +1450,6 @@ fi
 
 find_git_repo "yasm/yasm" "1" "T"
 if build "yasm" "$repo_version"; then
-    download "https://github.com/yasm/yasm/archive/refs/tags/v$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
     execute autoreconf -fi
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_SHARED_LIBS=OFF -DYASM_BUILD_TESTS=OFF -G Ninja -Wno-dev
@@ -1471,7 +1461,6 @@ fi
 find_latest_nasm_version
 if build "nasm" "$latest_nasm_version"; then
     find_latest_nasm_version
-    download "https://www.nasm.us/pub/nasm/stable/nasm-$latest_nasm_version.tar.xz"
     execute autoupdate
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-pedantic --enable-ccache
@@ -1481,7 +1470,6 @@ if build "nasm" "$latest_nasm_version"; then
 fi
 
 if build "giflib" "5.2.2"; then
-    download "https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
     # Parellel building not available for this library
     execute make
     execute make PREFIX="$workspace" install
@@ -1490,7 +1478,6 @@ fi
 
 gnu_repo "https://ftp.gnu.org/gnu/libiconv/"
 if build "libiconv" "$repo_version"; then
-    download "https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz"
     execute ./configure --prefix="$workspace" --enable-static --with-pic
     execute make "-j$threads"
     execute make install
@@ -1502,7 +1489,6 @@ fi
 if [[ "$STATIC_VER" != "18.04" ]]; then
     find_git_repo "1665" "5" "T"
     if build "libxml2" "$repo_version"; then
-        download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2" "libxml2-$repo_version.tar.bz2"
         CFLAGS+=" -DNOLIBTOOL"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
@@ -1515,7 +1501,6 @@ fi
 
 find_git_repo "pnggroup/libpng" "1" "T"
 if build "libpng" "$repo_version"; then
-    download "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz" "libpng-$repo_version.tar.gz"
     execute autoupdate
     execute autoreconf -fi
     execute ./configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
@@ -1526,7 +1511,6 @@ fi
 
 find_git_repo "4720790" "3" "T"
 if build "libtiff" "$repo_version"; then
-    download "https://gitlab.com/libtiff/libtiff/-/archive/v$repo_version/libtiff-v$repo_version.tar.bz2" "libtiff-$repo_version.tar.bz2"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-{docs,sphinx,tests} --enable-cxx --with-pic
     execute make "-j$threads"
@@ -1537,7 +1521,6 @@ fi
 if "$NONFREE_AND_GPL"; then
     find_git_repo "nkoriyama/aribb24" "1" "T"
     if build "aribb24" "$repo_version"; then
-        download "https://github.com/nkoriyama/aribb24/archive/refs/tags/v$repo_version.tar.gz" "aribb24-$repo_version.tar.gz"
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --disable-shared --enable-static
         execute make "-j$threads"
@@ -1551,7 +1534,6 @@ find_git_repo "7950" "4"
 repo_version="${repo_version#VER-}"
 repo_version_1="${repo_version//-/.}"
 if build "freetype" "$repo_version_1"; then
-    download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-$repo_version/freetype-VER-$repo_version.tar.bz2" "freetype-$repo_version_1.tar.bz2"
     extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
     execute ./autogen.sh
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
@@ -1563,7 +1545,6 @@ CONFIGURE_OPTIONS+=("--enable-libfreetype")
 
 find_git_repo "890" "4"
 if build "fontconfig" "$repo_version"; then
-    download "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$repo_version/fontconfig-$repo_version.tar.bz2"
     extracmds=("--disable-"{docbook,docs,nls,shared})
     LDFLAGS+=" -DLIBXML_STATIC"
     sed -i "s|Cflags:|& -DLIBXML_STATIC|" "fontconfig.pc.in"
@@ -1578,7 +1559,6 @@ CONFIGURE_OPTIONS+=("--enable-libfontconfig")
 
 find_git_repo "harfbuzz/harfbuzz" "1" "T"
 if build "harfbuzz" "$repo_version"; then
-    download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/$repo_version.tar.gz" "harfbuzz-$repo_version.tar.gz"
     extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}"=disabled")
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
     execute ninja "-j$threads" -C build
@@ -1613,7 +1593,6 @@ fi
 
 find_git_repo "fribidi/fribidi" "1" "T"
 if build "fribidi" "$repo_version"; then
-    download "https://github.com/fribidi/fribidi/archive/refs/tags/v$repo_version.tar.gz" "fribidi-$repo_version.tar.gz"
     extracmds=("-D"{docs,tests}"=false")
     execute autoreconf -fi
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static "${extracmds[@]}"
@@ -1625,7 +1604,6 @@ CONFIGURE_OPTIONS+=("--enable-libfribidi")
 
 find_git_repo "libass/libass" "1" "T"
 if build "libass" "$repo_version"; then
-    download "https://github.com/libass/libass/archive/refs/tags/$repo_version.tar.gz" "libass-$repo_version.tar.gz"
     execute autoupdate
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-shared
@@ -1637,7 +1615,6 @@ CONFIGURE_OPTIONS+=("--enable-libass")
 
 find_git_repo "freeglut/freeglut" "1" "T"
 if build "freeglut" "$repo_version"; then
-    download "https://github.com/freeglut/freeglut/releases/download/v$repo_version/freeglut-$repo_version.tar.gz"
     CFLAGS+=" -DFREEGLUT_STATIC"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_SHARED_LIBS=OFF -DFREEGLUT_BUILD_{DEMOS,SHARED_LIBS}=OFF -G Ninja -Wno-dev
@@ -1663,7 +1640,6 @@ CONFIGURE_OPTIONS+=("--enable-libwebp")
 
 find_git_repo "google/highway" "1" "T"
 if build "libhwy" "$repo_version"; then
-    download "https://github.com/google/highway/archive/refs/tags/$repo_version.tar.gz" "libhwy-$repo_version.tar.gz"
     CFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
     CXXFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -1676,7 +1652,6 @@ fi
 
 find_git_repo "google/brotli" "1" "T"
 if build "brotli" "$repo_version"; then
-    download "https://github.com/google/brotli/archive/refs/tags/v$repo_version.tar.gz" "brotli-$repo_version.tar.gz"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -G Ninja -Wno-dev
     execute ninja "-j$threads" -C build
@@ -1686,7 +1661,6 @@ fi
 
 find_git_repo "mm2/Little-CMS" "1" "T"
 if build "lcms2" "$repo_version"; then
-    download "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms$repo_version.tar.gz" "lcms2-$repo_version.tar.gz"
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-shared --enable-static --with-threaded
     execute make "-j$threads"
@@ -1697,7 +1671,6 @@ CONFIGURE_OPTIONS+=("--enable-lcms2")
 
 find_git_repo "gflags/gflags" "1" "T"
 if build "gflags" "$repo_version"; then
-    download "https://github.com/gflags/gflags/archive/refs/tags/v$repo_version.tar.gz" "gflags-$repo_version.tar.gz"
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_gflags_LIB=ON -DBUILD_STATIC_LIBS=ON -DINSTALL_HEADERS=ON \
                   -DREGISTER_{BUILD_DIR,INSTALL_PREFIX}=ON -G Ninja -Wno-dev
@@ -1746,7 +1719,6 @@ fi
 
 find_git_repo "c-ares/c-ares" "1" "T"
 if build "c-ares" "$repo_version"; then
-    download "https://github.com/c-ares/c-ares/archive/refs/tags/v$repo_version.tar.gz" "c-ares-$repo_version.tar.gz"
     execute autoreconf -fi
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                            -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,SHARED,SYMBOL_HIDING}=OFF \
@@ -1792,13 +1764,11 @@ fi
 find_git_repo "7131569" "3" "T"
 repo_version="${repo_version//waf-/}"
 if build "waflib" "$repo_version"; then
-    download "https://gitlab.com/ita1024/waf/-/archive/waf-$repo_version/waf-waf-$repo_version.tar.bz2" "waflib-$repo_version.tar.bz2"
     build_done "waflib" "$repo_version"
 fi
 
 find_git_repo "5048975" "3" "T"
 if build "serd" "$repo_version"; then
-    download "https://gitlab.com/drobilla/serd/-/archive/v$repo_version/serd-v$repo_version.tar.bz2" "serd-$repo_version.tar.bz2"
     extracmds=("-D"{docs,html,man,man_html,singlehtml,tests,tools}"=disabled")
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip -Dstatic=true "${extracmds[@]}"
     execute ninja "-j$threads" -C build
@@ -1809,7 +1779,6 @@ fi
 find_git_repo "pcre2project/pcre2" "1" "T"
 repo_version="${repo_version//2-/}"
 if build "pcre2" "$repo_version"; then
-    download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$repo_version.tar.gz" "pcre2-$repo_version.tar.gz"
     execute autoupdate
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" \
@@ -1822,7 +1791,6 @@ fi
 
 find_git_repo "14889806" "3" "B"
 if build "zix" "0.4.2"; then
-    download "https://gitlab.com/drobilla/zix/-/archive/v0.4.2/zix-v0.4.2.tar.bz2" "zix-0.4.2.tar.bz2"
     extracmds=("-D"{benchmarks,docs,singlehtml,tests,tests_cpp}"=disabled")
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
     execute ninja "-j$threads" -C build
@@ -1833,7 +1801,6 @@ fi
 find_git_repo "11853362" "3" "B"
 if build "sord" "$repo_short_version_1"; then
     CFLAGS+=" -I$workspace/include/serd-0"
-    download "https://gitlab.com/drobilla/sord/-/archive/$repo_version_1/sord-$repo_version_1.tar.bz2" "sord-$repo_short_version_1.tar.bz2"
     extracmds=("-D"{docs,tests,tools}"=disabled")
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
     execute ninja "-j$threads" -C build
@@ -1843,7 +1810,6 @@ fi
 
 find_git_repo "11853194" "3" "T"
 if build "sratom" "$repo_version"; then
-    download "https://gitlab.com/lv2/sratom/-/archive/v$repo_version/sratom-v$repo_version.tar.bz2" "sratom-$repo_version.tar.bz2"
     extracmds=("-D"{docs,html,singlehtml,tests}"=disabled")
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
     execute ninja "-j$threads" -C build
@@ -1853,7 +1819,6 @@ fi
 
 find_git_repo "11853176" "3" "T"
 if build "lilv" "$repo_version"; then
-    download "https://gitlab.com/lv2/lilv/-/archive/v$repo_version/lilv-v$repo_version.tar.bz2" "lilv-$repo_version.tar.bz2"
     extracmds=("-D"{docs,html,singlehtml,tests,tools}"=disabled")
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
     execute ninja "-j$threads" -C build
@@ -1880,7 +1845,6 @@ fi
 
 find_git_repo "akheron/jansson" "1" "T"
 if build "jansson" "$repo_version"; then
-    download "https://github.com/akheron/jansson/archive/refs/tags/v$repo_version.tar.gz" "jansson-$repo_version.tar.gz"
     execute autoupdate
     execute autoreconf -fi
     execute ./configure --prefix="$workspace" --disable-shared
@@ -1891,7 +1855,6 @@ fi
 
 find_git_repo "jemalloc/jemalloc" "1" "T"
 if build "jemalloc" "$repo_version"; then
-    download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
     execute autoupdate
     execute ./autogen.sh
     execute ./configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
