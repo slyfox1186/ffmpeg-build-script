@@ -1388,7 +1388,7 @@ fi
 if "$NONFREE_AND_GPL"; then
     get_openssl_version
     if build "openssl" "$openssl_version"; then
-        download "https://www.openssl.org/source/openssl-$openssl_version.tar.gz"
+        download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
         execute ./Configure --prefix="$workspace" enable-{egd,md2,rc5,trace} threads zlib \
                             --with-rand-seed=os --with-zlib-include="$workspace/include" \
                             --with-zlib-lib="$workspace/lib"
