@@ -3,8 +3,8 @@
 
 # GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 #
-# Script version: 3.9.7
-# Updated: 08.25.24
+# Script version: 3.9.8
+# Updated: 09.16.24
 #
 # Purpose: build ffmpeg from source code with addon development libraries
 #          also compiled from source to help ensure the latest functionality
@@ -14,7 +14,7 @@
 #                    Zorin OS 16.x
 #                    (Other Ubuntu-based distributions may also work)
 # Supported architecture: x86_64
-# CUDA SDK Toolkit: Updated to version 12.6.0
+# CUDA SDK Toolkit: Updated to version 12.6.1
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script as root or with sudo."
@@ -23,7 +23,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.9.7"
+script_version="3.9.8"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
@@ -1291,13 +1291,13 @@ if build "m4" "latest"; then
     build_done "m4" "latest"
 fi
 
-if build "autoconf" "2.72"; then
-    download "https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz"
+if build "autoconf" "latest"; then
+    download "https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz"
     execute autoreconf -fi
     execute ./configure --prefix="$workspace" M4="$workspace/bin/m4"
     execute make "-j$threads"
     execute make install
-    build_done "autoconf" "2.72"
+    build_done "autoconf" "latest"
 fi
 
 determine_libtool_version
@@ -1340,8 +1340,7 @@ find_git_repo "ninja-build/ninja" "1" "T"
 if build "ninja" "$repo_version"; then
     download "https://github.com/ninja-build/ninja/archive/refs/tags/v$repo_version.tar.gz" "ninja-$repo_version.tar.gz"
     re2c_path="$(command -v re2c)"
-    execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                           -DRE2C="$re2c_path" -DBUILD_TESTING=OFF -Wno-dev
+    execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release -DRE2C="$re2c_path" -DBUILD_TESTING=OFF -Wno-dev
     execute make "-j$threads" -C build
     execute make -C build install
     build_done "ninja" "$repo_version"
@@ -2115,6 +2114,7 @@ if build "$repo_name" "${version//\$ /}"; then
     execute ./configure --prefix="$workspace" --with-pic
     execute make "-j$threads"
     execute make install
+    execute cp -f "$workspace/lib/libzimg.so."* "/usr/lib/x86_64-linux-gnu/"
     build_done "$repo_name" "$version"
 fi
 CONFIGURE_OPTIONS+=("--enable-libzimg")
@@ -2267,8 +2267,9 @@ fi
 find_git_repo "24327400" "3" "T"
 if build "svt-av1" "$repo_version"; then
     download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$repo_version/SVT-AV1-v$repo_version.tar.bz2" "svt-av1-$repo_version.tar.bz2"
-    execute cmake -S . -B Build/linux -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                  -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_{DEC,ENC}=ON -DBUILD_TESTING=OFF \
+    execute cmake -S . -B Build/linux \
+                  -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
+                  -DBUILD_{APPS,SHARED_LIBS,TESTING}=OFF -DBUILD_{DEC,ENC}=ON \
                   -DENABLE_AVX512="$(check_avx512)" -DNATIVE=ON -G Ninja -Wno-dev
     execute ninja "-j$threads" -C Build/linux
     execute ninja "-j$threads" -C Build/linux install
@@ -2423,10 +2424,10 @@ if "$NONFREE_AND_GPL"; then
 fi
 
 # find_git_repo "vapoursynth/vapoursynth" "1" "T"
-if build "vapoursynth" "R68"; then
-    download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R68.tar.gz" "vapoursynth-R68.tar.gz"
+if build "vapoursynth" "R69"; then
+    download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R69.tar.gz" "vapoursynth-R69.tar.gz"
 
-    venv_packages=("Cython==0.29.36")
+    venv_packages=("Cython==3.0.11")
     setup_python_venv_and_install_packages "$workspace/python_virtual_environment/vapoursynth" "${venv_packages[@]}"
 
     # Activate the virtual environment for the build process
@@ -2448,7 +2449,17 @@ if build "vapoursynth" "R68"; then
     # Deactivate the virtual environment after the build
     deactivate
 
-    build_done "vapoursynth" "R68"
+    # Copy the bin files to a folder where they can be utilized easily from the command line
+    if [[ -f "$workspace/python_virtual_environment/vapoursynth/bin/cython" ]]; then
+        log "cp -f $workspace/python_virtual_environment/vapoursynth/bin/cython /usr/local/bin/"
+        cp -f "$workspace/python_virtual_environment/vapoursynth/bin/cython" "/usr/local/bin/"
+        log "cp -f $workspace/python_virtual_environment/vapoursynth/bin/cythonize /usr/local/bin/"
+        cp -f "$workspace/python_virtual_environment/vapoursynth/bin/cythonize" "/usr/local/bin/"
+    else
+        warn "The bin files \"cython and cythonize\" are missing!"
+    fi
+
+    build_done "vapoursynth" "R69"
 else
     # Explicitly set the PYTHON environment variable to the virtual environment's Python
     PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
