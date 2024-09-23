@@ -236,7 +236,7 @@ install_rustc() {
 
 check_ffmpeg_version() {
     local ffmpeg_repo
-    ffmpeg_repo="$1"
+    ffmpeg_repossss=$1
 
     ffmpeg_git_version=$(git ls-remote --tags "$ffmpeg_repo" |
                          awk -F'/' '/n[0-9]+(\.[0-9]+)*(-dev)?$/ {print $3}' |
@@ -247,7 +247,7 @@ check_ffmpeg_version() {
 download() {
     local download_file download_path download_url giflib_regex output_directory target_directory target_file
     download_path="$packages"
-    download_url="$1"
+    download_url=$1
     download_file="${2:-"${1##*/}"}"
     giflib_regex='cfhcable\.dl\.sourceforge\.net'
 
@@ -288,9 +288,9 @@ download() {
 }
 
 git_caller() {
-    git_url="$1"
-    repo_name="$2"
-    third_flag="$3"
+    git_url=$1
+    repo_name=$2
+    third_flag=$3
     recurse_flag=0
 
     [[ "$3" == "recurse" ]] && recurse_flag=1
@@ -301,10 +301,10 @@ git_caller() {
 
 git_clone() {
     local repo_flag repo_name repo_url target_directory version
-    repo_url="$1"
+    repo_url=$1
     repo_name="${2:-${1##*/}}"
     repo_name="${repo_name//\./-}"
-    repo_flag="$3"
+    repo_flag=$3
     target_directory="$packages/$repo_name"
 
     case "$repo_flag" in
@@ -349,15 +349,15 @@ git_clone() {
 
 gnu_repo() {
     local repo
-    repo="$1"
+    repo=$1
     repo_version=$(curl -fsS "$repo" | grep -oP '[a-z]+-\K(([0-9.]*[0-9]+)){2,}' | sort -ruV | head -n1)
 }
 
 github_repo() {
     local count max_attempts repo url url_flag
-    repo="$1"
-    url="$2"
-    url_flag="$3"
+    repo=$1
+    url=$2
+    url_flag=$3
     count=1
     max_attempts=10
 
@@ -406,12 +406,12 @@ github_repo() {
 
 fetch_repo_version() {
     local api_path base_url commit_id_jq_filter count project short_id_jq_filter version_jq_filter
-    base_url="$1"
-    project="$2"
-    api_path="$3"
-    version_jq_filter="$4"
-    short_id_jq_filter="$5"
-    commit_id_jq_filter="$6"
+    base_url=$1
+    project=$2
+    api_path=$3
+    version_jq_filter=$4
+    short_id_jq_filter=$5
+    commit_id_jq_filter=$6
     count=0
 
     response=$(curl -fsS "$base_url/$project/$api_path") || fail "Failed to fetch data from $base_url/$project/$api_path in the function \"fetch_repo_version\". Line: $LINENO"
@@ -433,10 +433,10 @@ fetch_repo_version() {
 
 find_git_repo() {
     local git_repo url url_action url_flag
-    url="$1"
-    git_repo="$2"
-    url_action="$3"
-    url_flag="$4"
+    url=$1
+    git_repo=$2
+    url_action=$3
+    url_flag=$4
 
     case "$url_flag" in
         enabled) set_url_flag=1 ;;
@@ -446,7 +446,7 @@ find_git_repo() {
     case "$url_action" in
         B) set_type="branches" ;;
         T) set_type="tags" ;;
-        *) set_type="$3" ;;
+        *) set_type=$3 ;;
     esac
 
     case "$git_repo" in
@@ -524,7 +524,7 @@ determine_libtool_version() {
 # Function to setup a python virtual environment and install packages with pip
 setup_python_venv_and_install_packages() {
     local -a parse_package
-    local parse_path="$1"
+    local parse_path=$1
     shift
     parse_package=("$@")
 
@@ -613,7 +613,7 @@ while (("$#" > 0)); do
             shift
             ;;
         -j|--jobs)
-            threads="$2"
+            threads=$2
             shift 2
             ;;
         -g|--google-speech)
@@ -1086,7 +1086,7 @@ debian_msft() {
 debian_os_version() {
     if [[ "$1" == "yes_wsl" ]]; then
         STATIC_VER="msft"
-        debian_wsl_pkgs="$2"
+        debian_wsl_pkgs=$2
     fi
 
     debian_pkgs=(
@@ -1116,7 +1116,7 @@ ubuntu_msft() {
 ubuntu_os_version() {
     if [[ "$1" = "yes_wsl" ]]; then
         VER="msft"
-        ubuntu_wsl_pkgs="$2"
+        ubuntu_wsl_pkgs=$2
     fi
 
     # Note: Zorin OS 16.x is treated as Ubuntu 20.04
