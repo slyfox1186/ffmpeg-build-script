@@ -1,20 +1,28 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
-# GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-#
-# Script version: 3.9.8
-# Updated: 09.16.24
-#
-# Purpose: build ffmpeg from source code with addon development libraries
-#          also compiled from source to help ensure the latest functionality
-# Supported Distros: Debian 11|12
-#                    Ubuntu (20|22|24).04
-#                    Linux Mint 21.x
-#                    Zorin OS 16.x
-#                    (Other Ubuntu-based distributions may also work)
-# Supported architecture: x86_64
-# CUDA SDK Toolkit: Updated to version 12.6.1
+#######################################################################################
+##
+##  Purpose: build ffmpeg from source code with addon development libraries
+##           also compiled from source to help ensure the latest functionality
+##
+##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
+##
+##  Script version: 3.9.9
+##
+##  Updated: 09.29.24
+##
+##  Supported Distros: Debian 11|12
+##                     Ubuntu (20|22|24).04
+##                     Linux Mint 21.x
+##                     Zorin OS 16.x
+##                     (Other Ubuntu-based distributions may also work)
+##
+##  Supported architecture: x86_64
+##
+##  CUDA SDK Toolkit: Updated to version 12.6.1
+##
+#######################################################################################
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script as root or with sudo."
@@ -23,14 +31,16 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.9.8"
+script_version="3.9.9"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
-if [[ "$PWD" =~ ffmpeg-build-script\/ffmpeg-build-script ]]; then
+test_regex='ffmpeg-build-script\/ffmpeg-build-script'
+if [[ "$PWD" =~ $test_regex ]]; then
     cd ../
     rm -fr ffmpeg-build-script
     cwd="$PWD"
 fi
+unset test_regex
 packages="$cwd/packages"
 workspace="$cwd/workspace"
 google_speech_flag=false
@@ -39,6 +49,7 @@ git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*
 debug=OFF
 
 # Pre-defined color variables
+CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
@@ -236,7 +247,7 @@ install_rustc() {
 
 check_ffmpeg_version() {
     local ffmpeg_repo
-    ffmpeg_repossss=$1
+    ffmpeg_repo=$1
 
     ffmpeg_git_version=$(git ls-remote --tags "$ffmpeg_repo" |
                          awk -F'/' '/n[0-9]+(\.[0-9]+)*(-dev)?$/ {print $3}' |
@@ -2343,13 +2354,109 @@ EOF
     CONFIGURE_OPTIONS+=("--enable-libx265")
 fi
 
+
+# Function to fetch all nv-codec-headers versions with dates
+fetch_nv_codec_headers_versions() {
+    echo "Please be patient while we retrieve the nv-codec-headers version numbers."
+
+    # Fetch the HTML content of the GitHub tags page
+    local html
+    html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
+
+    # Declare an array to store version and date pairs
+    declare -a versions_and_dates
+
+    # Read the HTML content into an array of lines
+    IFS=$'\n' read -rd '' -a html_lines <<<"$html"
+
+    # Iterate over each line to find version numbers and their corresponding dates
+    local current_version=""
+    local current_date=""
+    local regex=""
+    regex='href=\"/FFmpeg/nv-codec-headers/releases/tag/n([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\"'
+    for line in "${html_lines[@]}"; do
+        # Match the version number
+        if [[ $line =~ $regex ]]; then
+            current_version="${BASH_REMATCH[1]}"
+        fi
+
+        # Match the release date
+        if [[ $line =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
+            if [[ -n "$current_version" ]]; then
+                local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
+                # Format the date as MM-DD-YYYY
+                local formatted_date
+                formatted_date=$(date -d "$date" +"%m-%d-%Y")
+                # Store the version and formatted date
+                versions_and_dates+=("$current_version;$formatted_date")
+                # Reset current_version for the next iteration
+                current_version=""
+            fi
+        fi
+    done
+
+    # Check if any versions were found
+    if [[ ${#versions_and_dates[@]} -eq 0 ]]; then
+        echo "No releases found."
+        exit 1
+    fi
+
+    # Sort the versions in descending order based on version number
+    IFS=$'\n' sorted_versions_and_dates=($(sort -t ';' -k1Vr <<< "${versions_and_dates[*]}"))
+    unset IFS
+}
+
+# Function to prompt the user for a version with padded numbers and fixed-width version field
+prompt_user_for_version() {
+    echo -e "${GREEN}Available ${YELLOW}nv-codec-headers ${GREEN}versions${NC}:"
+    echo "------------------------------------"
+
+    local index
+    index=1
+
+    echo -e "\n${GREEN}     Version        ${YELLOW}Date${NC}"
+    for vd in "${sorted_versions_and_dates[@]}"; do
+        local formatted_date version
+        version="${vd%%;*}"
+        formatted_date="${vd##*;}"
+        # Pad the index with a leading zero if it's less than 10
+        # Use a fixed-width field for the version (e.g., 12 characters, left-aligned)
+        printf "%02d) %-12s %s\n" "$index" "$version" "$formatted_date"
+        ((index++))
+    done
+
+    echo
+    local choice regex_choice
+    regex_choice='^[0-9]+$'
+    while true; do
+        read -rp "Select a version by number (1-10): " choice
+        if [[ "$choice" =~ $regex_choice ]] && (( choice >= 1 && choice <= index - 1 )); then
+            local selected_vd="${sorted_versions_and_dates[$((choice-1))]}"
+            selected_version="${selected_vd%%;*}"
+            selected_date="${selected_vd##*;}"
+            break
+        else
+            printf "\n%s\n\n" "Invalid selection. Please enter a number between 1 and $((index-1))."
+        fi
+    done
+
+    echo "You selected version: $selected_version (Released on $selected_date)"
+}
+
+# Inside your script where you build nv-codec-headers
 if "$NONFREE_AND_GPL"; then
     if [[ -n "$iscuda" ]]; then
-        if build "nv-codec-headers" "12.1.14.0"; then
-            download "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.1.14.0/nv-codec-headers-12.1.14.0.tar.gz"
+        # Fetch versions and prompt user
+        fetch_nv_codec_headers_versions
+        prompt_user_for_version
+
+        if build "nv-codec-headers" "$selected_version"; then
+            download_url="https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz"
+            download_file="nv-codec-headers-${selected_version}.tar.gz"
+            download "$download_url" "$download_file"
             execute make "-j$threads"
             execute make PREFIX="$workspace" install
-            build_done "nv-codec-headers" "12.1.14.0"
+            build_done "nv-codec-headers" "$selected_version"
         fi
 
         CONFIGURE_OPTIONS+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
@@ -2362,7 +2469,6 @@ if "$NONFREE_AND_GPL"; then
         remove_duplicate_paths
 
         # Get the Nvidia GPU architecture to build CUDA
-        # https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards
         nvidia_architecture
         CONFIGURE_OPTIONS+=("--nvccflags=-gencode arch=$nvidia_arch_type")
     fi
