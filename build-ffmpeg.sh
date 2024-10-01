@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
-#######################################################################################
+#########################################################################################################################
 ##
 ##  Purpose: build ffmpeg from source code with addon development libraries
 ##           also compiled from source to help ensure the latest functionality
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 3.9.9
+##  Script version: 4.0.0
 ##
-##  Updated: 09.29.24
+##  Updated: 10.01.24
 ##
 ##  Supported Distros: Debian 11|12
 ##                     Ubuntu (20|22|24).04
@@ -22,7 +22,12 @@
 ##
 ##  CUDA SDK Toolkit: Updated to version 12.6.1
 ##
-#######################################################################################
+## Notice: https://ftp.gnu.org is currently down for reasons unknown to me so I found one
+##         of the official mirrors from https://web.archive.org/web/20240904045005/https://www.gnu.org/prep/ftp.html
+##         and the script will test for this and act appropriately to download the source code
+##         from whatever is working and favors the official repository over the mirror
+##
+#########################################################################################################################
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "You must run this script as root or with sudo."
@@ -31,7 +36,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="3.9.9"
+script_version="4.0.0"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -46,7 +51,7 @@ workspace="$cwd/workspace"
 google_speech_flag=false
 # Set a regex string to match and then exclude any found release candidate versions of a program. Utilize stable releases only.
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
-debug=OFF
+debug=ON
 
 # Pre-defined color variables
 CYAN='\033[0;36m'
@@ -85,12 +90,27 @@ source_compiler_flags() {
     export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
 }
 
+# Remove the log file if the user approves
+log_file="$PWD/build.log"
+if [[ ! -f "$log_file" ]]; then
+    touch "$log_file"
+else
+    read -p "Do you want to delete the \"build.log\" file? (y/n): " del_log_choice
+    case "$del_log_choice" in
+        [yY]*)
+            rm "$log_file"
+            touch "$log_file"
+            ;;
+        [nN]*) ;;
+    esac
+fi
+
 log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo -e "${GREEN}[INFO]${NC} $1" | tee -a "$log_file"
 }
 
 log_update() {
-    echo -e "${GREEN}[UPDATE]${NC} $1"
+    echo -e "${GREEN}[UPDATE]${NC} $1" | tee -a "$log_file"
 }
 
 warn() {
@@ -361,7 +381,7 @@ git_clone() {
 gnu_repo() {
     local repo
     repo=$1
-    repo_version=$(curl -fsS "$repo" | grep -oP '[a-z]+-\K(([0-9.]*[0-9]+)){2,}' | sort -ruV | head -n1)
+    repo_version=$(curl -fsS --max-time 2 "$repo" 2>/dev/null | grep -oP '[a-z]+-\K(([0-9.]*[0-9]+)){2,}' | sort -ruV | head -n1)
 }
 
 github_repo() {
@@ -638,6 +658,8 @@ while (("$#" > 0)); do
     esac
 done
 
+MAX_THREADS="$(nproc --all)"
+
 if [[ -z "$threads" ]]; then
     # Set the available CPU thread and core count for parallel processing (speeds up the build process)
     if [[ -f /proc/cpuinfo ]]; then
@@ -646,6 +668,13 @@ if [[ -z "$threads" ]]; then
         threads=$(nproc --all)
     fi
 fi
+
+# Cap the number of threads to MAX_THREADS
+if (( threads > MAX_THREADS )); then
+    threads=$MAX_THREADS
+    warn "Thread count capped to $MAX_THREADS to prevent excessive parallelism."
+fi
+
 MAKEFLAGS="-j$threads"
 
 if [[ -z "$COMPILER_FLAG" ]] || [[ "$COMPILER_FLAG" == "gcc" ]]; then
@@ -1469,8 +1498,14 @@ if build "giflib" "5.2.2"; then
 fi
 
 gnu_repo "https://ftp.gnu.org/gnu/libiconv/"
+if [[ -z "$repo_version" ]]; then
+    repo_version=$(curl -fsS "https://gnu.mirror.constant.com/libiconv/" | grep -oP 'href="[^"]*-\K\d+\.\d+(?=\.tar\.gz)' | sort -ruV | head -n1)
+    download_libiconv="https://gnu.mirror.constant.com/libiconv/libiconv-$repo_version.tar.gz"
+else
+    download_libiconv="https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz"
+fi
 if build "libiconv" "$repo_version"; then
-    download "https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz"
+    download "$download_libiconv"
     execute ./configure --prefix="$workspace" --enable-static --with-pic
     execute make "-j$threads"
     execute make install
@@ -2357,17 +2392,15 @@ fi
 
 # Function to fetch all nv-codec-headers versions with dates
 fetch_nv_codec_headers_versions() {
-    echo "Please be patient while we retrieve the nv-codec-headers version numbers."
-
     # Fetch the HTML content of the GitHub tags page
-    local html
-    html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
+    local scrape_html
+    scrape_html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
 
     # Declare an array to store version and date pairs
     declare -a versions_and_dates
 
     # Read the HTML content into an array of lines
-    IFS=$'\n' read -rd '' -a html_lines <<<"$html"
+    IFS=$'\n' read -rd '' -a html_lines <<<"$scrape_html"
 
     # Iterate over each line to find version numbers and their corresponding dates
     local current_version=""
@@ -2381,7 +2414,7 @@ fetch_nv_codec_headers_versions() {
         fi
 
         # Match the release date
-        if [[ $line =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
+        if [[ "$line" =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
             if [[ -n "$current_version" ]]; then
                 local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
                 # Format the date as MM-DD-YYYY
@@ -2708,7 +2741,7 @@ else
 fi
 
 source_compiler_flags
-CFLAGS="$CFLAGS -I$workspace/include/serd-0 -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
+CFLAGS="$CFLAGS -Wno-undef -I$workspace/include/serd-0 -DCL_TARGET_OPENCL_VERSION=300 -DX265_DEPTH=12 -DENABLE_LIBVMAF=0"
 LDFLAGS="$LDFLAGS"
 if [[ -n "$iscuda" ]]; then
     CFLAGS+=" -I/usr/local/cuda/include"
@@ -2717,7 +2750,10 @@ fi
 
 find_git_repo "FFmpeg/FFmpeg" "1" "T"
 case "$VER" in
-    11|12) repo_version="6.1.2" ;;
+    11|12)
+        repo_version=$(curl -fsS "https://github.com/FFmpeg/FFmpeg/tags/" | grep -oP 'tag/n\K6\.[\d\.]{3}' | head -n1)
+        log_update "The version being installed for this OS (Debian) is: n$repo_version"
+        ;;
 esac
 if build "ffmpeg" "n${repo_version}"; then
     download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
