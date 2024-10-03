@@ -2519,10 +2519,10 @@ if "$NONFREE_AND_GPL"; then
 
     find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
     if build "amf" "$repo_version"; then
-        download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v$repo_version.tar.gz" "amf-$repo_version.tar.gz"
+        download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz" "amf-$repo_version.tar.gz"
         execute rm -fr "$workspace/include/AMF"
         execute mkdir -p "$workspace/include/AMF"
-        execute cp -fr "$packages/amf-$repo_version/amf/public/include/"* "$workspace/include/AMF/"
+        execute cp -fr "$packages/amf-headers-v$repo_version/AMF/"* "$workspace/include/AMF/"
         build_done "amf" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-amf")
