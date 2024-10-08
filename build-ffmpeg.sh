@@ -877,12 +877,12 @@ download_cuda() {
         break
     done
 
-    # Define the packages directory (ensure this variable is set appropriately)
+    # Define the packages directory
     packages="${HOME}/packages"
     mkdir -p "$packages/nvidia-cuda"
 
     if [[ "$distro" == debian* ]]; then
-        # Construct the .deb filename
+        # Debian-based systems
         local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
         local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
 
@@ -892,51 +892,74 @@ download_cuda() {
         echo "Installing CUDA repository package..."
         sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
 
-        echo "Adding CUDA keyring..."
-        sudo cp -f "/var/cuda-repo-${distro}-12-6-local/cuda-*-keyring.gpg" /usr/share/keyrings/
+        # Check if keyring file exists after installation
+        keyring_file=$(find /var/cuda-repo-${distro}-12-6-local -name "cuda-*-keyring.gpg" 2>/dev/null)
+        if [[ -z "$keyring_file" ]]; then
+            echo "Error: The CUDA GPG key was not found."
+            return 1
+        else
+            echo "Installing CUDA GPG key..."
+            sudo cp -f "$keyring_file" /usr/share/keyrings/
+        fi
 
         echo "Adding 'contrib' repository..."
         sudo add-apt-repository contrib -y
 
         echo "Updating package lists..."
-        sudo apt update
+        sudo apt-get update
 
         echo "Installing CUDA Toolkit $cuda_version..."
-        sudo apt -y install cuda-toolkit-12-6
+        sudo apt-get -y install cuda-toolkit-12-6
 
     elif [[ "$distro" == ubuntu* || "$distro" == "wsl-ubuntu" ]]; then
-        # Construct the .pin filename and URL
+        # Ubuntu-based systems
         local pin_file="cuda-${distro}.pin"
         local pin_url="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/${pin_file}"
 
+        echo
         echo "Downloading CUDA pin file for $choice..."
         wget --show-progress -cqO "$packages/nvidia-cuda/$pin_file" "$pin_url"
 
+        echo
         echo "Moving CUDA pin file to APT preferences..."
         sudo mv "$packages/nvidia-cuda/$pin_file" /etc/apt/preferences.d/cuda-repository-pin-600
 
-        # Construct the .deb filename and URL
+        # WSL- or Ubuntu-specific
         local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
         local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
 
+        echo
         echo "Downloading CUDA repository package for $choice..."
         wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
 
+        echo
         echo "Installing CUDA repository package..."
         sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
 
-        echo "Adding CUDA keyring..."
-        sudo cp -f "/var/cuda-repo-${distro}-12-6-local/cuda-*-keyring.gpg" /usr/share/keyrings/
+        # Check if keyring file exists after installation
+        keyring_file=$(find /var/cuda-repo-${distro}-12-6-local -name "cuda-*-keyring.gpg" 2>/dev/null)
+        if [[ -z "$keyring_file" ]]; then
+            echo
+            echo "Error: The CUDA GPG key was not found."
+            return 1
+        else
+            echo
+            echo "Installing CUDA GPG key..."
+            sudo cp -f "$keyring_file" /usr/share/keyrings/
+        fi
 
+        echo
         echo "Updating package lists..."
         sudo apt update
 
+        echo
         echo "Installing CUDA Toolkit $cuda_version..."
         sudo apt -y install cuda-toolkit-12-6
     fi
 
     echo "CUDA Toolkit version $cuda_version has been installed successfully."
 }
+
 
 # Function to detect the environment and check for an NVIDIA GPU
 check_nvidia_gpu() {
