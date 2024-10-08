@@ -8,9 +8,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.0
+##  Script version: 4.0.1
 ##
-##  Updated: 10.01.24
+##  Updated: 10.08.24
 ##
 ##  Supported Distros: Debian 11|12
 ##                     Ubuntu (20|22|24).04
@@ -20,7 +20,7 @@
 ##
 ##  Supported architecture: x86_64
 ##
-##  CUDA SDK Toolkit: Updated to version 12.6.1
+##  CUDA SDK Toolkit: Updated to version 12.6.2
 ##
 ## Notice: https://ftp.gnu.org is currently down for reasons unknown to me so I found one
 ##         of the official mirrors from https://web.archive.org/web/20240904045005/https://www.gnu.org/prep/ftp.html
@@ -36,7 +36,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.0"
+script_version="4.0.1"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -846,7 +846,7 @@ nvidia_architecture() {
 
 download_cuda() {
     local -a options
-    local choice distro cuda_version="12.6.1"
+    local choice distro cuda_version="12.6.2" installer_version="12.6.2-560.35.03-1"
 
     echo
     echo "Pick your Linux version from the list below:"
@@ -871,41 +871,71 @@ download_cuda() {
             "Ubuntu 22.04") distro="ubuntu2204" ;;
             "Ubuntu 24.04") distro="ubuntu2404" ;;
             "Ubuntu WSL") distro="wsl-ubuntu" ;;
-            Skip) return ;;
+            "Skip") return ;;
             *) echo "Invalid choice. Please try again."; continue ;;
         esac
         break
     done
 
+    # Define the packages directory (ensure this variable is set appropriately)
+    packages="${HOME}/packages"
     mkdir -p "$packages/nvidia-cuda"
 
     if [[ "$distro" == debian* ]]; then
-        wget --show-progress -cqO "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb" \
-             "https://developer.download.nvidia.com/compute/cuda/$cuda_version/local_installers/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
-        sudo dpkg -i "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
-        sudo cp /var/cuda-repo-$distro-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
-        sudo add-apt-repository contrib
-        sudo apt-get update
-        sudo apt-get -y install cuda-toolkit-12-6
+        # Construct the .deb filename
+        local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
+        local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
+
+        echo "Downloading CUDA repository package for $choice..."
+        wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
+
+        echo "Installing CUDA repository package..."
+        sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
+
+        echo "Adding CUDA keyring..."
+        sudo cp -f "/var/cuda-repo-${distro}-12-6-local/cuda-*-keyring.gpg" /usr/share/keyrings/
+
+        echo "Adding 'contrib' repository..."
+        sudo add-apt-repository contrib -y
+
+        echo "Updating package lists..."
+        sudo apt update
+
+        echo "Installing CUDA Toolkit $cuda_version..."
+        sudo apt -y install cuda-toolkit-12-6
+
     elif [[ "$distro" == ubuntu* || "$distro" == "wsl-ubuntu" ]]; then
-        wget --show-progress -cqO "$packages/nvidia-cuda/cuda-$distro.pin" \
-             "https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/cuda-$distro.pin"
-        sudo mv "$packages/nvidia-cuda/cuda-$distro.pin" /etc/apt/preferences.d/cuda-repository-pin-600
-        if [[ "$distro" == "wsl-ubuntu" ]]; then
-            wget --show-progress -cqO "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-1_amd64.deb" \
-                 "https://developer.download.nvidia.com/compute/cuda/$cuda_version/local_installers/cuda-repo-$distro-12-6-local_$cuda_version-1_amd64.deb"
-            sudo dpkg -i "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-1_amd64.deb"
-        else
-            wget --show-progress -cqO "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb" \
-                 "https://developer.download.nvidia.com/compute/cuda/$cuda_version/local_installers/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
-            sudo dpkg -i "$packages/nvidia-cuda/cuda-repo-$distro-12-6-local_$cuda_version-560.35.03-1_amd64.deb"
-        fi
-        sudo cp /var/cuda-repo-$distro-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
-        sudo apt-get update
-        sudo apt-get -y install cuda-toolkit-12-6
+        # Construct the .pin filename and URL
+        local pin_file="cuda-${distro}.pin"
+        local pin_url="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/${pin_file}"
+
+        echo "Downloading CUDA pin file for $choice..."
+        wget --show-progress -cqO "$packages/nvidia-cuda/$pin_file" "$pin_url"
+
+        echo "Moving CUDA pin file to APT preferences..."
+        sudo mv "$packages/nvidia-cuda/$pin_file" /etc/apt/preferences.d/cuda-repository-pin-600
+
+        # Construct the .deb filename and URL
+        local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
+        local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
+
+        echo "Downloading CUDA repository package for $choice..."
+        wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
+
+        echo "Installing CUDA repository package..."
+        sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
+
+        echo "Adding CUDA keyring..."
+        sudo cp -f "/var/cuda-repo-${distro}-12-6-local/cuda-*-keyring.gpg" /usr/share/keyrings/
+
+        echo "Updating package lists..."
+        sudo apt update
+
+        echo "Installing CUDA Toolkit $cuda_version..."
+        sudo apt -y install cuda-toolkit-12-6
     fi
 
-    echo "CUDA SDK Toolkit version $cuda_version has been installed."
+    echo "CUDA Toolkit version $cuda_version has been installed successfully."
 }
 
 # Function to detect the environment and check for an NVIDIA GPU
