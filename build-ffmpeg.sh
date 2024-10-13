@@ -8,9 +8,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.1
+##  Script version: 4.0.2
 ##
-##  Updated: 10.08.24
+##  Updated: 10.12.24
 ##
 ##  Supported Distros: Debian 11|12
 ##                     Ubuntu (20|22|24).04
@@ -36,7 +36,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.1"
+script_version="4.0.2"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -51,7 +51,7 @@ workspace="$cwd/workspace"
 google_speech_flag=false
 # Set a regex string to match and then exclude any found release candidate versions of a program. Utilize stable releases only.
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
-debug=ON
+debug=OFF
 
 # Pre-defined color variables
 CYAN='\033[0;36m'
@@ -2494,6 +2494,7 @@ fetch_nv_codec_headers_versions() {
 
 # Function to prompt the user for a version with padded numbers and fixed-width version field
 prompt_user_for_version() {
+    echo
     echo -e "${GREEN}Available ${YELLOW}nv-codec-headers ${GREEN}versions${NC}:"
     echo "------------------------------------"
 
@@ -2572,10 +2573,10 @@ if "$NONFREE_AND_GPL"; then
 
     find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
     if build "amf" "$repo_version"; then
-        download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz" "amf-$repo_version.tar.gz"
+        download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v$repo_version.tar.gz" "amf-$repo_version.tar.gz"
         execute rm -fr "$workspace/include/AMF"
         execute mkdir -p "$workspace/include/AMF"
-        execute cp -fr "$packages/amf-headers-v$repo_version/AMF/"* "$workspace/include/AMF/"
+        execute cp -fr "$packages/amf-$repo_version/amf/public/include/"* "$workspace/include/AMF/"
         build_done "amf" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-amf")
