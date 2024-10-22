@@ -44,7 +44,6 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
 | **chromaprint** | Audio fingerprinting library |
 | **cuda** | Hardware acceleration for Nvidia graphics cards |
 | **dav1d** | Fastest AV1 decoder developed by the VideoLAN and FFmpeg communities |
-| **decklink** | DeckLink capture cards support |
 | **ff-nvcodec-headers** | Headers for Nvidia codec APIs (Hardware Acceleration) |
 | **flac** | Free Lossless Audio Codec |
 | **fontconfig** | Font configuration and customization library |
