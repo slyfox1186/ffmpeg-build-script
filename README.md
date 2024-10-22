@@ -30,7 +30,7 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
 
 2. Run the build script:
    ```bash
-   sudo bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
+   bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
    ```
 
 ## Supported Codecs and Libraries
