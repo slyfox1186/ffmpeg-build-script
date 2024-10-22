@@ -139,7 +139,7 @@ This project is licensed under the [MIT License](https://github.com/slyfox1186/f
 
 ## Support
 
-This is a community-supported project, and support is limited to Debian-based and Arch Linux systems. For any questions or issues, please open an issue on the [GitHub repository](https://github.com/slyfox1186/ffmpeg-build-script/issues).
+This is a community-supported project, and support is limited to Debian-based operating systems. For any questions or issues, please open an issue on the [GitHub repository](https://github.com/slyfox1186/ffmpeg-build-script/issues).
 
 ## Requirements
 
