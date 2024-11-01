@@ -8,7 +8,7 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.3
+##  Script version: 4.0.4
 ##
 ##  Updated: 10.22.24
 ##
@@ -36,7 +36,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.3"
+script_version="4.0.4"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -1559,7 +1559,7 @@ if build "giflib" "5.2.2"; then
     download "https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
     # Parellel building not available for this library
     execute make
-    execute make PREFIX="$workspace" install
+    execute sudo make PREFIX="$workspace" install
     build_done "giflib" "5.2.2"
 fi
 
