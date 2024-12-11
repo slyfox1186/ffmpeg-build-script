@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
-#########################################################################################################################
+####################################################################################
 ##
-##  Purpose: build ffmpeg from source code with addon development libraries
+##  Purpose: Build FFmpeg from source code with addon libraries which are
 ##           also compiled from source to help ensure the latest functionality
+##           possible
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.4
+##  Script version: 4.0.5
 ##
-##  Updated: 10.22.24
+##  Updated: 12.11.2024
+##
+##  CUDA SDK Toolkit version: 12.6.3
 ##
 ##  Supported Distros: Debian 11|12
 ##                     Ubuntu (20|22|24).04
@@ -20,14 +23,7 @@
 ##
 ##  Supported architecture: x86_64
 ##
-##  CUDA SDK Toolkit: Updated to version 12.6.2
-##
-## Notice: https://ftp.gnu.org is currently down for reasons unknown to me so I found one
-##         of the official mirrors from https://web.archive.org/web/20240904045005/https://www.gnu.org/prep/ftp.html
-##         and the script will test for this and act appropriately to download the source code
-##         from whatever is working and favors the official repository over the mirror
-##
-#########################################################################################################################
+####################################################################################
 
 if [[ "$EUID" -eq 0 ]]; then
     echo "You must run this script without root or sudo."
@@ -36,7 +32,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.4"
+script_version="4.0.5"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -49,7 +45,7 @@ unset test_regex
 packages="$cwd/packages"
 workspace="$cwd/workspace"
 google_speech_flag=false
-# Set a regex string to match and then exclude any found release candidate versions of a program. Utilize stable releases only.
+# Set a regex string to match and then exclude any found release candidate versions of a program. We are only utilizing stable releases.
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
 debug=OFF
 
@@ -244,6 +240,7 @@ check_and_install_cargo_c() {
 
 install_windows_hardware_acceleration() {
     local file
+
     declare -A files=(
         ["objbase.h"]="https://raw.githubusercontent.com/wine-mirror/wine/master/include/objbase.h"
         ["dxva2api.h"]="https://download.videolan.org/pub/contrib/dxva2api.h"
@@ -261,12 +258,12 @@ install_windows_hardware_acceleration() {
     done
 }
 
-install_rustc() {
+install_rustup() {
     echo "Installing RustUp"
-    curl -fsS --proto '=https' --tlsv1.2 'https://sh.rustup.rs' | sh -s -- --default-toolchain stable -y &>/dev/null
-    source "$HOME/.cargo/env"
+    curl -fsS --proto '=https' --tlsv1.2 'https://sh.rustup.rs' | sh -s -- -y &>/dev/null
     [[ -f "$HOME/.zshrc" ]] && source "$HOME/.zshrc"
     [[ -f "$HOME/.bashrc" ]] && source "$HOME/.bashrc"
+    source "$HOME/.cargo/env"
 }
 
 check_ffmpeg_version() {
@@ -856,12 +853,11 @@ nvidia_architecture() {
 
 download_cuda() {
     local -a options=()
-    local choice distro cuda_version="12.6.2" installer_version="12.6.2-560.35.03-1"
+    local choice cuda_version distro installer_version
+    cuda_version="12.6.3"
+    installer_version="12.6.3-560.35.05-1"
 
-    echo
-    echo "Pick your Linux version from the list below:"
-    echo "Supported architecture: x86_64"
-    echo
+    printf "\n%s\n%s\n\n" "Pick your Linux version from the list below:" "Supported architecture: x86_64"
 
     options=(
         "Debian 11"
@@ -882,7 +878,10 @@ download_cuda() {
             "Ubuntu 24.04") distro="ubuntu2404" ;;
             "Ubuntu WSL") distro="wsl-ubuntu" ;;
             "Skip") return ;;
-            *) echo "Invalid choice. Please try again."; continue ;;
+            *)
+               printf "%s\n\n" "Invalid choice. Please try again."
+               continue
+               ;;
         esac
         break
     done
@@ -896,80 +895,64 @@ download_cuda() {
         local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
         local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
 
-        echo "Downloading CUDA repository package for $choice..."
+        printf "%s\n\n" "Downloading CUDA repository package for $choice..."
         wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
 
-        echo "Installing CUDA repository package..."
+        printf "%s\n\n" "Installing CUDA repository package..."
         sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
 
         # Check if keyring file exists after installation
         keyring_file=$(find /var/cuda-repo-${distro}-12-6-local -name "cuda-*-keyring.gpg" 2>/dev/null)
         if [[ -z "$keyring_file" ]]; then
-            echo "Error: The CUDA GPG key was not found."
+            printf "%s\n\n" "Error: The CUDA GPG key was not found."
             return 1
         else
-            echo "Installing CUDA GPG key..."
+            printf "%s\n\n" "Installing CUDA GPG key..."
             sudo cp -f "$keyring_file" /usr/share/keyrings/
         fi
 
-        echo "Adding 'contrib' repository..."
-        sudo add-apt-repository contrib -y
+        printf "%s\n\n" "Adding 'contrib' repository..."
+        sudo add-apt-repository -y contrib
 
-        echo "Updating package lists..."
-        sudo apt-get update
+        printf "%s\n\n" "Updating package lists..."
+        sudo apt update
 
-        echo "Installing CUDA Toolkit $cuda_version..."
-        sudo apt-get -y install cuda-toolkit-12-6
+        printf "%s\n\n" "Installing CUDA Toolkit $cuda_version..."
+        sudo apt -y install cuda-toolkit-12-6
 
     elif [[ "$distro" == ubuntu* || "$distro" == "wsl-ubuntu" ]]; then
         # Ubuntu-based systems
         local pin_file="cuda-${distro}.pin"
         local pin_url="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/${pin_file}"
 
-        echo
-        echo "Downloading CUDA pin file for $choice..."
+        printf "\n%s\n\n" "Downloading CUDA pin file for $choice..."
         wget --show-progress -cqO "$packages/nvidia-cuda/$pin_file" "$pin_url"
 
-        echo
-        echo "Moving CUDA pin file to APT preferences..."
+        printf "\n%s\n\n" "Moving CUDA pin file to APT preferences..."
         sudo mv "$packages/nvidia-cuda/$pin_file" /etc/apt/preferences.d/cuda-repository-pin-600
 
         # WSL- or Ubuntu-specific
         local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
         local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
 
-        echo
-        echo "Downloading CUDA repository package for $choice..."
+        printf "\n%s\n\n" "Downloading CUDA repository package for $choice..."
         wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
 
-        echo
-        echo "Installing CUDA repository package..."
+        printf "\n%s\n\n" "Installing CUDA repository package..."
         sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
 
         # Check if keyring file exists after installation
-        keyring_file=$(find /var/cuda-repo-${distro}-12-6-local -name "cuda-*-keyring.gpg" 2>/dev/null)
-        if [[ -z "$keyring_file" ]]; then
-            echo
-            echo "Error: The CUDA GPG key was not found."
-            return 1
-        else
-            echo
-            echo "Installing CUDA GPG key..."
-            sudo cp -f "$keyring_file" /usr/share/keyrings/
-        fi
+        sudo cp -f /var/cuda-repo-debian12-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
 
-        echo
-        echo "Updating package lists..."
+        printf "\n%s\n\n" "Updating package lists..."
         sudo apt update
 
-        echo
-        echo "Installing CUDA Toolkit $cuda_version..."
+        printf "\n%s\n\n" "Installing CUDA Toolkit $cuda_version..."
         sudo apt -y install cuda-toolkit-12-6
     fi
 
     echo "CUDA Toolkit version $cuda_version has been installed successfully."
 }
-
 
 # Function to detect the environment and check for an NVIDIA GPU
 check_nvidia_gpu() {
@@ -1064,19 +1047,18 @@ apt_pkgs() {
 
     # Define an array of apt package names
     pkgs=(
-        $1 $(find_latest_version 'nvidia-driver[0-9-]*')
-        $(find_latest_version 'openjdk-[0-9]+-jdk') autoconf
+        $1 $(find_latest_version 'openjdk-[0-9]+-jdk') autoconf
         autopoint bison build-essential ccache clang cmake
         curl flex gettext git gperf imagemagick-6.q16 ladspa-sdk
         libbluray-dev libbs2b-dev libcaca-dev libcdio-dev
         libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
         libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
-        libgsm1-dev libjack-dev libmodplug-dev libshine-dev
-        libsmbclient-dev libsnappy-dev libspeex-dev libssh-dev
-        libssl-dev libtesseract-dev libtool libtwolame-dev
-        libv4l-dev libvo-amrwbenc-dev libvpl-dev libx11-dev
-        libxi-dev libyuv-dev libzvbi-dev python3 python3-dev
-        python3-venv valgrind
+        libgsm1-dev libjack-dev libmodplug-dev libnghttp2-dev
+        libnghttp3-dev libshine-dev libsmbclient-dev libsnappy-dev
+        libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool
+        libtwolame-dev libv4l-dev libvo-amrwbenc-dev libvpl-dev
+        libx11-dev libxi-dev libyuv-dev libzvbi-dev nvidia-driver
+        python3 python3-dev python3-venv valgrind
     )
 
     [[ "$OS" == "Debian" && "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] && pkgs+=("nvidia-smi")
@@ -1116,7 +1098,7 @@ apt_pkgs() {
     if [[ -n "$(check_amd_gpu)" && "$is_nvidia_gpu_present" != "NVIDIA GPU detected" ]]; then
         return 0
     elif ! nvidia-smi &>/dev/null; then
-        echo "You most likely just updated your nvidia-driver version because the \"nvidia-smi\" command is no longer working and won't until you reboot your PC."
+        echo "You most likely just updated your nvidia-driver version because the \"nvidia-smi\" command is no longer working and won't until this command is working again."
         echo "This is important because it is required for the script to complete. My recommendation is for you to reboot your PC now and then re-run this script."
         echo
         read -p "Do you want to reboot now? (y/n): " reboot_choice
@@ -1141,8 +1123,8 @@ check_avx512() {
 
 fix_libiconv() {
     if [[ -f "$workspace/lib/libiconv.so.2" ]]; then
-        execute cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/libiconv.so.2"
-        execute ln -sf "/usr/lib/libiconv.so.2" "/usr/lib/libiconv.so"
+        execute sudo cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/libiconv.so.2"
+        execute sudo ln -sf "/usr/lib/libiconv.so.2" "/usr/lib/libiconv.so"
     else
         fail "Unable to locate the file \"$workspace/lib/libiconv.so.2\""
     fi
@@ -1152,7 +1134,7 @@ fix_libstd_libs() {
     local libstdc_path
     libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
     if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
-        ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
+        sudo ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
     fi
 }
 
@@ -1161,8 +1143,8 @@ fix_x265_libs() {
     x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' | sort -rV | head -n1)
     x265_libs_trim=$(echo "$x265_libs" | sed "s:.*/::" | head -n1)
 
-    cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
-    ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
+    sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
+    sudo ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
 }
 
 find_latest_nasm_version() {
@@ -1362,7 +1344,7 @@ install_cuda
 sudo ldconfig
 
 #
-# Install the Global Tools
+# Install Global Tools
 #
 
 echo
@@ -2001,7 +1983,7 @@ if build "$repo_name" "${version//\$ /}"; then
 fi
 
 #
-# Install the Audio Tools
+# Install Audio Tools
 #
 
 echo
@@ -2158,7 +2140,7 @@ if build "libtheora" "1.1.1"; then
     execute autoupdate
     execute ./autogen.sh
     sed "s/-fforce-addr//g" "configure" > "configure.patched"
-    chmod +x "configure.patched"
+    sudo chmod +x "configure.patched"
     execute mv "configure.patched" "configure"
     execute rm "config.guess"
     execute curl -LSso "config.guess" "https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess"
@@ -2174,7 +2156,7 @@ fi
 CONFIGURE_OPTIONS+=("--enable-libtheora")
 
 #
-# Install the Video Tools
+# Install Video Tools
 #
 
 echo
@@ -2212,13 +2194,15 @@ CONFIGURE_OPTIONS+=("--enable-libaom")
 if [[ "$STATIC_VER" != "11" ]]; then
     find_git_repo "xiph/rav1e" "1" "T" "enabled"
     if build "rav1e" "$repo_version"; then
-        install_rustc
+        install_rustup
         source "$HOME/.cargo/env"
         [[ -f /usr/bin/rustc ]] && rm -f /usr/bin/rustc
         check_and_install_cargo_c
         download "https://github.com/xiph/rav1e/archive/refs/tags/$repo_version.tar.gz" "rav1e-$repo_version.tar.gz"
-        rm -fr "$HOME/.cargo/registry/index/"* "$HOME/.cargo/.package-cache"
-        execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release
+        if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
+            rm -fr "$HOME/.cargo/registry/index/"* "$HOME/.cargo/.package-cache"
+            execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release
+        fi
         build_done "rav1e" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-librav1e")
@@ -2234,7 +2218,10 @@ if build "$repo_name" "${version//\$ /}"; then
     execute ./configure --prefix="$workspace" --with-pic
     execute make "-j$threads"
     execute sudo make install
-    execute cp -f "$workspace/lib/libzimg.so."* "/usr/lib/x86_64-linux-gnu/"
+    move_zimg_shared_file=$(find "$workspace/lib/" -type f -name 'libzimg.so.*')
+    if [[ -n "$move_zimg_shared_file" ]]; then
+        execute sudo cp -f "$move_zimg_shared_file" /usr/lib/x86_64-linux-gnu/
+    fi
     build_done "$repo_name" "$version"
 fi
 CONFIGURE_OPTIONS+=("--enable-libzimg")
@@ -2343,7 +2330,7 @@ if build "mediainfo-cli" "$repo_version"; then
     execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
     execute make "-j$threads"
     execute sudo make install
-    execute cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
+    execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
     build_done "mediainfo-cli" "$repo_version"
 fi
 
@@ -2380,7 +2367,7 @@ if build "$repo_name" "${version//\$ /}"; then
     execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --sdl-cfg="$workspace/include/SDL3"
     execute make "-j$threads"
     execute sudo make install
-    execute cp -f bin/gcc/MP4Box /usr/local/bin
+    execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
     build_done "$repo_name" "$version"
 fi
 
@@ -2389,12 +2376,12 @@ if build "svt-av1" "$repo_version"; then
     download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$repo_version/SVT-AV1-v$repo_version.tar.bz2" "svt-av1-$repo_version.tar.bz2"
     execute cmake -S . -B Build/linux \
                   -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                  -DBUILD_{APPS,SHARED_LIBS,TESTING}=OFF -DBUILD_{DEC,ENC}=ON \
-                  -DENABLE_AVX512="$(check_avx512)" -DNATIVE=ON -G Ninja -Wno-dev
+                  -DBUILD_{APPS,SHARED_LIBS,TESTING}=OFF -DENABLE_AVX512="$(check_avx512)" \
+                  -DNATIVE=ON -G Ninja -Wno-dev
     execute ninja "-j$threads" -C Build/linux
     execute ninja "-j$threads" -C Build/linux install
-    [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
-    [[ -f "$workspace/lib/pkgconfig" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig"
+    [[ -f "Build/linux/SvtAv1Enc.pc" ]] && sudo cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
+    [[ -f "$workspace/lib/pkgconfig" ]] && sudo cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig"
     build_done "svt-av1" "$repo_version"
 fi
 CONFIGURE_OPTIONS+=("--enable-libsvtav1")
@@ -2404,7 +2391,7 @@ if "$NONFREE_AND_GPL"; then
     if build "x264" "$repo_short_version_1"; then
         download "https://code.videolan.org/videolan/x264/-/archive/$repo_version_1/x264-$repo_version_1.tar.bz2" "x264-$repo_short_version_1.tar.bz2"
         execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all --enable-debug --enable-gprof \
-                            --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O2 -pipe -fPIC -march=native"
+                            --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O3 -pipe -fPIC -march=native"
         execute make "-j$threads"
         execute sudo make install-lib-static install
         build_done "x264" "$repo_short_version_1"
@@ -2594,9 +2581,9 @@ if "$NONFREE_AND_GPL"; then
     find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
     if build "amf" "$repo_version"; then
         download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v$repo_version.tar.gz" "amf-$repo_version.tar.gz"
-        execute rm -fr "$workspace/include/AMF"
-        execute mkdir -p "$workspace/include/AMF"
-        execute cp -fr "$packages/amf-$repo_version/amf/public/include/"* "$workspace/include/AMF/"
+        execute sudo rm -fr "$workspace/include/AMF"
+        execute sudo mkdir -p "$workspace/include/AMF"
+        execute sudo cp -fr "$packages/amf-$repo_version/amf/public/include/"* "$workspace/include/AMF/"
         build_done "amf" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-amf")
@@ -2729,8 +2716,8 @@ if build "libheif" "$repo_version"; then
     export CFLAGS CXXFLAGS
     libde265_libs=$(find /usr/ -type f -name 'libde265.s*')
     if [[ -f "$libde265_libs" ]] && [[ ! -e "/usr/lib/x86_64-linux-gnu/libde265.so" ]]; then
-        ln -sf "$libde265_libs" "/usr/lib/x86_64-linux-gnu/libde265.so"
-        chmod 755 "/usr/lib/x86_64-linux-gnu/libde265.so"
+        sudo ln -sf "$libde265_libs" "/usr/lib/x86_64-linux-gnu/libde265.so"
+        sudo chmod 755 "/usr/lib/x86_64-linux-gnu/libde265.so"
     fi
 
     case "$STATIC_VER" in
@@ -2739,9 +2726,8 @@ if build "libheif" "$repo_version"; then
     esac
 
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                  -DBUILD_SHARED_LIBS=OFF -DWITH_AOM=ON -DWITH_AOM_{DECODER,ENCODER}=ON \
-                  -DWITH_DAV1D=ON -DWITH_LIBDE265=ON -DWITH_RAV1E=ON -DWITH_SVT_AV1=ON \
-                  -DWITH_X265=ON -DWITH_LIBVMAF=OFF -DENABLE_PLUGIN_LOADING=OFF \
+                  -DBUILD_SHARED_LIBS=OFF -DWITH_AOM_{DECODER,ENCODER}=ON -DWITH_DAV1D=ON \
+                  -DWITH_LIBDE265=ON -DWITH_RAV1E=ON -DWITH_X265=ON -DENABLE_PLUGIN_LOADING=OFF \
                   -G Ninja -Wno-dev
     execute ninja "-j$threads" -C build
     execute sudo ninja -C build install
@@ -2823,26 +2809,28 @@ case "$VER" in
 esac
 
 if build "ffmpeg" "n${repo_version}"; then
+    sudo chmod -R 777 "$PWD"
     download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
     mkdir build
     cd build || exit 1
-    sudo ../configure --prefix=/usr/local --arch="$(uname -m)" --cc="$CC" --cxx="$CXX" \
-                 --disable-{debug,shared} "${CONFIGURE_OPTIONS[@]}" \
-                 --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme} \
-                 --enable-{libmodplug,libshine,libsnappy,libspeex,libssh} \
-                 --enable-{libtesseract,libtwolame,libv4l2,libvo-amrwbenc} \
-                 --enable-{libzimg,libzvbi,lto,opengl,pic,pthreads,rpath} \
-                 --enable-{small,static,version3,libgsm,libjack,libvpl,libdav1d} \
-                 --extra-{cflags,cxxflags}="$CFLAGS" --extra-libs="$EXTRALIBS" \
-                 --extra-ldflags="$LDFLAGS" --pkg-config-flags="--static" \
-                 --extra-ldexeflags="$LDEXEFLAGS" --pkg-config="$workspace/bin/pkg-config" \
-                 --pkgconfigdir="$PKG_CONFIG_PATH" --strip="$(type -P strip)"
-    execute sudo make "-j$threads"
+    ../configure --prefix=/usr/local --arch="$(uname -m)" \
+                      --cc="$CC" --cxx="$CXX" --disable-{debug,shared} \
+                      "${CONFIGURE_OPTIONS[@]}" \
+                      --enable-{chromaprint,ladspa,libbs2b,libcaca,libgme} \
+                      --enable-{libmodplug,libshine,libsnappy,libspeex,libssh} \
+                      --enable-{libtesseract,libtwolame,libv4l2,libvo-amrwbenc} \
+                      --enable-{libzimg,libzvbi,lto,opengl,pic,pthreads,rpath} \
+                      --enable-{small,static,version3,libgsm,libjack,libvpl,libdav1d} \
+                      --extra-{cflags,cxxflags}="$CFLAGS" --extra-libs="$EXTRALIBS" \
+                      --extra-ldflags="$LDFLAGS" --pkg-config-flags="--static" \
+                      --extra-ldexeflags="$LDEXEFLAGS" --pkg-config="$workspace/bin/pkg-config" \
+                      --pkgconfigdir="$PKG_CONFIG_PATH" --strip="$(type -P strip)"
+    execute make "-j$threads"
     execute sudo make install
     build_done "ffmpeg" "n${repo_version}"
 fi
 
-# Execute the ldconfig command to ensure that all library changes are detected by ffmpeg
+# Execute to ensure that all library changes are detected by ffmpeg
 sudo ldconfig
 
 # Display the version of each of the programs
