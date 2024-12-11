@@ -44,7 +44,6 @@ fi
 unset test_regex
 packages="$cwd/packages"
 workspace="$cwd/workspace"
-google_speech_flag=false
 # Set a regex string to match and then exclude any found release candidate versions of a program. We are only utilizing stable releases.
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
 debug=OFF
@@ -126,10 +125,6 @@ fail() {
     echo -e "${RED}[ERROR]${NC} $1"
     echo
     echo -e "${GREEN}[INFO]${NC} For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues"
-    echo
-    if $google_speech_flag; then
-        google_speech "The FFmpeg build script encountered a fatal error." &>/dev/null
-    fi
     exit 1
 }
 
@@ -649,10 +644,6 @@ while (("$#" > 0)); do
         -j|--jobs)
             threads=$2
             shift 2
-            ;;
-        -g|--google-speech)
-            google_speech_flag=true
-            shift
             ;;
         *)
             usage
