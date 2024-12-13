@@ -9,9 +9,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.5
+##  Script version: 4.0.6
 ##
-##  Updated: 12.11.2024
+##  Updated: 12.13.2024
 ##
 ##  CUDA SDK Toolkit version: 12.6.3
 ##
@@ -32,7 +32,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.5"
+script_version="4.0.6"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -90,6 +90,7 @@ log_file="$PWD/build.log"
 if [[ ! -f "$log_file" ]]; then
     touch "$log_file"
 else
+    echo
     read -p "Do you want to delete the \"build.log\" file? (y/n): " del_log_choice
     case "$del_log_choice" in
         [yY]*)
@@ -2570,12 +2571,12 @@ if "$NONFREE_AND_GPL"; then
     fi
 
     find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
-    if build "amf" "$repo_version"; then
-        download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v$repo_version.tar.gz" "amf-$repo_version.tar.gz"
+    if build "amf-headers" "$repo_version"; then
+        download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz" "amf-headers-$repo_version.tar.gz"
         execute sudo rm -fr "$workspace/include/AMF"
         execute sudo mkdir -p "$workspace/include/AMF"
-        execute sudo cp -fr "$packages/amf-$repo_version/amf/public/include/"* "$workspace/include/AMF/"
-        build_done "amf" "$repo_version"
+        execute sudo cp -fr "AMF/"* "$workspace/include/AMF/"
+        build_done "amf-headers" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-amf")
 fi
