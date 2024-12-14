@@ -1411,8 +1411,8 @@ fi
 find_git_repo "mesonbuild/meson" "1" "T"
 if build "meson" "$repo_version"; then
     download "https://github.com/mesonbuild/meson/archive/refs/tags/$repo_version.tar.gz" "meson-$repo_version.tar.gz"
-    execute python3 setup.py build
-    execute python3 setup.py install --prefix="$workspace"
+    execute sudo python3 setup.py build
+    execute sudo python3 setup.py install --prefix="$workspace"
     build_done "meson" "$repo_version"
 fi
 
