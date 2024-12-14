@@ -9,9 +9,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.6
+##  Script version: 4.0.7
 ##
-##  Updated: 12.13.2024
+##  Updated: 12.14.2024
 ##
 ##  CUDA SDK Toolkit version: 12.6.3
 ##
@@ -32,7 +32,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.6"
+script_version="4.0.7"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -1050,7 +1050,7 @@ apt_pkgs() {
         libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool
         libtwolame-dev libv4l-dev libvo-amrwbenc-dev libvpl-dev
         libx11-dev libxi-dev libyuv-dev libzvbi-dev nvidia-driver
-        python3 python3-dev python3-venv valgrind
+        python3 python3-dev python3-venv valgrind python3-pip
     )
 
     [[ "$OS" == "Debian" && "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] && pkgs+=("nvidia-smi")
