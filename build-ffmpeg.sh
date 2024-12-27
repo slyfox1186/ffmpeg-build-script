@@ -1593,7 +1593,8 @@ if "$NONFREE_AND_GPL"; then
     find_git_repo "nkoriyama/aribb24" "1" "T"
     if build "aribb24" "$repo_version"; then
         download "https://github.com/nkoriyama/aribb24/archive/refs/tags/v$repo_version.tar.gz" "aribb24-$repo_version.tar.gz"
-        execute autoreconf -fi
+        execute mkdir m4
+        execute autoreconf -fi -I/usr/share/aclocal
         execute ./configure --prefix="$workspace" --disable-shared --enable-static
         execute make "-j$threads"
         execute sudo make install
@@ -1601,6 +1602,7 @@ if "$NONFREE_AND_GPL"; then
     fi
     CONFIGURE_OPTIONS+=("--enable-libaribb24")
 fi
+
 
 find_git_repo "7950" "4"
 repo_version="${repo_version#VER-}"
