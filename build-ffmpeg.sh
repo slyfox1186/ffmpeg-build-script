@@ -1785,7 +1785,7 @@ if build "$repo_name" "${version//\$ /}"; then
     execute cmake -S . -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                   -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -G Ninja -Wno-dev
     execute ninja "-j$threads"
-    execute ninja install
+    execute sudo ninja install
     build_done "$repo_name" "$version"
     build_done "$repo_name" "$version"
 fi
