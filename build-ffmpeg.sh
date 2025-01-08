@@ -9,9 +9,9 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.7
+##  Script version: 4.0.8
 ##
-##  Updated: 12.14.2024
+##  Updated: 01.07.2024
 ##
 ##  CUDA SDK Toolkit version: 12.6.3
 ##
@@ -1778,16 +1778,21 @@ if build "$repo_name" "${version//\$ /}"; then
 fi
 CONFIGURE_OPTIONS+=("--enable-opencl")
 
-git_caller "https://github.com/imageMagick/jpeg-turbo.git" "jpeg-turbo-git"
-if build "$repo_name" "${version//\$ /}"; then
-    echo "Cloning \"$repo_name\" saving version \"$version\""
-    git_clone "$git_url"
-    execute cmake -S . -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                  -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -G Ninja -Wno-dev
-    execute ninja "-j$threads"
-    execute sudo ninja install
-    build_done "$repo_name" "$version"
-    build_done "$repo_name" "$version"
+find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"
+if build "libjpeg-turbo" "$repo_version"; then
+    download "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$repo_version.tar.gz" "libjpeg-turbo-$repo_version.tar.gz"
+    execute cmake -B build \
+            -DCMAKE_INSTALL_PREFIX="$workspace" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_SHARED=OFF \
+            -DENABLE_STATIC=ON \
+            -DWITH_JPEG8=1 \
+            -DWITH_TURBOJPEG=ON \
+            -DWITH_JAVA=OFF \
+            -G Ninja -Wno-dev
+    execute ninja "-j$threads" -C build
+    execute sudo ninja -C build install
+    build_done "libjpeg-turbo" "$repo_version"
 fi
 
 if "$NONFREE_AND_GPL"; then
