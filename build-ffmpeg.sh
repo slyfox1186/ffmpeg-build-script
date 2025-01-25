@@ -824,10 +824,10 @@ nvidia_architecture() {
             "NVIDIA GeForce GTX 1660 Ti"|"NVIDIA GeForce RTX 2060"|"NVIDIA GeForce RTX 2070"|"NVIDIA GeForce RTX 2080"|"Quadro 4000"|"Quadro 5000"|"Quadro 6000"|"Quadro 8000"|"NVIDIA T1000"|"NVIDIA T2000"|"NVIDIA Tesla T4")
                 nvidia_arch_type="compute_75,code=sm_75"
                 ;;
-            "NVIDIA GeForce RTX 3050"|"NVIDIA GeForce RTX 3060"|"NVIDIA GeForce RTX 3070"|"NVIDIA GeForce RTX 3080"|"NVIDIA GeForce RTX 3080 Ti"|"NVIDIA GeForce RTX 3090"|"NVIDIA RTX A2000"|"NVIDIA RTX A3000"|"NVIDIA RTX A4000"|"NVIDIA RTX A5000"|"NVIDIA RTX A6000")
+            "NVIDIA GeForce RTX 3050"|"NVIDIA GeForce RTX 3050 Ti"|"NVIDIA GeForce RTX 3060"|"NVIDIA GeForce RTX 3060 Ti"|"NVIDIA GeForce RTX 3070"|"NVIDIA GeForce RTX 3070 Ti"|"NVIDIA GeForce RTX 3080"|"NVIDIA GeForce RTX 3080 Ti"|"NVIDIA GeForce RTX 3090"|"NVIDIA GeForce RTX 3090 Ti"|"NVIDIA RTX A2000"|"NVIDIA RTX A3000"|"NVIDIA RTX A4000"|"NVIDIA RTX A5000"|"NVIDIA RTX A6000")
                 nvidia_arch_type="compute_86,code=sm_86"
                 ;;
-            "NVIDIA GeForce RTX 4080"|"NVIDIA GeForce RTX 4090")
+            "NVIDIA GeForce RTX 4060 Ti"|"NVIDIA GeForce RTX 4070 Ti"|"NVIDIA GeForce RTX 4080"|"NVIDIA GeForce RTX 4090")
                 nvidia_arch_type="compute_89,code=sm_89"
                 ;;
             "NVIDIA H100")
@@ -835,7 +835,7 @@ nvidia_architecture() {
                 ;;
             *) echo "If you get a driver version \"mismatch\" when executing the command \"nvidia-smi\", reboot your PC and rerun the script."
                echo
-               fail "Failed to set the variable \"nvidia_arch_type\". Line: $LINENO"
+               fail "Failed to set the variable \"nvidia_arch_type\". Line: $LINENO, GPU_Name: $gpu_name"
                ;;
         esac
     else
@@ -1258,7 +1258,12 @@ get_os_version() {
         # Add detection for Zorin and Mint
         if [[ "$OS" == "Zorin" ]]; then
             OS="Ubuntu"
-            VER="20.04"  # Zorin OS 16 is based on Ubuntu 20.04
+            if [[ "$VER" == "17" ]]; then
+                VER="22.04"  # Zorin OS 17 is based on Ubuntu 22.04
+            else
+                VER="20.04"  # Zorin OS 16 is based on Ubuntu 20.04
+            fi
+            STATIC_VER="$VER"
         elif [[ "$OS" == "Linux" && "$NAME" == "Linux Mint" ]]; then
             OS="Ubuntu"
             VER="22.04"  # Mint 21.x is based on Ubuntu 22.04
