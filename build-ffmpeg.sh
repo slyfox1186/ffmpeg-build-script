@@ -9,7 +9,7 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.9
+##  Script version: 4.1.0
 ##
 ##  Updated: 03.21.2025
 ##
@@ -32,7 +32,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.9"
+script_version="4.1.0"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
@@ -41,12 +41,11 @@ if [[ "$PWD" =~ $test_regex ]]; then
     rm -fr ffmpeg-build-script
     cwd="$PWD"
 fi
-unset test_regex
 packages="$cwd/packages"
 workspace="$cwd/workspace"
 # Set a regex string to match and then exclude any found release candidate versions of a program. We are only utilizing stable releases.
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
-debug=OFF
+debug=ON
 
 # Pre-defined color variables
 CYAN='\033[0;36m'
@@ -1423,9 +1422,8 @@ fi
 
 find_git_repo "mesonbuild/meson" "1" "T"
 if build "meson" "$repo_version"; then
-    download "https://github.com/mesonbuild/meson/archive/refs/tags/$repo_version.tar.gz" "meson-$repo_version.tar.gz"
-    execute sudo python3 setup.py build
-    execute sudo python3 setup.py install --prefix="$workspace"
+    download "https://github.com/mesonbuild/meson/releases/download/$repo_version/meson-$repo_version.tar.gz" "meson-$repo_version.tar.gz"
+    execute python3 -m pip install meson
     build_done "meson" "$repo_version"
 fi
 
@@ -1637,11 +1635,14 @@ if build "fontconfig" "$repo_version"; then
     extracmds=("--disable-"{docbook,docs,nls,shared})
     LDFLAGS+=" -DLIBXML_STATIC"
     sed -i "s|Cflags:|& -DLIBXML_STATIC|" "fontconfig.pc.in"
-    execute autoupdate
-    execute ./autogen.sh --noconf
-    execute ./configure --prefix="$workspace" "${extracmds[@]}" --enable-{iconv,static} --with-arch="$(uname -m)" --with-libiconv-prefix=/usr
-    execute make "-j$threads"
-    execute sudo make install
+    execute meson setup build --prefix="$workspace" \
+                              --buildtype=release \
+                              --default-library=static \
+                              --strip -Diconv=enabled \
+                              -Ddoc=disabled \
+                              -Dxml-backend=libxml2
+    execute ninja "-j$threads" -C build
+    execute sudo ninja -C build install
     build_done "fontconfig" "$repo_version"
 fi
 CONFIGURE_OPTIONS+=("--enable-libfontconfig")
@@ -1685,7 +1686,6 @@ find_git_repo "fribidi/fribidi" "1" "T"
 if build "fribidi" "$repo_version"; then
     download "https://github.com/fribidi/fribidi/archive/refs/tags/v$repo_version.tar.gz" "fribidi-$repo_version.tar.gz"
     extracmds=("-D"{docs,tests}"=false")
-    execute autoreconf -fi
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static "${extracmds[@]}"
     execute ninja "-j$threads" -C build
     execute sudo ninja -C build install
@@ -1696,11 +1696,9 @@ CONFIGURE_OPTIONS+=("--enable-libfribidi")
 find_git_repo "libass/libass" "1" "T"
 if build "libass" "$repo_version"; then
     download "https://github.com/libass/libass/archive/refs/tags/$repo_version.tar.gz" "libass-$repo_version.tar.gz"
-    execute autoupdate
-    execute ./autogen.sh
-    execute ./configure --prefix="$workspace" --disable-shared
-    execute make "-j$threads"
-    execute sudo make install
+    execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static -Dfontconfig=enabled
+    execute ninja "-j$threads" -C build
+    execute sudo ninja -C build install
     build_done "libass" "$repo_version"
 fi
 CONFIGURE_OPTIONS+=("--enable-libass")
@@ -1720,7 +1718,6 @@ git_caller "https://chromium.googlesource.com/webm/libwebp" "libwebp-git"
 if build "$repo_name" "${version//\$ /}"; then
     echo "Cloning \"$repo_name\" saving version \"$version\""
     git_clone "$git_url"  "libwebp-git"
-    execute autoreconf -fi
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                   -DBUILD_SHARED_LIBS=ON -DZLIB_INCLUDE_DIR="$workspace/include" \
                   -DWEBP_BUILD_{ANIM_UTILS,EXTRAS,VWEBP}=OFF -DWEBP_BUILD_{CWEBP,DWEBP}=ON \
@@ -1813,7 +1810,7 @@ if "$NONFREE_AND_GPL"; then
     if build "$repo_name" "${version//\$ /}"; then
         echo "Cloning \"$repo_name\" saving version \"$version\""
         git_clone "$git_url"
-        execute make "-j$threads" PREFIX="$workspace" install-static
+        execute sudo make "-j$threads" PREFIX="$workspace" install-static
         build_done "$repo_name" "$version"
     fi
     CONFIGURE_OPTIONS+=("--enable-librubberband")
@@ -1822,7 +1819,6 @@ fi
 find_git_repo "c-ares/c-ares" "1" "T"
 if build "c-ares" "$repo_version"; then
     download "https://github.com/c-ares/c-ares/archive/refs/tags/v$repo_version.tar.gz" "c-ares-$repo_version.tar.gz"
-    execute autoreconf -fi
     execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                            -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,SHARED,SYMBOL_HIDING}=OFF \
                            -DCARES_{BUILD_TOOLS,STATIC,STATIC_PIC,THREADS}=ON -G Ninja -Wno-dev
@@ -1854,7 +1850,7 @@ if build "$repo_name" "${version//\$ /}"; then
     execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip \
                               -D{docs,tests}=disabled -Donline_docs=false -Dplugins="$lv2_switch"
     execute ninja "-j$threads" -C build
-    execute ninja -C build install
+    execute sudo ninja -C build install
     build_done "$repo_name" "$version"
 else
     # Set PYTHONPATH to include the virtual environment's site-packages directory
@@ -1894,9 +1890,7 @@ if build "pcre2" "$repo_version"; then
     download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$repo_version.tar.gz" "pcre2-$repo_version.tar.gz"
     execute autoupdate
     execute ./autogen.sh
-    execute ./configure --prefix="$workspace" \
-                        --enable-{jit,valgrind} \
-                        --disable-shared
+    execute ./configure --prefix="$workspace" --disable-shared
     execute make "-j$threads"
     execute sudo make install
     build_done "pcre2" "$repo_version"
@@ -1936,8 +1930,7 @@ fi
 find_git_repo "11853176" "3" "T"
 if build "lilv" "$repo_version"; then
     download "https://gitlab.com/lv2/lilv/-/archive/v$repo_version/lilv-v$repo_version.tar.bz2" "lilv-$repo_version.tar.bz2"
-    extracmds=("-D"{docs,html,singlehtml,tests,tools}"=disabled")
-    execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
+    execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip
     execute ninja "-j$threads" -C build
     execute sudo ninja -C build install
     build_done "lilv" "$repo_version"
