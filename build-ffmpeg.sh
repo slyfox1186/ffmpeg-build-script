@@ -9,17 +9,17 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.0.8
+##  Script version: 4.0.9
 ##
-##  Updated: 01.07.2024
+##  Updated: 03.21.2025
 ##
-##  CUDA SDK Toolkit version: 12.6.3
+##  CUDA SDK Toolkit version: 12.8.1
 ##
-##  Supported Distros: Debian 11|12
+##  Supported Distros: Debian 12
 ##                     Ubuntu (20|22|24).04
 ##                     Linux Mint 21.x
 ##                     Zorin OS 16.x
-##                     (Other Ubuntu-based distributions may also work)
+##                     (Other Debian-based distributions may also work)
 ##
 ##  Supported architecture: x86_64
 ##
@@ -32,7 +32,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.0.7"
+script_version="4.0.9"
 cwd="$PWD/ffmpeg-build-script"
 mkdir -p "$cwd"; cd "$cwd" || exit 1
 test_regex='ffmpeg-build-script\/ffmpeg-build-script'
