@@ -845,35 +845,49 @@ nvidia_architecture() {
 
 download_cuda() {
     local -a options=()
-    local choice cuda_version distro installer_version
-    cuda_version="12.6.3"
-    installer_version="12.6.3-560.35.05-1"
+    local choice cuda_version distro installer_version deb_file deb_url pin_url
+    cuda_version="12.8.1"
 
     printf "\n%s\n%s\n\n" "Pick your Linux version from the list below:" "Supported architecture: x86_64"
 
     options=(
-        "Debian 11"
-        "Debian 12"
-        "Ubuntu 20.04"
-        "Ubuntu 22.04"
-        "Ubuntu 24.04"
-        "Ubuntu WSL"
+        "Debian 12 (Bookworm)"
+        "Ubuntu 20.04 (Focal Fossa)"
+        "Ubuntu 22.04 (Jammy Jellyfish)"
+        "Ubuntu 24.04 (Noble Numbat)"
+        "Ubuntu WSL (Windows)"
         "Skip"
     )
 
     select choice in "${options[@]}"; do
         case "$choice" in
-            "Debian 11") distro="debian11" ;;
-            "Debian 12") distro="debian12" ;;
-            "Ubuntu 20.04") distro="ubuntu2004" ;;
-            "Ubuntu 22.04") distro="ubuntu2204" ;;
-            "Ubuntu 24.04") distro="ubuntu2404" ;;
-            "Ubuntu WSL") distro="wsl-ubuntu" ;;
-            "Skip") return ;;
+            "Debian 12 (Bookworm)")
+                distro="debian12"
+                installer_version="12.8.1-570.124.06-1"
+                ;;
+            "Ubuntu 20.04 (Focal Fossa)")
+                distro="ubuntu2004"
+                installer_version="12.8.1-570.124.06-1"
+                ;;
+            "Ubuntu 22.04 (Jammy Jellyfish)")
+                distro="ubuntu2204"
+                installer_version="12.8.1-570.124.06-1"
+                ;;
+            "Ubuntu 24.04 (Noble Numbat)")
+                distro="ubuntu2404"
+                installer_version="12.8.1-570.124.06-1"
+                ;;
+            "Ubuntu WSL (Windows)")
+                distro="wsl-ubuntu"
+                installer_version="12.8.1-1"
+                ;;
+            "Skip")
+                return
+                ;;
             *)
-               printf "%s\n\n" "Invalid choice. Please try again."
-               continue
-               ;;
+                printf "%s\n\n" "Invalid choice. Please try again."
+                continue
+                ;;
         esac
         break
     done
@@ -882,66 +896,60 @@ download_cuda() {
     packages="${HOME}/packages"
     mkdir -p "$packages/nvidia-cuda"
 
-    if [[ "$distro" == debian* ]]; then
-        # Debian-based systems
-        local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
-        local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
-
-        printf "%s\n\n" "Downloading CUDA repository package for $choice..."
-        wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
-
-        printf "%s\n\n" "Installing CUDA repository package..."
-        sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
-
-        # Check if keyring file exists after installation
-        keyring_file=$(find /var/cuda-repo-${distro}-12-6-local -name "cuda-*-keyring.gpg" 2>/dev/null)
-        if [[ -z "$keyring_file" ]]; then
-            printf "%s\n\n" "Error: The CUDA GPG key was not found."
-            return 1
-        else
-            printf "%s\n\n" "Installing CUDA GPG key..."
-            sudo cp -f "$keyring_file" /usr/share/keyrings/
-        fi
-
-        printf "%s\n\n" "Adding 'contrib' repository..."
-        sudo add-apt-repository -y contrib
-
-        printf "%s\n\n" "Updating package lists..."
-        sudo apt update
-
-        printf "%s\n\n" "Installing CUDA Toolkit $cuda_version..."
-        sudo apt -y install cuda-toolkit-12-6
-
-    elif [[ "$distro" == ubuntu* || "$distro" == "wsl-ubuntu" ]]; then
-        # Ubuntu-based systems
-        local pin_file="cuda-${distro}.pin"
-        local pin_url="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/${pin_file}"
-
+    # For Ubuntu and WSL, download the appropriate pin file
+    if [[ "$distro" == ubuntu* || "$distro" == "wsl-ubuntu" ]]; then
+        case "$distro" in
+            "wsl-ubuntu")
+                pin_url="https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-wsl-ubuntu.pin"
+                ;;
+            "ubuntu2004")
+                pin_url="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin"
+                ;;
+            "ubuntu2204")
+                pin_url="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin"
+                ;;
+            "ubuntu2404")
+                pin_url="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-ubuntu2404.pin"
+                ;;
+        esac
         printf "\n%s\n\n" "Downloading CUDA pin file for $choice..."
-        wget --show-progress -cqO "$packages/nvidia-cuda/$pin_file" "$pin_url"
-
+        wget --show-progress -cqO "$packages/nvidia-cuda/$(basename "$pin_url")" "$pin_url"
         printf "\n%s\n\n" "Moving CUDA pin file to APT preferences..."
-        sudo mv "$packages/nvidia-cuda/$pin_file" /etc/apt/preferences.d/cuda-repository-pin-600
-
-        # WSL- or Ubuntu-specific
-        local deb_file="cuda-repo-${distro}-12-6-local_${installer_version}_amd64.deb"
-        local deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
-
-        printf "\n%s\n\n" "Downloading CUDA repository package for $choice..."
-        wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
-
-        printf "\n%s\n\n" "Installing CUDA repository package..."
-        sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
-
-        # Check if keyring file exists after installation
-        sudo cp -f /var/cuda-repo-debian12-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
-
-        printf "\n%s\n\n" "Updating package lists..."
-        sudo apt update
-
-        printf "\n%s\n\n" "Installing CUDA Toolkit $cuda_version..."
-        sudo apt -y install cuda-toolkit-12-6
+        sudo mv "$packages/nvidia-cuda/$(basename "$pin_url")" /etc/apt/preferences.d/cuda-repository-pin-600
     fi
+
+    # Set the deb package name and URL based on distro
+    if [[ "$distro" == "wsl-ubuntu" ]]; then
+        deb_file="cuda-repo-${distro}-12-8-local_${installer_version}_amd64.deb"
+        deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
+    elif [[ "$distro" == "debian12" ]]; then
+        deb_file="cuda-repo-debian12-12-8-local_${installer_version}_amd64.deb"
+        deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
+    else
+        # For Ubuntu 2004, 2204, 2404
+        deb_file="cuda-repo-${distro}-12-8-local_${installer_version}_amd64.deb"
+        deb_url="https://developer.download.nvidia.com/compute/cuda/${cuda_version}/local_installers/${deb_file}"
+    fi
+
+    printf "\n%s\n\n" "Downloading CUDA repository package for $choice..."
+    wget --show-progress -cqO "$packages/nvidia-cuda/$deb_file" "$deb_url"
+
+    printf "\n%s\n\n" "Installing CUDA repository package..."
+    sudo dpkg -i "$packages/nvidia-cuda/$deb_file"
+
+    printf "\n%s\n\n" "Installing CUDA GPG key..."
+    # For both Ubuntu and Debian, the keyring is copied from the installation directory
+    if [[ "$distro" == "wsl-ubuntu" || "$distro" == ubuntu* ]]; then
+        sudo cp -f /var/cuda-repo-${distro}-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
+    else
+        sudo cp -f /var/cuda-repo-debian12-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
+    fi
+
+    printf "\n%s\n\n" "Updating package lists..."
+    sudo apt update
+
+    printf "\n%s\n\n" "Installing CUDA Toolkit $cuda_version..."
+    sudo apt -y install cuda-toolkit-12-8
 
     echo "CUDA Toolkit version $cuda_version has been installed successfully."
 }
