@@ -130,6 +130,17 @@ install_miscellaneous_libraries() {
     fi
     CONFIGURE_OPTIONS+=("--enable-libfontconfig")
 
+    # Build harfbuzz
+    find_git_repo "harfbuzz/harfbuzz" "1" "T"
+    if build "harfbuzz" "$repo_version"; then
+        download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/$repo_version.tar.gz" "harfbuzz-$repo_version.tar.gz"
+        extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}"=disabled")
+        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
+        execute ninja "-j$threads" -C build
+        execute sudo ninja -C build install
+        build_done "harfbuzz" "$repo_version"
+    fi
+    CONFIGURE_OPTIONS+=("--enable-libharfbuzz")
 
     # Build c2man
     git_caller "https://github.com/fribidi/c2man.git" "c2man-git"
