@@ -19,7 +19,7 @@ NC='\033[0m'
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
 
 # Debug flag
-debug=ON
+debug=OFF
 
 # Banner functions
 box_out_banner() {
