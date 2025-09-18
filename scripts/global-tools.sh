@@ -29,7 +29,7 @@ install_global_tools() {
         download "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz"
         execute ./configure --prefix="$workspace" --enable-c++ --enable-threads=posix
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "m4" "latest"
     fi
 
@@ -39,7 +39,7 @@ install_global_tools() {
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" M4="$workspace/bin/m4"
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "autoconf" "latest"
     fi
 
@@ -49,7 +49,7 @@ install_global_tools() {
         download "https://ftp.gnu.org/gnu/libtool/libtool-$libtool_version.tar.xz"
         execute ./configure --prefix="$workspace" --with-pic M4="$workspace/bin/m4"
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "libtool" "$libtool_version"
     fi
 
@@ -60,7 +60,7 @@ install_global_tools() {
         execute autoconf
         execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH" --with-internal-glib
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "pkg-config" "$repo_version"
     fi
 
@@ -70,7 +70,7 @@ install_global_tools() {
         download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
         execute ./bootstrap --prefix="$workspace" --parallel="$threads" --enable-ccache --no-qt-gui --no-debugger
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "cmake" "$repo_version"
     fi
 
@@ -89,7 +89,7 @@ install_global_tools() {
         re2c_path="$(command -v re2c)"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release -DRE2C="$re2c_path" -DBUILD_TESTING=OFF -Wno-dev
         execute make "-j$threads" -C build
-        execute sudo make -C build install
+        execute make -C build install
         build_done "ninja" "$repo_version"
     fi
 
@@ -98,13 +98,15 @@ install_global_tools() {
     if build "libzstd" "$repo_version"; then
         download "https://github.com/facebook/zstd/archive/refs/tags/v$repo_version.tar.gz" "libzstd-$repo_version.tar.gz"
         cd "build/meson" || exit 1
-        execute meson setup build --prefix="$workspace" \
-                                  --buildtype=release \
-                                  --default-library=static \
-                                  --strip \
-                                  -Dbin_tests=false
-        execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        local meson_dir="meson-build"
+        rm -rf "$meson_dir"
+        execute meson setup "$meson_dir" --prefix="$workspace" \
+                                      --buildtype=release \
+                                      --default-library=static \
+                                      --strip \
+                                      -Dbin_tests=false
+        execute ninja "-j$threads" -C "$meson_dir"
+        execute ninja -C "$meson_dir" install
         build_done "libzstd" "$repo_version"
     fi
 
@@ -115,7 +117,7 @@ install_global_tools() {
         execute meson setup build --prefix="$workspace" --buildtype=release \
                                   --default-library=static --strip -Dbuilt_tools=false -Dtest=false
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "librist" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-librist")
@@ -130,7 +132,7 @@ install_global_tools() {
                       -DINSTALL_PKGCONFIG_DIR="$workspace/share/pkgconfig" -DZLIB_BUILD_EXAMPLES=OFF \
                       -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "zlib" "$repo_version"
     fi
 
@@ -150,7 +152,7 @@ install_global_tools() {
                                 --with-rand-seed=os --with-zlib-include="$workspace/include" \
                                 --with-zlib-lib="$workspace/lib"
             execute make "-j$threads"
-            execute sudo make install_sw
+            execute make install_sw
             build_done "openssl" "$openssl_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-openssl")

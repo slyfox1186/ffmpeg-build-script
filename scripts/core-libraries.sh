@@ -22,7 +22,7 @@ install_core_libraries() {
         download "http://www.tortall.net/projects/yasm/releases/yasm-$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace"
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "yasm" "$repo_version"
     fi
 
@@ -35,16 +35,16 @@ install_core_libraries() {
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-pedantic --enable-ccache
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "nasm" "$latest_nasm_version"
     fi
 
     # Build giflib
     if build "giflib" "5.2.2"; then
-        download "https://cfhcable.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
+        download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
         # Parallel building not available for this library
         execute make
-        execute sudo make PREFIX="$workspace" install
+        execute make PREFIX="$workspace" install
         build_done "giflib" "5.2.2"
     fi
 
@@ -60,7 +60,7 @@ install_core_libraries() {
         download "$download_libiconv"
         execute ./configure --prefix="$workspace" --enable-static --with-pic
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         fix_libiconv
         build_done "libiconv" "$repo_version"
     fi
@@ -74,7 +74,7 @@ install_core_libraries() {
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
             execute ninja "-j$threads" -C build
-            execute sudo ninja -C build install
+            execute ninja -C build install
             build_done "libxml2" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libxml2")
@@ -88,7 +88,7 @@ install_core_libraries() {
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
         execute make "-j$threads"
-        execute sudo make install-header-links install-library-links install
+        execute make install-header-links install-library-links install
         build_done "libpng" "$repo_version"
     fi
 
@@ -99,7 +99,7 @@ install_core_libraries() {
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-{docs,sphinx,tests} --enable-cxx --with-pic
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "libtiff" "$repo_version"
     fi
 
@@ -112,7 +112,7 @@ install_core_libraries() {
             execute autoreconf -fi -I/usr/share/aclocal
             execute ./configure --prefix="$workspace" --disable-shared --enable-static
             execute make "-j$threads"
-            execute sudo make install
+            execute make install
             build_done "aribb24" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libaribb24")

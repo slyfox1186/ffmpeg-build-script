@@ -27,7 +27,7 @@ install_video_libraries() {
                       -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 \
                       -DENABLE_CCACHE=1 -DENABLE_{EXAMPLES,TESTS}=0 -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libaom")
@@ -62,7 +62,7 @@ install_video_libraries() {
         execute git submodule update --init --recursive
         execute ./configure --prefix="$workspace" --with-pic
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         move_zimg_shared_file=$(find "$workspace/lib/" -type f -name 'libzimg.so.*')
         if [[ -n "$move_zimg_shared_file" ]]; then
             execute sudo cp -f "$move_zimg_shared_file" /usr/lib/x86_64-linux-gnu/
@@ -79,18 +79,18 @@ install_video_libraries() {
                       -DBUILD_SHARED_LIBS=OFF -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_{DECODE,ENCODE}=ON \
                       -DAVIF_ENABLE_WERROR=OFF -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "avif" "$repo_version"
     fi
 
     # Build kvazaar
     find_git_repo "ultravideo/kvazaar" "1" "T"
     if build "kvazaar" "$repo_version"; then
-        download "https://github.com/ultravideo/kvazaar/releases/download/v$repo_version/kvazaar-$repo_version.tar.xz"
+        download "https://github.com/ultravideo/kvazaar/archive/refs/tags/v$repo_version.tar.gz" "kvazaar-$repo_version.tar.gz"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                                -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "kvazaar" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libkvazaar")
@@ -102,7 +102,7 @@ install_video_libraries() {
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --disable-{apidoc,shared}
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "libdvdread" "$repo_version"
     fi
 
@@ -114,7 +114,7 @@ install_video_libraries() {
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --disable-shared
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "udfread" "$repo_version"
     fi
 
@@ -141,7 +141,7 @@ install_video_libraries() {
             execute autoreconf -fi
             execute ./configure --prefix="$workspace" "${extracmds[@]}" --without-libxml2 --with-pic
             execute make "-j$threads"
-            execute sudo make install
+            execute make install
             build_done "libbluray" "$repo_version"
         fi
     fi
@@ -156,7 +156,7 @@ install_video_libraries() {
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-shared
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "zenlib" "$repo_version"
     fi
 
@@ -169,7 +169,7 @@ install_video_libraries() {
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-shared
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "mediainfo-lib" "$repo_version"
     fi
 
@@ -182,7 +182,7 @@ install_video_libraries() {
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
         build_done "mediainfo-cli" "$repo_version"
     fi
@@ -196,7 +196,7 @@ install_video_libraries() {
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON -G Ninja -Wno-dev
             execute ninja "-j$threads" -C build
-            execute sudo ninja -C build install
+            execute ninja -C build install
             build_done "vid-stab" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libvidstab")
@@ -208,7 +208,7 @@ install_video_libraries() {
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -DWITHOUT_OPENCV=ON -G Ninja -Wno-dev
             execute ninja "-j$threads" -C build
-            execute sudo ninja -C build install
+            execute ninja -C build install
             build_done "frei0r" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-frei0r")
@@ -220,7 +220,7 @@ install_video_libraries() {
             execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all --enable-debug --enable-gprof \
                                 --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O3 -pipe -fPIC -march=native"
             execute make "-j$threads"
-            execute sudo make install-lib-static install
+            execute make install-lib-static install
             build_done "x264" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libx264")
@@ -347,11 +347,11 @@ EOF
         if build "amf-headers" "$repo_version"; then
             download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v$repo_version.tar.gz" "amf-headers-$repo_version.tar.gz"
             # Install AMF headers to the location FFmpeg expects
-            execute sudo rm -fr "$workspace/include/AMF"
-            execute sudo mkdir -p "$workspace/include/AMF"
+            execute rm -fr "$workspace/include/AMF"
+            execute mkdir -p "$workspace/include/AMF"
             # Copy the AMF directory structure as FFmpeg expects it (AMF/core and AMF/components)
-            execute sudo cp -fr "amf/public/include/core" "$workspace/include/AMF/"
-            execute sudo cp -fr "amf/public/include/components" "$workspace/include/AMF/"
+            execute cp -fr "amf/public/include/core" "$workspace/include/AMF/"
+            execute cp -fr "amf/public/include/components" "$workspace/include/AMF/"
             build_done "amf-headers" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-amf")
@@ -399,7 +399,7 @@ EOF
             execute ./configure --prefix="$workspace"
             execute make "-j$threads"
             [[ -f "$workspace/lib/libxvidcore.so" ]] && rm "$workspace/lib/libxvidcore.so" "$workspace/lib/libxvidcore.so.4"
-            execute sudo make install
+            execute make install
             build_done "xvidcore" "$clean_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libxvid")
@@ -419,7 +419,7 @@ EOF
         touch include/gpac/revision.h
         execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --sdl-cfg="$workspace/include/SDL3"
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
         build_done "$repo_name" "$version"
     fi
@@ -434,8 +434,8 @@ EOF
                       -DNATIVE=ON -G Ninja -Wno-dev
         execute ninja "-j$threads" -C Build/linux
         execute ninja "-j$threads" -C Build/linux install
-        [[ -f "Build/linux/SvtAv1Enc.pc" ]] && sudo cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
-        [[ -f "$workspace/lib/pkgconfig" ]] && sudo cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig"
+        [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
+        [[ -f "$workspace/lib/pkgconfig" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig"
         build_done "svt-av1" "$repo_version"
     fi
     # CONFIGURE_OPTIONS+=("--enable-libsvtav1") # Disabled due to API incompatibility with FFmpeg 6.1.2
@@ -493,7 +493,7 @@ EOF
                       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin \
                       -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
 

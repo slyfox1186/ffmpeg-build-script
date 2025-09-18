@@ -102,7 +102,7 @@ build_ffmpeg() {
         [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
         
         ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute sudo make install
         
         # Fix x265 library symlink issues
