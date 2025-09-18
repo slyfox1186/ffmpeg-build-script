@@ -58,11 +58,11 @@ box_out_banner_ffmpeg() {
 
 # Logging functions
 log() {
-    echo -e "${GREEN}[INFO]${NC} $1" | tee -a "$log_file"
+    printf '%s\n' "$1" | tee -a "$log_file"
 }
 
 log_update() {
-    echo -e "${GREEN}[UPDATE]${NC} $1" | tee -a "$log_file"
+    printf '%s\n' "$1" | tee -a "$log_file"
 }
 
 warn() {
@@ -141,7 +141,7 @@ download() {
     download_path="$packages"
     download_url=$1
     download_file="${2:-"${1##*/}"}"
-    giflib_regex='cfhcable\.dl\.sourceforge\.net'
+    giflib_regex='sourceforge\.net'
 
     if [[ "$download_file" =~ tar\. ]]; then
         output_directory="${download_file%.*}"
@@ -165,10 +165,23 @@ download() {
         log "Download Completed"
     fi
 
+    if [[ "$download_file" =~ (\.tar(\.(bz2|gz|xz|lz|zst))?|\.tgz|\.tbz2)$ ]]; then
+        if ! tar -tf "$target_file" >/dev/null 2>>"$log_file"; then
+            warn "Archive validation failed for $download_file. Retrying without anti-bot headers."
+            rm -f "$target_file"
+            curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
+                 --output "$target_file" "$download_url" || fail "Failed to download \"$download_file\" via fallback. Line: $LINENO"
+            if ! tar -tf "$target_file" >/dev/null 2>>"$log_file"; then
+                rm -f "$target_file"
+                fail "Failed to validate archive \"$download_file\" after retry. Line: $LINENO"
+            fi
+        fi
+    fi
+
     [[ -d "$target_directory" ]] && rm -fr "$target_directory"
     mkdir -p "$target_directory"
 
-    if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 2>/dev/null; then
+    if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 >>"$log_file" 2>&1; then
         rm "$target_file"
         [[ "$download_url" =~ $giflib_regex ]] && return 0
         fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
@@ -226,7 +239,7 @@ git_clone() {
         if [[ "$recurse_flag" -eq 1 ]]; then
             recurse="--recursive"
         elif [[ -n "$3" ]]; then
-            target_directory="$download_path/$3"
+            target_directory="$packages/$3"
         fi
         [[ -d "$target_directory" ]] && rm -fr "$target_directory"
         if ! git clone --depth 1 $recurse -q "$repo_url" "$target_directory"; then
@@ -327,7 +340,8 @@ cmake_repo_version() {
                    grep -oP 'href="/Kitware/CMake/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    grep -v 'rc' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 meson_repo_version() {
@@ -335,42 +349,48 @@ meson_repo_version() {
                    grep -oP 'href="/mesonbuild/meson/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    grep -v 'rc' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 ninja_repo_version() {
     repo_version=$(curl -fsS "https://github.com/ninja-build/ninja/tags" | 
                    grep -oP 'href="/ninja-build/ninja/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 zstd_repo_version() {
     repo_version=$(curl -fsS "https://github.com/facebook/zstd/tags" | 
                    grep -oP 'href="/facebook/zstd/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 librist_repo_version() {
     repo_version=$(curl -fsS "https://code.videolan.org/rist/librist/-/tags" | 
                    grep -oP 'href="[^"]*/-/tags/v\K0\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 zlib_repo_version() {
     repo_version=$(curl -fsS "https://github.com/madler/zlib/tags" | 
                    grep -oP 'href="/madler/zlib/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 yasm_repo_version() {
     repo_version=$(curl -fsS "https://github.com/yasm/yasm/tags" | 
                    grep -oP 'href="/yasm/yasm/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 # Generic function for standard GitHub repos with v{major}.{minor}.{patch} tags
@@ -379,7 +399,8 @@ generic_github_version() {
     repo_version=$(curl -fsS "https://github.com/$repo/tags" | 
                    grep -oP 'href="/'$repo'/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 # Version functions for specific repos
@@ -391,13 +412,15 @@ libass_version() {
     repo_version=$(curl -fsS "https://github.com/libass/libass/tags" | 
                    grep -oP 'href="/libass/libass/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 harfbuzz_version() {
     repo_version=$(curl -fsS "https://github.com/harfbuzz/harfbuzz/tags" | 
                    grep -oP 'href="/harfbuzz/harfbuzz/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 fribidi_version() { generic_github_version "fribidi/fribidi"; }
 brotli_version() { generic_github_version "google/brotli"; }
@@ -405,14 +428,16 @@ highway_version() {
     repo_version=$(curl -fsS "https://github.com/google/highway/tags" | 
                    grep -oP 'href="/google/highway/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 gflags_version() { generic_github_version "gflags/gflags"; }
 libjpeg_turbo_version() {
     repo_version=$(curl -fsS "https://github.com/libjpeg-turbo/libjpeg-turbo/tags" | 
                    grep -oP 'href="/libjpeg-turbo/libjpeg-turbo/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 c_ares_version() { generic_github_version "c-ares/c-ares"; }
 jansson_version() { generic_github_version "akheron/jansson"; }
@@ -420,13 +445,15 @@ jemalloc_version() {
     repo_version=$(curl -fsS "https://github.com/jemalloc/jemalloc/tags" | 
                    grep -oP 'href="/jemalloc/jemalloc/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 lcms2_version() { 
     repo_version=$(curl -fsS "https://github.com/mm2/Little-CMS/tags" | 
                    grep -oP 'href="/mm2/Little-CMS/releases/tag/lcms\K[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 libpng_version() { generic_github_version "pnggroup/libpng"; }
 libheif_version() { generic_github_version "strukturag/libheif"; }
@@ -440,13 +467,22 @@ libsndfile_version() {
     repo_version=$(curl -fsS "https://github.com/libsndfile/libsndfile/tags" | 
                    grep -oP 'href="/libsndfile/libsndfile/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
+}
+zix_version() {
+    repo_version=$(curl -fsS "https://gitlab.com/drobilla/zix/-/tags" | 
+                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   sort -ruV | 
+                   head -n1
+                  )
 }
 soxr_version() {
     repo_version=$(curl -fsS "https://github.com/chirlu/soxr/tags" | 
                    grep -oP 'href="/chirlu/soxr/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 libmysofa_version() { generic_github_version "hoene/libmysofa"; }
 frei0r_version() { generic_github_version "dyne/frei0r"; }
@@ -456,28 +492,32 @@ libxml2_version() {
     repo_version=$(curl -fsS "https://gitlab.gnome.org/GNOME/libxml2/-/tags" | 
                    grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 libtiff_version() {
     repo_version=$(curl -fsS "https://gitlab.com/libtiff/libtiff/-/tags" | 
                    grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 freetype_version() {
     repo_version=$(curl -fsS "https://gitlab.freedesktop.org/freetype/freetype/-/tags" | 
                    grep -oP 'href="[^"]*/-/tags/VER-\K[0-9]+-[0-9]+-[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 fontconfig_version() {
     repo_version=$(curl -fsS "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/tags" | 
                    grep -oP 'href="[^"]*/-/tags/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
                    sort -ruV | 
-                   head -n1)
+                   head -n1
+                  )
 }
 
 debian_salsa_repo() {
@@ -487,7 +527,8 @@ debian_salsa_repo() {
                    jq -r '.[].name' | 
                    grep -E '^debian/' | 
                    head -n"${count:-1}" | 
-                   tail -n1)
+                   tail -n1
+                  )
 }
 
 videolan_repo() {
@@ -496,7 +537,8 @@ videolan_repo() {
     repo_version=$(curl -sL "https://code.videolan.org/api/v4/projects/$project_id/repository/tags" | 
                    jq -r '.[].name' | 
                    head -n"${count:-1}" | 
-                   tail -n1)
+                   tail -n1
+                  )
 }
 
 x264_version() {
@@ -510,32 +552,37 @@ x264_version() {
 amf_version() {
     repo_version=$(curl -sL "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/tags" | 
                    grep -oP '/AMF/releases/tag/v\K[0-9.]+(?=")' | 
-                   head -1)
+                   head -n1
+                  )
 }
 
 avisynth_version() {
     repo_version=$(curl -sL "https://github.com/AviSynth/AviSynthPlus/tags" | 
                    grep -oP '/AviSynthPlus/releases/tag/v\K[0-9.]+(?=")' | 
-                   head -1)
+                   head -n1
+                  )
 }
 
 mediaarea_version() {
     local repo_name=$1
     repo_version=$(curl -sL "https://github.com/$repo_name/tags" | 
                    grep -oP "/$repo_name/releases/tag/v\K[0-9.]+(?=\")" | 
-                   head -1)
+                   head -n1
+                  )
 }
 
 svt_av1_version() {
     repo_version=$(curl -sL "https://gitlab.com/AOMediaCodec/SVT-AV1/-/tags" | 
                    grep -oP 'href="[^"]*/-/tags/v\K[0-9.]+(?=")' | 
-                   head -1)
+                   head -n1
+                  )
 }
 
 vapoursynth_version() {
     repo_version=$(curl -sL "https://github.com/vapoursynth/vapoursynth/tags" | 
                    grep -oP '/vapoursynth/releases/tag/R\K[0-9]+(?=")' | 
-                   head -1)
+                   head -n1
+                  )
 }
 
 # Rust/Cargo installation functions
@@ -602,6 +649,7 @@ find_git_repo() {
         georgmartius/vid.stab) vid_stab_version ;;
         mstorsjo/fdk-aac)     fdk_aac_version ;;
         libsndfile/libsndfile) libsndfile_version ;;
+        drobilla/zix)         zix_version ;;
         chirlu/soxr)          soxr_version ;;
         hoene/libmysofa)      libmysofa_version ;;
         dyne/frei0r)          frei0r_version ;;
@@ -760,4 +808,20 @@ usage() {
     echo
     echo "Example: bash $script_name --build --compiler=clang -j 8"
     echo
+}
+# Ensure directories are writable by the current user
+ensure_user_ownership() {
+    local dir owner
+
+    for dir in "$@"; do
+        [[ -d "$dir" ]] || continue
+        owner=$(stat -c '%U' "$dir" 2>/dev/null || echo "")
+        if [[ "$owner" != "$USER" || ! -w "$dir" ]]; then
+            if command -v sudo >/dev/null 2>&1; then
+                sudo chown -R "$USER:$USER" "$dir"
+            else
+                warn "Directory $dir is not writable and sudo is unavailable."
+            fi
+        fi
+    done
 }

@@ -137,8 +137,14 @@ nvidia_architecture() {
 # Interactive CUDA toolkit installer
 download_cuda() {
     local -a options=()
-    local choice cuda_version distro installer_version deb_file deb_url pin_url
-    cuda_version="12.8.1"
+    local choice distro installer_version deb_file deb_url pin_url
+    local cuda_version="${remote_cuda_version:-12.8.1}"
+    local cuda_major cuda_minor cuda_patch cuda_pkg_version cuda_path_suffix cuda_prefix
+
+    IFS='.' read -r cuda_major cuda_minor cuda_patch <<< "$cuda_version"
+    cuda_pkg_version="${cuda_major}-${cuda_minor}"
+    cuda_path_suffix="${cuda_major}.${cuda_minor}"
+    cuda_prefix="/usr/local/cuda-${cuda_path_suffix}"
 
     printf "\n%s\n%s\n\n" "Pick your Linux version from the list below:" "Supported architecture: x86_64"
 
@@ -155,23 +161,23 @@ download_cuda() {
         case "$choice" in
             "Debian 12 (Bookworm)")
                 distro="debian12"
-                installer_version="12.8.1-570.124.06-1"
+                installer_version="${cuda_version}"
                 ;;
             "Ubuntu 20.04 (Focal Fossa)")
                 distro="ubuntu2004"
-                installer_version="12.8.1-570.124.06-1"
+                installer_version="${cuda_version}"
                 ;;
             "Ubuntu 22.04 (Jammy Jellyfish)")
                 distro="ubuntu2204"
-                installer_version="12.8.1-570.124.06-1"
+                installer_version="${cuda_version}"
                 ;;
             "Ubuntu 24.04 (Noble Numbat)")
                 distro="ubuntu2404"
-                installer_version="12.8.1-570.124.06-1"
+                installer_version="${cuda_version}"
                 ;;
             "Ubuntu WSL (Windows)")
                 distro="wsl-ubuntu"
-                installer_version="12.8.1-1"
+                installer_version="${cuda_version}"
                 ;;
             "Skip")
                 warn "Skipping CUDA installation."
@@ -208,10 +214,14 @@ download_cuda() {
 
         # Update package lists and install CUDA
         sudo apt update
-        if sudo apt -y install cuda-toolkit-12-8; then
+        if sudo apt -y install "cuda-toolkit-${cuda_pkg_version}"; then
             log "CUDA $cuda_version installed successfully."
-            export PATH="/usr/local/cuda-12.8/bin:$PATH"
-            export LD_LIBRARY_PATH="/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH"
+            if [[ -d "$cuda_prefix/bin" ]]; then
+                export PATH="$cuda_prefix/bin:$PATH"
+            fi
+            if [[ -d "$cuda_prefix/lib64" ]]; then
+                export LD_LIBRARY_PATH="$cuda_prefix/lib64:$LD_LIBRARY_PATH"
+            fi
         else
             fail "Failed to install CUDA toolkit"
         fi

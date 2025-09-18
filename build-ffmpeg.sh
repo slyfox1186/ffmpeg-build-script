@@ -58,6 +58,9 @@ box_out_banner "FFmpeg Build Script - v$script_version"
 # Create output directories
 mkdir -p "$packages" "$workspace"
 
+# Ensure staging directories remain writable between runs
+ensure_user_ownership "$packages" "$workspace"
+
 # Automatically overwrite the log file each time
 log_file="$PWD/build.log"
 rm -f "$log_file"
@@ -124,7 +127,7 @@ while (("$#" > 0)); do
             shift
             ;;
         -j|--jobs)
-            threads=$2
+build_threads=$2
             shift 2
             ;;
         *)
@@ -136,22 +139,23 @@ done
 
 MAX_THREADS="$(nproc --all)"
 
-if [[ -z "$threads" ]]; then
+if [[ -z "$build_threads" ]]; then
     # Set the available CPU thread and core count for parallel processing (speeds up the build process)
     if [[ -f /proc/cpuinfo ]]; then
-        threads=$(grep --count ^processor /proc/cpuinfo)
+        build_threads=$(grep --count ^processor /proc/cpuinfo)
     else
-        threads=$(nproc --all)
+        build_threads=$(nproc --all)
     fi
 fi
 
 # Cap the number of threads to MAX_THREADS
-if (( threads > MAX_THREADS )); then
-    threads=$MAX_THREADS
+if (( build_threads > MAX_THREADS )); then
+    build_threads=$MAX_THREADS
     warn "Thread count capped to $MAX_THREADS to prevent excessive parallelism."
 fi
 
-MAKEFLAGS="-j$threads"
+MAKEFLAGS="-j$build_threads"
+unset threads
 
 if [[ -z "$COMPILER_FLAG" ]] || [[ "$COMPILER_FLAG" == "gcc" ]]; then
     CC="gcc"
@@ -205,7 +209,7 @@ download_with_bot_detection() {
 export -f download_with_bot_detection
 
 echo
-log "Utilizing $threads CPU threads"
+log "Utilizing $build_threads CPU threads"
 echo
 
 if "$NONFREE_AND_GPL"; then
@@ -265,4 +269,3 @@ install_image_libraries
 # Build FFmpeg
 source "$script_dir/scripts/ffmpeg-build.sh"
 build_ffmpeg
-

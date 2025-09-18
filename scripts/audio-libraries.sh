@@ -23,7 +23,7 @@ install_audio_libraries() {
         mkdir build; cd build || exit 1
         execute cmake -S ../ -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_TESTS=OFF
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "libsoxr" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libsoxr")
@@ -37,7 +37,7 @@ install_audio_libraries() {
                       -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_CCACHE=ON \
                       -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
 
@@ -48,7 +48,7 @@ install_audio_libraries() {
         execute /usr/bin/autoreconf -fi
         execute ./configure --prefix="$workspace" --enable-static --with-pic
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "libsndfile" "$repo_version"
     fi
 
@@ -61,7 +61,7 @@ install_audio_libraries() {
                       -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF -DCPACK_{BINARY_DEB,SOURCE_ZIP}=OFF \
                       -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "libogg" "$repo_version"
     fi
 
@@ -74,7 +74,7 @@ install_audio_libraries() {
             execute ./autogen.sh
             execute ./configure --prefix="$workspace" --disable-shared
             execute make "-j$threads"
-            execute sudo make install
+            execute make install
             build_done "libfdk-aac" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libfdk-aac")
@@ -89,7 +89,7 @@ install_audio_libraries() {
                       -DBUILD_SHARED_LIBS=OFF -DOGG_INCLUDE_DIR="$workspace/include" \
                       -DOGG_LIBRARY="$workspace/lib/libogg.a" -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "vorbis" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libvorbis")
@@ -102,7 +102,7 @@ install_audio_libraries() {
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "libopus" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libopus")
@@ -114,7 +114,7 @@ install_audio_libraries() {
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -G Ninja -Wno-dev
         execute ninja "-j$threads" -C build
-        execute sudo ninja -C build install
+        execute ninja -C build install
         build_done "libmysofa" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libmysofa")
@@ -126,7 +126,7 @@ install_audio_libraries() {
         download "https://salsa.debian.org/multimedia-team/opencore-amr/-/archive/debian/$repo_version/opencore-amr-debian-$repo_version.tar.bz2" "opencore-amr-$repo_version.tar.bz2"
         execute ./configure --prefix="$workspace" --disable-shared
         execute make "-j${threads}"
-        execute sudo make install
+        execute make install
         build_done "opencore-amr" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libopencore-"{amrnb,amrwb})
@@ -137,7 +137,7 @@ install_audio_libraries() {
         execute ./configure --prefix="$workspace" --disable-{gtktest,shared} \
                             --enable-nasm --with-libiconv-prefix=/usr
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "liblame" "3.100"
     fi
     CONFIGURE_OPTIONS+=("--enable-libmp3lame")
@@ -148,7 +148,7 @@ install_audio_libraries() {
         execute autoupdate
         execute ./autogen.sh
         sed "s/-fforce-addr//g" "configure" > "configure.patched"
-        sudo chmod +x "configure.patched"
+        chmod +x "configure.patched"
         execute mv "configure.patched" "configure"
         execute rm "config.guess"
         execute curl -LSso "config.guess" "https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess"
@@ -158,7 +158,7 @@ install_audio_libraries() {
                             --with-ogg="$workspace" --with-sdl-prefix="$workspace" --with-vorbis-includes="$workspace/include" \
                             --with-vorbis-libraries="$workspace/lib" --with-vorbis="$workspace"
         execute make "-j$threads"
-        execute sudo make install
+        execute make install
         build_done "libtheora" "1.1.1"
     fi
     CONFIGURE_OPTIONS+=("--enable-libtheora")
