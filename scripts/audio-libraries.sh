@@ -22,7 +22,7 @@ install_audio_libraries() {
         download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
         mkdir build; cd build || exit 1
         execute cmake -S ../ -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_TESTS=OFF
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "libsoxr" "$repo_version"
     fi
@@ -36,7 +36,7 @@ install_audio_libraries() {
         execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_CCACHE=ON \
                       -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
@@ -47,7 +47,7 @@ install_audio_libraries() {
         download "https://github.com/libsndfile/libsndfile/releases/download/$repo_version/libsndfile-$repo_version.tar.xz"
         execute /usr/bin/autoreconf -fi
         execute ./configure --prefix="$workspace" --enable-static --with-pic
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "libsndfile" "$repo_version"
     fi
@@ -60,7 +60,7 @@ install_audio_libraries() {
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF -DCPACK_{BINARY_DEB,SOURCE_ZIP}=OFF \
                       -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "libogg" "$repo_version"
     fi
@@ -73,7 +73,7 @@ install_audio_libraries() {
             execute autoupdate
             execute ./autogen.sh
             execute ./configure --prefix="$workspace" --disable-shared
-            execute make "-j$threads"
+            execute make "-j$build_threads"
             execute make install
             build_done "libfdk-aac" "$repo_version"
         fi
@@ -88,7 +88,7 @@ install_audio_libraries() {
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DOGG_INCLUDE_DIR="$workspace/include" \
                       -DOGG_LIBRARY="$workspace/lib/libogg.a" -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "vorbis" "$repo_version"
     fi
@@ -101,7 +101,7 @@ install_audio_libraries() {
         execute autoreconf -fis
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "libopus" "$repo_version"
     fi
@@ -113,7 +113,7 @@ install_audio_libraries() {
         download "https://github.com/hoene/libmysofa/archive/refs/tags/v$repo_version.tar.gz" "libmysofa-$repo_version.tar.gz"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "libmysofa" "$repo_version"
     fi
@@ -125,7 +125,7 @@ install_audio_libraries() {
     if build "opencore-amr" "$repo_version"; then
         download "https://salsa.debian.org/multimedia-team/opencore-amr/-/archive/debian/$repo_version/opencore-amr-debian-$repo_version.tar.bz2" "opencore-amr-$repo_version.tar.bz2"
         execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j${threads}"
+        execute make "-j$build_threads"
         execute make install
         build_done "opencore-amr" "$repo_version"
     fi
@@ -136,7 +136,7 @@ install_audio_libraries() {
         download "https://master.dl.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz?viasf=1" "liblame-3.100.tar.gz"
         execute ./configure --prefix="$workspace" --disable-{gtktest,shared} \
                             --enable-nasm --with-libiconv-prefix=/usr
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "liblame" "3.100"
     fi
@@ -157,7 +157,7 @@ install_audio_libraries() {
                             --enable-static --with-ogg-includes="$workspace/include" --with-ogg-libraries="$workspace/lib" \
                             --with-ogg="$workspace" --with-sdl-prefix="$workspace" --with-vorbis-includes="$workspace/include" \
                             --with-vorbis-libraries="$workspace/lib" --with-vorbis="$workspace"
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "libtheora" "1.1.1"
     fi

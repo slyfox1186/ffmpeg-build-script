@@ -125,23 +125,38 @@ build() {
 }
 
 build_done() {
-    echo "$2" > "$packages/$1.done"
+    local temp_file
+    temp_file=$(mktemp "$packages/$1.done.XXXXXX") || return 1
+    echo "$2" > "$temp_file" && mv "$temp_file" "$packages/$1.done"
 }
 
 library_exists() {
-    if ! [[ -x $(pkg-config --exists --print-errors "$1" 2>&1) ]]; then
+    if pkg-config --exists --print-errors "$1" >/dev/null 2>&1; then
+        return 0
+    else
         return 1
     fi
-    return 0
 }
 
 # File download and extraction
 download() {
-    local download_file download_path download_url giflib_regex output_directory target_directory target_file
+    local download_file download_path download_url output_directory target_directory target_file
     download_path="$packages"
     download_url=$1
     download_file="${2:-"${1##*/}"}"
-    giflib_regex='sourceforge\.net'
+    # Strip query parameters from filename
+    download_file="${download_file%%\?*}"
+
+    # Input validation to prevent injection
+    if [[ -z "$download_url" ]]; then
+        fail "Download URL is required. Line: $LINENO"
+    fi
+
+    
+    # Validate filename (prevent directory traversal and special characters)
+    if [[ "$download_file" =~ [\|\&\$\;\`\\]|\.\./|/\.\./ ]]; then
+        fail "Invalid filename: $download_file. Dangerous characters not allowed. Line: $LINENO"
+    fi
 
     if [[ "$download_file" =~ tar\. ]]; then
         output_directory="${download_file%.*}"
@@ -150,19 +165,47 @@ download() {
         output_directory="${download_file%.*}"
     fi
 
+    # Sanitize directory name (remove special characters)
+    output_directory="${output_directory//[^a-zA-Z0-9._-]/_}"
+
     target_file="$download_path/$download_file"
     target_directory="$download_path/$output_directory"
 
-    if [[ -f "$target_file" ]]; then
-        log "$download_file is already downloaded."
-    else
+    # Atomic download to prevent TOCTOU race conditions
+    local temp_target_file lock_acquired=false
+    temp_target_file=$(mktemp "$target_file.XXXXXX") || fail "Failed to create temporary download file"
+
+    # Check if file exists by trying to get exclusive lock
+    if exec 3>>"$target_file" 2>/dev/null; then
+        if flock -n 3; then
+            lock_acquired=true
+        fi
+        # Always close file descriptor
+        exec 3>&-
+    fi
+
+    if [[ "$lock_acquired" == "true" ]]; then
         log "Downloading \"$download_url\" saving as \"$download_file\""
-        if ! download_with_bot_detection "$download_url" "$target_file"; then
+        if ! download_with_bot_detection "$download_url" "$temp_target_file"; then
+            rm -f "$temp_target_file"
             warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
             sleep 3
-            download_with_bot_detection "$download_url" "$target_file" || fail "Failed to download \"$download_file\". Exiting... Line: $LINENO"
+            if ! download_with_bot_detection "$download_url" "$temp_target_file"; then
+                rm -f "$temp_target_file"
+                fail "Failed to download \"$download_file\". Exiting... Line: $LINENO"
+            fi
+        fi
+
+        # Atomic move with error handling
+        if ! mv "$temp_target_file" "$target_file"; then
+            rm -f "$temp_target_file"
+            fail "Failed to move downloaded file to final location. Line: $LINENO"
         fi
         log "Download Completed"
+    else
+        # File exists or couldn't get lock
+        rm -f "$temp_target_file"
+        log "$download_file is already being downloaded or exists."
     fi
 
     if [[ "$download_file" =~ (\.tar(\.(bz2|gz|xz|lz|zst))?|\.tgz|\.tbz2)$ ]]; then
@@ -183,7 +226,6 @@ download() {
 
     if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 >>"$log_file" 2>&1; then
         rm "$target_file"
-        [[ "$download_url" =~ $giflib_regex ]] && return 0
         fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
     fi
 
@@ -257,7 +299,37 @@ git_clone() {
 gnu_repo() {
     local repo
     repo=$1
-    repo_version=$(curl -fsS --max-time 2 "$repo" 2>/dev/null | grep -oP '[a-z]+-\K(([0-9.]*[0-9]+)){2,}' | sort -ruV | head -n1)
+
+    # Input validation
+    if [[ -z "$repo" ]]; then
+        fail "Repository URL is required. Line: $LINENO"
+    fi
+
+    # Validate URL format
+    if [[ ! "$repo" =~ ^https?://[a-zA-Z0-9._/-]+\.[a-zA-Z0-9._/-]*$ ]]; then
+        fail "Invalid repository URL format: $repo. Line: $LINENO"
+    fi
+
+    # Try primary mirror first, then fallback mirror
+    local primary_repo="$repo"
+    local fallback_repo="${primary_repo/ftp\.gnu\.org/mirror.team-cymru.com}"
+    local version_result=""
+
+    # Skip primary mirror (it's timing out) and go directly to Team-Cymru fallback
+    if [[ "$fallback_repo" =~ libtool ]]; then
+        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'libtool-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
+    elif [[ "$fallback_repo" =~ m4 ]]; then
+        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'm4-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
+    elif [[ "$fallback_repo" =~ autoconf ]]; then
+        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'autoconf-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
+    elif [[ "$fallback_repo" =~ libiconv ]]; then
+        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'libiconv-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.gz)' | sort -Vr | head -n 1)
+    else
+        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP '[a-z]+-\K\d+\.\d+(?:\.\d+)?(?=\.(tar\.gz|tar\.bz2|tar\.xz))' | sort -Vr | head -n 1)
+    fi
+
+    # Set the version result
+    repo_version="$version_result"
 }
 
 github_repo() {
@@ -268,7 +340,20 @@ github_repo() {
     count=1
     max_attempts=10
 
-    [[ -z "$repo" || -z "$url" ]] && fail "Git repository and URL are required. Line: $LINENO"
+    # Input validation to prevent injection
+    if [[ -z "$repo" || -z "$url" ]]; then
+        fail "Git repository and URL are required. Line: $LINENO"
+    fi
+
+    # Validate repository name format (only allow alphanumeric, dots, hyphens, forward slashes)
+    if [[ ! "$repo" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+        fail "Invalid repository name format: $repo. Line: $LINENO"
+    fi
+
+    # Validate URL parameter (only allow alphanumeric, hyphens, forward slashes)
+    if [[ ! "$url" =~ ^[a-zA-Z0-9/-]+$ ]]; then
+        fail "Invalid URL parameter: $url. Line: $LINENO"
+    fi
 
     while [[ "$count" -le "$max_attempts" ]]; do
         if [[ "$repo" == "xiph/rav1e" && "$url_flag" -eq 1 ]]; then
@@ -396,9 +481,9 @@ yasm_repo_version() {
 # Generic function for standard GitHub repos with v{major}.{minor}.{patch} tags
 generic_github_version() {
     local repo=$1
-    repo_version=$(curl -fsS "https://github.com/$repo/tags" | 
-                   grep -oP 'href="/'$repo'/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
+    repo_version=$(curl -fsS "https://github.com/$repo/tags" |
+                   grep -oP 'href="/'"$repo"'/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' |
+                   sort -ruV |
                    head -n1
                   )
 }
@@ -611,9 +696,6 @@ find_git_repo() {
     url_choice=$2
     third_flag=$3
     count=1
-    
-    # Clear previous version to avoid contamination
-    repo_version=""
 
     case "$repo_name" in
         apache/ant)           git_caller "https://github.com/apache/ant.git" "" ant ;;
@@ -675,7 +757,7 @@ cleanup() {
     local choice
 
     echo
-    read -p "Do you want to clean up the build files? (yes/no): " choice
+    read -r -p "Do you want to clean up the build files? (yes/no): " choice
 
     case "$choice" in
         [yY]*|[yY][eE][sS]*)
@@ -706,7 +788,7 @@ display_ffmpeg_versions() {
     files=( [0]=ffmpeg [1]=ffprobe [2]=ffplay )
 
     echo
-    for file in ${files[@]}; do
+    for file in "${files[@]}"; do
         if command -v "$file" >/dev/null 2>&1; then
             "$file" -version
             echo
@@ -718,7 +800,7 @@ show_versions() {
     local choice
 
     echo
-    read -p "Display the installed versions? (yes/no): " choice
+    read -r -p "Display the installed versions? (yes/no): " choice
 
     case "$choice" in
         [yY]*|[yY][eE][sS]*|"")
