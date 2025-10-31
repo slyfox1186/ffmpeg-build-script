@@ -26,50 +26,54 @@ install_global_tools() {
 
     # Build m4
     if build "m4" "latest"; then
-        download "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz"
+        download "https://mirror.team-cymru.com/gnu/m4/m4-latest.tar.xz"
         execute ./configure --prefix="$workspace" --enable-c++ --enable-threads=posix
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "m4" "latest"
     fi
 
     # Build autoconf
-    if build "autoconf" "latest"; then
-        download "https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz"
+    gnu_repo "https://ftp.gnu.org/gnu/autoconf/"
+    local autoconf_version="$repo_version"
+    if build "autoconf" "$autoconf_version"; then
+        download "https://mirror.team-cymru.com/gnu/autoconf/autoconf-$autoconf_version.tar.xz"
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" M4="$workspace/bin/m4"
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
-        build_done "autoconf" "latest"
+        build_done "autoconf" "$autoconf_version"
     fi
 
     # Build libtool
-    determine_libtool_version
+    gnu_repo "https://ftp.gnu.org/gnu/libtool/"
+    local libtool_version="$repo_version"
     if build "libtool" "$libtool_version"; then
-        download "https://ftp.gnu.org/gnu/libtool/libtool-$libtool_version.tar.xz"
+        download "https://mirror.team-cymru.com/gnu/libtool/libtool-$libtool_version.tar.xz"
         execute ./configure --prefix="$workspace" --with-pic M4="$workspace/bin/m4"
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "libtool" "$libtool_version"
     fi
 
     # Build pkg-config
     gnu_repo "https://pkgconfig.freedesktop.org/releases/"
-    if build "pkg-config" "$repo_version"; then
-        download "https://pkgconfig.freedesktop.org/releases/pkg-config-$repo_version.tar.gz"
+    local pkg_config_version="$repo_version"
+    if build "pkg-config" "$pkg_config_version"; then
+        download "https://pkgconfig.freedesktop.org/releases/pkg-config-$pkg_config_version.tar.gz"
         execute autoconf
         execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH" --with-internal-glib
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
-        build_done "pkg-config" "$repo_version"
+        build_done "pkg-config" "$pkg_config_version"
     fi
 
     # Build cmake
     find_git_repo "Kitware/CMake" "1" "T"
     if build "cmake" "$repo_version"; then
         download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
-        execute ./bootstrap --prefix="$workspace" --parallel="$threads" --enable-ccache --no-qt-gui --no-debugger
-        execute make "-j$threads"
+        execute ./bootstrap --prefix="$workspace" --parallel="$build_threads" --enable-ccache --no-qt-gui --no-debugger
+        execute make "-j$build_threads"
         execute make install
         build_done "cmake" "$repo_version"
     fi
@@ -88,7 +92,7 @@ install_global_tools() {
         download "https://github.com/ninja-build/ninja/archive/refs/tags/v$repo_version.tar.gz" "ninja-$repo_version.tar.gz"
         re2c_path="$(command -v re2c)"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release -DRE2C="$re2c_path" -DBUILD_TESTING=OFF -Wno-dev
-        execute make "-j$threads" -C build
+        execute make "-j$build_threads" -C build
         execute make -C build install
         build_done "ninja" "$repo_version"
     fi
@@ -105,7 +109,7 @@ install_global_tools() {
                                       --default-library=static \
                                       --strip \
                                       -Dbin_tests=false
-        execute ninja "-j$threads" -C "$meson_dir"
+        execute ninja "-j$build_threads" -C "$meson_dir"
         execute ninja -C "$meson_dir" install
         build_done "libzstd" "$repo_version"
     fi
@@ -116,7 +120,7 @@ install_global_tools() {
         download "https://code.videolan.org/rist/librist/-/archive/v$repo_version/librist-v$repo_version.tar.bz2" "librist-$repo_version.tar.bz2"
         execute meson setup build --prefix="$workspace" --buildtype=release \
                                   --default-library=static --strip -Dbuilt_tools=false -Dtest=false
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "librist" "$repo_version"
     fi
@@ -131,7 +135,7 @@ install_global_tools() {
                       -DINSTALL_LIB_DIR="$workspace/lib" -DINSTALL_MAN_DIR="$workspace/share/man" \
                       -DINSTALL_PKGCONFIG_DIR="$workspace/share/pkgconfig" -DZLIB_BUILD_EXAMPLES=OFF \
                       -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "zlib" "$repo_version"
     fi
@@ -151,7 +155,7 @@ install_global_tools() {
             execute ./Configure --prefix="$workspace" enable-{egd,md2,rc5,trace} threads zlib \
                                 --with-rand-seed=os --with-zlib-include="$workspace/include" \
                                 --with-zlib-lib="$workspace/lib"
-            execute make "-j$threads"
+            execute make "-j$build_threads"
             execute make install_sw
             build_done "openssl" "$openssl_version"
         fi

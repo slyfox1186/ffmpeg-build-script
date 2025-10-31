@@ -14,14 +14,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 # Install core libraries
 install_core_libraries() {
     echo
-    log "Installing Core Libraries"
+    box_out_banner "Installing Core Libraries"
 
     # Build yasm
     find_git_repo "yasm/yasm" "1" "T"
     if build "yasm" "$repo_version"; then
         download "http://www.tortall.net/projects/yasm/releases/yasm-$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace"
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "yasm" "$repo_version"
     fi
@@ -30,36 +30,37 @@ install_core_libraries() {
     find_latest_nasm_version
     if build "nasm" "$latest_nasm_version"; then
         find_latest_nasm_version
-        download "https://www.nasm.us/pub/nasm/stable/nasm-$latest_nasm_version.tar.xz"
+        download "https://www.nasm.us/pub/nasm/releasebuilds/$latest_nasm_version/nasm-$latest_nasm_version.tar.xz"
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-pedantic --enable-ccache
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "nasm" "$latest_nasm_version"
     fi
 
     # Build giflib
-    if build "giflib" "5.2.2"; then
-        download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz?viasf=1"
+    giflib_version=$(curl -fsS "https://sourceforge.net/projects/giflib/files/" 2>/dev/null | grep -oP 'giflib-\K([0-9]+\.[0-9]+(?:\.[0-9]+)?)' | sort -ruV | head -n1)
+    giflib_version="${giflib_version:-5.2.2}"
+    if build "giflib" "$giflib_version"; then
+        download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-$giflib_version.tar.gz?viasf=1"
+        # Install ImageMagick for giflib documentation
+        if ! command -v convert >/dev/null 2>&1; then
+            log "Installing ImageMagick for giflib documentation"
+            sudo apt update && sudo apt install -y imagemagick
+        fi
         # Parallel building not available for this library
         execute make
         execute make PREFIX="$workspace" install
-        build_done "giflib" "5.2.2"
+        build_done "giflib" "$giflib_version"
     fi
 
     # Build libiconv
     gnu_repo "https://ftp.gnu.org/gnu/libiconv/"
-    if [[ -z "$repo_version" ]]; then
-        repo_version=$(curl -fsS "https://gnu.mirror.constant.com/libiconv/" | grep -oP 'href="[^"]*-\K\d+\.\d+(?=\.tar\.gz)' | sort -ruV | head -n1)
-        download_libiconv="https://gnu.mirror.constant.com/libiconv/libiconv-$repo_version.tar.gz"
-    else
-        download_libiconv="https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz"
-    fi
     if build "libiconv" "$repo_version"; then
-        download "$download_libiconv"
+        download_with_fallback "https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz" "https://mirror.team-cymru.com/gnu/libiconv/libiconv-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace" --enable-static --with-pic
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         fix_libiconv
         build_done "libiconv" "$repo_version"
@@ -73,7 +74,7 @@ install_core_libraries() {
             CFLAGS+=" -DNOLIBTOOL"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
-            execute ninja "-j$threads" -C build
+            execute ninja "-j$build_threads" -C build
             execute ninja -C build install
             build_done "libxml2" "$repo_version"
         fi
@@ -87,7 +88,7 @@ install_core_libraries() {
         execute autoupdate
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install-header-links install-library-links install
         build_done "libpng" "$repo_version"
     fi
@@ -96,25 +97,16 @@ install_core_libraries() {
     libtiff_version
     if build "libtiff" "$repo_version"; then
         download "https://gitlab.com/libtiff/libtiff/-/archive/v$repo_version/libtiff-v$repo_version.tar.bz2" "libtiff-$repo_version.tar.bz2"
-        execute ./autogen.sh
+        # Use autoreconf instead of autogen.sh to avoid hanging downloads
+        execute autoreconf -fi
         execute ./configure --prefix="$workspace" --disable-{docs,sphinx,tests} --enable-cxx --with-pic
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "libtiff" "$repo_version"
     fi
 
-    # Build aribb24 (GPL and non-free only)
+    # aribb24 is now installed via system package manager (libaribb24-dev)
     if "$NONFREE_AND_GPL"; then
-        find_git_repo "nkoriyama/aribb24" "1" "T"
-        if build "aribb24" "$repo_version"; then
-            download "https://github.com/nkoriyama/aribb24/archive/refs/tags/v$repo_version.tar.gz" "aribb24-$repo_version.tar.gz"
-            execute mkdir m4
-            execute autoreconf -fi -I/usr/share/aclocal
-            execute ./configure --prefix="$workspace" --disable-shared --enable-static
-            execute make "-j$threads"
-            execute make install
-            build_done "aribb24" "$repo_version"
-        fi
         CONFIGURE_OPTIONS+=("--enable-libaribb24")
     fi
 
@@ -153,11 +145,7 @@ fix_x265_libs() {
 
 # Version finding functions
 find_latest_nasm_version() {
-    latest_nasm_version=$(
-                    curl -fsS "https://www.nasm.us/pub/nasm/stable/" |
-                    grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
-                    sort -ruV | head -n1
-                )
+    latest_nasm_version="3.01"
 }
 
 get_openssl_version() {

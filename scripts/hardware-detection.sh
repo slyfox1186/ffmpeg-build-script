@@ -198,16 +198,20 @@ download_cuda() {
 
         log "Installing CUDA $cuda_version for $choice..."
         
+        # Use secure temporary directory
+        local temp_dir
+        temp_dir=$(mktemp -d) || fail "Failed to create temporary directory"
+
         # Download and install the CUDA keyring
-        if curl -LSso "/tmp/$deb_file" "$deb_url"; then
-            sudo dpkg -i "/tmp/$deb_file" || fail "Failed to install CUDA keyring package"
+        if curl -LSso "$temp_dir/$deb_file" "$deb_url"; then
+            sudo dpkg -i "$temp_dir/$deb_file" || fail "Failed to install CUDA keyring package"
         else
             fail "Failed to download CUDA keyring package"
         fi
 
         # Add the CUDA repository pin
-        if curl -LSso "/tmp/cuda.pin" "$pin_url"; then
-            sudo mv "/tmp/cuda.pin" "/etc/apt/preferences.d/cuda-repository-pin-600"
+        if curl -LSso "$temp_dir/cuda.pin" "$pin_url"; then
+            sudo mv "$temp_dir/cuda.pin" "/etc/apt/preferences.d/cuda-repository-pin-600"
         else
             warn "Failed to download CUDA repository pin file"
         fi
@@ -227,7 +231,8 @@ download_cuda() {
         fi
 
         # Clean up temporary files
-        rm -f "/tmp/$deb_file" "/tmp/cuda.pin"
+        rm -f "$temp_dir/$deb_file" "$temp_dir/cuda.pin"
+        rmdir "$temp_dir" 2>/dev/null || true
     fi
 }
 

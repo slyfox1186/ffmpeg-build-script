@@ -24,14 +24,14 @@ apt_pkgs() {
     # Define an array of apt package names
     pkgs=(
         $1 $(find_latest_version 'openjdk-[0-9]+-jdk') autoconf
-        autopoint bison build-essential ccache clang cmake
+        autopoint bison build-essential ccache clang cmake flex lex yacc
         curl flex gettext git gperf imagemagick-6.q16 ladspa-sdk
         libbluray-dev libbs2b-dev libcaca-dev libcdio-dev
         libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
         libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
         libgsm1-dev libjack-dev liblilv-dev libmodplug-dev libnghttp2-dev lv2-dev
         libnghttp3-dev libshine-dev libsmbclient-dev libsnappy-dev
-        libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool
+        libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool libaribb24-dev
         libtwolame-dev libv4l-dev libvo-amrwbenc-dev libvpl-dev
         libx11-dev libxi-dev libyuv-dev libzvbi-dev nvidia-driver
         python3 python3-dev python3-venv valgrind python3-pip
@@ -77,8 +77,8 @@ apt_pkgs() {
         echo "You most likely just updated your nvidia-driver version because the \"nvidia-smi\" command is no longer working and won't until this command is working again."
         echo "This is important because it is required for the script to complete. My recommendation is for you to reboot your PC now and then re-run this script."
         echo
-        read -p "Do you want to reboot now? (y/n): " reboot_choice
-        [[ "$reboot_choice" =~ ^[Yy] ]] && reboot
+        read -r -p "Do you want to reboot now? (y/n): " reboot_choice
+        [[ "$reboot_choice" =~ ^[Yy]$ ]] && reboot
     fi
 }
 
@@ -232,7 +232,7 @@ set_java_variables() {
                                  apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
                                  sort -ruV | head -n1 | awk '{print $1}'
                              )
-        if sudo apt -y install $latest_openjdk_version; then
+        if sudo apt -y install "$latest_openjdk_version"; then
             set_java_variables
         else
             fail "Could not install openjdk. Line: $LINENO"
@@ -356,6 +356,39 @@ initialize_system_setup() {
     # Set up Java environment
     set_java_variables
     remove_duplicate_paths
-    
+
+    # Always install required system packages
+    case "$OS" in
+        Ubuntu)
+            case "$STATIC_VER" in
+                24.04)
+                    ubuntu_os_version "desktop" "$noble_pkgs"
+                    ;;
+                23.10)
+                    ubuntu_os_version "desktop" "$mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
+                    ;;
+                23.04|22.10)
+                    ubuntu_os_version "desktop" "$ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs"
+                    ;;
+                22.04)
+                    ubuntu_os_version "desktop" "$ubuntu_common_pkgs $jammy_pkgs"
+                    ;;
+                20.04)
+                    ubuntu_os_version "desktop" "$ubuntu_common_pkgs $focal_pkgs"
+                    ;;
+            esac
+            ;;
+        Debian)
+            case "$STATIC_VER" in
+                11)
+                    debian_os_version "no_wsl" "${debian_pkgs[*]}"
+                    ;;
+                12|trixie|sid)
+                    debian_os_version "no_wsl" "${debian_pkgs[*]} librist-dev"
+                    ;;
+            esac
+            ;;
+    esac
+
     log "System setup initialized: $OS $VER"
 }

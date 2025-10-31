@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
 
+# Enable debug output to see what's happening
+# set -x
+
 ####################################################################################
 ##
 ##  Purpose: Build FFmpeg from source code with addon libraries which are
@@ -127,7 +130,7 @@ while (("$#" > 0)); do
             shift
             ;;
         -j|--jobs)
-build_threads=$2
+build_threads="$2"
             shift 2
             ;;
         *)
@@ -137,21 +140,9 @@ build_threads=$2
     esac
 done
 
-MAX_THREADS="$(nproc --all)"
-
 if [[ -z "$build_threads" ]]; then
     # Set the available CPU thread and core count for parallel processing (speeds up the build process)
-    if [[ -f /proc/cpuinfo ]]; then
-        build_threads=$(grep --count ^processor /proc/cpuinfo)
-    else
-        build_threads=$(nproc --all)
-    fi
-fi
-
-# Cap the number of threads to MAX_THREADS
-if (( build_threads > MAX_THREADS )); then
-    build_threads=$MAX_THREADS
-    warn "Thread count capped to $MAX_THREADS to prevent excessive parallelism."
+    build_threads=$(nproc --all)
 fi
 
 MAKEFLAGS="-j$build_threads"
@@ -181,10 +172,21 @@ export -f cmake
 download_with_bot_detection() {
     local url=$1
     local output=$2
+
+    # Input validation to prevent injection
+    if [[ -z "$url" || -z "$output" ]]; then
+        fail "URL and output file are required. Line: $LINENO"
+    fi
+
     
+    # Validate output path (prevent directory traversal)
+    if [[ "$output" =~ \.\./|\.\.\|/\.\./ ]]; then
+        fail "Invalid output path: $output. Directory traversal not allowed. Line: $LINENO"
+    fi
+
     # Random delay between 0.5-2 seconds to avoid rate limiting
-    sleep $(awk 'BEGIN{srand(); print 0.5 + rand() * 1.5}')
-    
+    sleep "$(awk 'BEGIN{srand(); print 0.5 + rand() * 1.5}')"
+
     # Use common browser user agents randomly
     local user_agents=(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
@@ -194,8 +196,8 @@ download_with_bot_detection() {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 OPR/119.0.0.0"
     )
     local ua="${user_agents[$((RANDOM % ${#user_agents[@]}))]}"
-    
-    # Download with anti-bot headers
+
+    # Download with anti-bot headers and 1-second timeout
     curl -LSso "$output" \
         -H "User-Agent: $ua" \
         -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
@@ -204,9 +206,45 @@ download_with_bot_detection() {
         -H "DNT: 1" \
         -H "Connection: keep-alive" \
         -H "Upgrade-Insecure-Requests: 1" \
+        --connect-timeout 1 \
+        --max-time 30 \
         "$url"
 }
+
+# Download with fallback mirror support
+download_with_fallback() {
+    local primary_url=$1
+    local fallback_url=$2
+    local primary_file="${primary_url##*/}"
+    local fallback_file="${fallback_url##*/}"
+
+    # Input validation
+    if [[ -z "$primary_url" || -z "$fallback_url" ]]; then
+        fail "Primary and fallback URLs are required. Line: $LINENO"
+    fi
+
+    # Try primary URL first
+    log "Attempting download from primary mirror: $primary_url"
+    if download_with_bot_detection "$primary_url" "$primary_file"; then
+        # Now extract and change directory using the main download function
+        download "$primary_url" "$primary_file"
+        return 0
+    fi
+
+    # Try fallback URL
+    warn "Primary mirror failed, trying fallback mirror: $fallback_url"
+    if download_with_bot_detection "$fallback_url" "$fallback_file"; then
+        # Now extract and change directory using the main download function
+        download "$fallback_url" "$fallback_file"
+        return 0
+    fi
+
+    # Both failed
+    fail "Failed to download from both primary and fallback mirrors. Line: $LINENO"
+}
+
 export -f download_with_bot_detection
+export -f download_with_fallback
 
 echo
 log "Utilizing $build_threads CPU threads"

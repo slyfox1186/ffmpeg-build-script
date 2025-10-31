@@ -22,10 +22,10 @@ build_ffmpeg() {
     fi
 
     # Run the 'ffmpeg -version' command and capture its output
-    if ffmpeg_version=$(curl -fsS "https://github.com/FFmpeg/FFmpeg/tags/" | grep -Ev '\-dev' | grep -oP '/tag/n\K\d+\.\d+[\d\.]*' | sort -ruV | head -n1); then
+    if ffmpeg_version=$(curl -fsS "https://github.com/FFmpeg/FFmpeg/tags/" | grep -Ev '\-dev' | grep -oP '/tag/n\K\d+\.\d+(?:\.\d+)*' | sort -ruV | head -n1); then
 
-        # Get the installed version
-        ffmpeg_installed_version=$(ffmpeg -version 2>/dev/null | grep -oP '\d+\.\d+[\d\.]*' | head -n1)
+        # Get the installed version - safer regex pattern
+        ffmpeg_installed_version=$(ffmpeg -version 2>/dev/null | grep -oP '\d+\.\d+(?:\.\d+)*' | head -n1)
         # Format the version number with the desired prefix
         ffmpeg_version_formatted="n$ffmpeg_version"
 
@@ -42,9 +42,10 @@ build_ffmpeg() {
     CC="$CC"
     CXX="$CXX"
 
-    # Force FFmpeg version 6.1.2 for stable threading support
-    repo_version="6.1.2"
-    log_update "Using FFmpeg version n$repo_version for stable threading support"
+    # Get latest FFmpeg version dynamically
+    ffmpeg_repo_version=$(curl -fsS "https://github.com/FFmpeg/FFmpeg/tags/" 2>/dev/null | grep -oP '/tag/n\K\d+\.\d+(?:\.\d+)*' | grep -v '\-dev' | sort -ruV | head -n1)
+    repo_version="${ffmpeg_repo_version:-6.1.2}"
+    log_update "Using FFmpeg version n$repo_version"
 
     if build "ffmpeg" "n${repo_version}"; then
         sudo chmod -R 777 "$PWD"
@@ -56,7 +57,7 @@ build_ffmpeg() {
         export PYTHON3_CFLAGS="$(python3-config --cflags)"
         export PYTHON3_LIBS="$(python3-config --ldflags)"
         # Detect Conda environment dynamically
-        CONDA_PREFIX="${CONDA_PREFIX:-$(dirname $(dirname $(which python3)))}"
+        CONDA_PREFIX="${CONDA_PREFIX:-$(dirname "$(dirname "$(which python3)")")}"
         # Force use of system Python libraries instead of Conda for final linking
         export PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:$CONDA_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
         # Start with basic configuration to ensure ffmpeg builds, then add libraries conditionally
@@ -106,7 +107,9 @@ build_ffmpeg() {
         execute sudo make install
         
         # Fix x265 library symlink issues
-        fix_x265_libs
+        if command -v fix_x265_libs >/dev/null 2>&1; then
+            fix_x265_libs
+        fi
         
         build_done "ffmpeg" "n${repo_version}"
     fi

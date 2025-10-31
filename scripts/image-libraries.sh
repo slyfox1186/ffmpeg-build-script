@@ -39,7 +39,7 @@ install_image_libraries() {
                       -DBUILD_SHARED_LIBS=OFF -DWITH_AOM_{DECODER,ENCODER}=ON -DWITH_DAV1D=ON \
                       -DWITH_LIBDE265=ON -DWITH_RAV1E=ON -DWITH_X265=ON -DENABLE_PLUGIN_LOADING=OFF \
                       -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         source_compiler_flags
         build_done "libheif" "$repo_version"
@@ -53,7 +53,7 @@ install_image_libraries() {
                       -DBUILD_{SHARED_LIBS,TESTING}=OFF -DBUILD_THIRDPARTY=ON -DBUILD_JPIP=ON \
                       -DBUILD_JPWL=ON -DBUILD_MJ2=ON -DOPENJPEG_ENABLE_PNG=ON -DOPENJPEG_ENABLE_TIFF=ON \
                       -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "openjpeg" "$repo_version"
     fi

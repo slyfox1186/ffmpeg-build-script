@@ -1,6 +1,54 @@
-# Ignore Folders
+# Build directories (created by build-ffmpeg.sh)
+/packages/
+/workspace/
+/ffmpeg-build-script/
+
+# Build artifacts and logs
+build.log
+*.done
+
+# Downloaded archives and source files
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.lz
+*.tar.zst
+*.tgz
+*.tbz2
+*.zip
+*.7z
+
+# Temporary files
+*.tmp
+*.temp
+*XXXXXX
+
+# Build artifacts (compiled libraries)
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Editor and IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Runtime scripts
 /run-scripts/
 
-# Ignore Files
-/.gitignore
-/LICENSE
+# Claude AI files
+.claude/
+
+# Optional: Keep the original .gitignore and LICENSE commented out if needed
+# /.gitignore
+# /LICENSE

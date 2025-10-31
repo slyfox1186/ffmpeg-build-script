@@ -26,7 +26,7 @@ install_video_libraries() {
                       -DCONFIG_AV1_{DECODER,ENCODER,HIGHBITDEPTH,TEMPORAL_DENOISING}=1 \
                       -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 \
                       -DENABLE_CCACHE=1 -DENABLE_{EXAMPLES,TESTS}=0 -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
@@ -61,7 +61,7 @@ install_video_libraries() {
         execute ./autogen.sh
         execute git submodule update --init --recursive
         execute ./configure --prefix="$workspace" --with-pic
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         move_zimg_shared_file=$(find "$workspace/lib/" -type f -name 'libzimg.so.*')
         if [[ -n "$move_zimg_shared_file" ]]; then
@@ -78,7 +78,7 @@ install_video_libraries() {
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_{DECODE,ENCODE}=ON \
                       -DAVIF_ENABLE_WERROR=OFF -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "avif" "$repo_version"
     fi
@@ -89,7 +89,7 @@ install_video_libraries() {
         download "https://github.com/ultravideo/kvazaar/archive/refs/tags/v$repo_version.tar.gz" "kvazaar-$repo_version.tar.gz"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                                -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "kvazaar" "$repo_version"
     fi
@@ -101,7 +101,7 @@ install_video_libraries() {
         download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version/libdvdread-$repo_version.tar.bz2"
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --disable-{apidoc,shared}
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "libdvdread" "$repo_version"
     fi
@@ -113,7 +113,7 @@ install_video_libraries() {
         execute autoupdate
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "udfread" "$repo_version"
     fi
@@ -140,7 +140,7 @@ install_video_libraries() {
             execute autoupdate
             execute autoreconf -fi
             execute ./configure --prefix="$workspace" "${extracmds[@]}" --without-libxml2 --with-pic
-            execute make "-j$threads"
+            execute make "-j$build_threads"
             execute make install
             build_done "libbluray" "$repo_version"
         fi
@@ -155,7 +155,7 @@ install_video_libraries() {
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "zenlib" "$repo_version"
     fi
@@ -168,7 +168,7 @@ install_video_libraries() {
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         build_done "mediainfo-lib" "$repo_version"
     fi
@@ -181,7 +181,7 @@ install_video_libraries() {
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
         build_done "mediainfo-cli" "$repo_version"
@@ -195,7 +195,7 @@ install_video_libraries() {
             download "https://github.com/georgmartius/vid.stab/archive/refs/tags/v$repo_version.tar.gz" "vid-stab-$repo_version.tar.gz"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON -G Ninja -Wno-dev
-            execute ninja "-j$threads" -C build
+            execute ninja "-j$build_threads" -C build
             execute ninja -C build install
             build_done "vid-stab" "$repo_version"
         fi
@@ -207,7 +207,7 @@ install_video_libraries() {
             download "https://github.com/dyne/frei0r/archive/refs/tags/v$repo_version.tar.gz" "frei0r-$repo_version.tar.gz"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -DWITHOUT_OPENCV=ON -G Ninja -Wno-dev
-            execute ninja "-j$threads" -C build
+            execute ninja "-j$build_threads" -C build
             execute ninja -C build install
             build_done "frei0r" "$repo_version"
         fi
@@ -219,7 +219,7 @@ install_video_libraries() {
             download "https://code.videolan.org/videolan/x264/-/archive/$x264_full_commit/x264-$x264_full_commit.tar.bz2" "x264-$repo_version.tar.bz2"
             execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all --enable-debug --enable-gprof \
                                 --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O3 -pipe -fPIC -march=native"
-            execute make "-j$threads"
+            execute make "-j$build_threads"
             execute make install-lib-static install
             build_done "x264" "$repo_version"
         fi
@@ -242,13 +242,13 @@ install_video_libraries() {
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DENABLE_{CLI,LIBVMAF,SHARED}=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
                           -DNATIVE_BUILD=ON -G Ninja -Wno-dev
-            execute ninja "-j$threads"
+            execute ninja "-j$build_threads"
             echo "$ making 10bit binaries"
             cd ../10bit || exit 1
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DENABLE_{CLI,LIBVMAF,SHARED}=OFF -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF \
                           -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
-            execute ninja "-j$threads"
+            execute ninja "-j$build_threads"
             echo "$ making 8bit binaries"
             cd ../8bit || exit 1
             ln -sf "../10bit/libx265.a" "libx265_main10.a"
@@ -257,7 +257,7 @@ install_video_libraries() {
                           -DENABLE_LIBVMAF=OFF -DENABLE_{PIC,SHARED}=ON -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
                           -DEXTRA_LINK_FLAGS="-L." -DHIGH_BIT_DEPTH=ON -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
                           -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
-            execute ninja "-j$threads"
+            execute ninja "-j$build_threads"
 
             mv "libx265.a" "libx265_main.a"
 
@@ -298,7 +298,7 @@ EOF
                     download_url="https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz"
                     download_file="nv-codec-headers-${selected_version}.tar.gz"
                     download "$download_url" "$download_file"
-                    execute make "-j$threads"
+                    execute make "-j$build_threads"
                     execute make PREFIX="$workspace" install
                     build_done "nv-codec-headers" "$selected_version"
                 fi
@@ -311,7 +311,7 @@ EOF
                     download_url="https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz"
                     download_file="nv-codec-headers-${selected_version}.tar.gz"
                     download "$download_url" "$download_file"
-                    execute make "-j$threads"
+                    execute make "-j$build_threads"
                     execute make PREFIX="$workspace" install
                     build_done "nv-codec-headers" "$selected_version"
                 fi
@@ -368,8 +368,8 @@ EOF
                           -DUSE_STATIC_LIBSTDCXX=ON -DENABLE_ENCRYPTION=ON -DENABLE_CXX11=ON \
                           -DUSE_OPENSSL_PC=ON -DENABLE_UNITTESTS=OFF -DENABLE_LOGGING=ON \
                           -DENABLE_HEAVY_LOGGING=OFF -G Ninja -Wno-dev
-            execute ninja -C build "-j$threads"
-            execute ninja -C build "-j$threads" install
+            execute ninja -C build "-j$build_threads"
+            execute ninja -C build "-j$build_threads" install
             if [[ -n "$LDEXEFLAGS" ]]; then
                 sed -i.backup "s/-lgcc_s/-lgcc_eh/g" "$workspace/lib/pkgconfig/srt.pc"
             fi
@@ -383,7 +383,7 @@ EOF
             download "https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v$repo_version.tar.gz" "avisynth-$repo_version.tar.gz"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -DHEADERS_ONLY=OFF -DENABLE_PLUGINS=OFF -Wno-dev
-            execute make "-j$threads" -C build VersionGen install
+            execute make "-j$build_threads" -C build VersionGen install
             build_done "avisynth" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-avisynth")
@@ -397,7 +397,7 @@ EOF
             cd "build/generic" || exit 1
             execute ./bootstrap.sh
             execute ./configure --prefix="$workspace"
-            execute make "-j$threads"
+            execute make "-j$build_threads"
             [[ -f "$workspace/lib/libxvidcore.so" ]] && rm "$workspace/lib/libxvidcore.so" "$workspace/lib/libxvidcore.so.4"
             execute make install
             build_done "xvidcore" "$clean_version"
@@ -418,7 +418,7 @@ EOF
         mkdir -p include/gpac
         touch include/gpac/revision.h
         execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --sdl-cfg="$workspace/include/SDL3"
-        execute make "-j$threads"
+        execute make "-j$build_threads"
         execute make install
         execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
         build_done "$repo_name" "$version"
@@ -432,8 +432,8 @@ EOF
                       -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_{APPS,SHARED_LIBS,TESTING}=OFF -DENABLE_AVX512="$(check_avx512)" \
                       -DNATIVE=ON -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C Build/linux
-        execute ninja "-j$threads" -C Build/linux install
+        execute ninja "-j$build_threads" -C Build/linux
+        execute ninja "-j$build_threads" -C Build/linux install
         [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
         [[ -f "$workspace/lib/pkgconfig" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig"
         build_done "svt-av1" "$repo_version"
@@ -466,7 +466,7 @@ EOF
         execute autoupdate
         execute ./autogen.sh || fail "Failed to execute autogen.sh"
         execute ./configure --prefix="$workspace" --disable-shared || fail "Failed to configure"
-        execute make -j"$threads" || fail "Failed to make"
+        execute make -j"$build_threads" || fail "Failed to make"
         execute make install || fail "Failed to make install"
 
         # Deactivate the virtual environment after the build
@@ -492,7 +492,7 @@ EOF
                       -DABSL_{ENABLE_INSTALL,PROPAGATE_CXX_STD}=ON -DBUILD_SHARED_LIBS=OFF \
                       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin \
                       -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja -Wno-dev
-        execute ninja "-j$threads" -C build
+        execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
