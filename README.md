@@ -16,8 +16,7 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
 |--------------|--------------------------|--------------------------------------------------|
 | **Debian**   | 11                       | Bullseye                                         |
 |              | 12                       | Bookworm                                         |
-| **Ubuntu**   | 20.04                    | Focal Fossa                                      |
-|              | 22.04                    | Jammy Jellyfish                                  |
+| **Ubuntu**   | 22.04                    | Jammy Jellyfish                                  |
 |              | 24.04                    | Noble Numbat                                     |
 
 ## Installation
