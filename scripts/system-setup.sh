@@ -29,7 +29,7 @@ apt_pkgs() {
         libbluray-dev libbs2b-dev libcaca-dev libcdio-dev
         libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
         libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
-        libgsm1-dev libjack-dev liblilv-dev libmodplug-dev libnghttp2-dev lv2-dev
+        libgsm1-dev libjack-dev libjansson-dev liblilv-dev libmodplug-dev libnghttp2-dev lv2-dev
         libnghttp3-dev libshine-dev libsmbclient-dev libsnappy-dev
         libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool libaribb24-dev
         libtwolame-dev libv4l-dev libvo-amrwbenc-dev libvpl-dev

@@ -448,22 +448,7 @@ install_miscellaneous_libraries() {
     execute sudo apt-get install -y libmpg123-dev
     log "libmpg123 system package installed successfully"
 
-    # Build jansson
-    find_git_repo "akheron/jansson" "1" "T"
-    if build "jansson" "$repo_version"; then
-        download "https://github.com/akheron/jansson/archive/refs/tags/v$repo_version.tar.gz" "jansson-$repo_version.tar.gz"
-        execute autoupdate
-        execute libtoolize --force
-        execute aclocal -I /usr/share/aclocal -I "$workspace/share/aclocal"
-        execute autoheader
-        execute automake --add-missing --copy
-        execute autoconf
-        execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$build_threads"
-        execute make install
-        build_done "jansson" "$repo_version"
-    fi
-
+    
     # Build jemalloc
     find_git_repo "jemalloc/jemalloc" "1" "T"
     if build "jemalloc" "$repo_version"; then
