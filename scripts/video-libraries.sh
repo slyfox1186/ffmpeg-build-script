@@ -201,18 +201,7 @@ install_video_libraries() {
         fi
         CONFIGURE_OPTIONS+=("--enable-libvidstab")
 
-        # Build frei0r
-        find_git_repo "dyne/frei0r" "1" "T"
-        if build "frei0r" "$repo_version"; then
-            download "https://github.com/dyne/frei0r/archive/refs/tags/v$repo_version.tar.gz" "frei0r-$repo_version.tar.gz"
-            execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DBUILD_SHARED_LIBS=OFF -DWITHOUT_OPENCV=ON -G Ninja -Wno-dev
-            execute ninja "-j$build_threads" -C build
-            execute ninja -C build install
-            build_done "frei0r" "$repo_version"
-        fi
-        CONFIGURE_OPTIONS+=("--enable-frei0r")
-
+        
         # Build x264
         find_git_repo "536" "2" "B"
         if build "x264" "$repo_version"; then

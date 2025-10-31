@@ -22,7 +22,7 @@ build_ffmpeg() {
     fi
 
     # Run the 'ffmpeg -version' command and capture its output
-    if ffmpeg_version=$(curl -fsS "https://github.com/FFmpeg/FFmpeg/tags/" | grep -Ev '\-dev' | grep -oP '/tag/n\K\d+\.\d+(?:\.\d+)*' | sort -ruV | head -n1); then
+    if ffmpeg_version=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null | grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -ruV | head -n1); then
 
         # Get the installed version - safer regex pattern
         ffmpeg_installed_version=$(ffmpeg -version 2>/dev/null | grep -oP '\d+\.\d+(?:\.\d+)*' | head -n1)
@@ -42,8 +42,8 @@ build_ffmpeg() {
     CC="$CC"
     CXX="$CXX"
 
-    # Get latest FFmpeg version dynamically
-    ffmpeg_repo_version=$(curl -fsS "https://github.com/FFmpeg/FFmpeg/tags/" 2>/dev/null | grep -oP '/tag/n\K\d+\.\d+(?:\.\d+)*' | grep -v '\-dev' | sort -ruV | head -n1)
+    # Get latest FFmpeg version dynamically from ffmpeg.org releases
+    ffmpeg_repo_version=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null | grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -ruV | head -n1)
     repo_version="${ffmpeg_repo_version:-6.1.2}"
     log_update "Using FFmpeg version n$repo_version"
 

@@ -26,13 +26,13 @@ apt_pkgs() {
         $1 $(find_latest_version 'openjdk-[0-9]+-jdk') autoconf
         autopoint bison build-essential ccache clang cmake flex lex yacc
         curl flex gettext git gperf imagemagick-6.q16 ladspa-sdk
-        libbluray-dev libbs2b-dev libcaca-dev libcdio-dev
+        libbluray-dev libbs2b-dev libbz2-dev libcaca-dev libcdio-dev
         libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
         libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
-        libgsm1-dev libjack-dev libjansson-dev liblilv-dev libmodplug-dev libnghttp2-dev lv2-dev
+        libcunit1-dev frei0r-plugins-dev libgsm1-dev libjack-dev libjansson-dev liblilv-dev libmodplug-dev libnghttp2-dev lv2-dev
         libnghttp3-dev libshine-dev libsmbclient-dev libsnappy-dev
         libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool libaribb24-dev
-        libtwolame-dev libv4l-dev libvo-amrwbenc-dev libvpl-dev
+        libtwolame-dev libv4l-dev libvdpau-dev libvo-amrwbenc-dev libvpl-dev
         libx11-dev libxi-dev libyuv-dev libzvbi-dev nvidia-driver
         python3 python3-dev python3-venv valgrind python3-pip
     )

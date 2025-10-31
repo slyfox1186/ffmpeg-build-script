@@ -461,22 +461,6 @@ install_miscellaneous_libraries() {
         build_done "jemalloc" "$repo_version"
     fi
 
-    # Build cunit
-    git_caller "https://github.com/jacklicn/cunit.git" "cunit-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
-        execute autoupdate
-        execute libtoolize --force --copy
-        execute aclocal -I /usr/share/aclocal
-        execute autoheader
-        execute automake --add-missing --copy --force-missing
-        execute autoconf
-        execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$build_threads"
-        execute make install
-        build_done "$repo_name" "$version"
-    fi
-
+    
     log "Miscellaneous libraries installation completed"
 }

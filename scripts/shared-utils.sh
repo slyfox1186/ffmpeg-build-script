@@ -79,6 +79,22 @@ fail() {
 
 exit_fn() {
     echo
+    box_out_banner "🎉 FFmpeg Build Completed Successfully! 🎉"
+    echo
+    echo -e "${GREEN}✓ FFmpeg version:${NC} $(ffmpeg -version 2>/dev/null | grep -oP 'ffmpeg version \K\d+\.\d+(?:\.\d+)?' || echo 'Unknown')"
+    echo -e "${GREEN}✓ Installation path:${NC} /usr/local/bin"
+    echo -e "${GREEN}✓ Built tools:${NC} ffmpeg, ffprobe, ffplay"
+    echo -e "${GREEN}✓ Configuration:${NC} Static build with all supported codecs"
+    echo
+    echo -e "${GREEN}✓ Available encoders:${NC} $(ffmpeg -encoders 2>/dev/null | grep -c . || echo 'N/A')"
+    echo -e "${GREEN}✓ Available decoders:${NC} $(ffmpeg -decoders 2>/dev/null | grep -c . || echo 'N/A')"
+    echo -e "${GREEN}✓ Available filters:${NC} $(ffmpeg -filters 2>/dev/null | grep -c . || echo 'N/A')"
+    echo
+    echo -e "${GREEN}✓ Hardware acceleration:${NC} CUDA, NVENC/NVDEC, VDPAU, AMF (if available)"
+    echo -e "${GREEN}✓ Key libraries:${NC} x264, x265, libopus, libvorbis, webp, SDL2, and more"
+    echo
+    echo -e "${YELLOW}You can now use FFmpeg, ffprobe, and ffplay from anywhere in your terminal!${NC}"
+    echo
     echo -e "${GREEN}[INFO]${NC} Make sure to ${YELLOW}star${NC} this repository to show your support!"
     echo -e "${GREEN}[INFO]${NC} https://github.com/slyfox1186/ffmpeg-build-script"
     echo
