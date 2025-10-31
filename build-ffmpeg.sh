@@ -12,16 +12,14 @@
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.1.1
+##  Script version: 4.2.0
 ##
-##  Updated: 10.18.2025
+##  Updated: 10.31.2025
 ##
-##  CUDA SDK Toolkit version: 12.3.0
+##  CUDA SDK Toolkit version: 12.3.1
 ##
 ##  Supported Distros: Debian 12
 ##                     Ubuntu (20|22|24).04
-##                     Linux Mint 21.x
-##                     Zorin OS 16.x
 ##                     (Other Debian-based distributions may also work)
 ##
 ##  Supported architecture: x86_64
