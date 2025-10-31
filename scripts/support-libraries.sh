@@ -454,7 +454,7 @@ install_miscellaneous_libraries() {
         download "https://github.com/akheron/jansson/archive/refs/tags/v$repo_version.tar.gz" "jansson-$repo_version.tar.gz"
         execute autoupdate
         execute libtoolize --force
-        execute aclocal -I /usr/share/aclocal
+        execute aclocal -I /usr/share/aclocal -I "$workspace/share/aclocal"
         execute autoheader
         execute automake --add-missing --copy
         execute autoconf
