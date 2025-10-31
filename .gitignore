@@ -3,9 +3,63 @@
 /workspace/
 /ffmpeg-build-script/
 
+# All extracted source code in packages
+packages/*/
+!packages/.gitkeep
+
+# All autotools generated files
+**/configure
+**/config.status
+**/config.log
+**/config.h
+**/config.h.in
+**/Makefile
+**/Makefile.in
+**/libtool
+**/ltmain.sh
+**/config.guess
+**/config.sub
+**/compile
+**/depcomp
+**/install-sh
+**/missing
+**/mkinstalldirs
+**/stamp-h1
+**/aclocal.m4
+**/autom4te.cache/
+
+# All CMake generated files
+**/CMakeCache.txt
+**/CMakeFiles/
+**/cmake_install.cmake
+**/CMakeOutput.log
+**/CTestTestfile.cmake
+
+# All build artifacts
+**/build/
+**/.libs/
+**/.deps/
+**/*.la
+**/*.lo
+**/*.o
+**/*.Po
+**/*.Plo
+**/*.pc
+**/*.a
+**/*.so
+**/*.so.*
+**/*.dylib
+**/*.dll
+**/*.exe
+
 # Build artifacts and logs
 build.log
 *.done
+
+# Build logs generated during compilation
+config.log
+CMakeOutput.log
+cmake_bootstrap.log
 
 # Downloaded archives and source files
 *.tar.gz
@@ -30,6 +84,38 @@ build.log
 *.dylib
 *.dll
 *.exe
+
+# Python virtual environments created during build
+python_virtual_environment/
+**/python_virtual_environment/
+
+# Build directories within packages
+packages/*/build/
+packages/*/.libs/
+packages/*/.deps/
+packages/*/CMakeFiles/
+packages/*/cmake_install.cmake
+packages/*/Makefile
+packages/*/libtool
+packages/*/config.status
+
+# FFmpeg specific build files
+packages/ffmpeg-*/build/
+packages/ffmpeg-*/ffbuild/
+packages/ffmpeg-*/ffbuild/config.*
+packages/ffmpeg-*/config.*
+packages/ffmpeg-*/libavutil/avconfig.h
+packages/ffmpeg-*/libavcodec/bsf_list.c
+packages/ffmpeg-*/libavformat/protocol_list.c
+
+# Test and build artifacts
+*.test
+*.pc
+*.la
+*.lo
+*.o
+*.Po
+*.Plo
 
 # Editor and IDE files
 *.swp
