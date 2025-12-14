@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -15,9 +15,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 install_global_tools() {
     echo
     box_out_banner_global "Installing Global Tools"
+    require_vars workspace packages build_threads
 
     # Alert the user that an AMD GPU was found without a Geforce GPU present
-    if [[ "$gpu_flag" -eq 1 ]]; then
+    if [[ "${gpu_flag:-0}" -eq 1 ]]; then
         printf "\n%s\n" "An AMD GPU was detected without a Nvidia GPU present."
     fi
 
@@ -101,9 +102,9 @@ install_global_tools() {
     find_git_repo "facebook/zstd" "1" "T"
     if build "libzstd" "$repo_version"; then
         download "https://github.com/facebook/zstd/archive/refs/tags/v$repo_version.tar.gz" "libzstd-$repo_version.tar.gz"
-        cd "build/meson" || exit 1
+        cd "build/meson" || fail "Failed to cd into build/meson. Line: $LINENO"
         local meson_dir="meson-build"
-        rm -rf "$meson_dir"
+        rm -rf -- "$meson_dir"
         execute meson setup "$meson_dir" --prefix="$workspace" \
                                       --buildtype=release \
                                       --default-library=static \

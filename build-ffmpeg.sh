@@ -3,6 +3,7 @@
 
 # Enable debug output to see what's happening
 # set -x
+set -o pipefail
 
 ####################################################################################
 ##
@@ -33,21 +34,19 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.1.1"
+script_version="4.2.0"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cwd="$PWD/ffmpeg-build-script"
-mkdir -p "$cwd"; cd "$cwd" || exit 1
-test_regex='ffmpeg-build-script\/ffmpeg-build-script'
-if [[ "$PWD" =~ $test_regex ]]; then
-    cd ../
-    rm -fr ffmpeg-build-script
-    cwd="$PWD"
-fi
+
+# Keep build artifacts out of the repo root (prevents cleanup from deleting the repo).
+# Override with BUILD_ROOT=/path/to/dir if desired.
+repo_root="$script_dir"
+cwd="${BUILD_ROOT:-"$repo_root/build"}"
+mkdir -p "$cwd"
+cd "$cwd" || exit 1
+
 packages="$cwd/packages"
 workspace="$cwd/workspace"
-# Set a regex string to match and then exclude any found release candidate versions of a program. We are only utilizing stable releases.
-git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
-debug=OFF
+log_file="$cwd/build.log"
 
 # Source shared utilities
 source "$script_dir/scripts/shared-utils.sh"
@@ -63,7 +62,7 @@ mkdir -p "$packages" "$workspace"
 ensure_user_ownership "$packages" "$workspace"
 
 # Automatically overwrite the log file each time
-log_file="$PWD/build.log"
+log_file="$cwd/build.log"
 rm -f "$log_file"
 touch "$log_file"
 
@@ -93,6 +92,8 @@ CONFIGURE_OPTIONS=()
 LATEST=false
 LDEXEFLAGS=""
 NONFREE_AND_GPL=false
+GOOGLE_SPEECH=false
+DO_BUILD=false
 
 while (("$#" > 0)); do
     case "$1" in
@@ -102,7 +103,7 @@ while (("$#" > 0)); do
             ;;
         -v|--version)
             echo
-            log "The script version is: $script_version"
+            echo "The script version is: $script_version"
             exit 0
             ;;
         -n|--enable-gpl-and-non-free)
@@ -111,12 +112,16 @@ while (("$#" > 0)); do
             shift
             ;;
         -b|--build)
-            bflag="-b"
+            DO_BUILD=true
             shift
             ;;
         -c|--cleanup)
-            cflag="-c"
             cleanup
+            shift
+            exit 0
+            ;;
+        -g|--google-speech)
+            GOOGLE_SPEECH=true
             shift
             ;;
         -l|--latest)
@@ -128,7 +133,13 @@ while (("$#" > 0)); do
             shift
             ;;
         -j|--jobs)
-build_threads="$2"
+            if [[ -z "${2:-}" ]]; then
+                fail "Missing value for $1 (expected a number)."
+            fi
+            if [[ ! "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 1 ]]; then
+                fail "Invalid jobs value: '$2' (expected a positive integer)."
+            fi
+            build_threads="$2"
             shift 2
             ;;
         *)
@@ -138,13 +149,17 @@ build_threads="$2"
     esac
 done
 
+if ! "$DO_BUILD"; then
+    usage
+    exit 0
+fi
+
 if [[ -z "$build_threads" ]]; then
     # Set the available CPU thread and core count for parallel processing (speeds up the build process)
     build_threads=$(nproc --all)
 fi
 
 MAKEFLAGS="-j$build_threads"
-unset threads
 
 if [[ -z "$COMPILER_FLAG" ]] || [[ "$COMPILER_FLAG" == "gcc" ]]; then
     CC="gcc"
@@ -156,6 +171,8 @@ else
     fail "Invalid compiler specified. Valid options are 'gcc' or 'clang'."
 fi
 export CC CXX MAKEFLAGS
+export LATEST NONFREE_AND_GPL
+export GOOGLE_SPEECH
 
 # Set ACLOCAL_PATH to include workspace m4 files
 export ACLOCAL_PATH="$workspace/share/aclocal:/usr/share/aclocal"
@@ -195,8 +212,8 @@ download_with_bot_detection() {
     )
     local ua="${user_agents[$((RANDOM % ${#user_agents[@]}))]}"
 
-    # Download with anti-bot headers and 1-second timeout
-    curl -LSso "$output" \
+    # Download with anti-bot headers and retries (fail on HTTP errors)
+    curl -fLSs --retry 3 --retry-delay 2 --retry-connrefused -o "$output" \
         -H "User-Agent: $ua" \
         -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
         -H "Accept-Language: en-US,en;q=0.5" \
@@ -204,45 +221,12 @@ download_with_bot_detection() {
         -H "DNT: 1" \
         -H "Connection: keep-alive" \
         -H "Upgrade-Insecure-Requests: 1" \
-        --connect-timeout 1 \
-        --max-time 30 \
+        --connect-timeout 15 \
+        --max-time 600 \
         "$url"
 }
 
-# Download with fallback mirror support
-download_with_fallback() {
-    local primary_url=$1
-    local fallback_url=$2
-    local primary_file="${primary_url##*/}"
-    local fallback_file="${fallback_url##*/}"
-
-    # Input validation
-    if [[ -z "$primary_url" || -z "$fallback_url" ]]; then
-        fail "Primary and fallback URLs are required. Line: $LINENO"
-    fi
-
-    # Try primary URL first
-    log "Attempting download from primary mirror: $primary_url"
-    if download_with_bot_detection "$primary_url" "$primary_file"; then
-        # Now extract and change directory using the main download function
-        download "$primary_url" "$primary_file"
-        return 0
-    fi
-
-    # Try fallback URL
-    warn "Primary mirror failed, trying fallback mirror: $fallback_url"
-    if download_with_bot_detection "$fallback_url" "$fallback_file"; then
-        # Now extract and change directory using the main download function
-        download "$fallback_url" "$fallback_file"
-        return 0
-    fi
-
-    # Both failed
-    fail "Failed to download from both primary and fallback mirrors. Line: $LINENO"
-}
-
 export -f download_with_bot_detection
-export -f download_with_fallback
 
 echo
 log "Utilizing $build_threads CPU threads"
@@ -258,7 +242,10 @@ if [[ -n "$LDEXEFLAGS" ]]; then
     echo
 fi
 
-clear
+[[ -t 1 ]] && clear
+
+# Validate sudo credentials once up front (many steps require sudo for installs).
+require_sudo
 
 # Initialize system setup (OS detection, package installation, etc.)
 source "$script_dir/scripts/system-setup.sh"
@@ -267,10 +254,6 @@ initialize_system_setup
 # Initialize hardware detection and CUDA setup
 source "$script_dir/scripts/hardware-detection.sh" 
 initialize_hardware_detection
-
-# Check if the CUDA folder exists to determine the installation status
-iscuda=$(find /usr/local/cuda/ -type f -name nvcc 2>/dev/null | sort -ruV | head -n1)
-cuda_path=$(find /usr/local/cuda/ -type f -name nvcc 2>/dev/null | sort -ruV | head -n1 | grep -oP '^.*/bin?')
 
 # Prompt the user to install the GeForce CUDA SDK-Toolkit
 install_cuda

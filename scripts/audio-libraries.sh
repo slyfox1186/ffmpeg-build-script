@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -15,12 +15,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 install_audio_libraries() {
     echo
     box_out_banner_audio "Installing Audio Tools"
+    require_vars workspace packages build_threads STATIC_VER
 
     # Build libsoxr
     find_git_repo "chirlu/soxr" "1" "T"
     if build "libsoxr" "$repo_version"; then
         download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
-        mkdir build; cd build || exit 1
+        mkdir -p build || fail "Failed to create build directory. Line: $LINENO"
+        cd build || fail "Failed to enter build directory. Line: $LINENO"
         execute cmake -S ../ -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_TESTS=OFF
         execute make "-j$build_threads"
         execute make install
@@ -28,17 +30,19 @@ install_audio_libraries() {
     fi
     CONFIGURE_OPTIONS+=("--enable-libsoxr")
 
-    # Build SDL2
-    git_caller "https://github.com/libsdl-org/SDL.git" "sdl2-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
+    # Build SDL2 (must use SDL2 branch - main branch is SDL3)
+    local sdl2_version
+    sdl2_version=$(curl -fsSL "https://github.com/libsdl-org/SDL/tags" |
+                   grep -oP 'releases/tag/release-\K2\.[0-9]+\.[0-9]+(?=")' |
+                   sort -ruV | head -n1)
+    if build "sdl2" "$sdl2_version"; then
+        download "https://github.com/libsdl-org/SDL/releases/download/release-$sdl2_version/SDL2-$sdl2_version.tar.gz"
         execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_CCACHE=ON \
-                      -G Ninja -Wno-dev
+                      -DSDL2_DISABLE_INSTALL_DOCS=ON -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
-        build_done "$repo_name" "$version"
+        build_done "sdl2" "$sdl2_version"
     fi
 
     # Build libsndfile

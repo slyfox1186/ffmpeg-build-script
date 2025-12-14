@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -15,6 +15,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 install_video_libraries() {
     echo
     box_out_banner_video "Installing Video Tools"
+    require_vars workspace packages build_threads STATIC_VER
 
     # Build libaom (AV1)
     git_caller "https://aomedia.googlesource.com/aom" "av1-git"
@@ -95,26 +96,24 @@ install_video_libraries() {
     fi
     CONFIGURE_OPTIONS+=("--enable-libkvazaar")
 
-    # Build libdvdread
+    # Build libdvdread (uses meson since v7.0.0)
     find_git_repo "76" "2" "T"
     if build "libdvdread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version/libdvdread-$repo_version.tar.bz2"
-        execute autoreconf -fi
-        execute ./configure --prefix="$workspace" --disable-{apidoc,shared}
-        execute make "-j$build_threads"
-        execute make install
+        execute meson setup build --prefix="$workspace" --default-library=static --buildtype=release \
+                      -Denable_docs=false
+        execute ninja "-j$build_threads" -C build
+        execute ninja -C build install
         build_done "libdvdread" "$repo_version"
     fi
 
-    # Build udfread
-    find_git_repo "363" "2" "T"
+    # Build udfread (uses meson since v1.2.0)
+    find_git_repo "363" "1" "T"
     if build "udfread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libudfread/-/archive/$repo_version/libudfread-$repo_version.tar.bz2"
-        execute autoupdate
-        execute autoreconf -fi
-        execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$build_threads"
-        execute make install
+        execute meson setup build --prefix="$workspace" --default-library=static --buildtype=release
+        execute ninja "-j$build_threads" -C build
+        execute ninja -C build install
         build_done "udfread" "$repo_version"
     fi
 
@@ -124,7 +123,7 @@ install_video_libraries() {
     if build "$repo_name" "${version//\$ /}"; then
         echo "Cloning \"$repo_name\" saving version \"$version\""
         git_clone "$git_url"
-        execute chmod 777 -R "$workspace/ant"
+        execute chmod -R u+rwX,go+rX "$workspace/ant"
         execute sh build.sh install-lite
         build_done "$repo_name" "$version"
     fi
@@ -151,7 +150,7 @@ install_video_libraries() {
     find_git_repo "MediaArea/ZenLib" "1" "T"
     if build "zenlib" "$repo_version"; then
         download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
-        cd Project/GNU/Library || exit 1
+        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-shared
@@ -164,7 +163,7 @@ install_video_libraries() {
     find_git_repo "MediaArea/MediaInfoLib" "1" "T"
     if build "mediainfo-lib" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
-        cd "Project/GNU/Library" || exit 1
+        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --disable-shared
@@ -177,7 +176,7 @@ install_video_libraries() {
     find_git_repo "MediaArea/MediaInfo" "1" "T"
     if build "mediainfo-cli" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
-        cd "Project/GNU/CLI" || exit 1
+        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
         execute autoupdate
         execute ./autogen.sh
         execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
@@ -215,31 +214,31 @@ install_video_libraries() {
         CONFIGURE_OPTIONS+=("--enable-libx264")
 
         # Build x265
-        if build "x265" "3.5"; then
-            download "https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz" "x265-3.5.tar.gz"
+        if build "x265" "3.6"; then
+            download "https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz" "x265-3.6.tar.gz"
             
             # Fix CMake policy issues for modern CMake
             sed -i 's/cmake_policy(SET CMP0025 OLD)/cmake_policy(SET CMP0025 NEW)/' source/CMakeLists.txt
             sed -i 's/cmake_policy(SET CMP0054 OLD)/cmake_policy(SET CMP0054 NEW)/' source/CMakeLists.txt
             
             fix_libstd_libs
-            cd build/linux || exit 1
+            cd build/linux || fail "Failed to cd into build/linux. Line: $LINENO"
             rm -fr {8,10,12}bit 2>/dev/null
             mkdir -p {8,10,12}bit
-            cd 12bit || exit 1
+            cd 12bit || fail "Failed to cd into 12bit. Line: $LINENO"
             echo "$ making 12bit binaries"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DENABLE_{CLI,LIBVMAF,SHARED}=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
                           -DNATIVE_BUILD=ON -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             echo "$ making 10bit binaries"
-            cd ../10bit || exit 1
+            cd ../10bit || fail "Failed to cd into 10bit. Line: $LINENO"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DENABLE_{CLI,LIBVMAF,SHARED}=OFF -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF \
                           -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             echo "$ making 8bit binaries"
-            cd ../8bit || exit 1
+            cd ../8bit || fail "Failed to cd into 8bit. Line: $LINENO"
             ln -sf "../10bit/libx265.a" "libx265_main10.a"
             ln -sf "../12bit/libx265.a" "libx265_main12.a"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -264,7 +263,7 @@ EOF
 
             fix_x265_libs # Fix the x265 shared library issue
 
-            build_done "x265" "3.5"
+            build_done "x265" "3.6"
         fi
         CONFIGURE_OPTIONS+=("--enable-libx265")
 
@@ -331,16 +330,13 @@ EOF
             fi
         fi
 
-        # Build AMF headers
+        # Build AMF headers (use official headers-only tarball)
         find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
         if build "amf-headers" "$repo_version"; then
-            download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/refs/tags/v$repo_version.tar.gz" "amf-headers-$repo_version.tar.gz"
+            download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz"
             # Install AMF headers to the location FFmpeg expects
             execute rm -fr "$workspace/include/AMF"
-            execute mkdir -p "$workspace/include/AMF"
-            # Copy the AMF directory structure as FFmpeg expects it (AMF/core and AMF/components)
-            execute cp -fr "amf/public/include/core" "$workspace/include/AMF/"
-            execute cp -fr "amf/public/include/components" "$workspace/include/AMF/"
+            execute cp -fr AMF "$workspace/include/"
             build_done "amf-headers" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-amf")
@@ -383,7 +379,7 @@ EOF
         url_version="${repo_version//\%/%25}"  # URL-encode the % character
         if build "xvidcore" "$clean_version"; then
             download "https://salsa.debian.org/multimedia-team/xvidcore/-/archive/$url_version/xvidcore-${url_version//\//-}.tar.bz2" "xvidcore-$clean_version.tar.bz2"
-            cd "build/generic" || exit 1
+            cd "build/generic" || fail "Failed to cd into build/generic. Line: $LINENO"
             execute ./bootstrap.sh
             execute ./configure --prefix="$workspace"
             execute make "-j$build_threads"
@@ -423,8 +419,8 @@ EOF
                       -DNATIVE=ON -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C Build/linux
         execute ninja "-j$build_threads" -C Build/linux install
-        [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig"
-        [[ -f "$workspace/lib/pkgconfig" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig"
+        [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig/"
+        [[ -d "$workspace/lib/pkgconfig" ]] && [[ -f "Build/linux/SvtAv1Dec.pc" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig/"
         build_done "svt-av1" "$repo_version"
     fi
     # CONFIGURE_OPTIONS+=("--enable-libsvtav1") # Disabled due to API incompatibility with FFmpeg 6.1.2
@@ -434,7 +430,7 @@ EOF
     if build "vapoursynth" "R${repo_version}"; then
         download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R${repo_version}.tar.gz" "vapoursynth-R${repo_version}.tar.gz"
 
-        venv_packages=("Cython==0.29.36")
+        venv_packages=("Cython>=3.0")
         setup_python_venv_and_install_packages "$workspace/python_virtual_environment/vapoursynth" "${venv_packages[@]}"
 
         # Activate the virtual environment for the build process
@@ -447,9 +443,10 @@ EOF
         remove_duplicate_paths
 
         # Set Python flags for configure
-        PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-        export PYTHON3_CFLAGS=$(python3-config --cflags)
-        export PYTHON3_LIBS=$(python3-config --ldflags --embed)
+        PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
+        export PYTHON3_CFLAGS
+        PYTHON3_LIBS="$(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
+        export PYTHON3_LIBS
         
         # Assuming autogen, configure, make, and install steps for VapourSynth
         execute autoupdate
@@ -491,51 +488,61 @@ EOF
 
 # NVIDIA codec headers helper functions (GPL and non-free only)
 fetch_nv_codec_headers_versions() {
-    # Fetch the HTML content of the GitHub tags page
+    # Build the `sorted_versions_and_dates` array in "version;MM-DD-YYYY" format.
+    declare -a versions_and_dates=()
     local scrape_html
-    scrape_html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
 
-    # Declare an array to store version and date pairs
-    declare -a versions_and_dates
-
-    # Read the HTML content into an array of lines
-    IFS=$'\n' read -rd '' -a html_lines <<<"$scrape_html"
-
-    # Iterate over each line to find version numbers and their corresponding dates
-    local current_version=""
-    local current_date=""
-    local regex=""
-    regex='href=\"/FFmpeg/nv-codec-headers/releases/tag/n([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\"'
-    for line in "${html_lines[@]}"; do
-        # Match the version number
-        if [[ $line =~ $regex ]]; then
-            current_version="${BASH_REMATCH[1]}"
+    # Prefer the GitHub API (more stable than scraping HTML); fall back to HTML if rate-limited or jq unavailable.
+    if command -v jq >/dev/null 2>&1; then
+        local api_json
+        if api_json="$(curl -fsSL "https://api.github.com/repos/FFmpeg/nv-codec-headers/releases?per_page=100" 2>/dev/null)"; then
+            local -a api_lines=()
+            mapfile -t api_lines < <(printf '%s' "$api_json" | jq -r '.[] | select(.tag_name | test("^n[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")) | "\(.tag_name);\(.published_at)"')
+            local entry tag iso_date version formatted_date
+            for entry in "${api_lines[@]}"; do
+                tag="${entry%%;*}"
+                iso_date="${entry##*;}"
+                version="${tag#n}"
+                iso_date="${iso_date%%T*}"
+                formatted_date="$(date -d "$iso_date" +"%m-%d-%Y" 2>/dev/null || echo "$iso_date")"
+                versions_and_dates+=("$version;$formatted_date")
+            done
         fi
+    fi
 
-        # Match the release date
-        if [[ "$line" =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
-            if [[ -n "$current_version" ]]; then
-                local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
-                # Format the date as MM-DD-YYYY
-                local formatted_date
-                formatted_date=$(date -d "$date" +"%m-%d-%Y")
-                # Store the version and formatted date
-                versions_and_dates+=("$current_version;$formatted_date")
-                # Reset current_version for the next iteration
-                current_version=""
+    if [[ ${#versions_and_dates[@]} -eq 0 ]]; then
+        scrape_html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
+        local -a html_lines=()
+        mapfile -t html_lines <<<"$scrape_html"
+
+        local current_version=""
+        local regex='href=\"/FFmpeg/nv-codec-headers/releases/tag/n([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\"'
+        local line
+        for line in "${html_lines[@]}"; do
+            if [[ $line =~ $regex ]]; then
+                current_version="${BASH_REMATCH[1]}"
             fi
-        fi
-    done
+
+            if [[ "$line" =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
+                if [[ -n "$current_version" ]]; then
+                    local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
+                    local formatted_date
+                    formatted_date=$(date -d "$date" +"%m-%d-%Y")
+                    versions_and_dates+=("$current_version;$formatted_date")
+                    current_version=""
+                fi
+            fi
+        done
+    fi
 
     # Check if any versions were found
     if [[ ${#versions_and_dates[@]} -eq 0 ]]; then
-        echo "No releases found."
-        exit 1
+        warn "No nv-codec-headers releases found."
+        return 1
     fi
 
     # Sort the versions in descending order based on version number
-    IFS=$'\n' sorted_versions_and_dates=($(sort -t ';' -k1Vr <<<"${versions_and_dates[*]}"))
-    unset IFS
+    mapfile -t sorted_versions_and_dates < <(printf '%s\n' "${versions_and_dates[@]}" | sort -t ';' -k1Vr)
 }
 
 prompt_user_for_version() {
