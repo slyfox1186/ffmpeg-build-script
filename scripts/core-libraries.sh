@@ -48,8 +48,8 @@ install_core_libraries() {
         # Install ImageMagick for giflib documentation
         if ! command -v convert >/dev/null 2>&1; then
             log "Installing ImageMagick for giflib documentation"
-            execute sudo apt-get update
-            execute sudo apt-get -y install imagemagick
+            execute sudo apt update
+            execute sudo apt -y install imagemagick
         fi
         # Parallel building not available for this library
         execute make
