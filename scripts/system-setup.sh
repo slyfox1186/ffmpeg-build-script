@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -13,7 +13,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
 # Required build packages
 apt_pkgs() {
-    local -a pkgs=() missing_packages=() available_packages=() unavailable_packages=()
+    local -a pkgs=() available_packages=() unavailable_packages=() extra_pkgs=()
     local pkg
 
     # Function to find the latest version of a package by pattern
@@ -21,11 +21,17 @@ apt_pkgs() {
         apt-cache search "^$1" | sort -ruV | head -n1 | awk '{print $1}'
     }
 
+    # Split any caller-provided package list into an array.
+    if [[ -n "${1:-}" ]]; then
+        read -r -a extra_pkgs <<< "$1"
+    fi
+
     # Define an array of apt package names
+    # Note: 'lex' and 'yacc' are virtual packages that resolve to flex/bison (already listed)
     pkgs=(
-        $1 $(find_latest_version 'openjdk-[0-9]+-jdk') autoconf
-        autopoint bison build-essential ccache clang cmake flex lex yacc
-        curl flex gettext git gperf imagemagick-6.q16 ladspa-sdk
+        "${extra_pkgs[@]}" "$(find_latest_version 'openjdk-[0-9]+-jdk')" autoconf
+        autopoint bison build-essential ccache clang cmake curl flex
+        gettext git gperf imagemagick-6.q16 ladspa-sdk
         libbluray-dev libbs2b-dev libbz2-dev libcaca-dev libcdio-dev
         libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
         libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
@@ -37,7 +43,7 @@ apt_pkgs() {
         python3 python3-dev python3-venv valgrind python3-pip
     )
 
-    [[ "$OS" == "Debian" && "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] && pkgs+=("nvidia-smi")
+    # Note: GPU detection happens later; keep package install independent from GPU probing.
 
     log "Checking package installation status..."
 
@@ -64,21 +70,21 @@ apt_pkgs() {
         echo
         log "Installing missing packages:"
         printf "          %s\n" "${available_packages[@]}"
-        sudo apt update
-        sudo apt -y install "${available_packages[@]}"
+        execute sudo apt-get update
+        execute sudo apt-get -y install "${available_packages[@]}"
     else
         log "All required packages are already installed."
     fi
 
-    # Check NVIDIA GPU status
-    if [[ -n "$(check_amd_gpu)" && "$is_nvidia_gpu_present" != "NVIDIA GPU detected" ]]; then
-        return 0
-    elif ! nvidia-smi &>/dev/null; then
-        echo "You most likely just updated your nvidia-driver version because the \"nvidia-smi\" command is no longer working and won't until this command is working again."
-        echo "This is important because it is required for the script to complete. My recommendation is for you to reboot your PC now and then re-run this script."
-        echo
-        read -r -p "Do you want to reboot now? (y/n): " reboot_choice
-        [[ "$reboot_choice" =~ ^[Yy]$ ]] && reboot
+    # If the NVIDIA tools exist but the driver stack is in a bad state, prompt the user.
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        if ! nvidia-smi &>/dev/null; then
+            echo "The \"nvidia-smi\" command exists but is not working (this can happen after a driver update)."
+            echo "Rebooting often resolves this. The script may require a working NVIDIA driver stack to complete GPU-enabled builds."
+            echo
+            read -r -p "Do you want to reboot now? (y/n): " reboot_choice
+            [[ "$reboot_choice" =~ ^[Yy]$ ]] && execute sudo reboot
+        fi
     fi
 }
 
@@ -232,7 +238,7 @@ set_java_variables() {
                                  apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
                                  sort -ruV | head -n1 | awk '{print $1}'
                              )
-        if sudo apt -y install "$latest_openjdk_version"; then
+        if execute sudo apt-get -y install "$latest_openjdk_version"; then
             set_java_variables
         else
             fail "Could not install openjdk. Line: $LINENO"
@@ -273,19 +279,21 @@ source_path() {
 # Enhanced remove_duplicate_paths function
 remove_duplicate_paths() {
     local -a path_array=()
-    local IFS new_path seen
-    IFS=':'
-    path_array=("$PATH")
+    local new_path=""
+    local p
+    declare -A seen=()
 
-    declare -A seen
+    # Properly split PATH by colon into array
+    IFS=':' read -ra path_array <<< "$PATH"
 
-    for path in "${path_array[@]}"; do
-        if [[ -n "$path" && ! -v seen[$path] ]]; then
-            seen[$path]=1
+    for p in "${path_array[@]}"; do
+        # Skip empty paths and already-seen paths
+        if [[ -n "$p" && -z "${seen[$p]+x}" ]]; then
+            seen[$p]=1
             if [[ -z "$new_path" ]]; then
-                new_path="$path"
+                new_path="$p"
             else
-                new_path="$new_path:$path"
+                new_path="$new_path:$p"
             fi
         fi
     done
@@ -309,8 +317,11 @@ setup_python_venv_and_install_packages() {
     echo "Activating the virtual environment..."
     source "$parse_path/bin/activate" || fail "Failed to activate virtual environment"
 
+    echo "Upgrading pip..."
+    pip install --quiet --disable-pip-version-check --upgrade pip || fail "Failed to upgrade pip"
+
     echo "Installing Python packages: ${parse_package[*]}..."
-    pip install "${parse_package[@]}" || fail "Failed to install packages"
+    pip install --disable-pip-version-check "${parse_package[@]}" || fail "Failed to install packages"
 
     echo "Deactivating the virtual environment..."
     deactivate
@@ -318,31 +329,19 @@ setup_python_venv_and_install_packages() {
     echo "Python virtual environment setup and package installation completed."
 }
 
-# Determine appropriate libtool version based on OS
-determine_libtool_version() {
-    case "$STATIC_VER" in
-        20.04|22.04|23.04|23.10)
-            libtool_version="2.4.6"
-            ;;
-        11|12|24.04|msft)
-            libtool_version="2.4.7"
-            ;;
-    esac
-}
-
 # Initialize system setup
 initialize_system_setup() {
+    require_vars workspace
     # Test the OS and its version
     find_lsb_release=$(find /usr/bin/ -type f -name lsb_release)
     
     get_os_version
     
     # Check if running Windows WSL2
-    if [[ $(grep -i "Microsoft" /proc/version) ]]; then
-        wsl_flag="yes_wsl"
+    if grep -qi "Microsoft" /proc/version; then
         VARIABLE_OS="WSL2"
-        [[ "$OS" == "WSL2" ]] && VARIABLE_OS="WSL2"
     fi
+    export OS VER STATIC_VER VARIABLE_OS
     
     # Set up PKG_CONFIG_PATH
     PKG_CONFIG_PATH="$workspace/lib64/pkgconfig:$workspace/lib/x86_64-linux-gnu/pkgconfig:$workspace/lib/pkgconfig:$workspace/share/pkgconfig"

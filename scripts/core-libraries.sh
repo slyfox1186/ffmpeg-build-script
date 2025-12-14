@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -15,11 +15,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 install_core_libraries() {
     echo
     box_out_banner "Installing Core Libraries"
+    require_vars workspace packages build_threads STATIC_VER
 
     # Build yasm
     find_git_repo "yasm/yasm" "1" "T"
     if build "yasm" "$repo_version"; then
-        download "http://www.tortall.net/projects/yasm/releases/yasm-$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
+        download "https://www.tortall.net/projects/yasm/releases/yasm-$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace"
         execute make "-j$build_threads"
         execute make install
@@ -47,7 +48,8 @@ install_core_libraries() {
         # Install ImageMagick for giflib documentation
         if ! command -v convert >/dev/null 2>&1; then
             log "Installing ImageMagick for giflib documentation"
-            sudo apt update && sudo apt install -y imagemagick
+            execute sudo apt-get update
+            execute sudo apt-get -y install imagemagick
         fi
         # Parallel building not available for this library
         execute make
@@ -71,11 +73,14 @@ install_core_libraries() {
         libxml2_version
         if build "libxml2" "$repo_version"; then
             download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2" "libxml2-$repo_version.tar.bz2"
+            # Save flags before modification and restore after build
+            save_compiler_flags
             CFLAGS+=" -DNOLIBTOOL"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
             execute ninja "-j$build_threads" -C build
             execute ninja -C build install
+            restore_compiler_flags
             build_done "libxml2" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libxml2")
@@ -84,7 +89,7 @@ install_core_libraries() {
     # Build libpng
     find_git_repo "pnggroup/libpng" "1" "T"
     if build "libpng" "$repo_version"; then
-        download "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz" "libpng-$repo_version.tar.gz"
+        download "https://github.com/pnggroup/libpng/archive/refs/tags/v$repo_version.tar.gz" "libpng-$repo_version.tar.gz"
         execute autoupdate
         execute autoreconf -fi
         execute ./configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
@@ -116,42 +121,5 @@ install_core_libraries() {
     log "Core libraries installation completed"
 }
 
-# Library fix functions
-fix_libiconv() {
-    if [[ -f "$workspace/lib/libiconv.so.2" ]]; then
-        execute sudo cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/libiconv.so.2"
-        execute sudo ln -sf "/usr/lib/libiconv.so.2" "/usr/lib/libiconv.so"
-    else
-        fail "Unable to locate the file \"$workspace/lib/libiconv.so.2\""
-    fi
-}
-
-fix_libstd_libs() {
-    local libstdc_path
-    libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
-    if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
-        sudo ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
-    fi
-}
-
-fix_x265_libs() {
-    local x265_libs x265_libs_trim
-    x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' | sort -rV | head -n1)
-    x265_libs_trim=$(echo "$x265_libs" | sed "s:.*/::" | head -n1)
-
-    sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
-    sudo ln -sf "/usr/lib/x86_64-linux-gnu/$x265_libs_trim" "/usr/lib/x86_64-linux-gnu/libx265.so"
-}
-
-# Version finding functions
-find_latest_nasm_version() {
-    latest_nasm_version="3.01"
-}
-
-get_openssl_version() {
-    openssl_version=$(
-                curl -fsS "https://openssl-library.org/source/" |
-                grep -oP 'openssl-\K3\.0\.[0-9]+' | sort -ruV |
-                head -n1
-            )
-}
+# Note: Library fix functions (fix_libiconv, fix_libstd_libs, fix_x265_libs, find_latest_nasm_version)
+# are defined in support-libraries.sh to avoid duplicates

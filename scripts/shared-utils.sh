@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -8,8 +8,12 @@
 ##
 ####################################################################################
 
+# Safer default pipeline behavior across all sourced scripts.
+# We intentionally do NOT enable `set -e` or `set -u` because many build steps
+# rely on optional probes failing without aborting the whole build.
+set -o pipefail
+
 # Pre-defined color variables
-CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
@@ -23,17 +27,25 @@ debug=OFF
 
 # Banner functions
 box_out_banner() {
-    input_char=$(echo "$@" | wc -c)
-    line=$(for i in $(seq 0 "$input_char"); do printf "-"; done)
-    tput bold
-    line="$(tput setaf 3)$line"
-    space="${line//-/ }"
-    echo " $line"
-    printf "|" ; echo -n "$space" ; printf "%s\n" "|";
-    printf "| " ;tput setaf 4; echo -n "$@"; tput setaf 3 ; printf "%s\n" " |";
-    printf "|" ; echo -n "$space" ; printf "%s\n" "|";
-    echo " $line"
-    tput sgr 0
+    local text="$*"
+    local text_len=${#text}
+    local inner_len=$((text_len + 2))
+    local border color_border color_text color_reset
+
+    color_border="$(tput setaf 3 2>/dev/null || true)"
+    color_text="$(tput setaf 4 2>/dev/null || true)"
+    color_reset="$(tput sgr0 2>/dev/null || true)"
+
+    printf -v border '%*s' "$inner_len" ''
+    border=${border// /-}
+
+    tput bold 2>/dev/null || true
+    printf ' %b%s%b\n' "$color_border" "$border" "$color_reset"
+    printf '|%*s|\n' "$inner_len" ''
+    printf '| %b%s%b |\n' "$color_text" "$text" "$color_reset"
+    printf '|%*s|\n' "$inner_len" ''
+    printf ' %b%s%b\n' "$color_border" "$border" "$color_reset"
+    tput sgr0 2>/dev/null || true
 }
 
 box_out_banner_global() {
@@ -58,15 +70,36 @@ box_out_banner_ffmpeg() {
 
 # Logging functions
 log() {
-    printf '%s\n' "$1" | tee -a "$log_file"
+    if [[ -n "${log_file:-}" ]]; then
+        printf '%s\n' "$1" | tee -a "$log_file"
+    else
+        printf '%s\n' "$1"
+    fi
 }
 
 log_update() {
-    printf '%s\n' "$1" | tee -a "$log_file"
+    log "$1"
 }
 
 warn() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+require_vars() {
+    local var_name
+    for var_name in "$@"; do
+        if [[ -z "${!var_name:-}" ]]; then
+            fail "Required variable '$var_name' is not set. Line: $LINENO"
+        fi
+    done
+}
+
+require_sudo() {
+    if ! command -v sudo >/dev/null 2>&1; then
+        fail "This script requires 'sudo' (run on a system with sudo configured). Line: $LINENO"
+    fi
+    # Prompt once up front (better UX than failing mid-build).
+    sudo -v || fail "Unable to validate sudo credentials. Line: $LINENO"
 }
 
 fail() {
@@ -74,21 +107,25 @@ fail() {
     echo -e "${RED}[ERROR]${NC} $1"
     echo
     echo -e "${GREEN}[INFO]${NC} For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues"
+    if [[ "${GOOGLE_SPEECH:-false}" == "true" ]] && command -v google_speech >/dev/null 2>&1; then
+        google_speech "Build failed. $1" >/dev/null 2>&1 || true
+    fi
     exit 1
 }
 
 exit_fn() {
+    local ffmpeg_full_path="/usr/local/bin/ffmpeg"
     echo
     box_out_banner "🎉 FFmpeg Build Completed Successfully! 🎉"
     echo
-    echo -e "${GREEN}✓ FFmpeg version:${NC} $(ffmpeg -version 2>/dev/null | grep -oP 'ffmpeg version \K\d+\.\d+(?:\.\d+)?' || echo 'Unknown')"
+    echo -e "${GREEN}✓ FFmpeg version:${NC} $("$ffmpeg_full_path" -version 2>/dev/null | grep -oP 'ffmpeg version \K\d+\.\d+(?:\.\d+)?' || echo 'Unknown')"
     echo -e "${GREEN}✓ Installation path:${NC} /usr/local/bin"
     echo -e "${GREEN}✓ Built tools:${NC} ffmpeg, ffprobe, ffplay"
     echo -e "${GREEN}✓ Configuration:${NC} Static build with all supported codecs"
     echo
-    echo -e "${GREEN}✓ Available encoders:${NC} $(ffmpeg -encoders 2>/dev/null | grep -c . || echo 'N/A')"
-    echo -e "${GREEN}✓ Available decoders:${NC} $(ffmpeg -decoders 2>/dev/null | grep -c . || echo 'N/A')"
-    echo -e "${GREEN}✓ Available filters:${NC} $(ffmpeg -filters 2>/dev/null | grep -c . || echo 'N/A')"
+    echo -e "${GREEN}✓ Available encoders:${NC} $("$ffmpeg_full_path" -encoders 2>/dev/null | grep -c . || echo 'N/A')"
+    echo -e "${GREEN}✓ Available decoders:${NC} $("$ffmpeg_full_path" -decoders 2>/dev/null | grep -c . || echo 'N/A')"
+    echo -e "${GREEN}✓ Available filters:${NC} $("$ffmpeg_full_path" -filters 2>/dev/null | grep -c . || echo 'N/A')"
     echo
     echo -e "${GREEN}✓ Hardware acceleration:${NC} CUDA, NVENC/NVDEC, VDPAU, AMF (if available)"
     echo -e "${GREEN}✓ Key libraries:${NC} x264, x265, libopus, libvorbis, webp, SDL2, and more"
@@ -103,18 +140,48 @@ exit_fn() {
 
 # Execution function with error handling
 execute() {
-    echo "$ $*"
+    printf '$'
+    printf ' %q' "$@"
+    printf '\n'
+
+    local exit_code=0
 
     if [[ "$debug" == "ON" ]]; then
-        if ! output=$("$@"); then
-            notify-send -t 5000 "Failed to execute $*" 2>/dev/null
-            fail "Failed to execute $*"
+        if [[ -n "${log_file:-}" ]]; then
+            if ! "$@" 2>&1 | tee -a "$log_file"; then
+                exit_code=${PIPESTATUS[0]}
+                notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+                fail "Failed to execute $* (exit code: $exit_code)"
+            fi
+        else
+            if ! "$@"; then
+                exit_code=$?
+                notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+                fail "Failed to execute $* (exit code: $exit_code)"
+            fi
         fi
-    else
-        if ! output=$("$@" 2>/dev/null); then
+        return 0
+    fi
+
+    if [[ -n "${log_file:-}" ]]; then
+        local start_pos
+        start_pos=$(wc -c <"$log_file" 2>/dev/null || echo 0)
+        if ! "$@" >>"$log_file" 2>>"$log_file"; then
+            exit_code=$?
             notify-send -t 5000 "Failed to execute $*" 2>/dev/null
-            fail "Failed to execute $*"
+            echo >&2
+            if [[ -f "$log_file" ]]; then
+                tail -c +$((start_pos + 1)) "$log_file" >&2 || true
+            fi
+            fail "Failed to execute $* (exit code: $exit_code)"
         fi
+        return 0
+    fi
+
+    if ! "$@"; then
+        exit_code=$?
+        notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+        fail "Failed to execute $* (exit code: $exit_code)"
     fi
 }
 
@@ -142,8 +209,20 @@ build() {
 
 build_done() {
     local temp_file
-    temp_file=$(mktemp "$packages/$1.done.XXXXXX") || return 1
-    echo "$2" > "$temp_file" && mv "$temp_file" "$packages/$1.done"
+    temp_file=$(mktemp "$packages/$1.done.XXXXXX") || {
+        warn "Failed to create temp file for build tracking"
+        return 1
+    }
+    if ! echo "$2" > "$temp_file"; then
+        warn "Failed to write version to temp file"
+        rm -f "$temp_file"
+        return 1
+    fi
+    if ! mv "$temp_file" "$packages/$1.done"; then
+        warn "Failed to move temp file to final location"
+        rm -f "$temp_file"
+        return 1
+    fi
 }
 
 library_exists() {
@@ -155,7 +234,7 @@ library_exists() {
 }
 
 # File download and extraction
-download() {
+download_try() {
     local download_file download_path download_url output_directory target_directory target_file
     download_path="$packages"
     download_url=$1
@@ -187,67 +266,177 @@ download() {
     target_file="$download_path/$download_file"
     target_directory="$download_path/$output_directory"
 
-    # Atomic download to prevent TOCTOU race conditions
-    local temp_target_file lock_acquired=false
-    temp_target_file=$(mktemp "$target_file.XXXXXX") || fail "Failed to create temporary download file"
+    safe_rm_rf() {
+        local target=$1
+        local target_resolved packages_resolved
 
-    # Check if file exists by trying to get exclusive lock
-    if exec 3>>"$target_file" 2>/dev/null; then
-        if flock -n 3; then
-            lock_acquired=true
-        fi
-        # Always close file descriptor
-        exec 3>&-
-    fi
+        [[ -n "$target" ]] || fail "Refusing to remove empty path. Line: $LINENO"
+        target_resolved="$(readlink -f -- "$target" 2>/dev/null || echo "$target")"
+        [[ "$target_resolved" != "/" ]] || fail "Refusing to remove '/'. Line: $LINENO"
 
-    if [[ "$lock_acquired" == "true" ]]; then
-        log "Downloading \"$download_url\" saving as \"$download_file\""
-        if ! download_with_bot_detection "$download_url" "$temp_target_file"; then
-            rm -f "$temp_target_file"
-            warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
-            sleep 3
-            if ! download_with_bot_detection "$download_url" "$temp_target_file"; then
-                rm -f "$temp_target_file"
-                fail "Failed to download \"$download_file\". Exiting... Line: $LINENO"
-            fi
+        packages_resolved="$(readlink -f -- "$packages" 2>/dev/null || echo "$packages")"
+        if [[ -n "$packages_resolved" ]] && [[ "$target_resolved" != "$packages_resolved"* ]]; then
+            fail "Refusing to remove path outside packages dir: '$target_resolved'. Line: $LINENO"
         fi
 
-        # Atomic move with error handling
-        if ! mv "$temp_target_file" "$target_file"; then
-            rm -f "$temp_target_file"
-            fail "Failed to move downloaded file to final location. Line: $LINENO"
-        fi
-        log "Download Completed"
+        rm -rf -- "$target"
+    }
+
+    # Check if file already exists and is valid
+    if [[ -f "$target_file" ]]; then
+        # File exists, skip download
+        log "$download_file already exists, skipping download."
     else
-        # File exists or couldn't get lock
-        rm -f "$temp_target_file"
-        log "$download_file is already being downloaded or exists."
+        # Atomic download with proper locking to prevent race conditions
+        local temp_target_file lock_file
+        temp_target_file=$(mktemp "$target_file.XXXXXX") || fail "Failed to create temporary download file"
+        lock_file="$target_file.lock"
+
+        # Use a separate lock file and hold the lock during the entire download
+        (
+            # Acquire exclusive lock (best-effort; `flock` may not be available everywhere).
+            if command -v flock >/dev/null 2>&1; then
+                exec 200>"$lock_file"
+                if ! flock -n 200; then
+                    # Another process is downloading, wait for it
+                    log "$download_file is being downloaded by another process, waiting..."
+                    flock 200  # This blocks until lock is released
+                    # After getting the lock, check if file was created by other process
+                    if [[ -f "$target_file" ]]; then
+                        rm -f "$temp_target_file"
+                        exit 0  # File was downloaded by other process
+                    fi
+                fi
+            fi
+
+            # We have the lock, proceed with download
+            log "Downloading \"$download_url\" saving as \"$download_file\""
+            local download_success=false
+
+            if command -v download_with_bot_detection >/dev/null 2>&1; then
+                if download_with_bot_detection "$download_url" "$temp_target_file"; then
+                    download_success=true
+                else
+                    warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
+                    sleep 3
+                    if download_with_bot_detection "$download_url" "$temp_target_file"; then
+                        download_success=true
+                    fi
+                fi
+            else
+                # Anti-bot headers for when download_with_bot_detection is not available
+                local -a curl_antibot_args=(
+                    -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600
+                    -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0"
+                    -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                    -H "Accept-Language: en-US,en;q=0.5"
+                    -H "Accept-Encoding: gzip, deflate, br"
+                    -H "Connection: keep-alive"
+                    -H "Upgrade-Insecure-Requests: 1"
+                )
+                if curl "${curl_antibot_args[@]}" --output "$temp_target_file" "$download_url"; then
+                    download_success=true
+                else
+                    warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
+                    sleep 3
+                    if curl "${curl_antibot_args[@]}" --output "$temp_target_file" "$download_url"; then
+                        download_success=true
+                    fi
+                fi
+            fi
+
+            if [[ "$download_success" != "true" ]] || [[ ! -f "$temp_target_file" ]]; then
+                rm -f "$temp_target_file"
+                exit 1
+            fi
+
+            # Atomic move with error handling
+            if ! mv "$temp_target_file" "$target_file"; then
+                rm -f "$temp_target_file"
+                exit 1
+            fi
+            log "Download Completed"
+            # Lock is automatically released when subshell exits
+        )
+        local subshell_exit=$?
+        rm -f "$lock_file" 2>/dev/null  # Clean up lock file
+
+        if [[ $subshell_exit -ne 0 ]] && [[ ! -f "$target_file" ]]; then
+            warn "Failed to download \"$download_file\"."
+            return 1
+        fi
     fi
 
     if [[ "$download_file" =~ (\.tar(\.(bz2|gz|xz|lz|zst))?|\.tgz|\.tbz2)$ ]]; then
-        if ! tar -tf "$target_file" >/dev/null 2>>"$log_file"; then
-            warn "Archive validation failed for $download_file. Retrying without anti-bot headers."
+        if ! tar -tf "$target_file" >/dev/null 2>>"${log_file:-/dev/null}"; then
+            warn "Archive validation failed for $download_file. Retrying with anti-bot headers."
             rm -f "$target_file"
-            curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
-                 --output "$target_file" "$download_url" || fail "Failed to download \"$download_file\" via fallback. Line: $LINENO"
-            if ! tar -tf "$target_file" >/dev/null 2>>"$log_file"; then
+            if command -v download_with_bot_detection >/dev/null 2>&1; then
+                download_with_bot_detection "$download_url" "$target_file" || return 1
+            else
+                curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
+                     -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0" \
+                     -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8" \
+                     -H "Accept-Language: en-US,en;q=0.5" \
+                     -H "Accept-Encoding: gzip, deflate, br" \
+                     -H "Connection: keep-alive" \
+                     -H "Upgrade-Insecure-Requests: 1" \
+                     --output "$target_file" "$download_url" || return 1
+            fi
+            if ! tar -tf "$target_file" >/dev/null 2>>"${log_file:-/dev/null}"; then
                 rm -f "$target_file"
-                fail "Failed to validate archive \"$download_file\" after retry. Line: $LINENO"
+                return 1
             fi
         fi
     fi
 
-    [[ -d "$target_directory" ]] && rm -fr "$target_directory"
+    [[ -d "$target_directory" ]] && safe_rm_rf "$target_directory"
     mkdir -p "$target_directory"
 
-    if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 >>"$log_file" 2>&1; then
-        rm "$target_file"
-        fail "Failed to extract the tarball \"$download_file\" and was deleted. Re-run the script to try again. Line: $LINENO"
+    if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 >>"${log_file:-/dev/null}" 2>&1; then
+        rm -f -- "$target_file"
+        warn "Failed to extract the tarball \"$download_file\" (deleted). Re-run the script to try again."
+        return 1
     fi
 
     log "File extracted: $download_file"
 
-    cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
+    cd "$target_directory" || return 1
+}
+
+download() {
+    if ! download_try "$@"; then
+        fail "Failed to download and extract \"$1\". Line: $LINENO"
+    fi
+}
+
+# Download with fallback mirror support.
+# This is a wrapper around `download` that prefers the primary URL but falls back
+# to a secondary mirror if the primary download fails.
+download_with_fallback() {
+    local primary_url=$1
+    local fallback_url=$2
+    local primary_file fallback_file
+
+    if [[ -z "$primary_url" || -z "$fallback_url" ]]; then
+        fail "Primary and fallback URLs are required. Line: $LINENO"
+    fi
+
+    primary_file="${primary_url##*/}"
+    fallback_file="${fallback_url##*/}"
+
+    # Try primary mirror first. If it fails, retry using the fallback mirror.
+    log "Attempting download from primary mirror: $primary_url"
+    if download_try "$primary_url" "$primary_file"; then
+        return 0
+    fi
+
+    warn "Primary mirror failed, trying fallback mirror: $fallback_url"
+    if download_try "$fallback_url" "$fallback_file"; then
+        return 0
+    fi
+
+    fail "Failed to download from both primary and fallback mirrors. Line: $LINENO"
 }
 
 # Git repository management
@@ -291,19 +480,26 @@ git_clone() {
             ;;
     esac
 
+    local store_prior_version=""
     [[ -f "$packages/$repo_name.done" ]] && store_prior_version=$(cat "$packages/$repo_name.done")
 
     if [[ ! "$version" == "$store_prior_version" ]]; then
+        local -a clone_args
         if [[ "$recurse_flag" -eq 1 ]]; then
-            recurse="--recursive"
-        elif [[ -n "$3" ]]; then
-            target_directory="$packages/$3"
+            clone_args=(git clone --depth 1 --recursive -q "$repo_url" "$target_directory")
+        else
+            clone_args=(git clone --depth 1 -q "$repo_url" "$target_directory")
         fi
-        [[ -d "$target_directory" ]] && rm -fr "$target_directory"
-        if ! git clone --depth 1 $recurse -q "$repo_url" "$target_directory"; then
+
+        if [[ -n "$3" && "$recurse_flag" -ne 1 ]]; then
+            target_directory="$packages/$3"
+            clone_args=(git clone --depth 1 -q "$repo_url" "$target_directory")
+        fi
+        [[ -d "$target_directory" ]] && rm -rf -- "$target_directory"
+        if ! "${clone_args[@]}"; then
             warn "Failed to clone \"$target_directory\". Second attempt in 5 seconds..."
             sleep 5
-            git clone --depth 1 $recurse -q "$repo_url" "$target_directory" || fail "Failed to clone \"$target_directory\". Exiting script. Line: $LINENO"
+            "${clone_args[@]}" || fail "Failed to clone \"$target_directory\". Exiting script. Line: $LINENO"
         fi
         cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
     fi
@@ -430,8 +626,9 @@ fetch_repo_version() {
         version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
     done
 
-    short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
-    commit_id=$(echo "$response" | jq -r ".[$count]$commit_id_jq_filter")
+    repo_short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
+    repo_commit_id=$(echo "$response" | jq -r ".[$count]$commit_id_jq_filter")
+    export repo_short_id repo_commit_id
 
     repo_version="$version"
 }
@@ -644,10 +841,13 @@ videolan_repo() {
 
 x264_version() {
     # x264 uses branches, not tags - get stable branch commit
-    local full_commit=$(curl -sL "https://code.videolan.org/api/v4/projects/536/repository/branches" | 
-                        jq -r '.[] | select(.name == "stable") | .commit.id')
+    local full_commit
+    full_commit=$(curl -sL "https://code.videolan.org/api/v4/projects/536/repository/branches" |
+                  jq -r '.[] | select(.name == "stable") | .commit.id')
+    [[ -n "$full_commit" && "$full_commit" != "null" ]] || fail "Failed to detect x264 stable commit. Line: $LINENO"
     repo_version="${full_commit:0:7}"
     x264_full_commit="$full_commit"
+    export x264_full_commit
 }
 
 amf_version() {
@@ -680,10 +880,61 @@ svt_av1_version() {
 }
 
 vapoursynth_version() {
-    repo_version=$(curl -sL "https://github.com/vapoursynth/vapoursynth/tags" | 
-                   grep -oP '/vapoursynth/releases/tag/R\K[0-9]+(?=")' | 
+    repo_version=$(curl -sL "https://github.com/vapoursynth/vapoursynth/tags" |
+                   grep -oP '/vapoursynth/releases/tag/R\K[0-9]+(?=")' |
                    head -n1
                   )
+}
+
+# NASM version fetching
+find_latest_nasm_version() {
+    latest_nasm_version=$(
+        curl -fsS --max-time 10 --connect-timeout 5 "https://www.nasm.us/pub/nasm/stable/" 2>/dev/null |
+        grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
+        sort -ruV | head -n1
+    )
+    # Fallback to known stable version if fetch fails
+    latest_nasm_version="${latest_nasm_version:-2.16.03}"
+}
+
+# Library fix functions
+fix_libiconv() {
+    if [[ -f "$workspace/lib/libiconv.so.2" ]]; then
+        execute sudo cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/libiconv.so.2"
+        execute sudo ln -sf "/usr/lib/libiconv.so.2" "/usr/lib/libiconv.so"
+    else
+        fail "Unable to locate the file \"$workspace/lib/libiconv.so.2\""
+    fi
+}
+
+fix_libstd_libs() {
+    local libstdc_path
+    libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' 2>/dev/null | sort -ruV | head -n1)
+    if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
+        sudo ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
+    fi
+}
+
+fix_x265_libs() {
+    local x265_libs latest_system_lib
+    x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' 2>/dev/null | sort -rV | head -n1)
+
+    # Copy custom built x265 to system directory
+    if [[ -n "$x265_libs" && -f "$x265_libs" ]]; then
+        sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
+    fi
+
+    # Fix broken symlinks and create proper symlink to latest version
+    sudo rm -f "/usr/lib/x86_64-linux-gnu/libx265.so"
+    latest_system_lib=$(find /usr/lib/x86_64-linux-gnu/ -name 'libx265.so.*' 2>/dev/null | sort -rV | head -n1)
+    if [[ -n "$latest_system_lib" ]]; then
+        latest_system_lib_name=$(basename "$latest_system_lib")
+        sudo ln -sf "$latest_system_lib_name" "/usr/lib/x86_64-linux-gnu/libx265.so"
+        log "Fixed x265 library symlink: libx265.so -> $latest_system_lib_name"
+    fi
+
+    # Update library cache to prevent ldconfig errors
+    sudo ldconfig 2>/dev/null || true
 }
 
 # Rust/Cargo installation functions
@@ -771,20 +1022,36 @@ find_git_repo() {
 # Cleanup function
 cleanup() {
     local choice
+    local cwd_resolved script_dir_resolved
 
-    echo
-    read -r -p "Do you want to clean up the build files? (yes/no): " choice
+    # Use loop instead of recursion to prevent stack exhaustion
+    while true; do
+        echo
+        read -r -p "Do you want to clean up the build files? (yes/no): " choice
 
-    case "$choice" in
-        [yY]*|[yY][eE][sS]*)
-            rm -fr "$cwd"
-            ;;
-        [nN]*|[nN][oO]*)
-            ;;
-        *)  unset choice
-            cleanup
-            ;;
-    esac
+        case "$choice" in
+            [yY]*|[yY][eE][sS]*)
+                cwd_resolved="$(readlink -f -- "${cwd:-}" 2>/dev/null || echo "${cwd:-}")"
+                if [[ -z "$cwd_resolved" || "$cwd_resolved" == "/" ]]; then
+                    fail "Refusing to remove unsafe directory: '${cwd_resolved:-<empty>}'"
+                fi
+                if [[ -n "${script_dir:-}" ]]; then
+                    script_dir_resolved="$(readlink -f -- "$script_dir" 2>/dev/null || echo "$script_dir")"
+                    if [[ "$cwd_resolved" == "$script_dir_resolved" ]]; then
+                        fail "Refusing to remove repo directory: '$cwd_resolved'"
+                    fi
+                fi
+                rm -fr -- "${cwd:?}"
+                return 0
+                ;;
+            [nN]*|[nN][oO]*)
+                return 0
+                ;;
+            *)
+                warn "Invalid input. Please enter 'yes' or 'no'."
+                ;;
+        esac
+    done
 }
 
 # FFmpeg version checking
@@ -800,13 +1067,19 @@ check_ffmpeg_version() {
 
 # Version display functions
 display_ffmpeg_versions() {
-    local file files
-    files=( [0]=ffmpeg [1]=ffprobe [2]=ffplay )
+    local file files install_path
+    files=(ffmpeg ffprobe ffplay)
+    install_path="/usr/local/bin"
 
     echo
     for file in "${files[@]}"; do
-        if command -v "$file" >/dev/null 2>&1; then
-            "$file" -version
+        if [[ -x "$install_path/$file" ]]; then
+            echo -e "${GREEN}$file${NC} (${CYAN}$install_path/$file${NC}):"
+            "$install_path/$file" -version | head -1
+            echo
+        elif command -v "$file" >/dev/null 2>&1; then
+            echo -e "${YELLOW}$file${NC} ($(which "$file")):"
+            "$file" -version | head -1
             echo
         fi
     done
@@ -815,69 +1088,100 @@ display_ffmpeg_versions() {
 show_versions() {
     local choice
 
-    echo
-    read -r -p "Display the installed versions? (yes/no): " choice
+    # Use loop instead of recursion to prevent stack exhaustion
+    while true; do
+        echo
+        read -r -p "Display the installed versions? (yes/no): " choice
 
-    case "$choice" in
-        [yY]*|[yY][eE][sS]*|"")
-            display_ffmpeg_versions
-            ;;
-        [nN]*|[nN][oO]*)
-            ;;
-        *)  unset choice
-            show_versions
-            ;;
-    esac
+        case "$choice" in
+            [yY]*|[yY][eE][sS]*|"")
+                display_ffmpeg_versions
+                return 0
+                ;;
+            [nN]*|[nN][oO]*)
+                return 0
+                ;;
+            *)
+                warn "Invalid input. Please enter 'yes' or 'no'."
+                ;;
+        esac
+    done
 }
 
 # Disk space checking
 disk_space_requirements() {
     # Set the required install directory size in megabytes
     INSTALL_DIR_SIZE=7001
-    log "Required install directory size: $(echo "$INSTALL_DIR_SIZE / 1024" | bc -l | awk '{printf "%.2f", $1}')G"
+    log "Required install directory size: $(awk -v mb="$INSTALL_DIR_SIZE" 'BEGIN{printf "%.2fG", mb/1024}')"
 
     # Calculate the minimum required disk space with a 20% buffer
-    MIN_DISK_SPACE=$(echo "$INSTALL_DIR_SIZE * 1.2" | bc -l | awk '{print int($1)}')
-    warn "Minimum required disk space (including 20% buffer): $(echo "$MIN_DISK_SPACE / 1024" | bc -l | awk '{printf "%.2f", $1}')G"
+    MIN_DISK_SPACE=$(( (INSTALL_DIR_SIZE * 120 + 99) / 100 ))
+    warn "Minimum required disk space (including 20% buffer): $(awk -v mb="$MIN_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
 
     # Get the available disk space in megabytes
-    AVAILABLE_DISK_SPACE=$(df -BM . | awk '{print $4}' | tail -n1 | sed 's/M//')
-    warn "Available disk space: $(echo "$AVAILABLE_DISK_SPACE / 1024" | bc -l | awk '{printf "%.2f", $1}')G"
+    AVAILABLE_DISK_SPACE=$(df -PM . | awk 'NR==2 {print $4}')
+    warn "Available disk space: $(awk -v mb="$AVAILABLE_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
 
     # Compare the available disk space with the minimum required
-    if (( $(echo "$AVAILABLE_DISK_SPACE < $MIN_DISK_SPACE" | bc -l) )); then
+    if (( AVAILABLE_DISK_SPACE < MIN_DISK_SPACE )); then
         warn "Insufficient disk space."
-        warn "Minimum required (including 20% buffer): $(echo "$MIN_DISK_SPACE / 1024" | bc -l | awk '{printf "%.2f", $1}')G"
-        fail "Available disk space: $(echo "$AVAILABLE_DISK_SPACE / 1024" | bc -l | awk '{printf "%.2f", $1}')G"
+        warn "Minimum required (including 20% buffer): $(awk -v mb="$MIN_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
+        fail "Available disk space: $(awk -v mb="$AVAILABLE_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
     else
         log "Sufficient disk space available."
     fi
 }
 
+# Saved compiler flags for restoration
+_SAVED_CFLAGS=""
+_SAVED_CXXFLAGS=""
+_SAVED_CPPFLAGS=""
+_SAVED_LDFLAGS=""
+
 # Set up compiler flags
 source_compiler_flags() {
+    save_compiler_flags
     CFLAGS="-O3 -pipe -fPIC -march=native"
     CXXFLAGS="$CFLAGS"
     CPPFLAGS="-I$workspace/include -D_FORTIFY_SOURCE=2"
     LDFLAGS="-L$workspace/lib64 -L$workspace/lib -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now -pthread"
-    EXTRALIBS="-ldl -lpthread -lm -lz"
+    export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
+}
+
+# Save current compiler flags before modification
+save_compiler_flags() {
+    _SAVED_CFLAGS="$CFLAGS"
+    _SAVED_CXXFLAGS="$CXXFLAGS"
+    _SAVED_CPPFLAGS="$CPPFLAGS"
+    _SAVED_LDFLAGS="$LDFLAGS"
+}
+
+# Restore compiler flags to saved state
+restore_compiler_flags() {
+    CFLAGS="$_SAVED_CFLAGS"
+    CXXFLAGS="$_SAVED_CXXFLAGS"
+    CPPFLAGS="$_SAVED_CPPFLAGS"
+    LDFLAGS="$_SAVED_LDFLAGS"
     export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
 }
 
 # PATH management
 remove_duplicate_paths() {
     if [[ -n "$PATH" ]]; then
-        old_PATH=$PATH:
-        PATH=
-        while [[ -n $old_PATH ]]; do
-            x=${old_PATH%%:*}
-            case $PATH: in
-                *:"$x":*) ;;
-                *) PATH=$PATH:$x;;
-            esac
-            old_PATH=${old_PATH#*:}
+        local -A seen=()
+        local -a parts=() unique_parts=()
+        local p
+
+        IFS=':' read -ra parts <<<"$PATH"
+        for p in "${parts[@]}"; do
+            [[ -n "$p" ]] || continue
+            if [[ -z "${seen[$p]+x}" ]]; then
+                seen[$p]=1
+                unique_parts+=("$p")
+            fi
         done
-        PATH=${PATH#:}
+
+        PATH="$(IFS=:; echo "${unique_parts[*]}")"
         export PATH
     fi
 }

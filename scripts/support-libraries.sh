@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -11,60 +11,14 @@
 # Source shared utilities
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
-# Helper functions that remain in main script
-fix_libiconv() {
-    if [[ -f "$workspace/lib/libiconv.so.2" ]]; then
-        execute sudo cp -f "$workspace/lib/libiconv.so.2" "/usr/lib/libiconv.so.2"
-        execute sudo ln -sf "/usr/lib/libiconv.so.2" "/usr/lib/libiconv.so"
-    else
-        fail "Unable to locate the file \"$workspace/lib/libiconv.so.2\""
-    fi
-}
-
-fix_libstd_libs() {
-    local libstdc_path
-    libstdc_path=$(find /usr/lib/x86_64-linux-gnu/ -type f -name 'libstdc++.so.6.0.*' | sort -ruV | head -n1)
-    if [[ ! -f "/usr/lib/x86_64-linux-gnu/libstdc++.so" ]] && [[ -f "$libstdc_path" ]]; then
-        sudo ln -sf "$libstdc_path" "/usr/lib/x86_64-linux-gnu/libstdc++.so"
-    fi
-}
-
-fix_x265_libs() {
-    local x265_libs x265_libs_trim latest_system_lib
-    x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' | sort -rV | head -n1)
-    x265_libs_trim=$(basename "$x265_libs" 2>/dev/null)
-
-    # Copy custom built x265 to system directory
-    if [[ -n "$x265_libs" && -f "$x265_libs" ]]; then
-        sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
-    fi
-    
-    # Fix broken symlinks and create proper symlink to latest version
-    sudo rm -f "/usr/lib/x86_64-linux-gnu/libx265.so"
-    latest_system_lib=$(find /usr/lib/x86_64-linux-gnu/ -name 'libx265.so.*' | sort -rV | head -n1)
-    if [[ -n "$latest_system_lib" ]]; then
-        latest_system_lib_name=$(basename "$latest_system_lib")
-        sudo ln -sf "$latest_system_lib_name" "/usr/lib/x86_64-linux-gnu/libx265.so"
-        log "Fixed x265 library symlink: libx265.so -> $latest_system_lib_name"
-    fi
-    
-    # Update library cache to prevent ldconfig errors
-    sudo ldconfig 2>/dev/null || true
-}
-
-find_latest_nasm_version() {
-    latest_nasm_version=$(
-                    curl -fsS "https://www.nasm.us/pub/nasm/stable/" |
-                    grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
-                    sort -ruV | head -n1
-                )
-}
-
+# Note: Helper functions (fix_libiconv, fix_libstd_libs, fix_x265_libs, find_latest_nasm_version)
+# are now defined in shared-utils.sh to ensure they're available to all scripts
 
 # Install miscellaneous libraries
 install_miscellaneous_libraries() {
     echo
     box_out_banner "Installing Miscellaneous Libraries"
+    require_vars workspace packages build_threads NONFREE_AND_GPL
 
     # Build additional libraries when not using GPL/non-free
     if ! "$NONFREE_AND_GPL"; then
@@ -116,7 +70,10 @@ install_miscellaneous_libraries() {
     if build "fontconfig" "$repo_version"; then
         download "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$repo_version/fontconfig-$repo_version.tar.bz2"
         extracmds=("--disable-"{docbook,docs,nls,shared})
-        LDFLAGS+=" -DLIBXML_STATIC"
+        # Save flags before modification and restore after
+        save_compiler_flags
+        # -D flags belong in CFLAGS/CPPFLAGS, not LDFLAGS
+        CPPFLAGS+=" -DLIBXML_STATIC"
         sed -i "s|Cflags:|& -DLIBXML_STATIC|" "fontconfig.pc.in"
         execute meson setup build --prefix="$workspace" \
                                   --buildtype=release \
@@ -126,6 +83,7 @@ install_miscellaneous_libraries() {
                                   -Dxml-backend=libxml2
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
+        restore_compiler_flags
         build_done "fontconfig" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libfontconfig")
@@ -161,8 +119,9 @@ install_miscellaneous_libraries() {
                             -D prefix="$workspace" \
                             -D privlib="$workspace/lib/c2man" \
                             -D privlibexp="$workspace/lib/c2man"
-        execute sudo make depend
-        execute sudo make "-j$build_threads"
+        # Build steps don't need sudo, but install does for c2man
+        execute make depend
+        execute make "-j$build_threads"
         execute sudo make install
         build_done "$repo_name" "$version"
     fi
@@ -194,12 +153,14 @@ install_miscellaneous_libraries() {
     find_git_repo "freeglut/freeglut" "1" "T"
     if build "freeglut" "$repo_version"; then
         download "https://github.com/freeglut/freeglut/releases/download/v$repo_version/freeglut-$repo_version.tar.gz"
+        save_compiler_flags
         CFLAGS+=" -DFREEGLUT_STATIC"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DFREEGLUT_BUILD_{DEMOS,SHARED_LIBS}=OFF \
                       -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
+        restore_compiler_flags
         build_done "freeglut" "$repo_version"
     fi
 
@@ -222,6 +183,7 @@ install_miscellaneous_libraries() {
     find_git_repo "google/highway" "1" "T"
     if build "libhwy" "$repo_version"; then
         download "https://github.com/google/highway/archive/refs/tags/$repo_version.tar.gz" "libhwy-$repo_version.tar.gz"
+        save_compiler_flags
         CFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
         CXXFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -229,6 +191,7 @@ install_miscellaneous_libraries() {
                       -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
+        restore_compiler_flags
         build_done "libhwy" "$repo_version"
     fi
 
@@ -334,10 +297,6 @@ install_miscellaneous_libraries() {
     if build "$repo_name" "${version//\$ /}"; then
         echo "Cloning \"$repo_name\" saving version \"$version\""
         git_clone "$git_url"
-        case "$STATIC_VER" in
-            11) lv2_switch=enabled ;;
-            *)  lv2_switch=disabled ;;
-        esac
 
         venv_packages=("lxml" "Markdown" "Pygments" "rdflib")
         setup_python_venv_and_install_packages "$workspace/python_virtual_environment/lv2-git" "${venv_packages[@]}"
@@ -349,9 +308,9 @@ install_miscellaneous_libraries() {
         PATH="$ccache_dir:$workspace/python_virtual_environment/lv2-git/bin:$PATH"
         remove_duplicate_paths
 
-        # Assuming the build process continues here with Meson and Ninja
+        # Build with meson - removed deprecated 'plugins' option
         execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip \
-                                  -D{docs,tests}=disabled -Donline_docs=false -Dplugins="$lv2_switch"
+                                  -Ddocs=disabled -Dtests=disabled -Donline_docs=false
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "$repo_name" "$version"
@@ -411,16 +370,18 @@ install_miscellaneous_libraries() {
     fi
 
     # Build sord
-    sord_version=$(curl -fsS "https://gitlab.com/drobilla/sord/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+    sord_version=$(curl -fsS "https://gitlab.com/drobilla/sord/-/tags" |
+                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' |
                    sort -ruV | head -n1)
     if build "sord" "$sord_version"; then
+        save_compiler_flags
         CFLAGS+=" -I$workspace/include/serd-0"
         download "https://gitlab.com/drobilla/sord/-/archive/v$sord_version/sord-v$sord_version.tar.bz2" "sord-$sord_version.tar.bz2"
         extracmds=("-D"{docs,tests,tools}"=disabled")
         execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
+        restore_compiler_flags
         build_done "sord" "$sord_version"
     fi
 

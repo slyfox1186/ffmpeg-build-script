@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -15,6 +15,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 build_ffmpeg() {
     echo
     box_out_banner_ffmpeg "Building FFmpeg"
+    require_vars workspace build_threads CC CXX
 
     # Get DXVA2 and other essential Windows header files
     if [[ "$VARIABLE_OS" == "WSL2" ]]; then
@@ -38,26 +39,30 @@ build_ffmpeg() {
         log_update "The latest FFmpeg release version available is: Unknown"
     fi
 
-    # Minimal flags for debugging - remove complex optimizations
-    CC="$CC"
-    CXX="$CXX"
-
     # Get latest FFmpeg version dynamically from ffmpeg.org releases
     ffmpeg_repo_version=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null | grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -ruV | head -n1)
     repo_version="${ffmpeg_repo_version:-6.1.2}"
     log_update "Using FFmpeg version n$repo_version"
 
     if build "ffmpeg" "n${repo_version}"; then
-        sudo chmod -R 777 "$PWD"
+        sudo chown -R "$USER:$USER" "$PWD"
         download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
-        mkdir build
-        cd build || exit 1
+        # Create build directory idempotently (no error if exists)
+        mkdir -p build
+        cd build || fail "Failed to cd into build directory. Line: $LINENO"
         # Full FFmpeg configure with all built libraries - threading bug fixed in 7.0.2
         # Set environment for Conda Python 3.12 (needed for build dependencies)
-        export PYTHON3_CFLAGS="$(python3-config --cflags)"
-        export PYTHON3_LIBS="$(python3-config --ldflags)"
-        # Detect Conda environment dynamically
-        CONDA_PREFIX="${CONDA_PREFIX:-$(dirname "$(dirname "$(which python3)")")}"
+        local python3_cflags python3_libs
+        python3_cflags="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
+        python3_libs="$(python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
+        PYTHON3_CFLAGS="$python3_cflags"
+        export PYTHON3_CFLAGS
+        PYTHON3_LIBS="$python3_libs"
+        export PYTHON3_LIBS
+        # Detect Conda environment dynamically (avoid `which`).
+        local python3_path
+        python3_path="$(command -v python3)" || fail "python3 not found. Line: $LINENO"
+        CONDA_PREFIX="${CONDA_PREFIX:-$(dirname "$(dirname "$python3_path")")}"
         # Force use of system Python libraries instead of Conda for final linking
         export PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:$CONDA_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
         # Start with basic configuration to ensure ffmpeg builds, then add libraries conditionally
@@ -102,7 +107,7 @@ build_ffmpeg() {
         [[ -f "$workspace/lib/libwebp.a" ]] && OPTIONAL_LIBS+=(--enable-libwebp)
         [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
         
-        ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
+        execute ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
         execute make "-j$build_threads"
         execute sudo make install
         
@@ -129,8 +134,6 @@ build_ffmpeg() {
     # Prompt the user to clean up the build files
     cleanup
 
-    # Show exit message
+    # Show exit message (exit_fn calls exit 0 internally)
     exit_fn
-
-    log "FFmpeg build completed"
 }

@@ -134,6 +134,7 @@ Thumbs.db
 
 # Claude AI files
 .claude/
+.mcp.json
 
 # Optional: Keep the original .gitignore and LICENSE commented out if needed
 # /.gitignore
