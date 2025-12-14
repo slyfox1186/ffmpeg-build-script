@@ -70,8 +70,8 @@ apt_pkgs() {
         echo
         log "Installing missing packages:"
         printf "          %s\n" "${available_packages[@]}"
-        execute sudo apt-get update
-        execute sudo apt-get -y install "${available_packages[@]}"
+        execute sudo apt update
+        execute sudo apt -y install "${available_packages[@]}"
     else
         log "All required packages are already installed."
     fi
@@ -238,7 +238,7 @@ set_java_variables() {
                                  apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
                                  sort -ruV | head -n1 | awk '{print $1}'
                              )
-        if execute sudo apt-get -y install "$latest_openjdk_version"; then
+        if execute sudo apt -y install "$latest_openjdk_version"; then
             set_java_variables
         else
             fail "Could not install openjdk. Line: $LINENO"
