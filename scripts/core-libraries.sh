@@ -72,7 +72,7 @@ install_core_libraries() {
     if [[ "$STATIC_VER" != "18.04" ]]; then
         libxml2_version
         if build "libxml2" "$repo_version"; then
-            download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2" "libxml2-$repo_version.tar.bz2"
+            download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2?ref_type=tags" "libxml2-$repo_version.tar.bz2"
             # Save flags before modification and restore after build
             save_compiler_flags
             CFLAGS+=" -DNOLIBTOOL"

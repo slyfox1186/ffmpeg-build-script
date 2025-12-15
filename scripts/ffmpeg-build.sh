@@ -106,8 +106,79 @@ build_ffmpeg() {
         [[ -f "$workspace/lib/libvpx.a" ]] && OPTIONAL_LIBS+=(--enable-libvpx)
         [[ -f "$workspace/lib/libwebp.a" ]] && OPTIONAL_LIBS+=(--enable-libwebp)
         [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
-        
-        execute ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # CUDA/NVENC Hardware Acceleration Support
+        # ═══════════════════════════════════════════════════════════════════════════
+        # Add CUDA/NVENC support if NVIDIA GPU detected and CUDA installed
+        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
+            log "Enabling CUDA/NVENC hardware acceleration..."
+
+            # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
+            if ! pkg-config --exists ffnvcodec 2>/dev/null; then
+                log "Installing nv-codec-headers (required for NVENC)..."
+                local nvcodec_dir="$packages/nv-codec-headers"
+                if [[ ! -d "$nvcodec_dir" ]]; then
+                    git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git "$nvcodec_dir"
+                fi
+                cd "$nvcodec_dir" || fail "Failed to cd into nv-codec-headers directory. Line: $LINENO"
+                sudo make install PREFIX=/usr/local
+                cd "$cwd/packages/ffmpeg-n${repo_version}" || fail "Failed to return to FFmpeg directory. Line: $LINENO"
+                log "nv-codec-headers installed successfully"
+            else
+                log "nv-codec-headers already installed"
+            fi
+
+            # Enable CUDA-related FFmpeg features
+            OPTIONAL_LIBS+=(
+                --enable-cuda
+                --enable-cuda-nvcc
+                --enable-cuvid
+                --enable-nvenc
+                --enable-nvdec
+                --enable-ffnvcodec
+            )
+
+            # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
+            if [[ -f "/usr/local/cuda/lib64/libnppc.so" ]] || [[ -f "/usr/local/cuda/lib64/libnppc_static.a" ]]; then
+                OPTIONAL_LIBS+=(--enable-libnpp)
+                log "NVIDIA Performance Primitives (libnpp) enabled"
+            fi
+
+            # Add CUDA paths to compiler/linker flags
+            local cuda_cflags="-I/usr/local/cuda/include"
+            local cuda_ldflags="-L/usr/local/cuda/lib64"
+
+            # Update BASIC_CONFIG with CUDA paths (append to existing flags)
+            for i in "${!BASIC_CONFIG[@]}"; do
+                if [[ "${BASIC_CONFIG[$i]}" == --extra-cflags=* ]]; then
+                    BASIC_CONFIG[$i]="${BASIC_CONFIG[$i]} $cuda_cflags"
+                elif [[ "${BASIC_CONFIG[$i]}" == --extra-ldflags=* ]]; then
+                    BASIC_CONFIG[$i]="${BASIC_CONFIG[$i]} $cuda_ldflags"
+                fi
+            done
+
+            # Add nvcc flags if GPU architecture was detected
+            if [[ -n "${nvidia_arch_type:-}" ]]; then
+                BASIC_CONFIG+=("--nvccflags=$nvidia_arch_type")
+                log "NVCC architecture flags: $nvidia_arch_type"
+            fi
+
+            log "CUDA/NVENC support enabled successfully"
+        elif [[ "${gpu_flag:-1}" -eq 0 ]] && [[ ! -d "/usr/local/cuda" ]]; then
+            warn "NVIDIA GPU detected but CUDA not found at /usr/local/cuda - NVENC disabled"
+        fi
+
+        # FFmpeg's configure script uses a `threads` variable internally (expects "yes"/"no").
+        # Some environments export `threads=<n>` (e.g. `threads=32`), which breaks FFmpeg's
+        # dependency resolution and silently disables building the `ffmpeg` binary
+        # (while `ffprobe`/`ffplay` may still build). Sanitize those env vars for configure.
+        execute env -u threads -u THREADS ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
+
+        # Fail fast if configure disabled the main `ffmpeg` program.
+        if [[ -f ffbuild/config.mak ]] && ! grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak; then
+            fail "FFmpeg configure disabled the 'ffmpeg' program (CONFIG_FFMPEG!=yes). If you have an env var like 'threads=32', run 'unset threads' and rebuild."
+        fi
         execute make "-j$build_threads"
         execute sudo make install
         

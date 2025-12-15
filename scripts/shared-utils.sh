@@ -284,9 +284,21 @@ download_try() {
 
     # Check if file already exists and is valid
     if [[ -f "$target_file" ]]; then
-        # File exists, skip download
-        log "$download_file already exists, skipping download."
-    else
+        # Validate existing archive file
+        if [[ "$download_file" =~ (\.tar(\.(bz2|gz|xz|lz|zst))?|\.tgz|\.tbz2)$ ]]; then
+            if ! tar -tf "$target_file" >/dev/null 2>>"${log_file:-/dev/null}"; then
+                warn "Existing archive file $download_file is corrupted. Deleting and re-downloading."
+                rm -f "$target_file"
+                safe_rm_rf "$target_directory"
+            else
+                log "$download_file already exists and is valid, skipping download."
+            fi
+        else
+            log "$download_file already exists, skipping download."
+        fi
+    fi
+
+    if [[ ! -f "$target_file" ]]; then
         # Atomic download with proper locking to prevent race conditions
         local temp_target_file lock_file
         temp_target_file=$(mktemp "$target_file.XXXXXX") || fail "Failed to create temporary download file"
@@ -326,13 +338,18 @@ download_try() {
             else
                 # Anti-bot headers for when download_with_bot_detection is not available
                 local -a curl_antibot_args=(
-                    -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600
+                    -fsSL --retry 5 --retry-delay 5 --connect-timeout 60 --max-time 1800
                     -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0"
-                    -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-                    -H "Accept-Language: en-US,en;q=0.5"
-                    -H "Accept-Encoding: gzip, deflate, br"
+                    -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+                    -H "Accept-Language: en-US,en;q=0.9"
+                    -H "Accept-Encoding: identity"
                     -H "Connection: keep-alive"
                     -H "Upgrade-Insecure-Requests: 1"
+                    -H "Sec-Fetch-Dest: document"
+                    -H "Sec-Fetch-Mode: navigate"
+                    -H "Sec-Fetch-Site: none"
+                    -H "Sec-Fetch-User: ?1"
+                    -H "Cache-Control: max-age=0"
                 )
                 if curl "${curl_antibot_args[@]}" --output "$temp_target_file" "$download_url"; then
                     download_success=true
@@ -350,6 +367,7 @@ download_try() {
                 exit 1
             fi
 
+            
             # Atomic move with error handling
             if ! mv "$temp_target_file" "$target_file"; then
                 rm -f "$temp_target_file"
@@ -367,35 +385,14 @@ download_try() {
         fi
     fi
 
-    if [[ "$download_file" =~ (\.tar(\.(bz2|gz|xz|lz|zst))?|\.tgz|\.tbz2)$ ]]; then
-        if ! tar -tf "$target_file" >/dev/null 2>>"${log_file:-/dev/null}"; then
-            warn "Archive validation failed for $download_file. Retrying with anti-bot headers."
-            rm -f "$target_file"
-            if command -v download_with_bot_detection >/dev/null 2>&1; then
-                download_with_bot_detection "$download_url" "$target_file" || return 1
-            else
-                curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
-                     -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0" \
-                     -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8" \
-                     -H "Accept-Language: en-US,en;q=0.5" \
-                     -H "Accept-Encoding: gzip, deflate, br" \
-                     -H "Connection: keep-alive" \
-                     -H "Upgrade-Insecure-Requests: 1" \
-                     --output "$target_file" "$download_url" || return 1
-            fi
-            if ! tar -tf "$target_file" >/dev/null 2>>"${log_file:-/dev/null}"; then
-                rm -f "$target_file"
-                return 1
-            fi
-        fi
-    fi
-
+    
     [[ -d "$target_directory" ]] && safe_rm_rf "$target_directory"
     mkdir -p "$target_directory"
 
     if ! tar -xf "$target_file" -C "$target_directory" --strip-components 1 >>"${log_file:-/dev/null}" 2>&1; then
         rm -f -- "$target_file"
-        warn "Failed to extract the tarball \"$download_file\" (deleted). Re-run the script to try again."
+        safe_rm_rf "$target_directory"
+        warn "Failed to extract the tarball \"$download_file\" (deleted corrupted file and directory). Re-run the script to try again."
         return 1
     fi
 
