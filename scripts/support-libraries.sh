@@ -55,7 +55,7 @@ install_miscellaneous_libraries() {
     freetype_version
     repo_version_1="${repo_version//-/.}"
     if build "freetype" "$repo_version_1"; then
-        download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-$repo_version/freetype-VER-$repo_version.tar.bz2" "freetype-$repo_version_1.tar.bz2"
+        download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-$repo_version/freetype-VER-$repo_version.tar.bz2?ref_type=tags" "freetype-$repo_version_1.tar.bz2"
         extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
         execute ./autogen.sh
         execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
@@ -67,8 +67,9 @@ install_miscellaneous_libraries() {
 
     # Build fontconfig
     fontconfig_version
-    if build "fontconfig" "$repo_version"; then
-        download "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$repo_version/fontconfig-$repo_version.tar.bz2"
+    git_caller "https://gitlab.freedesktop.org/fontconfig/fontconfig.git" "fontconfig-git"
+    cd "$packages/fontconfig-git" || fail "Failed to cd to fontconfig directory"
+    if build "fontconfig-git" "${version//\$ /}"; then
         extracmds=("--disable-"{docbook,docs,nls,shared})
         # Save flags before modification and restore after
         save_compiler_flags

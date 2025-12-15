@@ -268,7 +268,10 @@ EOF
         CONFIGURE_OPTIONS+=("--enable-libx265")
 
         # NVIDIA codec headers (CUDA only)
-        if [[ -n "$iscuda" ]]; then
+        # Check if NVIDIA GPU was detected (gpu_flag=0) and CUDA toolkit is installed
+        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
+            # Define CUDA paths
+            cuda_path="/usr/local/cuda/bin"
             # Check if nv-codec-headers was already built
             if [[ -f "$packages/nv-codec-headers.done" ]]; then
                 # Read the previously selected version from the lock file
@@ -316,7 +319,7 @@ EOF
 
             # Get the Nvidia GPU architecture to build CUDA
             nvidia_architecture
-            CONFIGURE_OPTIONS+=("--nvccflags=-gencode arch=$nvidia_arch_type")
+            CONFIGURE_OPTIONS+=("--nvccflags=$nvidia_arch_type")
         fi
 
         # Vaapi doesn't work well with static links FFmpeg.

@@ -262,17 +262,13 @@ nvidia_architecture() {
     # ═══════════════════════════════════════════════════════════════════════════
     # Build the nvccflags string
     # ═══════════════════════════════════════════════════════════════════════════
-    if [[ ${#selected_archs[@]} -eq 1 ]]; then
-        # Single architecture - simple format
-        nvidia_arch_type="compute_${selected_archs[0]},code=sm_${selected_archs[0]}"
-    else
-        # Multiple architectures - use -gencode format
-        local gencode_flags=""
-        for arch in "${selected_archs[@]}"; do
-            gencode_flags+="-gencode arch=compute_${arch},code=sm_${arch} "
-        done
-        nvidia_arch_type="${gencode_flags% }"  # Remove trailing space
-    fi
+    # Always use -gencode format for consistency
+    # This format works for both single and multiple architectures
+    local gencode_flags=""
+    for arch in "${selected_archs[@]}"; do
+        gencode_flags+="-gencode arch=compute_${arch},code=sm_${arch} "
+    done
+    nvidia_arch_type="${gencode_flags% }"  # Remove trailing space
 
     echo
     log "Selected CUDA architecture(s): ${selected_archs[*]}"
@@ -495,6 +491,14 @@ initialize_hardware_detection() {
     if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
         echo -e "${GREEN}✓${NC} NVIDIA GPU: ${GREEN}Detected${NC}"
         gpu_flag=0
+
+        # Determine NVIDIA GPU architecture for CUDA compilation
+        if nvidia_architecture; then
+            export nvidia_arch_type
+            echo -e "${GREEN}✓${NC} NVIDIA architecture detected: ${GREEN}${nvidia_arch_type}${NC}"
+        else
+            warn "Failed to detect NVIDIA architecture - CUDA compilation may use default settings"
+        fi
     else
         echo -e "${RED}✗${NC} NVIDIA GPU: ${RED}Not detected${NC}"
         if [[ "$amd_gpu_test" != "AMD GPU detected" ]]; then
