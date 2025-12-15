@@ -401,14 +401,20 @@ install_miscellaneous_libraries() {
 
     # Build lilv - Using system package instead of building from source
     # The system liblilv-dev package is sufficient for FFmpeg's LV2 support
-    log "Using system lilv package (liblilv-dev) for LV2 support"
+    if build "lilv" "system"; then
+        log "Using system lilv package (liblilv-dev) for LV2 support"
+        build_done "lilv" "system"
+    fi
     CONFIGURE_OPTIONS+=("--enable-lv2")
 
     # Build libmpg123 - Using system package instead of problematic git version
     # The gypified fork has autotools configuration issues
-    log "Installing libmpg123 using system package manager"
-    execute sudo apt install -y libmpg123-dev
-    log "libmpg123 system package installed successfully"
+    if build "libmpg123" "system"; then
+        log "Installing libmpg123 using system package manager"
+        execute sudo apt install -y libmpg123-dev
+        log "libmpg123 system package installed successfully"
+        build_done "libmpg123" "system"
+    fi
 
     
     # Build jemalloc
