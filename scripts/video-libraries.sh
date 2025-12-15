@@ -317,9 +317,10 @@ EOF
             PATH+=":$cuda_path"
             remove_duplicate_paths
 
-            # Get the Nvidia GPU architecture to build CUDA
-            nvidia_architecture
-            CONFIGURE_OPTIONS+=("--nvccflags=$nvidia_arch_type")
+            # Use the nvidia_arch_type already set by hardware-detection.sh
+            if [[ -n "${nvidia_arch_type:-}" ]]; then
+                CONFIGURE_OPTIONS+=("--nvccflags=$nvidia_arch_type")
+            fi
         fi
 
         # Vaapi doesn't work well with static links FFmpeg.
