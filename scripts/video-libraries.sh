@@ -310,8 +310,13 @@ EOF
 
             CONFIGURE_OPTIONS+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
 
+            # libnpp only works with CUDA 11.x and earlier (deprecated NPP functions removed in CUDA 12+)
             if [[ -n "$LDEXEFLAGS" ]]; then
-                CONFIGURE_OPTIONS+=("--enable-libnpp")
+                local cuda_major_ver
+                cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -1)
+                if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
+                    CONFIGURE_OPTIONS+=("--enable-libnpp")
+                fi
             fi
 
             PATH+=":$cuda_path"
