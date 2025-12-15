@@ -140,9 +140,18 @@ build_ffmpeg() {
             )
 
             # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
+            # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
+            # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
+            # Only enable libnpp for CUDA 11.x and earlier
             if [[ -f "/usr/local/cuda/lib64/libnppc.so" ]] || [[ -f "/usr/local/cuda/lib64/libnppc_static.a" ]]; then
-                OPTIONAL_LIBS+=(--enable-libnpp)
-                log "NVIDIA Performance Primitives (libnpp) enabled"
+                local cuda_major_ver
+                cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -1)
+                if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
+                    OPTIONAL_LIBS+=(--enable-libnpp)
+                    log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
+                else
+                    log "NVIDIA Performance Primitives (libnpp) disabled - CUDA ${cuda_major_ver:-unknown} has incompatible NPP API"
+                fi
             fi
 
             # Add CUDA paths to compiler/linker flags
