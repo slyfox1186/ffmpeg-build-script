@@ -410,9 +410,14 @@ install_miscellaneous_libraries() {
     # Build libmpg123 - Using system package instead of problematic git version
     # The gypified fork has autotools configuration issues
     if build "libmpg123" "system"; then
-        log "Installing libmpg123 using system package manager"
-        execute sudo apt install -y libmpg123-dev
-        log "libmpg123 system package installed successfully"
+        # Check if already installed on system
+        if dpkg -s libmpg123-dev &>/dev/null; then
+            log "libmpg123-dev already installed on system"
+        else
+            log "Installing libmpg123 using system package manager"
+            execute sudo apt install -y libmpg123-dev
+            log "libmpg123 system package installed successfully"
+        fi
         build_done "libmpg123" "system"
     fi
 
