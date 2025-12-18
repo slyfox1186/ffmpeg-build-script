@@ -32,8 +32,7 @@ install_core_libraries() {
     if build "nasm" "$latest_nasm_version"; then
         find_latest_nasm_version
         download "https://www.nasm.us/pub/nasm/releasebuilds/$latest_nasm_version/nasm-$latest_nasm_version.tar.xz"
-        execute autoupdate
-        execute ./autogen.sh
+        ensure_autotools
         execute ./configure --prefix="$workspace" --disable-pedantic --enable-ccache
         execute make "-j$build_threads"
         execute make install
@@ -58,9 +57,9 @@ install_core_libraries() {
     fi
 
     # Build libiconv
-    gnu_repo "https://ftp.gnu.org/gnu/libiconv/"
+    gnu_repo "$GNU_PRIMARY_MIRROR/libiconv/"
     if build "libiconv" "$repo_version"; then
-        download_with_fallback "https://ftp.gnu.org/gnu/libiconv/libiconv-$repo_version.tar.gz" "https://mirror.team-cymru.com/gnu/libiconv/libiconv-$repo_version.tar.gz"
+        download_with_fallback "$GNU_PRIMARY_MIRROR/libiconv/libiconv-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/libiconv/libiconv-$repo_version.tar.gz"
         execute ./configure --prefix="$workspace" --enable-static --with-pic
         execute make "-j$build_threads"
         execute make install
@@ -90,8 +89,7 @@ install_core_libraries() {
     find_git_repo "pnggroup/libpng" "1" "T"
     if build "libpng" "$repo_version"; then
         download "https://github.com/pnggroup/libpng/archive/refs/tags/v$repo_version.tar.gz" "libpng-$repo_version.tar.gz"
-        execute autoupdate
-        execute autoreconf -fi
+        ensure_autotools
         execute ./configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
         execute make "-j$build_threads"
         execute make install-header-links install-library-links install

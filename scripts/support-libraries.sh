@@ -22,23 +22,25 @@ install_miscellaneous_libraries() {
 
     # Build additional libraries when not using GPL/non-free
     if ! "$NONFREE_AND_GPL"; then
-        gnu_repo "https://ftp.gnu.org/gnu/gmp/"
+        gnu_repo "$GNU_PRIMARY_MIRROR/gmp/"
         if build "gmp" "$repo_version"; then
-            download_with_fallback "https://ftp.gnu.org/gnu/gmp/gmp-$repo_version.tar.xz" "https://mirror.team-cymru.com/gnu/gmp/gmp-$repo_version.tar.xz"
+            download_with_fallback "$GNU_PRIMARY_MIRROR/gmp/gmp-$repo_version.tar.xz" "$GNU_FALLBACK_MIRROR/gmp/gmp-$repo_version.tar.xz"
             execute ./configure --prefix="$workspace" --disable-shared --enable-static
             execute make "-j$build_threads"
             execute make install
             build_done "gmp" "$repo_version"
         fi
-        gnu_repo "https://ftp.gnu.org/gnu/nettle/"
+
+        gnu_repo "$GNU_PRIMARY_MIRROR/nettle/"
         if build "nettle" "$repo_version"; then
-            download_with_fallback "https://ftp.gnu.org/gnu/nettle/nettle-$repo_version.tar.gz" "https://mirror.team-cymru.com/gnu/nettle/nettle-$repo_version.tar.gz"
+            download_with_fallback "$GNU_PRIMARY_MIRROR/nettle/nettle-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/nettle/nettle-$repo_version.tar.gz"
             execute ./configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
                                 --libdir="$workspace/lib" CPPFLAGS="-O2 -fno-lto -fPIC -march=native" LDFLAGS="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install
             build_done "nettle" "$repo_version"
         fi
+
         gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
         if build "gnutls" "$repo_version"; then
             download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
@@ -67,10 +69,8 @@ install_miscellaneous_libraries() {
 
     # Build fontconfig
     fontconfig_version
-    git_caller "https://gitlab.freedesktop.org/fontconfig/fontconfig.git" "fontconfig-git"
-    cd "$packages/fontconfig-git" || fail "Failed to cd to fontconfig directory"
-    if build "fontconfig-git" "${version//\$ /}"; then
-        extracmds=("--disable-"{docbook,docs,nls,shared})
+    if build "fontconfig" "$repo_version"; then
+        download "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$repo_version/fontconfig-$repo_version.tar.gz" "fontconfig-$repo_version.tar.gz"
         # Save flags before modification and restore after
         save_compiler_flags
         # -D flags belong in CFLAGS/CPPFLAGS, not LDFLAGS
@@ -120,9 +120,9 @@ install_miscellaneous_libraries() {
                             -D prefix="$workspace" \
                             -D privlib="$workspace/lib/c2man" \
                             -D privlibexp="$workspace/lib/c2man"
-        # Build steps don't need sudo, but install does for c2man
         execute make depend
         execute make "-j$build_threads"
+        # Man page installs to /usr/local/man/man1 despite prefix setting
         execute sudo make install
         build_done "$repo_name" "$version"
     fi
@@ -345,19 +345,18 @@ install_miscellaneous_libraries() {
         build_done "serd" "$serd_version"
     fi
 
-    # Build pcre2
-    pcre2_version=$(curl -fsS "https://github.com/PCRE2Project/pcre2/tags" | 
-                    grep -oP 'href="/PCRE2Project/pcre2/releases/tag/pcre2-\K[0-9]+\.[0-9]+(?=")' | 
-                    grep -v 'RC' | sort -ruV | head -n1)
-    if build "pcre2" "$pcre2_version"; then
-        download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
-        execute autoupdate
-        execute ./autogen.sh
-        execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$build_threads"
-        execute make install
-        build_done "pcre2" "$pcre2_version"
-    fi
+	    # Build pcre2
+	    pcre2_version=$(curl -fsS "https://github.com/PCRE2Project/pcre2/tags" | 
+	                    grep -oP 'href="/PCRE2Project/pcre2/releases/tag/pcre2-\K[0-9]+\.[0-9]+(?=")' | 
+	                    grep -v 'RC' | sort -ruV | head -n1)
+	    if build "pcre2" "$pcre2_version"; then
+	        download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute make "-j$build_threads"
+	        execute make install
+	        build_done "pcre2" "$pcre2_version"
+	    fi
 
     # Build zix
     find_git_repo "drobilla/zix" "1" "T"
@@ -422,15 +421,14 @@ install_miscellaneous_libraries() {
     fi
 
     
-    # Build jemalloc
-    find_git_repo "jemalloc/jemalloc" "1" "T"
-    if build "jemalloc" "$repo_version"; then
-        download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
-        execute autoupdate
-        execute ./autogen.sh
-        execute ./configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
-        execute make "-j$build_threads"
-        execute make install
-        build_done "jemalloc" "$repo_version"
-    fi
+	    # Build jemalloc
+	    find_git_repo "jemalloc/jemalloc" "1" "T"
+	    if build "jemalloc" "$repo_version"; then
+	        download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
+	        execute make "-j$build_threads"
+	        execute make install
+	        build_done "jemalloc" "$repo_version"
+	    fi
 }

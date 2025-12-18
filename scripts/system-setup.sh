@@ -31,15 +31,15 @@ apt_pkgs() {
     pkgs=(
         "${extra_pkgs[@]}" "$(find_latest_version 'openjdk-[0-9]+-jdk')" autoconf
         autopoint bison build-essential ccache clang cmake curl flex
-        gettext git gperf imagemagick-6.q16 ladspa-sdk
+        gettext git gperf imagemagick jq ladspa-sdk
         libbluray-dev libbs2b-dev libbz2-dev libcaca-dev libcdio-dev
         libcdio-paranoia-dev libcdparanoia-dev libchromaprint-dev
-        libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
-        libcunit1-dev frei0r-plugins-dev libgsm1-dev libjack-dev libjansson-dev liblilv-dev libmodplug-dev libnghttp2-dev lv2-dev
-        libnghttp3-dev libshine-dev libsmbclient-dev libsnappy-dev
+	        libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
+	        libcunit1-dev frei0r-plugins-dev libgsm1-dev libjack-dev libjansson-dev liblilv-dev libmodplug-dev libnghttp2-dev libde265-dev lv2-dev
+	        libnghttp3-dev libshine-dev libsmbclient-dev libsnappy-dev
         libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool libaribb24-dev
         libtwolame-dev libv4l-dev libvdpau-dev libvo-amrwbenc-dev libvpl-dev
-        libx11-dev libxi-dev libyuv-dev libzvbi-dev nvidia-driver
+        libx11-dev libxi-dev libyuv-dev libzvbi-dev
         python3 python3-dev python3-venv valgrind python3-pip
     )
 
@@ -265,67 +265,8 @@ set_ant_path() {
     fi
 }
 
-# Enhanced source_path function with ccache detection
-source_path() {
-    if [[ -d "/usr/lib/ccache/bin/" ]]; then
-        ccache_dir="/usr/lib/ccache/bin"
-    else
-        ccache_dir="/usr/lib/ccache"
-    fi
-    PATH="$ccache_dir:/usr/local/cuda/bin:$workspace/bin:$HOME/.local/bin:$PATH"
-    export PATH
-}
-
-# Enhanced remove_duplicate_paths function
-remove_duplicate_paths() {
-    local -a path_array=()
-    local new_path=""
-    local p
-    declare -A seen=()
-
-    # Properly split PATH by colon into array
-    IFS=':' read -ra path_array <<< "$PATH"
-
-    for p in "${path_array[@]}"; do
-        # Skip empty paths and already-seen paths
-        if [[ -n "$p" && -z "${seen[$p]+x}" ]]; then
-            seen[$p]=1
-            if [[ -z "$new_path" ]]; then
-                new_path="$p"
-            else
-                new_path="$new_path:$p"
-            fi
-        fi
-    done
-
-    PATH="$new_path"
-    export PATH
-}
-
-# Function to setup a python virtual environment and install packages with pip
-setup_python_venv_and_install_packages() {
-    local -a parse_package=()
-    local parse_path=$1
-    shift
-    parse_package=("$@")
-
-    remove_duplicate_paths
-
-    echo "Creating a Python virtual environment at $parse_path..."
-    python3 -m venv "$parse_path" || fail "Failed to create virtual environment"
-
-    echo "Activating the virtual environment..."
-    source "$parse_path/bin/activate" || fail "Failed to activate virtual environment"
-
-    echo "Upgrading pip..."
-    pip install --quiet --disable-pip-version-check --upgrade pip || fail "Failed to upgrade pip"
-
-    echo "Installing Python packages: ${parse_package[*]}..."
-    pip install --disable-pip-version-check "${parse_package[@]}" || fail "Failed to install packages"
-
-    echo "Deactivating the virtual environment..."
-    deactivate
-}
+# Note: `source_path`, `remove_duplicate_paths`, and Python venv helpers live in shared-utils.sh
+# so they behave consistently across all scripts.
 
 # Initialize system setup
 initialize_system_setup() {
