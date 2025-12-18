@@ -509,7 +509,4 @@ initialize_hardware_detection() {
         gpu_flag=1
     fi
     export gpu_flag
-
-    echo -e "${GREEN}✓${NC} Hardware detection completed"
-    echo
 }
