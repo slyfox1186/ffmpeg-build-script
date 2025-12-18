@@ -17,18 +17,18 @@ install_audio_libraries() {
     box_out_banner_audio "Installing Audio Tools"
     require_vars workspace packages build_threads STATIC_VER
 
-    # Build libsoxr
-    find_git_repo "chirlu/soxr" "1" "T"
-    if build "libsoxr" "$repo_version"; then
-        download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
-        mkdir -p build || fail "Failed to create build directory. Line: $LINENO"
-        cd build || fail "Failed to enter build directory. Line: $LINENO"
-        execute cmake -S ../ -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$workspace" -DBUILD_TESTS=OFF
-        execute make "-j$build_threads"
-        execute make install
-        build_done "libsoxr" "$repo_version"
-    fi
-    CONFIGURE_OPTIONS+=("--enable-libsoxr")
+	    # Build libsoxr
+	    find_git_repo "chirlu/soxr" "1" "T"
+	    if build "libsoxr" "$repo_version"; then
+	        download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
+	        execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
+	                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF \
+	                      -DWITH_OPENMP=OFF -G Ninja -Wno-dev
+	        execute ninja "-j$build_threads" -C build
+	        execute ninja -C build install
+	        build_done "libsoxr" "$repo_version"
+	    fi
+	    CONFIGURE_OPTIONS+=("--enable-libsoxr")
 
     # Build SDL2 (must use SDL2 branch - main branch is SDL3)
     local sdl2_version
@@ -42,6 +42,10 @@ install_audio_libraries() {
                       -DSDL2_DISABLE_INSTALL_DOCS=ON -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
+        # Fix missing iconv dependency in pkg-config (SDL2 uses iconv but doesn't declare it)
+        if ! grep -q -- "-liconv" "$workspace/lib/pkgconfig/sdl2.pc" 2>/dev/null; then
+            sed -i 's/^Libs:.*/& -liconv/' "$workspace/lib/pkgconfig/sdl2.pc"
+        fi
         build_done "sdl2" "$sdl2_version"
     fi
 
@@ -60,10 +64,9 @@ install_audio_libraries() {
     find_git_repo "xiph/ogg" "1" "T"
     if build "libogg" "$repo_version"; then
         download "https://github.com/xiph/ogg/archive/refs/tags/v$repo_version.tar.gz" "libogg-$repo_version.tar.gz"
-        execute autoreconf -fi
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF -DCPACK_{BINARY_DEB,SOURCE_ZIP}=OFF \
-                      -G Ninja -Wno-dev
+                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF \
+                      -DCPACK_{BINARY_DEB,SOURCE_ZIP}=OFF -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "libogg" "$repo_version"
@@ -74,8 +77,7 @@ install_audio_libraries() {
         find_git_repo "mstorsjo/fdk-aac" "1" "T"
         if build "libfdk-aac" "$repo_version"; then
             download "https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v$repo_version.tar.gz" "libfdk-aac-$repo_version.tar.gz"
-            execute autoupdate
-            execute ./autogen.sh
+            ensure_autotools
             execute ./configure --prefix="$workspace" --disable-shared
             execute make "-j$build_threads"
             execute make install
@@ -88,10 +90,10 @@ install_audio_libraries() {
     find_git_repo "xiph/vorbis" "1" "T"
     if build "vorbis" "$repo_version"; then
         download "https://github.com/xiph/vorbis/archive/refs/tags/v$repo_version.tar.gz" "vorbis-$repo_version.tar.gz"
-        execute ./autogen.sh
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DOGG_INCLUDE_DIR="$workspace/include" \
-                      -DOGG_LIBRARY="$workspace/lib/libogg.a" -G Ninja -Wno-dev
+                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
+                      -DOGG_INCLUDE_DIR="$workspace/include" -DOGG_LIBRARY="$workspace/lib/libogg.a" \
+                      -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "vorbis" "$repo_version"
@@ -102,9 +104,9 @@ install_audio_libraries() {
     find_git_repo "xiph/opus" "1" "T"
     if build "libopus" "$repo_version"; then
         download "https://github.com/xiph/opus/archive/refs/tags/v$repo_version.tar.gz" "libopus-$repo_version.tar.gz"
-        execute autoreconf -fis
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DCPACK_SOURCE_ZIP=OFF -G Ninja -Wno-dev
+                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
+                      -DCPACK_SOURCE_ZIP=OFF -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "libopus" "$repo_version"
@@ -149,8 +151,7 @@ install_audio_libraries() {
     # Build libtheora
     if build "libtheora" "1.1.1"; then
         download "https://github.com/xiph/theora/archive/refs/tags/v1.1.1.tar.gz" "libtheora-1.1.1.tar.gz"
-        execute autoupdate
-        execute ./autogen.sh
+        ensure_autotools
         sed "s/-fforce-addr//g" "configure" > "configure.patched"
         chmod +x "configure.patched"
         execute mv "configure.patched" "configure"

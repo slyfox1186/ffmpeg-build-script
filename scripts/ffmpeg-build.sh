@@ -51,20 +51,20 @@ build_ffmpeg() {
         mkdir -p build
         cd build || fail "Failed to cd into build directory. Line: $LINENO"
         # Full FFmpeg configure with all built libraries - threading bug fixed in 7.0.2
-        # Set environment for Conda Python 3.12 (needed for build dependencies)
-        local python3_cflags python3_libs
-        python3_cflags="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
-        python3_libs="$(python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
+        # Prefer system Python config to avoid Conda/toolchain contamination during linking.
+        local python3_cflags python3_libs python3_config
+        python3_config="/usr/bin/python3-config"
+        if [[ ! -x "$python3_config" ]]; then
+            python3_config="$(command -v python3-config)" || fail "python3-config not found. Line: $LINENO"
+        fi
+        python3_cflags="$("$python3_config" --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
+        python3_libs="$("$python3_config" --ldflags --embed 2>/dev/null || "$python3_config" --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
         PYTHON3_CFLAGS="$python3_cflags"
         export PYTHON3_CFLAGS
         PYTHON3_LIBS="$python3_libs"
         export PYTHON3_LIBS
-        # Detect Conda environment dynamically (avoid `which`).
-        local python3_path
-        python3_path="$(command -v python3)" || fail "python3 not found. Line: $LINENO"
-        CONDA_PREFIX="${CONDA_PREFIX:-$(dirname "$(dirname "$python3_path")")}"
-        # Force use of system Python libraries instead of Conda for final linking
-        export PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:$CONDA_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+        # Ensure we prefer locally-built pkg-config metadata first.
+        export PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/share/pkgconfig:$PKG_CONFIG_PATH"
         # Start with basic configuration to ensure ffmpeg builds, then add libraries conditionally
         BASIC_CONFIG=(
             --prefix=/usr/local
@@ -160,10 +160,10 @@ build_ffmpeg() {
 
             # Update BASIC_CONFIG with CUDA paths (append to existing flags)
             for i in "${!BASIC_CONFIG[@]}"; do
-                if [[ "${BASIC_CONFIG[$i]}" == --extra-cflags=* ]]; then
-                    BASIC_CONFIG[$i]="${BASIC_CONFIG[$i]} $cuda_cflags"
-                elif [[ "${BASIC_CONFIG[$i]}" == --extra-ldflags=* ]]; then
-                    BASIC_CONFIG[$i]="${BASIC_CONFIG[$i]} $cuda_ldflags"
+                if [[ "${BASIC_CONFIG[i]}" == --extra-cflags=* ]]; then
+                    BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_cflags"
+                elif [[ "${BASIC_CONFIG[i]}" == --extra-ldflags=* ]]; then
+                    BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_ldflags"
                 fi
             done
 
@@ -182,7 +182,9 @@ build_ffmpeg() {
         # Some environments export `threads=<n>` (e.g. `threads=32`), which breaks FFmpeg's
         # dependency resolution and silently disables building the `ffmpeg` binary
         # (while `ffprobe`/`ffplay` may still build). Sanitize those env vars for configure.
-        execute env -u threads -u THREADS ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
+        execute env -u threads -u THREADS \
+            -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV \
+            ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
 
         # Fail fast if configure disabled the main `ffmpeg` program.
         if [[ -f ffbuild/config.mak ]] && ! grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak; then

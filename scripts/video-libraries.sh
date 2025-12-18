@@ -53,24 +53,19 @@ install_video_libraries() {
         CONFIGURE_OPTIONS+=("--enable-librav1e")
     fi
 
-    # Build zimg
-    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url" "zimg-git"
-        execute autoupdate
-        execute ./autogen.sh
-        execute git submodule update --init --recursive
-        execute ./configure --prefix="$workspace" --with-pic
-        execute make "-j$build_threads"
-        execute make install
-        move_zimg_shared_file=$(find "$workspace/lib/" -type f -name 'libzimg.so.*')
-        if [[ -n "$move_zimg_shared_file" ]]; then
-            execute sudo cp -f "$move_zimg_shared_file" /usr/lib/x86_64-linux-gnu/
-        fi
-        build_done "$repo_name" "$version"
-    fi
-    CONFIGURE_OPTIONS+=("--enable-libzimg")
+	    # Build zimg
+	    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
+	    if build "$repo_name" "${version//\$ /}"; then
+	        echo "Cloning \"$repo_name\" saving version \"$version\""
+	        git_clone "$git_url" "zimg-git"
+	        execute git submodule update --init --recursive
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --with-pic --disable-shared --enable-static
+	        execute make "-j$build_threads"
+	        execute make install
+	        build_done "$repo_name" "$version"
+	    fi
+	    CONFIGURE_OPTIONS+=("--enable-libzimg")
 
     # Build libavif
     find_git_repo "AOMediaCodec/libavif" "1" "T"
@@ -133,56 +128,52 @@ install_video_libraries() {
     # Ubuntu Jammy and Noble both give an error so instead we will use the APT version
     if [[ ! "$STATIC_VER" == "22.04" ]] && [[ ! "$STATIC_VER" == "24.04" ]]; then
         find_git_repo "206" "2" "T"
-        if build "libbluray" "$repo_version"; then
-            download "https://code.videolan.org/videolan/libbluray/-/archive/$repo_version/$repo_version.tar.gz" "libbluray-$repo_version.tar.gz"
-            extracmds=("--disable-"{doxygen-doc,doxygen-dot,doxygen-html,doxygen-pdf,doxygen-ps,examples,extra-warnings,shared})
-            execute autoupdate
-            execute autoreconf -fi
-            execute ./configure --prefix="$workspace" "${extracmds[@]}" --without-libxml2 --with-pic
-            execute make "-j$build_threads"
-            execute make install
-            build_done "libbluray" "$repo_version"
-        fi
+	        if build "libbluray" "$repo_version"; then
+	            download "https://code.videolan.org/videolan/libbluray/-/archive/$repo_version/$repo_version.tar.gz" "libbluray-$repo_version.tar.gz"
+	            extracmds=("--disable-"{doxygen-doc,doxygen-dot,doxygen-html,doxygen-pdf,doxygen-ps,examples,extra-warnings,shared})
+	            ensure_autotools
+	            execute ./configure --prefix="$workspace" "${extracmds[@]}" --without-libxml2 --with-pic
+	            execute make "-j$build_threads"
+	            execute make install
+	            build_done "libbluray" "$repo_version"
+	        fi
     fi
     CONFIGURE_OPTIONS+=("--enable-libbluray")
 
     # Build zenlib
     find_git_repo "MediaArea/ZenLib" "1" "T"
-    if build "zenlib" "$repo_version"; then
-        download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
-        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
-        execute autoupdate
-        execute ./autogen.sh
-        execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$build_threads"
-        execute make install
-        build_done "zenlib" "$repo_version"
-    fi
+	    if build "zenlib" "$repo_version"; then
+	        download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
+	        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute make "-j$build_threads"
+	        execute make install
+	        build_done "zenlib" "$repo_version"
+	    fi
 
     # Build mediainfo-lib
     find_git_repo "MediaArea/MediaInfoLib" "1" "T"
-    if build "mediainfo-lib" "$repo_version"; then
-        download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
-        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
-        execute autoupdate
-        execute ./autogen.sh
-        execute ./configure --prefix="$workspace" --disable-shared
-        execute make "-j$build_threads"
-        execute make install
-        build_done "mediainfo-lib" "$repo_version"
-    fi
+	    if build "mediainfo-lib" "$repo_version"; then
+	        download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
+	        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute make "-j$build_threads"
+	        execute make install
+	        build_done "mediainfo-lib" "$repo_version"
+	    fi
 
     # Build mediainfo-cli
     find_git_repo "MediaArea/MediaInfo" "1" "T"
-    if build "mediainfo-cli" "$repo_version"; then
-        download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
-        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
-        execute autoupdate
-        execute ./autogen.sh
-        execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
-        execute make "-j$build_threads"
-        execute make install
-        execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
+	    if build "mediainfo-cli" "$repo_version"; then
+	        download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
+	        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
+	        execute make "-j$build_threads"
+	        execute make install
+	        execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
         build_done "mediainfo-cli" "$repo_version"
     fi
 
@@ -193,7 +184,8 @@ install_video_libraries() {
         if build "vid-stab" "$repo_version"; then
             download "https://github.com/georgmartius/vid.stab/archive/refs/tags/v$repo_version.tar.gz" "vid-stab-$repo_version.tar.gz"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON -G Ninja -Wno-dev
+                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON \
+                          -G Ninja -Wno-dev
             execute ninja "-j$build_threads" -C build
             execute ninja -C build install
             build_done "vid-stab" "$repo_version"
@@ -205,8 +197,10 @@ install_video_libraries() {
         find_git_repo "536" "2" "B"
         if build "x264" "$repo_version"; then
             download "https://code.videolan.org/videolan/x264/-/archive/$x264_full_commit/x264-$x264_full_commit.tar.bz2" "x264-$repo_version.tar.bz2"
-            execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all --enable-debug --enable-gprof \
-                                --enable-lto --enable-pic --enable-static --enable-strip --extra-cflags="-O3 -pipe -fPIC -march=native"
+            # Default to a release-style build (debug/profiling can be enabled by users when needed).
+            execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all \
+                                --enable-pic --enable-static --enable-strip \
+                                --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install-lib-static install
             build_done "x264" "$repo_version"
@@ -228,22 +222,25 @@ install_video_libraries() {
             cd 12bit || fail "Failed to cd into 12bit. Line: $LINENO"
             echo "$ making 12bit binaries"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DENABLE_{CLI,LIBVMAF,SHARED}=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
-                          -DNATIVE_BUILD=ON -G Ninja -Wno-dev
+                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
+                          -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
+                          -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             echo "$ making 10bit binaries"
             cd ../10bit || fail "Failed to cd into 10bit. Line: $LINENO"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DENABLE_{CLI,LIBVMAF,SHARED}=OFF -DENABLE_HDR10_PLUS=ON -DEXPORT_C_API=OFF \
-                          -DHIGH_BIT_DEPTH=ON -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
+                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
+                          -DENABLE_HDR10_PLUS=ON -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON \
+                          -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             echo "$ making 8bit binaries"
             cd ../8bit || fail "Failed to cd into 8bit. Line: $LINENO"
             ln -sf "../10bit/libx265.a" "libx265_main10.a"
             ln -sf "../12bit/libx265.a" "libx265_main12.a"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DENABLE_LIBVMAF=OFF -DENABLE_{PIC,SHARED}=ON -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
-                          -DEXTRA_LINK_FLAGS="-L." -DHIGH_BIT_DEPTH=ON -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
+                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_LIBVMAF=OFF -DENABLE_PIC=ON \
+                          -DENABLE_SHARED=OFF -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
+                          -DEXTRA_LINK_FLAGS="-L." -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
                           -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
 
@@ -358,10 +355,11 @@ EOF
             export OPENSSL_LIB_DIR="$workspace/lib"
             export OPENSSL_INCLUDE_DIR="$workspace/include"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DBUILD_SHARED_LIBS=OFF -DENABLE_{APPS,SHARED}=OFF -DENABLE_STATIC=ON \
-                          -DUSE_STATIC_LIBSTDCXX=ON -DENABLE_ENCRYPTION=ON -DENABLE_CXX11=ON \
-                          -DUSE_OPENSSL_PC=ON -DENABLE_UNITTESTS=OFF -DENABLE_LOGGING=ON \
-                          -DENABLE_HEAVY_LOGGING=OFF -G Ninja -Wno-dev
+                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
+                          -DENABLE_{APPS,SHARED}=OFF -DENABLE_STATIC=ON -DUSE_STATIC_LIBSTDCXX=ON \
+                          -DENABLE_ENCRYPTION=ON -DENABLE_CXX11=ON -DUSE_OPENSSL_PC=ON \
+                          -DENABLE_UNITTESTS=OFF -DENABLE_LOGGING=ON -DENABLE_HEAVY_LOGGING=OFF \
+                          -G Ninja -Wno-dev
             execute ninja -C build "-j$build_threads"
             execute ninja -C build "-j$build_threads" install
             if [[ -n "$LDEXEFLAGS" ]]; then
@@ -400,23 +398,29 @@ EOF
     fi
 
     # Build gpac
-    git_caller "https://github.com/gpac/gpac.git" "gpac-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        # Remove existing directory if it exists
-        [[ -d "$packages/gpac-git" ]] && rm -fr "$packages/gpac-git"
-        # Do a full clone instead of shallow clone for gpac
-        git clone -q "$git_url" "$packages/gpac-git"
-        cd "$packages/gpac-git" || fail "Failed to cd into gpac-git directory"
-        # Create the include directory and empty revision.h to prevent rm error
-        mkdir -p include/gpac
-        touch include/gpac/revision.h
-        execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --sdl-cfg="$workspace/include/SDL3"
-        execute make "-j$build_threads"
-        execute make install
-        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
-        build_done "$repo_name" "$version"
-    fi
+	    git_caller "https://github.com/gpac/gpac.git" "gpac-git"
+	    if build "$repo_name" "${version//\$ /}"; then
+	        echo "Cloning \"$repo_name\" saving version \"$version\""
+	        # Remove existing directory if it exists
+	        [[ -d "$packages/gpac-git" ]] && rm -fr "$packages/gpac-git"
+	        # Do a full clone instead of shallow clone for gpac
+	        git clone -q "$git_url" "$packages/gpac-git"
+	        cd "$packages/gpac-git" || fail "Failed to cd into gpac-git directory"
+	        # Create the include directory and empty revision.h to prevent rm error
+	        mkdir -p include/gpac
+	        touch include/gpac/revision.h
+	        local -a gpac_sdl_cfg=()
+	        if [[ -x "$workspace/bin/sdl2-config" ]]; then
+	            gpac_sdl_cfg=(--sdl-cfg="$workspace/bin/sdl2-config")
+	        elif command -v sdl2-config >/dev/null 2>&1; then
+	            gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
+	        fi
+	        execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local "${gpac_sdl_cfg[@]}"
+	        execute make "-j$build_threads"
+	        execute make install
+	        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
+	        build_done "$repo_name" "$version"
+	    fi
 
     # Build SVT-AV1
     find_git_repo "24327400" "3" "T"
@@ -455,14 +459,13 @@ EOF
         PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
         export PYTHON3_CFLAGS
         PYTHON3_LIBS="$(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
-        export PYTHON3_LIBS
-        
-        # Assuming autogen, configure, make, and install steps for VapourSynth
-        execute autoupdate
-        execute ./autogen.sh || fail "Failed to execute autogen.sh"
-        execute ./configure --prefix="$workspace" --disable-shared || fail "Failed to configure"
-        execute make -j"$build_threads" || fail "Failed to make"
-        execute make install || fail "Failed to make install"
+	        export PYTHON3_LIBS
+	        
+	        # Assuming autogen, configure, make, and install steps for VapourSynth
+	        ensure_autotools
+	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute make -j"$build_threads"
+	        execute make install
 
         # Deactivate the virtual environment after the build
         deactivate
@@ -474,8 +477,8 @@ EOF
         export PYTHON
         PATH="$ccache_dir:$workspace/python_virtual_environment/vapoursynth/bin:$PATH"
         remove_duplicate_paths
-    fi
-    CONFIGURE_OPTIONS+=("--enable-vapoursynth")
+	    fi
+	    CONFIGURE_OPTIONS+=("--enable-vapoursynth")
 
     # Build libgav1
     git_caller "https://chromium.googlesource.com/codecs/libgav1" "libgav1-git"
@@ -499,48 +502,28 @@ fetch_nv_codec_headers_versions() {
     declare -a versions_and_dates=()
     local scrape_html
 
-    # Prefer the GitHub API (more stable than scraping HTML); fall back to HTML if rate-limited or jq unavailable.
-    if command -v jq >/dev/null 2>&1; then
-        local api_json
-        if api_json="$(curl -fsSL "https://api.github.com/repos/FFmpeg/nv-codec-headers/releases?per_page=100" 2>/dev/null)"; then
-            local -a api_lines=()
-            mapfile -t api_lines < <(printf '%s' "$api_json" | jq -r '.[] | select(.tag_name | test("^n[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")) | "\(.tag_name);\(.published_at)"')
-            local entry tag iso_date version formatted_date
-            for entry in "${api_lines[@]}"; do
-                tag="${entry%%;*}"
-                iso_date="${entry##*;}"
-                version="${tag#n}"
-                iso_date="${iso_date%%T*}"
-                formatted_date="$(date -d "$iso_date" +"%m-%d-%Y" 2>/dev/null || echo "$iso_date")"
-                versions_and_dates+=("$version;$formatted_date")
-            done
+    scrape_html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
+    local -a html_lines=()
+    mapfile -t html_lines <<<"$scrape_html"
+
+    local current_version=""
+    local regex='href=\"/FFmpeg/nv-codec-headers/releases/tag/n([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\"'
+    local line
+    for line in "${html_lines[@]}"; do
+        if [[ $line =~ $regex ]]; then
+            current_version="${BASH_REMATCH[1]}"
         fi
-    fi
 
-    if [[ ${#versions_and_dates[@]} -eq 0 ]]; then
-        scrape_html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
-        local -a html_lines=()
-        mapfile -t html_lines <<<"$scrape_html"
-
-        local current_version=""
-        local regex='href=\"/FFmpeg/nv-codec-headers/releases/tag/n([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\"'
-        local line
-        for line in "${html_lines[@]}"; do
-            if [[ $line =~ $regex ]]; then
-                current_version="${BASH_REMATCH[1]}"
+        if [[ "$line" =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
+            if [[ -n "$current_version" ]]; then
+                local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
+                local formatted_date
+                formatted_date=$(date -d "$date" +"%m-%d-%Y")
+                versions_and_dates+=("$current_version;$formatted_date")
+                current_version=""
             fi
-
-            if [[ "$line" =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
-                if [[ -n "$current_version" ]]; then
-                    local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
-                    local formatted_date
-                    formatted_date=$(date -d "$date" +"%m-%d-%Y")
-                    versions_and_dates+=("$current_version;$formatted_date")
-                    current_version=""
-                fi
-            fi
-        done
-    fi
+        fi
+    done
 
     # Check if any versions were found
     if [[ ${#versions_and_dates[@]} -eq 0 ]]; then

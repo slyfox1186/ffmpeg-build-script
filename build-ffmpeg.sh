@@ -177,57 +177,6 @@ export GOOGLE_SPEECH
 # Set ACLOCAL_PATH to include workspace m4 files
 export ACLOCAL_PATH="$workspace/share/aclocal:/usr/share/aclocal"
 
-# Create cmake wrapper function to include policy version
-cmake() {
-    command cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 "$@"
-}
-export -f cmake
-
-# Create download function with bot detection avoidance
-download_with_bot_detection() {
-    local url=$1
-    local output=$2
-
-    # Input validation to prevent injection
-    if [[ -z "$url" || -z "$output" ]]; then
-        fail "URL and output file are required. Line: $LINENO"
-    fi
-
-    
-    # Validate output path (prevent directory traversal)
-    if [[ "$output" =~ \.\./|\.\.\|/\.\./ ]]; then
-        fail "Invalid output path: $output. Directory traversal not allowed. Line: $LINENO"
-    fi
-
-    # Random delay between 0.5-2 seconds to avoid rate limiting
-    sleep "$(awk 'BEGIN{srand(); print 0.5 + rand() * 1.5}')"
-
-    # Use common browser user agents randomly
-    local user_agents=(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0"
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15"
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/137.0.3296.52"
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 OPR/119.0.0.0"
-    )
-    local ua="${user_agents[$((RANDOM % ${#user_agents[@]}))]}"
-
-    # Download with anti-bot headers and retries (fail on HTTP errors)
-    curl -fLSs --retry 3 --retry-delay 2 --retry-connrefused -o "$output" \
-        -H "User-Agent: $ua" \
-        -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
-        -H "Accept-Language: en-US,en;q=0.5" \
-        -H "Accept-Encoding: gzip, deflate, br" \
-        -H "DNT: 1" \
-        -H "Connection: keep-alive" \
-        -H "Upgrade-Insecure-Requests: 1" \
-        --connect-timeout 15 \
-        --max-time 600 \
-        "$url"
-}
-
-export -f download_with_bot_detection
-
 echo
 log "Utilizing $build_threads CPU threads"
 echo

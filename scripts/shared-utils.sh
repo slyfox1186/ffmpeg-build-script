@@ -17,6 +17,7 @@ set -o pipefail
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Set a regex string to match and then exclude any found release candidate versions
@@ -24,6 +25,10 @@ git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*
 
 # Debug flag
 debug=OFF
+
+# GNU mirrors (override via environment variables if needed)
+GNU_PRIMARY_MIRROR="${GNU_PRIMARY_MIRROR:-https://mirrors.ibiblio.org/gnu}"
+GNU_FALLBACK_MIRROR="${GNU_FALLBACK_MIRROR:-https://mirror.team-cymru.com/gnu}"
 
 # Banner functions
 box_out_banner() {
@@ -187,19 +192,35 @@ execute() {
 
 # Build management functions
 build() {
+    local package_name package_version stripped_version
+    package_name="${1:-}"
+    package_version="${2:-}"
+
+    if [[ -z "$package_name" ]]; then
+        fail "build() called without a package name. Line: $LINENO"
+    fi
+
+    # Empty versions lead to broken URLs like `foo-.tar.gz` and confusing rebuild logic.
+    # Treat this as a hard error so the root cause (version detection) is fixed instead
+    # of silently building the wrong thing.
+    stripped_version="$(printf '%s' "$package_version" | tr -d '[:space:]')"
+    if [[ -z "$stripped_version" ]]; then
+        fail "build() called for \"$package_name\" with an empty version (version detection failed). Line: $LINENO"
+    fi
+
     echo
-    echo -e "${GREEN}Building${NC} ${YELLOW}$1${NC} - ${GREEN}version ${YELLOW}$2${NC}"
+    echo -e "${GREEN}Building${NC} ${YELLOW}$package_name${NC} - ${GREEN}version ${YELLOW}$package_version${NC}"
     echo "========================================================"
 
-    if [[ -f "$packages/$1.done" ]]; then
-        if grep -Fx "$2" "$packages/$1.done" >/dev/null; then
-            echo "$1 version $2 already built. Remove $packages/$1.done lockfile to rebuild it."
+    if [[ -f "$packages/$package_name.done" ]]; then
+        if grep -Fx "$package_version" "$packages/$package_name.done" >/dev/null; then
+            echo "$package_name version $package_version already built. Remove $packages/$package_name.done lockfile to rebuild it."
             return 1
         elif "$LATEST"; then
-            echo "$1 is outdated and will be rebuilt with latest version $2"
+            echo "$package_name is outdated and will be rebuilt with latest version $package_version"
             return 0
         else
-            echo "$1 is outdated, but will not be rebuilt. Pass in --latest to rebuild it or remove $packages/$1.done lockfile."
+            echo "$package_name is outdated, but will not be rebuilt. Pass in --latest to rebuild it or remove $packages/$package_name.done lockfile."
             return 1
         fi
     fi
@@ -304,6 +325,14 @@ download_try() {
         temp_target_file=$(mktemp "$target_file.XXXXXX") || fail "Failed to create temporary download file"
         lock_file="$target_file.lock"
 
+        # Download tuning knobs (override via environment variables).
+        # `DOWNLOAD_CONNECT_TIMEOUT` is the max time allowed to establish a connection.
+        local download_connect_timeout download_max_time download_retry download_retry_delay
+        download_connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
+        download_max_time="${DOWNLOAD_MAX_TIME:-1800}"
+        download_retry="${DOWNLOAD_RETRY:-5}"
+        download_retry_delay="${DOWNLOAD_RETRY_DELAY:-5}"
+
         # Use a separate lock file and hold the lock during the entire download
         (
             # Acquire exclusive lock (best-effort; `flock` may not be available everywhere).
@@ -336,27 +365,19 @@ download_try() {
                     fi
                 fi
             else
-                # Anti-bot headers for when download_with_bot_detection is not available
-                local -a curl_antibot_args=(
-                    -fsSL --retry 5 --retry-delay 5 --connect-timeout 60 --max-time 1800
-                    -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0"
-                    -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
-                    -H "Accept-Language: en-US,en;q=0.9"
-                    -H "Accept-Encoding: identity"
-                    -H "Connection: keep-alive"
-                    -H "Upgrade-Insecure-Requests: 1"
-                    -H "Sec-Fetch-Dest: document"
-                    -H "Sec-Fetch-Mode: navigate"
-                    -H "Sec-Fetch-Site: none"
-                    -H "Sec-Fetch-User: ?1"
-                    -H "Cache-Control: max-age=0"
+                # Default to plain curl (no browser-like headers).
+                # Some hosts (e.g., GitLab instances with JS challenges) will return an HTML "bot check"
+                # page if we pretend to be a browser. Plain curl is more reliable for fetching archives.
+                local -a curl_args=(
+                    -fsSL --retry "$download_retry" --retry-delay "$download_retry_delay" --retry-connrefused
+                    --connect-timeout "$download_connect_timeout" --max-time "$download_max_time"
                 )
-                if curl "${curl_antibot_args[@]}" --output "$temp_target_file" "$download_url"; then
+                if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
                     download_success=true
                 else
                     warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
                     sleep 3
-                    if curl "${curl_antibot_args[@]}" --output "$temp_target_file" "$download_url"; then
+                    if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
                         download_success=true
                     fi
                 fi
@@ -365,6 +386,15 @@ download_try() {
             if [[ "$download_success" != "true" ]] || [[ ! -f "$temp_target_file" ]]; then
                 rm -f "$temp_target_file"
                 exit 1
+            fi
+
+            # Validate newly-downloaded archives before moving into place.
+            if [[ "$download_file" =~ (\.tar(\.(bz2|gz|xz|lz|zst))?|\.tgz|\.tbz2)$ ]]; then
+                if ! tar -tf "$temp_target_file" >/dev/null 2>>"${log_file:-/dev/null}"; then
+                    warn "Downloaded \"$download_file\" but it is not a valid tar archive (often an HTML bot-check page)."
+                    rm -f "$temp_target_file"
+                    exit 1
+                fi
             fi
 
             
@@ -506,6 +536,9 @@ git_clone() {
 gnu_repo() {
     local repo
     repo=$1
+    repo_version=""
+    local connect_timeout
+    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
 
     # Input validation
     if [[ -z "$repo" ]]; then
@@ -517,26 +550,75 @@ gnu_repo() {
         fail "Invalid repository URL format: $repo. Line: $LINENO"
     fi
 
-    # Try primary mirror first, then fallback mirror
+    # Prefer a mirror (ibiblio), fall back to another mirror (team-cymru).
     local primary_repo="$repo"
-    local fallback_repo="${primary_repo/ftp\.gnu\.org/mirror.team-cymru.com}"
-    local version_result=""
+    local ibiblio_repo cymru_repo
+    local version_result="" url
 
-    # Skip primary mirror (it's timing out) and go directly to Team-Cymru fallback
-    if [[ "$fallback_repo" =~ libtool ]]; then
-        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'libtool-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
-    elif [[ "$fallback_repo" =~ m4 ]]; then
-        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'm4-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
-    elif [[ "$fallback_repo" =~ autoconf ]]; then
-        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'autoconf-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
-    elif [[ "$fallback_repo" =~ libiconv ]]; then
-        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP 'libiconv-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.gz)' | sort -Vr | head -n 1)
+    if [[ "$primary_repo" =~ ^https?://(ftp\.gnu\.org|mirror\.team-cymru\.com|mirrors\.ibiblio\.org)/gnu/ ]]; then
+        ibiblio_repo="${primary_repo/ftp.gnu.org\/gnu/mirrors.ibiblio.org\/gnu}"
+        ibiblio_repo="${ibiblio_repo/mirror.team-cymru.com\/gnu/mirrors.ibiblio.org\/gnu}"
+
+        cymru_repo="${primary_repo/ftp.gnu.org\/gnu/mirror.team-cymru.com\/gnu}"
+        cymru_repo="${cymru_repo/mirrors.ibiblio.org\/gnu/mirror.team-cymru.com\/gnu}"
     else
-        version_result=$(curl -fsSL --max-time 5 --connect-timeout 2 "$fallback_repo" 2>/dev/null | grep -oP '[a-z]+-\K\d+\.\d+(?:\.\d+)?(?=\.(tar\.gz|tar\.bz2|tar\.xz))' | sort -Vr | head -n 1)
+        ibiblio_repo="$primary_repo"
+        cymru_repo=""
     fi
 
-    # Set the version result
-    repo_version="$version_result"
+    local -a candidates=()
+    local cand seen include_primary
+    include_primary=true
+    [[ "$primary_repo" =~ ^https?://ftp\.gnu\.org/gnu/ ]] && include_primary=false
+
+    for cand in "$ibiblio_repo" "$cymru_repo"; do
+        [[ -n "$cand" ]] || continue
+        seen=false
+        for url in "${candidates[@]}"; do
+            if [[ "$url" == "$cand" ]]; then
+                seen=true
+                break
+            fi
+        done
+        if [[ "$seen" == "false" ]]; then
+            candidates+=("$cand")
+        fi
+    done
+    if [[ "$include_primary" == "true" ]]; then
+        seen=false
+        for url in "${candidates[@]}"; do
+            if [[ "$url" == "$primary_repo" ]]; then
+                seen=true
+                break
+            fi
+        done
+        if [[ "$seen" == "false" ]]; then
+            candidates+=("$primary_repo")
+        fi
+    fi
+
+    for url in "${candidates[@]}"; do
+        if [[ "$url" =~ libtool ]]; then
+            version_result=$(curl -fsSL --max-time 10 --connect-timeout "$connect_timeout" "$url" 2>/dev/null | grep -oP 'libtool-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
+        elif [[ "$url" =~ m4 ]]; then
+            version_result=$(curl -fsSL --max-time 10 --connect-timeout "$connect_timeout" "$url" 2>/dev/null | grep -oP 'm4-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
+        elif [[ "$url" =~ autoconf ]]; then
+            version_result=$(curl -fsSL --max-time 10 --connect-timeout "$connect_timeout" "$url" 2>/dev/null | grep -oP 'autoconf-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -Vr | head -n 1)
+        elif [[ "$url" =~ libiconv ]]; then
+            version_result=$(curl -fsSL --max-time 10 --connect-timeout "$connect_timeout" "$url" 2>/dev/null | grep -oP 'libiconv-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.gz)' | sort -Vr | head -n 1)
+        else
+            version_result=$(curl -fsSL --max-time 10 --connect-timeout "$connect_timeout" "$url" 2>/dev/null | grep -oP '[a-z]+-\K\d+\.\d+(?:\.\d+)?(?=\.(tar\.gz|tar\.bz2|tar\.xz))' | sort -Vr | head -n 1)
+        fi
+
+        # Normalize/validate to avoid whitespace-only or control-char results.
+        version_result="$(printf '%s' "$version_result" | tr -d '\r' | head -n 1)"
+        if [[ -n "${version_result//[[:space:]]/}" ]] && [[ "$version_result" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+            repo_version="$version_result"
+            return 0
+        fi
+    done
+
+    fail "Failed to detect latest version from $repo (tried: ${candidates[*]}). Line: $LINENO"
 }
 
 github_repo() {
@@ -546,6 +628,7 @@ github_repo() {
     url_flag=$3
     count=1
     max_attempts=10
+    repo_version=""
 
     # Input validation to prevent injection
     if [[ -z "$repo" || -z "$url" ]]; then
@@ -601,6 +684,10 @@ github_repo() {
             ((count++))
         fi
     done
+
+    if [[ -z "${repo_version//[[:space:]]/}" ]]; then
+        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"
+    fi
 }
 
 fetch_repo_version() {
@@ -616,9 +703,15 @@ fetch_repo_version() {
     response=$(curl -fsS "$base_url/$project/$api_path") || fail "Failed to fetch data from $base_url/$project/$api_path in the function \"fetch_repo_version\". Line: $LINENO"
 
     version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
+    if [[ -z "$version" || "$version" == "null" ]]; then
+        fail "Failed to parse a version from $base_url/$project/$api_path (got: \"$version\"). Line: $LINENO"
+    fi
     while [[ "$version" =~ $git_regex ]]; do
         ((++count))
         version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
+        if [[ -z "$version" || "$version" == "null" ]]; then
+            fail "Failed to parse a non-pre-release version from $base_url/$project/$api_path (got: \"$version\"). Line: $LINENO"
+        fi
     done
 
     repo_short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
@@ -630,7 +723,7 @@ fetch_repo_version() {
 
 cmake_repo_version() {
     repo_version=$(curl -fsS "https://github.com/Kitware/CMake/tags" | 
-                   grep -oP 'href="/Kitware/CMake/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/Kitware/CMake/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    grep -v 'rc' | 
                    sort -ruV | 
                    head -n1
@@ -639,7 +732,7 @@ cmake_repo_version() {
 
 meson_repo_version() {
     repo_version=$(curl -fsS "https://github.com/mesonbuild/meson/tags" | 
-                   grep -oP 'href="/mesonbuild/meson/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/mesonbuild/meson/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    grep -v 'rc' | 
                    sort -ruV | 
                    head -n1
@@ -648,7 +741,7 @@ meson_repo_version() {
 
 ninja_repo_version() {
     repo_version=$(curl -fsS "https://github.com/ninja-build/ninja/tags" | 
-                   grep -oP 'href="/ninja-build/ninja/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/ninja-build/ninja/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -656,7 +749,7 @@ ninja_repo_version() {
 
 zstd_repo_version() {
     repo_version=$(curl -fsS "https://github.com/facebook/zstd/tags" | 
-                   grep -oP 'href="/facebook/zstd/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/facebook/zstd/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -671,16 +764,18 @@ librist_repo_version() {
 }
 
 zlib_repo_version() {
-    repo_version=$(curl -fsS "https://github.com/madler/zlib/tags" | 
-                   grep -oP 'href="/madler/zlib/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
+    # Prefer Releases (tags can exist without published release assets, which breaks
+    # downloads from /releases/download/...).
+    repo_version=$(curl -fsS "https://github.com/madler/zlib/releases" |
+                   grep -oP 'href="/madler/zlib/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' |
+                   sort -ruV |
                    head -n1
                   )
 }
 
 yasm_repo_version() {
     repo_version=$(curl -fsS "https://github.com/yasm/yasm/tags" | 
-                   grep -oP 'href="/yasm/yasm/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/yasm/yasm/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -690,7 +785,7 @@ yasm_repo_version() {
 generic_github_version() {
     local repo=$1
     repo_version=$(curl -fsS "https://github.com/$repo/tags" |
-                   grep -oP 'href="/'"$repo"'/releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' |
+                   grep -oP 'href="/'"$repo"'/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' |
                    sort -ruV |
                    head -n1
                   )
@@ -703,14 +798,14 @@ xiph_vorbis_version() { generic_github_version "xiph/vorbis"; }
 freeglut_version() { generic_github_version "freeglut/freeglut"; }
 libass_version() { 
     repo_version=$(curl -fsS "https://github.com/libass/libass/tags" | 
-                   grep -oP 'href="/libass/libass/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/libass/libass/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
 }
 harfbuzz_version() {
     repo_version=$(curl -fsS "https://github.com/harfbuzz/harfbuzz/tags" | 
-                   grep -oP 'href="/harfbuzz/harfbuzz/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/harfbuzz/harfbuzz/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -719,7 +814,7 @@ fribidi_version() { generic_github_version "fribidi/fribidi"; }
 brotli_version() { generic_github_version "google/brotli"; }
 highway_version() {
     repo_version=$(curl -fsS "https://github.com/google/highway/tags" | 
-                   grep -oP 'href="/google/highway/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/google/highway/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -727,7 +822,7 @@ highway_version() {
 gflags_version() { generic_github_version "gflags/gflags"; }
 libjpeg_turbo_version() {
     repo_version=$(curl -fsS "https://github.com/libjpeg-turbo/libjpeg-turbo/tags" | 
-                   grep -oP 'href="/libjpeg-turbo/libjpeg-turbo/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/libjpeg-turbo/libjpeg-turbo/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -736,7 +831,7 @@ c_ares_version() { generic_github_version "c-ares/c-ares"; }
 jansson_version() { generic_github_version "akheron/jansson"; }
 jemalloc_version() {
     repo_version=$(curl -fsS "https://github.com/jemalloc/jemalloc/tags" | 
-                   grep -oP 'href="/jemalloc/jemalloc/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/jemalloc/jemalloc/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -758,7 +853,7 @@ vid_stab_version() { generic_github_version "georgmartius/vid.stab"; }
 fdk_aac_version() { generic_github_version "mstorsjo/fdk-aac"; }
 libsndfile_version() {
     repo_version=$(curl -fsS "https://github.com/libsndfile/libsndfile/tags" | 
-                   grep -oP 'href="/libsndfile/libsndfile/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/libsndfile/libsndfile/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -772,7 +867,7 @@ zix_version() {
 }
 soxr_version() {
     repo_version=$(curl -fsS "https://github.com/chirlu/soxr/tags" | 
-                   grep -oP 'href="/chirlu/soxr/releases/tag/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
+                   grep -oP 'href="/chirlu/soxr/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
                    sort -ruV | 
                    head -n1
                   )
@@ -883,8 +978,10 @@ vapoursynth_version() {
 
 # NASM version fetching
 find_latest_nasm_version() {
+    local connect_timeout
+    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
     latest_nasm_version=$(
-        curl -fsS --max-time 10 --connect-timeout 5 "https://www.nasm.us/pub/nasm/stable/" 2>/dev/null |
+        curl -fsS --max-time 10 --connect-timeout "$connect_timeout" "https://www.nasm.us/pub/nasm/stable/" 2>/dev/null |
         grep -oP 'nasm-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.tar\.xz)' |
         sort -ruV | head -n1
     )
@@ -911,25 +1008,30 @@ fix_libstd_libs() {
 }
 
 fix_x265_libs() {
-    local x265_libs latest_system_lib
+    local x265_libs latest_system_lib latest_system_lib_name
     x265_libs=$(find "$workspace/lib/" -type f -name 'libx265.so.*' 2>/dev/null | sort -rV | head -n1)
 
-    # Copy custom built x265 to system directory
-    if [[ -n "$x265_libs" && -f "$x265_libs" ]]; then
-        sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
+    # Only touch system paths if we actually built a shared library.
+    # Many users build fully-static FFmpeg and do not want /usr modified.
+    # Static builds (-DENABLE_SHARED=OFF) will not produce .so files - this is expected.
+    if [[ -z "$x265_libs" || ! -f "$x265_libs" ]]; then
+        return 0
     fi
 
+    # Copy custom built x265 to system directory
+    execute sudo cp -f "$x265_libs" "/usr/lib/x86_64-linux-gnu"
+
     # Fix broken symlinks and create proper symlink to latest version
-    sudo rm -f "/usr/lib/x86_64-linux-gnu/libx265.so"
+    execute sudo rm -f "/usr/lib/x86_64-linux-gnu/libx265.so"
     latest_system_lib=$(find /usr/lib/x86_64-linux-gnu/ -name 'libx265.so.*' 2>/dev/null | sort -rV | head -n1)
     if [[ -n "$latest_system_lib" ]]; then
         latest_system_lib_name=$(basename "$latest_system_lib")
-        sudo ln -sf "$latest_system_lib_name" "/usr/lib/x86_64-linux-gnu/libx265.so"
+        execute sudo ln -sf "$latest_system_lib_name" "/usr/lib/x86_64-linux-gnu/libx265.so"
         log "Fixed x265 library symlink: libx265.so -> $latest_system_lib_name"
     fi
 
     # Update library cache to prevent ldconfig errors
-    sudo ldconfig 2>/dev/null || true
+    sudo ldconfig >/dev/null 2>&1 || true
 }
 
 # Rust/Cargo installation functions
@@ -1160,6 +1262,21 @@ restore_compiler_flags() {
     export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
 }
 
+# Autotools helper: avoid running `autoupdate` (it rewrites upstream build files).
+# Prefer a shipped `configure` when present; otherwise generate one.
+ensure_autotools() {
+    if [[ -f "./configure" ]]; then
+        return 0
+    fi
+
+    if [[ -f "./autogen.sh" ]]; then
+        execute sh ./autogen.sh
+        return 0
+    fi
+
+    execute autoreconf -fi
+}
+
 # PATH management
 remove_duplicate_paths() {
     if [[ -n "$PATH" ]]; then
@@ -1182,29 +1299,46 @@ remove_duplicate_paths() {
 }
 
 source_path() {
-    PATH="/usr/lib/ccache:$workspace/bin:$PATH:/usr/local/cuda/bin:/opt/cuda/bin"
-    export PATH
+    # Prefer ccache wrappers when present (distro-dependent paths).
+    if [[ -d "/usr/lib/ccache/bin" ]]; then
+        ccache_dir="/usr/lib/ccache/bin"
+    elif [[ -d "/usr/lib/ccache" ]]; then
+        ccache_dir="/usr/lib/ccache"
+    else
+        ccache_dir=""
+    fi
+
+    PATH="${ccache_dir:+$ccache_dir:}/usr/local/cuda/bin:/opt/cuda/bin:$workspace/bin:$HOME/.local/bin:$PATH"
+    export ccache_dir PATH
     remove_duplicate_paths
 }
 
-# Usage information
-usage() {
-    echo
-    echo "Usage: $script_name [options]"
-    echo
-    echo "Options:"
-    echo "  -h, --help                        Display usage information"
-    echo "   --compiler=<gcc|clang>           Set the default CC and CXX compiler (default: gcc)"
-    echo "  -b, --build                       Starts the build process"
-    echo "  -c, --cleanup                     Remove all working dirs"
-    echo "  -g, --google-speech               Enable Google Speech for audible error messages (google_speech must already be installed to work)."
-    echo "  -j, --jobs <number>               Set the number of CPU threads for parallel processing"
-    echo "  -l, --latest                      Force the script to build the latest version of dependencies if newer version is available"
-    echo "  -n, --enable-gpl-and-non-free     Enable GPL and non-free codecs - https://ffmpeg.org/legal.html"
-    echo "  -v, --version                     Display the current script version"
-    echo
-    echo "Example: bash $script_name --build --compiler=clang -j 8"
-    echo
+# Python virtualenv helper (used by multiple build stages)
+setup_python_venv_and_install_packages() {
+    local venv_path=$1
+    shift
+    local -a packages_to_install=("$@")
+
+    [[ -n "$venv_path" ]] || fail "Virtual environment path is required. Line: $LINENO"
+    [[ ${#packages_to_install[@]} -gt 0 ]] || fail "At least one Python package is required. Line: $LINENO"
+
+    remove_duplicate_paths
+
+    log "Creating a Python virtual environment at $venv_path..."
+    execute python3 -m venv "$venv_path"
+
+    log "Activating the virtual environment..."
+    # shellcheck source=/dev/null
+    source "$venv_path/bin/activate" || fail "Failed to activate virtual environment. Line: $LINENO"
+
+    log "Upgrading pip..."
+    execute pip install --quiet --disable-pip-version-check --upgrade pip
+
+    log "Installing Python packages: ${packages_to_install[*]}"
+    execute pip install --disable-pip-version-check "${packages_to_install[@]}"
+
+    log "Deactivating the virtual environment..."
+    deactivate
 }
 # Ensure directories are writable by the current user
 ensure_user_ownership() {

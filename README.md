@@ -182,7 +182,7 @@ Installing the required APT packages
 
 Building m4 - version latest
 ========================================================
-Downloading "https://ftp.gnu.org/gnu/m4/m4-latest.tar.xz" saving as "m4-latest.tar.xz"
+Downloading "https://mirrors.ibiblio.org/gnu/m4/m4-latest.tar.xz" saving as "m4-latest.tar.xz"
 Download Completed
 File extracted: m4-latest.tar.xz
 
@@ -192,7 +192,7 @@ $ make install
 
 Building autoconf - version 2.71
 ========================================================
-Downloading "https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.xz" saving as "autoconf-2.71.tar.xz"
+Downloading "https://mirrors.ibiblio.org/gnu/autoconf/autoconf-2.71.tar.xz" saving as "autoconf-2.71.tar.xz"
 Download Completed
 File extracted: autoconf-2.71.tar.xz
 
@@ -203,7 +203,7 @@ $ make install
 
 Building libtool - version 2.4.6
 ========================================================
-Downloading "https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz" saving as "libtool-2.4.6.tar.xz"
+Downloading "https://mirrors.ibiblio.org/gnu/libtool/libtool-2.4.6.tar.xz" saving as "libtool-2.4.6.tar.xz"
 Download Completed
 File extracted: libtool-2.4.6.tar.xz
 
@@ -931,7 +931,7 @@ Building gpac-git - version 2.4.0
 ========================================================
 Cloning "gpac-git" saving version "2.4.0"
 Cloning completed: 2.4.0
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --static-bin --static-modules --use-a52=local --use-faad=local --use-freetype=local --use-mad=local --sdl-cfg=/home/jman/tmp/ffmpeg-build-script/workspace/include/SDL3
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --static-bin --static-modules --use-a52=local --use-faad=local --use-freetype=local --use-mad=local --sdl-cfg=/home/jman/tmp/ffmpeg-build-script/workspace/bin/sdl2-config
 $ make -j32
 $ make install
 $ cp -f bin/gcc/MP4Box /usr/local/bin
