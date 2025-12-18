@@ -373,7 +373,6 @@ download_try() {
                 rm -f "$temp_target_file"
                 exit 1
             fi
-            log "Download Completed"
             # Lock is automatically released when subshell exits
         )
         local subshell_exit=$?
@@ -446,7 +445,6 @@ git_caller() {
     [[ "$3" == "recurse" ]] && recurse_flag=1
 
     version=$(git_clone "$git_url" "$repo_name" "$third_flag")
-    version="${version//Cloning completed: /}"
 }
 
 git_clone() {
@@ -501,7 +499,7 @@ git_clone() {
         cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
     fi
 
-    echo "Cloning completed: $version"
+    echo "$version"
 }
 
 # Repository version fetching

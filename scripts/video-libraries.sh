@@ -491,8 +491,6 @@ EOF
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
-
-    log "Video libraries installation completed"
 }
 
 # NVIDIA codec headers helper functions (GPL and non-free only)

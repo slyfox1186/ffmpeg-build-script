@@ -433,7 +433,4 @@ install_miscellaneous_libraries() {
         execute make install
         build_done "jemalloc" "$repo_version"
     fi
-
-    
-    log "Miscellaneous libraries installation completed"
 }

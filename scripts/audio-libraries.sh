@@ -166,6 +166,4 @@ install_audio_libraries() {
         build_done "libtheora" "1.1.1"
     fi
     CONFIGURE_OPTIONS+=("--enable-libtheora")
-
-    log "Audio libraries installation completed"
 }

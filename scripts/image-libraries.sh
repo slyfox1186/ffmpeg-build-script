@@ -65,6 +65,4 @@ install_image_libraries() {
         build_done "openjpeg" "$repo_version"
     fi
     CONFIGURE_OPTIONS+=("--enable-libopenjpeg")
-
-    log "Image libraries installation completed"
 }

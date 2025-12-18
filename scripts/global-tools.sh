@@ -162,6 +162,4 @@ install_global_tools() {
         fi
         CONFIGURE_OPTIONS+=("--enable-openssl")
     fi
-
-    log "Global tools installation completed"
 }

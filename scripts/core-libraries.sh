@@ -117,8 +117,6 @@ install_core_libraries() {
 
     # Fix library issues
     fix_libstd_libs
-
-    log "Core libraries installation completed"
 }
 
 # Note: Library fix functions (fix_libiconv, fix_libstd_libs, fix_x265_libs, find_latest_nasm_version)

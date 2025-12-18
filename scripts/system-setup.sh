@@ -325,8 +325,6 @@ setup_python_venv_and_install_packages() {
 
     echo "Deactivating the virtual environment..."
     deactivate
-
-    echo "Python virtual environment setup and package installation completed."
 }
 
 # Initialize system setup
