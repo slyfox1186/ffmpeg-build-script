@@ -40,7 +40,7 @@ apt_pkgs() {
         libspeex-dev libssh-dev libssl-dev libtesseract-dev libtool libaribb24-dev
         libtwolame-dev libv4l-dev libvdpau-dev libvo-amrwbenc-dev libvpl-dev
         libx11-dev libxi-dev libyuv-dev libzvbi-dev
-        python3 python3-dev python3-venv valgrind python3-pip
+        perl python3 python3-dev python3-venv valgrind python3-pip
     )
 
     # Note: GPU detection happens later; keep package install independent from GPU probing.
@@ -70,8 +70,10 @@ apt_pkgs() {
         echo
         log "Installing missing packages:"
         printf "          %s\n" "${available_packages[@]}"
-        execute sudo apt update
-        execute sudo apt -y install "${available_packages[@]}"
+        echo
+        # Run apt commands directly (not via execute) so user sees progress
+        sudo apt update
+        sudo DEBIAN_FRONTEND=noninteractive apt -y install "${available_packages[@]}"
     else
         log "All required packages are already installed."
     fi
@@ -115,23 +117,39 @@ debian_msft() {
 
 # Debian OS version handling
 debian_os_version() {
-    if [[ "$1" == "yes_wsl" ]]; then
-        STATIC_VER="msft"
-        debian_wsl_pkgs=$2
-    fi
-
-    debian_pkgs=(
-                 cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
-                 libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack5
-                 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
-                 software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4
-            )
+    local -a debian_extra_pkgs=()
 
     case "$STATIC_VER" in
-        msft)          debian_msft "$debian_wsl_pkgs" ;;
-        11)            apt_pkgs "$1 ${debian_pkgs[*]}" ;;
-        12|trixie|sid) apt_pkgs "$1 ${debian_pkgs[*]} librist-dev" ;;
-        *)             fail "Could not detect the Debian release version. Line: $LINENO" ;;
+        11)
+            debian_extra_pkgs=(
+                cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
+                libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack5
+                libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
+                software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4
+            )
+            apt_pkgs "${debian_extra_pkgs[*]}"
+            ;;
+        12)
+            debian_extra_pkgs=(
+                cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
+                libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack5
+                libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
+                software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4 librist-dev
+            )
+            apt_pkgs "${debian_extra_pkgs[*]}"
+            ;;
+        13|trixie|sid)
+            debian_extra_pkgs=(
+                cppcheck libsvtav1enc-dev libyuv-utils libyuv0
+                libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack6
+                libsuitesparseconfig7 libcolamd3 libcholmod5 libccolamd3 libcamd3 libamd3
+                software-properties-common libclang-dev libgegl-0.4-0t64 libgoogle-perftools4t64 librist-dev
+            )
+            apt_pkgs "${debian_extra_pkgs[*]}"
+            ;;
+        *)
+            fail "Could not detect the Debian release version. Line: $LINENO"
+            ;;
     esac
 }
 
@@ -147,15 +165,10 @@ ubuntu_msft() {
 
 # Ubuntu OS version handling
 ubuntu_os_version() {
-    if [[ "$1" = "yes_wsl" ]]; then
-        VER="msft"
-        ubuntu_wsl_pkgs=$2
-    fi
-
     # Note: Zorin OS 16.x is treated as Ubuntu 20.04
     # Linux Mint 21.x is treated as Ubuntu 22.04
 
-    ubuntu_common_pkgs="cppcheck libgegl-0.4-0 libgoogle-perftools4"
+    local ubuntu_common_pkgs="cppcheck libgegl-0.4-0 libgoogle-perftools4"
     focal_pkgs="libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev"
     focal_pkgs+=" libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1 libyuv-dev nvidia-utils-535 libcamd2 libccolamd2 libcholmod3"
     focal_pkgs+=" libcolamd2 libsuitesparseconfig5 libumfpack5 libamd2"
@@ -173,19 +186,19 @@ ubuntu_os_version() {
             ubuntu_msft
             ;;
         24.04)
-            apt_pkgs "$2 $noble_pkgs"
+            apt_pkgs "$noble_pkgs"
             ;;
         23.10)
-            apt_pkgs "$1 $mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
+            apt_pkgs "$mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
             ;;
         23.04|22.10)
-            apt_pkgs "$1 $ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs"
+            apt_pkgs "$ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs"
             ;;
         22.04)
-            apt_pkgs "$1 $ubuntu_common_pkgs $jammy_pkgs"
+            apt_pkgs "$ubuntu_common_pkgs $jammy_pkgs"
             ;;
         20.04)
-            apt_pkgs "$1 $ubuntu_common_pkgs $focal_pkgs"
+            apt_pkgs "$ubuntu_common_pkgs $focal_pkgs"
             ;;
         *)
             fail "Could not detect the Ubuntu release version. Line: $LINENO"
@@ -298,33 +311,10 @@ initialize_system_setup() {
     # Always install required system packages
     case "$OS" in
         Ubuntu)
-            case "$STATIC_VER" in
-                24.04)
-                    ubuntu_os_version "desktop" "$noble_pkgs"
-                    ;;
-                23.10)
-                    ubuntu_os_version "desktop" "$mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
-                    ;;
-                23.04|22.10)
-                    ubuntu_os_version "desktop" "$ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs"
-                    ;;
-                22.04)
-                    ubuntu_os_version "desktop" "$ubuntu_common_pkgs $jammy_pkgs"
-                    ;;
-                20.04)
-                    ubuntu_os_version "desktop" "$ubuntu_common_pkgs $focal_pkgs"
-                    ;;
-            esac
+            ubuntu_os_version
             ;;
         Debian)
-            case "$STATIC_VER" in
-                11)
-                    debian_os_version "no_wsl" "${debian_pkgs[*]}"
-                    ;;
-                12|trixie|sid)
-                    debian_os_version "no_wsl" "${debian_pkgs[*]} librist-dev"
-                    ;;
-            esac
+            debian_os_version
             ;;
     esac
 

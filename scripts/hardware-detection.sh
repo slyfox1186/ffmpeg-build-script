@@ -292,6 +292,7 @@ download_cuda() {
 
     options=(
         "Debian 12 (Bookworm)"
+        "Debian 13 (Trixie)"
         "Ubuntu 20.04 (Focal Fossa)"
         "Ubuntu 22.04 (Jammy Jellyfish)"
         "Ubuntu 24.04 (Noble Numbat)"
@@ -303,6 +304,9 @@ download_cuda() {
         case "$choice" in
             "Debian 12 (Bookworm)")
                 distro="debian12"
+                ;;
+            "Debian 13 (Trixie)")
+                distro="debian13"
                 ;;
             "Ubuntu 20.04 (Focal Fossa)")
                 distro="ubuntu2004"
@@ -329,10 +333,6 @@ download_cuda() {
     done
 
     if [[ "$choice" != "Skip" ]]; then
-        deb_file="cuda-keyring_1.1-1_all.deb"
-        deb_url="https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/$deb_file"
-        pin_url="https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/cuda-$distro.pin"
-
         log "Installing CUDA $cuda_version for $choice..."
 
         # Use secure temporary directory with cleanup trap (restore any prior traps).
@@ -361,34 +361,106 @@ download_cuda() {
         }
         trap cleanup_cuda_temp EXIT ERR INT TERM
 
-        # Download and install the CUDA keyring
-        if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/$deb_file" "$deb_url"; then
-            sudo dpkg -i "$temp_dir/$deb_file" || { cleanup_cuda_temp; fail "Failed to install CUDA keyring package"; }
-        else
-            cleanup_cuda_temp
-            fail "Failed to download CUDA keyring package"
-        fi
+        # Debian 13 uses local installer method (different from keyring method)
+        if [[ "$distro" == "debian13" ]]; then
+            # Debian 13 uses CUDA 13.1 with local installer
+            local deb13_cuda_version="13.1.0"
+            local deb13_driver_version="590.44.01-1"
+            local deb13_pkg_version="13-1"
+            local deb13_deb_file="cuda-repo-debian13-13-1-local_${deb13_cuda_version}-${deb13_driver_version}_amd64.deb"
+            local deb13_deb_url="https://developer.download.nvidia.com/compute/cuda/${deb13_cuda_version}/local_installers/${deb13_deb_file}"
+            local deb13_cuda_prefix="/usr/local/cuda-13.1"
 
-        # Add the CUDA repository pin
-        if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/cuda.pin" "$pin_url"; then
-            sudo mv "$temp_dir/cuda.pin" "/etc/apt/preferences.d/cuda-repository-pin-600"
-        else
-            warn "Failed to download CUDA repository pin file"
-        fi
+            log "Downloading CUDA ${deb13_cuda_version} local installer for Debian 13..."
 
-        # Update package lists and install CUDA
-        sudo apt update
-        if sudo apt -y install "cuda-toolkit-${cuda_pkg_version}"; then
-            log "CUDA $cuda_version installed successfully."
-            if [[ -d "$cuda_prefix/bin" ]]; then
-                export PATH="$cuda_prefix/bin:$PATH"
+            # Download the local installer package
+            # Prefer aria2c (tuned for high-speed fiber connections), fall back to wget
+            local download_success=false
+            if command -v aria2c &>/dev/null; then
+                log "Using aria2c for high-speed download..."
+                if aria2c -x16 -s16 -k1M --file-allocation=none --console-log-level=warn \
+                    --summary-interval=5 --download-result=full \
+                    -d "$temp_dir" -o "$deb13_deb_file" "$deb13_deb_url"; then
+                    download_success=true
+                else
+                    warn "aria2c download failed, falling back to wget..."
+                fi
             fi
-            if [[ -d "$cuda_prefix/lib64" ]]; then
-                export LD_LIBRARY_PATH="$cuda_prefix/lib64:$LD_LIBRARY_PATH"
+
+            if [[ "$download_success" != "true" ]]; then
+                if command -v wget &>/dev/null; then
+                    log "Using wget for download..."
+                    if wget --show-progress -cq -O "$temp_dir/$deb13_deb_file" "$deb13_deb_url"; then
+                        download_success=true
+                    fi
+                else
+                    # Final fallback to curl
+                    if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
+                        -o "$temp_dir/$deb13_deb_file" "$deb13_deb_url"; then
+                        download_success=true
+                    fi
+                fi
+            fi
+
+            if [[ "$download_success" != "true" ]]; then
+                cleanup_cuda_temp
+                fail "Failed to download CUDA local installer package"
+            fi
+
+            sudo dpkg -i "$temp_dir/$deb13_deb_file" || { cleanup_cuda_temp; fail "Failed to install CUDA local repository package"; }
+
+            # Copy the keyring from the local repo
+            sudo cp -f /var/cuda-repo-debian13-13-1-local/cuda-*-keyring.gpg /usr/share/keyrings/ || warn "Failed to copy CUDA keyring"
+
+            # Update package lists and install CUDA
+            sudo apt update
+            if sudo apt -y install "cuda-toolkit-${deb13_pkg_version}"; then
+                log "CUDA ${deb13_cuda_version} installed successfully."
+                if [[ -d "$deb13_cuda_prefix/bin" ]]; then
+                    export PATH="$deb13_cuda_prefix/bin:$PATH"
+                fi
+                if [[ -d "$deb13_cuda_prefix/lib64" ]]; then
+                    export LD_LIBRARY_PATH="$deb13_cuda_prefix/lib64:$LD_LIBRARY_PATH"
+                fi
+            else
+                cleanup_cuda_temp
+                fail "Failed to install CUDA toolkit"
             fi
         else
-            cleanup_cuda_temp
-            fail "Failed to install CUDA toolkit"
+            # Other distros use keyring/network installer method
+            deb_file="cuda-keyring_1.1-1_all.deb"
+            deb_url="https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/$deb_file"
+            pin_url="https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/cuda-$distro.pin"
+
+            # Download and install the CUDA keyring
+            if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/$deb_file" "$deb_url"; then
+                sudo dpkg -i "$temp_dir/$deb_file" || { cleanup_cuda_temp; fail "Failed to install CUDA keyring package"; }
+            else
+                cleanup_cuda_temp
+                fail "Failed to download CUDA keyring package"
+            fi
+
+            # Add the CUDA repository pin
+            if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/cuda.pin" "$pin_url"; then
+                sudo mv "$temp_dir/cuda.pin" "/etc/apt/preferences.d/cuda-repository-pin-600"
+            else
+                warn "Failed to download CUDA repository pin file"
+            fi
+
+            # Update package lists and install CUDA
+            sudo apt update
+            if sudo apt -y install "cuda-toolkit-${cuda_pkg_version}"; then
+                log "CUDA $cuda_version installed successfully."
+                if [[ -d "$cuda_prefix/bin" ]]; then
+                    export PATH="$cuda_prefix/bin:$PATH"
+                fi
+                if [[ -d "$cuda_prefix/lib64" ]]; then
+                    export LD_LIBRARY_PATH="$cuda_prefix/lib64:$LD_LIBRARY_PATH"
+                fi
+            else
+                cleanup_cuda_temp
+                fail "Failed to install CUDA toolkit"
+            fi
         fi
 
         # Clean up temporary files and restore previous traps
@@ -427,7 +499,18 @@ install_cuda() {
             echo -e "${CYAN}→${NC} Latest available version: ${GREEN}$remote_cuda_version${NC}"
             echo
             read -r -p "Do you want to install the latest CUDA version? (yes/no): " choice
-            [[ "$choice" =~ ^(yes|y)$ ]] && download_cuda
+            if [[ "$choice" =~ ^(yes|y)$ ]]; then
+                download_cuda
+                # After successful install, set gpu_flag and prompt for architecture selection
+                gpu_flag=0
+                export gpu_flag
+                if nvidia_architecture; then
+                    export nvidia_arch_type
+                else
+                    warn "Failed to detect NVIDIA architecture after CUDA install"
+                fi
+                return 0
+            fi
         elif [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
             echo -e "${GREEN}✓${NC} CUDA ${GREEN}$local_cuda_version${NC} is installed and up to date"
             gpu_flag=0
@@ -437,7 +520,23 @@ install_cuda() {
             echo -e "${YELLOW}!${NC} Installed CUDA version: ${YELLOW}$local_cuda_version${NC}"
             echo -e "${CYAN}→${NC} Latest available version: ${GREEN}$remote_cuda_version${NC}"
             read -r -p "Do you want to update/reinstall CUDA to the latest version? (yes/no): " choice
-            [[ "$choice" =~ ^(yes|y)$ ]] && download_cuda || return 0
+            if [[ "$choice" =~ ^(yes|y)$ ]]; then
+                download_cuda
+                # After successful update, set gpu_flag and prompt for architecture selection
+                gpu_flag=0
+                export gpu_flag
+                if nvidia_architecture; then
+                    export nvidia_arch_type
+                else
+                    warn "Failed to detect NVIDIA architecture after CUDA update"
+                fi
+                return 0
+            else
+                # User declined update, but CUDA is still installed - set flags appropriately
+                gpu_flag=0
+                export gpu_flag
+                return 0
+            fi
         fi
     else
         gpu_flag=1

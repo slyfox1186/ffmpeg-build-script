@@ -107,6 +107,9 @@ build_ffmpeg() {
         [[ -f "$workspace/lib/libwebp.a" ]] && OPTIONAL_LIBS+=(--enable-libwebp)
         [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
 
+        # Check for system-installed libraries (from APT)
+        pkg-config --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
+
         # ═══════════════════════════════════════════════════════════════════════════
         # CUDA/NVENC Hardware Acceleration Support
         # ═══════════════════════════════════════════════════════════════════════════

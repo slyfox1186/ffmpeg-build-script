@@ -101,31 +101,8 @@ install_miscellaneous_libraries() {
     fi
     CONFIGURE_OPTIONS+=("--enable-libharfbuzz")
 
-    # Build c2man
-    git_caller "https://github.com/fribidi/c2man.git" "c2man-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
-        execute ./Configure -desO \
-                            -D bin="$workspace/bin" \
-                            -D cc="/usr/bin/cc" \
-                            -D d_gnu="/usr/lib/x86_64-linux-gnu" \
-                            -D gcc="/usr/bin/gcc" \
-                            -D installmansrc="$workspace/share/man" \
-                            -D ldflags="$LDFLAGS" \
-                            -D libpth="/usr/lib64 /usr/lib" \
-                            -D locincpth="$workspace/include /usr/local/include /usr/include" \
-                            -D loclibpth="$workspace/lib64 $workspace/lib /usr/local/lib64 /usr/local/lib" \
-                            -D osname="$OS" \
-                            -D prefix="$workspace" \
-                            -D privlib="$workspace/lib/c2man" \
-                            -D privlibexp="$workspace/lib/c2man"
-        execute make depend
-        execute make "-j$build_threads"
-        # Man page installs to /usr/local/man/man1 despite prefix setting
-        execute sudo make install
-        build_done "$repo_name" "$version"
-    fi
+    # Note: c2man is skipped - it has compatibility issues with modern systems
+    # and is not needed since fribidi is built with -Ddocs=false
 
     # Build fribidi
     find_git_repo "fribidi/fribidi" "1" "T"
@@ -172,7 +149,7 @@ install_miscellaneous_libraries() {
         git_clone "$git_url"  "libwebp-git"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DZLIB_INCLUDE_DIR="$workspace/include" \
-                      -DWEBP_BUILD_{ANIM_UTILS,EXTRAS,VWEBP}=OFF -DWEBP_BUILD_{CWEBP,DWEBP}=ON \
+                      -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,VWEBP}=OFF \
                       -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=ON -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
@@ -398,12 +375,7 @@ install_miscellaneous_libraries() {
         build_done "sratom" "$sratom_version"
     fi
 
-    # Build lilv - Using system package instead of building from source
-    # The system liblilv-dev package is sufficient for FFmpeg's LV2 support
-    if build "lilv" "system"; then
-        log "Using system lilv package (liblilv-dev) for LV2 support"
-        build_done "lilv" "system"
-    fi
+    # lilv: Using system liblilv-dev package (installed via apt)
     CONFIGURE_OPTIONS+=("--enable-lv2")
 
     # Build libmpg123 - Using system package instead of problematic git version
