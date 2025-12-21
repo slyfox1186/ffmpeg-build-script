@@ -44,15 +44,9 @@ install_core_libraries() {
     giflib_version="${giflib_version:-5.2.2}"
     if build "giflib" "$giflib_version"; then
         download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-$giflib_version.tar.gz?viasf=1"
-        # Install ImageMagick for giflib documentation
-        if ! command -v convert >/dev/null 2>&1; then
-            log "Installing ImageMagick for giflib documentation"
-            execute sudo apt update
-            execute sudo apt -y install imagemagick
-        fi
-        # Parallel building not available for this library
-        execute make
-        execute make PREFIX="$workspace" install
+        # Build only the library, skip documentation (requires ImageMagick)
+        execute make libgif.a libgif.so
+        execute make PREFIX="$workspace" install-lib install-include
         build_done "giflib" "$giflib_version"
     fi
 

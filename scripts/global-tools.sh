@@ -45,6 +45,17 @@ install_global_tools() {
         build_done "autoconf" "$autoconf_version"
     fi
 
+    # Build automake
+    gnu_repo "$GNU_PRIMARY_MIRROR/automake/"
+    local automake_version="$repo_version"
+    if build "automake" "$automake_version"; then
+        download_with_fallback "$GNU_PRIMARY_MIRROR/automake/automake-$automake_version.tar.xz" "$GNU_FALLBACK_MIRROR/automake/automake-$automake_version.tar.xz"
+        execute ./configure --prefix="$workspace"
+        execute make "-j$build_threads"
+        execute make install
+        build_done "automake" "$automake_version"
+    fi
+
     # Build libtool
     gnu_repo "$GNU_PRIMARY_MIRROR/libtool/"
     local libtool_version="$repo_version"
@@ -56,15 +67,24 @@ install_global_tools() {
         build_done "libtool" "$libtool_version"
     fi
 
-    # Build pkg-config
-    gnu_repo "https://pkgconfig.freedesktop.org/releases/"
-    local pkg_config_version="$repo_version"
-    if build "pkg-config" "$pkg_config_version"; then
-        download "https://pkgconfig.freedesktop.org/releases/pkg-config-$pkg_config_version.tar.gz"
-        execute ./configure --prefix="$workspace" --enable-silent-rules --with-pc-path="$PKG_CONFIG_PATH" --with-internal-glib
+    # Build pkgconf (modern pkg-config replacement)
+    # Tags are formatted as "pkgconf-X.Y.Z" so extract version directly
+    local pkgconf_version
+    pkgconf_version=$(curl -fsSL "https://github.com/pkgconf/pkgconf/tags" 2>/dev/null | grep -oP 'pkgconf-\K\d+\.\d+\.\d+(?=\.tar\.gz)' | head -1)
+    [[ -z "$pkgconf_version" ]] && fail "Failed to detect pkgconf version from GitHub"
+    if build "pkgconf" "$pkgconf_version"; then
+        download "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-$pkgconf_version.tar.gz" "pkgconf-$pkgconf_version.tar.gz"
+        # Release tarballs from GitHub need autoreconf
+        execute autoreconf -fi
+        execute ./configure --prefix="$workspace" --enable-silent-rules \
+            --with-pkg-config-dir="$PKG_CONFIG_PATH" \
+            --with-system-libdir="/lib:/lib64:/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu" \
+            --with-system-includedir="/usr/include:/usr/include/x86_64-linux-gnu"
         execute make "-j$build_threads"
         execute make install
-        build_done "pkg-config" "$pkg_config_version"
+        # Create pkg-config symlink for compatibility
+        ln -sf "$workspace/bin/pkgconf" "$workspace/bin/pkg-config"
+        build_done "pkgconf" "$pkgconf_version"
     fi
 
     # Build cmake

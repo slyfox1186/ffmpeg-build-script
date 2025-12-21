@@ -10,12 +10,21 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
 - Supports **hardware acceleration** using **Nvidia CUDA** and **AMD AMF**
 - Designed for **easy installation** on ***supported*** operating systems
 
+## Recent Changes
+
+- **Debian 13 (Trixie) Support**: Added support for the latest Debian testing/unstable release
+- **CUDA/NVENC Fixes**: Fixed GPU detection and NVENC support for hardware-accelerated encoding
+- **pkgconf**: Replaced legacy pkg-config with modern pkgconf from GitHub
+- **Build Chain Updates**: Added automake to the build toolchain for improved autotools support
+- **Improved Version Detection**: Enhanced reliability of upstream version detection with fallbacks
+
 ## Supported Operating Systems
 
 | Distribution | Versions                 | Codenames                                        |
 |--------------|--------------------------|--------------------------------------------------|
 | **Debian**   | 11                       | Bullseye                                         |
 |              | 12                       | Bookworm                                         |
+|              | 13                       | Trixie                                           |
 | **Ubuntu**   | 22.04                    | Jammy Jellyfish                                  |
 |              | 24.04                    | Noble Numbat                                     |
 
@@ -123,10 +132,20 @@ For a complete list of supported codecs and libraries, please refer to the [FFmp
 
 ## Hardware Acceleration
 
-The script provides options for hardware acceleration using Nvidia's CUDA SDK Toolkit or AMD's AMF. Make sure to follow the installation instructions closely to enable these features.
+The script provides options for hardware acceleration using Nvidia's CUDA SDK Toolkit or AMD's AMF.
 
+### NVIDIA CUDA / NVENC
+
+- **Automatic GPU Detection**: The script automatically detects NVIDIA GPUs and their compute capabilities
+- **CUDA Toolkit**: If CUDA is not installed, the script will prompt to install the latest CUDA toolkit
+- **NVENC Support**: Hardware-accelerated H.264/H.265 encoding via NVENC
+- **Optimized Builds**: FFmpeg is compiled with architecture-specific CUDA optimizations for your GPU
 - [CUDA SDK Toolkit Download](https://developer.nvidia.com/cuda-downloads)
-- Follow the script's instructions to install the latest updates.
+
+### AMD AMF
+
+- **AMF Support**: Hardware-accelerated encoding on AMD GPUs
+- Requires AMD GPU drivers with AMF support
 
 ## Disclaimer
 
@@ -201,24 +220,34 @@ $ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace M4=/home/jma
 $ make -j32
 $ make install
 
-Building libtool - version 2.4.6
+Building automake - version 1.17
 ========================================================
-Downloading "https://mirrors.ibiblio.org/gnu/libtool/libtool-2.4.6.tar.xz" saving as "libtool-2.4.6.tar.xz"
+Downloading "https://mirrors.ibiblio.org/gnu/automake/automake-1.17.tar.xz" saving as "automake-1.17.tar.xz"
 Download Completed
-File extracted: libtool-2.4.6.tar.xz
+File extracted: automake-1.17.tar.xz
 
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --with-libiconv-prefix=/usr --with-pic M4=/home/jman/tmp/ffmpeg-build-script/workspace/bin/m4
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace
 $ make -j32
 $ make install
 
-Building pkg-config - version 0.29.2
+Building libtool - version 2.5.4
 ========================================================
-Downloading "https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz" saving as "pkg-config-0.29.2.tar.gz"
+Downloading "https://mirrors.ibiblio.org/gnu/libtool/libtool-2.5.4.tar.xz" saving as "libtool-2.5.4.tar.xz"
 Download Completed
-File extracted: pkg-config-0.29.2.tar.gz
+File extracted: libtool-2.5.4.tar.xz
 
-$ autoconf
-$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-silent-rules --with-pc-path=/home/jman/tmp/ffmpeg-build-script/workspace/lib64/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib/x86_64-linux-gnu/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/lib/pkgconfig:/home/jman/tmp/ffmpeg-build-script/workspace/share/pkgconfig:/usr/local/lib64/x86_64-linux-gnu:/usr/local/lib64/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --with-pic M4=/home/jman/tmp/ffmpeg-build-script/workspace/bin/m4
+$ make -j32
+$ make install
+
+Building pkgconf - version 2.5.1
+========================================================
+Downloading "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-2.5.1.tar.gz" saving as "pkgconf-2.5.1.tar.gz"
+Download Completed
+File extracted: pkgconf-2.5.1.tar.gz
+
+$ autoreconf -fi
+$ ./configure --prefix=/home/jman/tmp/ffmpeg-build-script/workspace --enable-silent-rules
 $ make -j32
 $ make install
 

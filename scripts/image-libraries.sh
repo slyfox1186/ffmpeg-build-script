@@ -39,16 +39,11 @@ install_image_libraries() {
 	        [[ -f "$workspace/lib/librav1e.a" || -f "$workspace/lib64/librav1e.a" ]] && with_rav1e=ON
 	        # x265 disabled due to static linking issues with NUMA dependencies
 
-	        case "$STATIC_VER" in
-	            20.04) pixbuf_switch=OFF ;;
-	            *)     pixbuf_switch=ON ;;
-	        esac
-
 	        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
 	                      -DBUILD_SHARED_LIBS=OFF -DWITH_AOM_DECODER="$with_aom" -DWITH_AOM_ENCODER="$with_aom" \
 	                      -DWITH_DAV1D="$with_dav1d" -DWITH_LIBDE265="$with_libde265" -DWITH_RAV1E="$with_rav1e" \
 	                      -DWITH_X265="$with_x265" -DENABLE_PLUGIN_LOADING=OFF \
-	                      -DWITH_GDK_PIXBUF="$pixbuf_switch" -DWITH_EXAMPLE_HEIF_VIEW=OFF \
+	                      -DWITH_GDK_PIXBUF=OFF -DWITH_EXAMPLES=OFF \
 	                      -G Ninja -Wno-dev
 	        execute ninja "-j$build_threads" -C build
 	        execute ninja -C build install
@@ -62,8 +57,7 @@ install_image_libraries() {
     if build "openjpeg" "$repo_version"; then
         download "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/v$repo_version" "openjpeg-$repo_version.tar.gz"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_{SHARED_LIBS,TESTING}=OFF -DBUILD_THIRDPARTY=ON -DBUILD_JPIP=ON \
-                      -DBUILD_JPWL=ON -DBUILD_MJ2=ON -DOPENJPEG_ENABLE_PNG=ON -DOPENJPEG_ENABLE_TIFF=ON \
+                      -DBUILD_{JPIP,JPWL,MJ2,SHARED_LIBS,TESTING}=OFF -DBUILD_THIRDPARTY=ON \
                       -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install

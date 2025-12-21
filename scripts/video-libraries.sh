@@ -125,20 +125,6 @@ install_video_libraries() {
     PATH="$PATH:$workspace/ant/bin"
     remove_duplicate_paths
 
-    # Ubuntu Jammy and Noble both give an error so instead we will use the APT version
-    if [[ ! "$STATIC_VER" == "22.04" ]] && [[ ! "$STATIC_VER" == "24.04" ]]; then
-        find_git_repo "206" "2" "T"
-	        if build "libbluray" "$repo_version"; then
-	            download "https://code.videolan.org/videolan/libbluray/-/archive/$repo_version/$repo_version.tar.gz" "libbluray-$repo_version.tar.gz"
-	            extracmds=("--disable-"{doxygen-doc,doxygen-dot,doxygen-html,doxygen-pdf,doxygen-ps,examples,extra-warnings,shared})
-	            ensure_autotools
-	            execute ./configure --prefix="$workspace" "${extracmds[@]}" --without-libxml2 --with-pic
-	            execute make "-j$build_threads"
-	            execute make install
-	            build_done "libbluray" "$repo_version"
-	        fi
-    fi
-    CONFIGURE_OPTIONS+=("--enable-libbluray")
 
     # Build zenlib
     find_git_repo "MediaArea/ZenLib" "1" "T"
@@ -486,7 +472,9 @@ EOF
         echo "Cloning \"$repo_name\" saving version \"$version\""
         git_clone "$git_url"
         execute git clone -q -b "20220623.1" --depth 1 "https://github.com/abseil/abseil-cpp.git" "third_party/abseil-cpp"
+        # Use -O2 to avoid GCC 14 ICE in SSE4 intra prediction code (lra-constraints.cc bug)
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
+                      -DCMAKE_CXX_FLAGS="-O2 -fPIC -DNDEBUG" \
                       -DABSL_{ENABLE_INSTALL,PROPAGATE_CXX_STD}=ON -DBUILD_SHARED_LIBS=OFF \
                       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin \
                       -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja -Wno-dev

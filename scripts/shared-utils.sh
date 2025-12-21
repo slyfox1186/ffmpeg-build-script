@@ -538,7 +538,8 @@ gnu_repo() {
     repo=$1
     repo_version=""
     local connect_timeout
-    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
+    # Use longer timeout for version detection (some servers like freedesktop.org are slow)
+    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
 
     # Input validation
     if [[ -z "$repo" ]]; then
@@ -1109,6 +1110,7 @@ find_git_repo() {
         8143)                 debian_salsa_repo "8143" "$url_choice" ;;
         8268)                 debian_salsa_repo "8268" "$url_choice" ;;
         76)                   videolan_repo "76" "$url_choice" ;;
+        206)                  videolan_repo "206" "$url_choice" ;;
         363)                  videolan_repo "363" "$url_choice" ;;
         536)                  x264_version ;;
         24327400)             svt_av1_version ;;
