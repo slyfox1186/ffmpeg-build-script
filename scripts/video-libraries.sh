@@ -33,25 +33,23 @@ install_video_libraries() {
     fi
     CONFIGURE_OPTIONS+=("--enable-libaom")
 
-    # Rav1e fails to build on Ubuntu Bionic and Debian 11 Bullseye
-    if [[ "$STATIC_VER" != "11" ]]; then
-        find_git_repo "xiph/rav1e" "1" "T" "enabled"
-        if build "rav1e" "$repo_version"; then
-            install_rustup
-            source "$HOME/.cargo/env"
-            [[ -f /usr/bin/rustc ]] && sudo rm -f /usr/bin/rustc
-            check_and_install_cargo_c
-            download "https://github.com/xiph/rav1e/archive/refs/tags/$repo_version.tar.gz" "rav1e-$repo_version.tar.gz"
-            # Ensure workspace directories have proper permissions
-            sudo chown -R "$USER:$USER" "$workspace"
-            if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
-                rm -fr "$HOME/.cargo/registry/index/"* "$HOME/.cargo/.package-cache"
-                execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release
-            fi
-            build_done "rav1e" "$repo_version"
+    # Build rav1e (Rust-based AV1 encoder)
+    find_git_repo "xiph/rav1e" "1" "T" "enabled"
+    if build "rav1e" "$repo_version"; then
+        install_rustup
+        source "$HOME/.cargo/env"
+        [[ -f /usr/bin/rustc ]] && sudo rm -f /usr/bin/rustc
+        check_and_install_cargo_c
+        download "https://github.com/xiph/rav1e/archive/refs/tags/$repo_version.tar.gz" "rav1e-$repo_version.tar.gz"
+        # Ensure workspace directories have proper permissions
+        sudo chown -R "$USER:$USER" "$workspace"
+        if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
+            rm -fr "$HOME/.cargo/registry/index/"* "$HOME/.cargo/.package-cache"
+            execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release
         fi
-        CONFIGURE_OPTIONS+=("--enable-librav1e")
+        build_done "rav1e" "$repo_version"
     fi
+    CONFIGURE_OPTIONS+=("--enable-librav1e")
 
 	    # Build zimg
 	    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
@@ -242,8 +240,6 @@ EOF
 
             execute ninja install
 
-            [[ -n "$LDEXEFLAGS" ]] && sed -i.backup "s/lgcc_s/lgcc_eh/g" "$workspace/lib/pkgconfig/x265.pc"
-
             fix_x265_libs # Fix the x265 shared library issue
 
             build_done "x265" "3.6"
@@ -293,15 +289,6 @@ EOF
 
             CONFIGURE_OPTIONS+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
 
-            # libnpp only works with CUDA 11.x and earlier (deprecated NPP functions removed in CUDA 12+)
-            if [[ -n "$LDEXEFLAGS" ]]; then
-                local cuda_major_ver
-                cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -1)
-                if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
-                    CONFIGURE_OPTIONS+=("--enable-libnpp")
-                fi
-            fi
-
             PATH+=":$cuda_path"
             remove_duplicate_paths
 
@@ -311,15 +298,12 @@ EOF
             fi
         fi
 
-        # Vaapi doesn't work well with static links FFmpeg.
-        if [[ -z "$LDEXEFLAGS" ]]; then
-            # If the libva development SDK is installed, enable vaapi.
-            if library_exists "libva"; then
-                if build "vaapi" "1"; then
-                    build_done "vaapi" "1"
-                fi
-                CONFIGURE_OPTIONS+=("--enable-vaapi")
+        # If the libva development SDK is installed, enable vaapi.
+        if library_exists "libva"; then
+            if build "vaapi" "1"; then
+                build_done "vaapi" "1"
             fi
+            CONFIGURE_OPTIONS+=("--enable-vaapi")
         fi
 
         # Build AMF headers (use official headers-only tarball)
@@ -348,9 +332,6 @@ EOF
                           -G Ninja -Wno-dev
             execute ninja -C build "-j$build_threads"
             execute ninja -C build "-j$build_threads" install
-            if [[ -n "$LDEXEFLAGS" ]]; then
-                sed -i.backup "s/-lgcc_s/-lgcc_eh/g" "$workspace/lib/pkgconfig/srt.pc"
-            fi
             build_done "srt" "$repo_version"
         fi
         CONFIGURE_OPTIONS+=("--enable-libsrt")

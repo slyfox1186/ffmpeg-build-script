@@ -61,23 +61,21 @@ install_core_libraries() {
         build_done "libiconv" "$repo_version"
     fi
 
-    # Build libxml2 (Ubuntu Bionic fails to build xml2)
-    if [[ "$STATIC_VER" != "18.04" ]]; then
-        libxml2_version
-        if build "libxml2" "$repo_version"; then
-            download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2?ref_type=tags" "libxml2-$repo_version.tar.bz2"
-            # Save flags before modification and restore after build
-            save_compiler_flags
-            CFLAGS+=" -DNOLIBTOOL"
-            execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
-            execute ninja "-j$build_threads" -C build
-            execute ninja -C build install
-            restore_compiler_flags
-            build_done "libxml2" "$repo_version"
-        fi
-        CONFIGURE_OPTIONS+=("--enable-libxml2")
+    # Build libxml2
+    libxml2_version
+    if build "libxml2" "$repo_version"; then
+        download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2?ref_type=tags" "libxml2-$repo_version.tar.bz2"
+        # Save flags before modification and restore after build
+        save_compiler_flags
+        CFLAGS+=" -DNOLIBTOOL"
+        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
+                      -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
+        execute ninja "-j$build_threads" -C build
+        execute ninja -C build install
+        restore_compiler_flags
+        build_done "libxml2" "$repo_version"
     fi
+    CONFIGURE_OPTIONS+=("--enable-libxml2")
 
     # Build libpng
     find_git_repo "pnggroup/libpng" "1" "T"

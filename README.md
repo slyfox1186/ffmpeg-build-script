@@ -22,11 +22,11 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
 
 | Distribution | Versions                 | Codenames                                        |
 |--------------|--------------------------|--------------------------------------------------|
-| **Debian**   | 11                       | Bullseye                                         |
-|              | 12                       | Bookworm                                         |
+| **Debian**   | 12                       | Bookworm                                         |
 |              | 13                       | Trixie                                           |
 | **Ubuntu**   | 22.04                    | Jammy Jellyfish                                  |
 |              | 24.04                    | Noble Numbat                                     |
+| **WSL**      | Ubuntu-based             | Windows Subsystem for Linux                      |
 
 ## Installation
 

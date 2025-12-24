@@ -136,6 +136,10 @@ Thumbs.db
 .claude/
 .mcp.json
 
+# AI instruction files (except CLAUDE.md which is tracked)
+AGENTS.md
+GEMINI.md
+
 # Optional: Keep the original .gitignore and LICENSE commented out if needed
 # /.gitignore
 # /LICENSE
