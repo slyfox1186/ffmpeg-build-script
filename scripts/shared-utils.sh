@@ -747,74 +747,102 @@ fetch_repo_version() {
     repo_version="$version"
 }
 
-cmake_repo_version() {
-    repo_version=$(curl -fsS "https://github.com/Kitware/CMake/tags" | 
-                   grep -oP 'href="/Kitware/CMake/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   grep -v 'rc' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+cmake_repo_version() { github_version "Kitware/CMake" "v" "rc"; }
+meson_repo_version() { github_version "mesonbuild/meson" "" "rc"; }
+ninja_repo_version() { github_version "ninja-build/ninja" "v"; }
+zstd_repo_version() { github_version "facebook/zstd" "v"; }
+librist_repo_version() { gitlab_version "https://code.videolan.org" "rist/librist" "v"; }
+# zlib: Prefer releases over tags (tags can exist without published release assets)
+zlib_repo_version() { github_version "madler/zlib" "v" "" "releases"; }
+yasm_repo_version() { github_version "yasm/yasm" "v"; }
 
-meson_repo_version() {
-    repo_version=$(curl -fsS "https://github.com/mesonbuild/meson/tags" | 
-                   grep -oP 'href="/mesonbuild/meson/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   grep -v 'rc' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+###################################################################################
+# Unified Version Extraction Functions
+# These replace repetitive per-repo functions with parameterized, robust versions
+###################################################################################
 
-ninja_repo_version() {
-    repo_version=$(curl -fsS "https://github.com/ninja-build/ninja/tags" | 
-                   grep -oP 'href="/ninja-build/ninja/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-zstd_repo_version() {
-    repo_version=$(curl -fsS "https://github.com/facebook/zstd/tags" | 
-                   grep -oP 'href="/facebook/zstd/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-librist_repo_version() {
-    repo_version=$(curl -fsS "https://code.videolan.org/rist/librist/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K0\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-zlib_repo_version() {
-    # Prefer Releases (tags can exist without published release assets, which breaks
-    # downloads from /releases/download/...).
-    repo_version=$(curl -fsS "https://github.com/madler/zlib/releases" |
-                   grep -oP 'href="/madler/zlib/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' |
-                   sort -ruV |
-                   head -n1
-                  )
-}
-
-yasm_repo_version() {
-    repo_version=$(curl -fsS "https://github.com/yasm/yasm/tags" | 
-                   grep -oP 'href="/yasm/yasm/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-# Generic function for standard GitHub repos with v{major}.{minor}.{patch} tags
-generic_github_version() {
+# github_version - Unified GitHub version extractor
+# Usage: github_version "owner/repo" [prefix] [exclude_pattern] [url_type]
+#   repo:            Repository path (e.g., "ninja-build/ninja")
+#   prefix:          Tag prefix - "v" (default), "" (none), or custom (e.g., "lcms", "R")
+#   exclude_pattern: Optional grep -v pattern (e.g., "rc|beta")
+#   url_type:        "tags" (default) or "releases"
+# Sets: repo_version
+github_version() {
     local repo=$1
-    repo_version=$(curl -fsS "https://github.com/$repo/tags" |
-                   grep -oP 'href="/'"$repo"'/releases/tag/v\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' |
-                   sort -ruV |
-                   head -n1
-                  )
+    # Use ${2-v} not ${2:-v} so empty string "" is preserved, only unset defaults to "v"
+    local prefix=${2-v}
+    local exclude_pattern=${3:-}
+    local url_type=${4:-tags}
+    local page pattern version
+
+    page=$(curl -fsS "https://github.com/$repo/$url_type") || {
+        warn "github_version: Failed to fetch $url_type for $repo"
+        return 1
+    }
+
+    # Build regex pattern based on prefix
+    # The \K resets match start, (?=") is lookahead to ensure we stop at quote
+    if [[ -z "$prefix" ]]; then
+        pattern='href="/'"$repo"'/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")'
+    else
+        pattern='href="/'"$repo"'/releases/tag/'"$prefix"'\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")'
+    fi
+
+    if [[ -n "$exclude_pattern" ]]; then
+        version=$(printf '%s' "$page" | grep -oP "$pattern" | grep -Ev "$exclude_pattern" | sort -ruV | head -n1)
+    else
+        version=$(printf '%s' "$page" | grep -oP "$pattern" | sort -ruV | head -n1)
+    fi
+
+    if [[ -z "$version" ]]; then
+        warn "github_version: No version found for $repo (prefix='$prefix')"
+        return 1
+    fi
+
+    repo_version="$version"
+}
+
+# gitlab_version - Unified GitLab version extractor
+# Usage: gitlab_version "base_url" "project" [prefix] [separator]
+#   base_url:   GitLab instance (e.g., "https://gitlab.com", "https://code.videolan.org")
+#   project:    Project path (e.g., "drobilla/zix", "AOMediaCodec/SVT-AV1")
+#   prefix:     Tag prefix - "v" (default), "" (none), or custom (e.g., "VER-")
+#   separator:  Version separator - "." (default) or "-"
+# Sets: repo_version
+gitlab_version() {
+    local base_url=$1
+    local project=$2
+    # Use ${3-v} not ${3:-v} so empty string "" is preserved, only unset defaults to "v"
+    local prefix=${3-v}
+    local separator=${4:-.}
+    local page pattern version
+
+    page=$(curl -fsS "$base_url/$project/-/tags") || {
+        warn "gitlab_version: Failed to fetch tags for $project from $base_url"
+        return 1
+    }
+
+    # Build regex based on separator type
+    if [[ "$separator" == "-" ]]; then
+        pattern='href="[^"]*/-/tags/'"$prefix"'\K[0-9]+-[0-9]+-[0-9]+(?=")'
+    else
+        pattern='href="[^"]*/-/tags/'"$prefix"'\K[0-9]+\.[0-9]+\.[0-9]+(?=")'
+    fi
+
+    version=$(printf '%s' "$page" | grep -oP "$pattern" | sort -ruV | head -n1)
+
+    if [[ -z "$version" ]]; then
+        warn "gitlab_version: No version found for $project (prefix='$prefix', sep='$separator')"
+        return 1
+    fi
+
+    repo_version="$version"
+}
+
+# Legacy wrapper - kept for backward compatibility
+generic_github_version() {
+    github_version "$1" "v"
 }
 
 # Version functions for specific repos
@@ -822,53 +850,17 @@ xiph_ogg_version() { generic_github_version "xiph/ogg"; }
 xiph_opus_version() { generic_github_version "xiph/opus"; }  
 xiph_vorbis_version() { generic_github_version "xiph/vorbis"; }
 freeglut_version() { generic_github_version "freeglut/freeglut"; }
-libass_version() { 
-    repo_version=$(curl -fsS "https://github.com/libass/libass/tags" | 
-                   grep -oP 'href="/libass/libass/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-harfbuzz_version() {
-    repo_version=$(curl -fsS "https://github.com/harfbuzz/harfbuzz/tags" | 
-                   grep -oP 'href="/harfbuzz/harfbuzz/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+libass_version() { github_version "libass/libass" ""; }
+harfbuzz_version() { github_version "harfbuzz/harfbuzz" ""; }
 fribidi_version() { generic_github_version "fribidi/fribidi"; }
 brotli_version() { generic_github_version "google/brotli"; }
-highway_version() {
-    repo_version=$(curl -fsS "https://github.com/google/highway/tags" | 
-                   grep -oP 'href="/google/highway/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+highway_version() { github_version "google/highway" ""; }
 gflags_version() { generic_github_version "gflags/gflags"; }
-libjpeg_turbo_version() {
-    repo_version=$(curl -fsS "https://github.com/libjpeg-turbo/libjpeg-turbo/tags" | 
-                   grep -oP 'href="/libjpeg-turbo/libjpeg-turbo/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+libjpeg_turbo_version() { github_version "libjpeg-turbo/libjpeg-turbo" ""; }
 c_ares_version() { generic_github_version "c-ares/c-ares"; }
 jansson_version() { generic_github_version "akheron/jansson"; }
-jemalloc_version() {
-    repo_version=$(curl -fsS "https://github.com/jemalloc/jemalloc/tags" | 
-                   grep -oP 'href="/jemalloc/jemalloc/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-lcms2_version() { 
-    repo_version=$(curl -fsS "https://github.com/mm2/Little-CMS/tags" | 
-                   grep -oP 'href="/mm2/Little-CMS/releases/tag/lcms\K[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+jemalloc_version() { github_version "jemalloc/jemalloc" ""; }
+lcms2_version() { github_version "mm2/Little-CMS" "lcms"; }
 libpng_version() { generic_github_version "pnggroup/libpng"; }
 libheif_version() { generic_github_version "strukturag/libheif"; }
 openjpeg_version() { generic_github_version "uclouvain/openjpeg"; }
@@ -877,62 +869,17 @@ libavif_version() { generic_github_version "AOMediaCodec/libavif"; }
 srt_version() { generic_github_version "Haivision/srt"; }
 vid_stab_version() { generic_github_version "georgmartius/vid.stab"; }
 fdk_aac_version() { generic_github_version "mstorsjo/fdk-aac"; }
-libsndfile_version() {
-    repo_version=$(curl -fsS "https://github.com/libsndfile/libsndfile/tags" | 
-                   grep -oP 'href="/libsndfile/libsndfile/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-zix_version() {
-    repo_version=$(curl -fsS "https://gitlab.com/drobilla/zix/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-soxr_version() {
-    repo_version=$(curl -fsS "https://github.com/chirlu/soxr/tags" | 
-                   grep -oP 'href="/chirlu/soxr/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+libsndfile_version() { github_version "libsndfile/libsndfile" ""; }
+zix_version() { gitlab_version "https://gitlab.com" "drobilla/zix" "v"; }
+soxr_version() { github_version "chirlu/soxr" ""; }
 libmysofa_version() { generic_github_version "hoene/libmysofa"; }
 frei0r_version() { generic_github_version "dyne/frei0r"; }
 aribb24_version() { generic_github_version "nkoriyama/aribb24"; }
 
-libxml2_version() {
-    repo_version=$(curl -fsS "https://gitlab.gnome.org/GNOME/libxml2/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-libtiff_version() {
-    repo_version=$(curl -fsS "https://gitlab.com/libtiff/libtiff/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-freetype_version() {
-    repo_version=$(curl -fsS "https://gitlab.freedesktop.org/freetype/freetype/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/VER-\K[0-9]+-[0-9]+-[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
-
-fontconfig_version() {
-    repo_version=$(curl -fsS "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | 
-                   head -n1
-                  )
-}
+libxml2_version() { gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" "v"; }
+libtiff_version() { gitlab_version "https://gitlab.com" "libtiff/libtiff" "v"; }
+freetype_version() { gitlab_version "https://gitlab.freedesktop.org" "freetype/freetype" "VER-" "-"; }
+fontconfig_version() { gitlab_version "https://gitlab.freedesktop.org" "fontconfig/fontconfig" ""; }
 
 debian_salsa_repo() {
     local project_id=$1

@@ -22,26 +22,32 @@ build_ffmpeg() {
         install_windows_hardware_acceleration
     fi
 
-    # Run the 'ffmpeg -version' command and capture its output
-    if ffmpeg_version=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null | grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -ruV | head -n1); then
+    # Fetch latest release once (avoids duplicate network calls).
+    local ffmpeg_release_page ffmpeg_latest_version ffmpeg_installed_version
+    ffmpeg_release_page=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null || true)
+    if [[ -n "$ffmpeg_release_page" ]]; then
+        ffmpeg_latest_version=$(
+            printf '%s' "$ffmpeg_release_page" |
+            grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' |
+            sort -ruV | head -n1
+        )
+    fi
 
-        # Get the installed version - safer regex pattern
+    echo
+    if command -v ffmpeg >/dev/null 2>&1; then
         ffmpeg_installed_version=$(ffmpeg -version 2>/dev/null | grep -oP '\d+\.\d+(?:\.\d+)*' | head -n1)
-        # Format the version number with the desired prefix
-        ffmpeg_version_formatted="n$ffmpeg_version"
-
-        echo
-        log_update "The installed FFmpeg version is: n$ffmpeg_installed_version"
-        log_update "The latest FFmpeg release version available: $ffmpeg_version_formatted"
+        log_update "The installed FFmpeg version is: n${ffmpeg_installed_version:-Unknown}"
     else
-        echo
-        log_update "Failed to retrieve an installed FFmpeg version"
+        log_update "FFmpeg is not currently installed"
+    fi
+
+    if [[ -n "$ffmpeg_latest_version" ]]; then
+        log_update "The latest FFmpeg release version available: n$ffmpeg_latest_version"
+    else
         log_update "The latest FFmpeg release version available is: Unknown"
     fi
 
-    # Get latest FFmpeg version dynamically from ffmpeg.org releases
-    ffmpeg_repo_version=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null | grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' | sort -ruV | head -n1)
-    repo_version="${ffmpeg_repo_version:-6.1.2}"
+    repo_version="${ffmpeg_latest_version:-6.1.2}"
     log_update "Using FFmpeg version n$repo_version"
 
     if build "ffmpeg" "n${repo_version}"; then
@@ -115,68 +121,78 @@ build_ffmpeg() {
         # ═══════════════════════════════════════════════════════════════════════════
         # Add CUDA/NVENC support if NVIDIA GPU detected and CUDA installed
         if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
-            log "Enabling CUDA/NVENC hardware acceleration..."
-
-            # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
-            if ! pkg-config --exists ffnvcodec 2>/dev/null; then
-                log "Installing nv-codec-headers (required for NVENC)..."
-                local nvcodec_dir="$packages/nv-codec-headers"
-                if [[ ! -d "$nvcodec_dir" ]]; then
-                    git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git "$nvcodec_dir"
-                fi
-                cd "$nvcodec_dir" || fail "Failed to cd into nv-codec-headers directory. Line: $LINENO"
-                sudo make install PREFIX=/usr/local
-                cd "$cwd/packages/ffmpeg-n${repo_version}" || fail "Failed to return to FFmpeg directory. Line: $LINENO"
-                log "nv-codec-headers installed successfully"
+            if [[ "${NONFREE_AND_GPL:-false}" != "true" ]]; then
+                warn "NVIDIA GPU detected, but CUDA/NVENC requires --enable-nonfree. Skipping CUDA/NVENC. Re-run with --enable-gpl-and-non-free to enable."
             else
-                log "nv-codec-headers already installed"
-            fi
+                log "Enabling CUDA/NVENC hardware acceleration..."
 
-            # Enable CUDA-related FFmpeg features
-            OPTIONAL_LIBS+=(
-                --enable-cuda
-                --enable-cuda-nvcc
-                --enable-cuvid
-                --enable-nvenc
-                --enable-nvdec
-                --enable-ffnvcodec
-            )
-
-            # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
-            # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
-            # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
-            # Only enable libnpp for CUDA 11.x and earlier
-            if [[ -f "/usr/local/cuda/lib64/libnppc.so" ]] || [[ -f "/usr/local/cuda/lib64/libnppc_static.a" ]]; then
-                local cuda_major_ver
-                cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -1)
-                if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
-                    OPTIONAL_LIBS+=(--enable-libnpp)
-                    log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
+                # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
+                if ! pkg-config --exists ffnvcodec 2>/dev/null; then
+                    log "Installing nv-codec-headers (required for NVENC)..."
+                    local ffmpeg_build_dir="$PWD"
+                    local nvcodec_dir="$packages/nv-codec-headers"
+                    if [[ ! -d "$nvcodec_dir" ]]; then
+                        git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git "$nvcodec_dir"
+                    fi
+                    cd "$nvcodec_dir" || fail "Failed to cd into nv-codec-headers directory. Line: $LINENO"
+                    execute make PREFIX="$workspace" install
+                    cd "$ffmpeg_build_dir" || fail "Failed to return to FFmpeg build directory. Line: $LINENO"
+                    log "nv-codec-headers installed successfully"
                 else
-                    log "NVIDIA Performance Primitives (libnpp) disabled - CUDA ${cuda_major_ver:-unknown} has incompatible NPP API"
+                    log "nv-codec-headers already installed"
                 fi
-            fi
 
-            # Add CUDA paths to compiler/linker flags
-            local cuda_cflags="-I/usr/local/cuda/include"
-            local cuda_ldflags="-L/usr/local/cuda/lib64"
-
-            # Update BASIC_CONFIG with CUDA paths (append to existing flags)
-            for i in "${!BASIC_CONFIG[@]}"; do
-                if [[ "${BASIC_CONFIG[i]}" == --extra-cflags=* ]]; then
-                    BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_cflags"
-                elif [[ "${BASIC_CONFIG[i]}" == --extra-ldflags=* ]]; then
-                    BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_ldflags"
+                # Enable CUDA-related FFmpeg features
+                OPTIONAL_LIBS+=(
+                    --enable-cuda
+                    --enable-cuda-nvcc
+                    --enable-cuvid
+                    --enable-nvenc
+                    --enable-nvdec
+                    --enable-ffnvcodec
+                )
+                if command -v llvm-config >/dev/null 2>&1; then
+                    OPTIONAL_LIBS+=(--enable-cuda-llvm)
+                else
+                    log "llvm-config not found; skipping --enable-cuda-llvm"
                 fi
-            done
 
-            # Add nvcc flags if GPU architecture was detected
-            if [[ -n "${nvidia_arch_type:-}" ]]; then
-                BASIC_CONFIG+=("--nvccflags=$nvidia_arch_type")
-                log "NVCC architecture flags: $nvidia_arch_type"
+                # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
+                # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
+                # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
+                # Only enable libnpp for CUDA 11.x and earlier
+                if [[ -f "/usr/local/cuda/lib64/libnppc.so" ]] || [[ -f "/usr/local/cuda/lib64/libnppc_static.a" ]]; then
+                    local cuda_major_ver
+                    cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -1)
+                    if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
+                        OPTIONAL_LIBS+=(--enable-libnpp)
+                        log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
+                    else
+                        log "NVIDIA Performance Primitives (libnpp) disabled - CUDA ${cuda_major_ver:-unknown} has incompatible NPP API"
+                    fi
+                fi
+
+                # Add CUDA paths to compiler/linker flags
+                local cuda_cflags="-I/usr/local/cuda/include"
+                local cuda_ldflags="-L/usr/local/cuda/lib64"
+
+                # Update BASIC_CONFIG with CUDA paths (append to existing flags)
+                for i in "${!BASIC_CONFIG[@]}"; do
+                    if [[ "${BASIC_CONFIG[i]}" == --extra-cflags=* ]]; then
+                        BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_cflags"
+                    elif [[ "${BASIC_CONFIG[i]}" == --extra-ldflags=* ]]; then
+                        BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_ldflags"
+                    fi
+                done
+
+                # Add nvcc flags if GPU architecture was detected
+                if [[ -n "${nvidia_arch_type:-}" ]]; then
+                    BASIC_CONFIG+=("--nvccflags=$nvidia_arch_type")
+                    log "NVCC architecture flags: $nvidia_arch_type"
+                fi
+
+                log "CUDA/NVENC support enabled successfully"
             fi
-
-            log "CUDA/NVENC support enabled successfully"
         elif [[ "${gpu_flag:-1}" -eq 0 ]] && [[ ! -d "/usr/local/cuda" ]]; then
             warn "NVIDIA GPU detected but CUDA not found at /usr/local/cuda - NVENC disabled"
         fi
@@ -185,9 +201,25 @@ build_ffmpeg() {
         # Some environments export `threads=<n>` (e.g. `threads=32`), which breaks FFmpeg's
         # dependency resolution and silently disables building the `ffmpeg` binary
         # (while `ffprobe`/`ffplay` may still build). Sanitize those env vars for configure.
+        local -a FINAL_CONFIG=()
+        local -A seen_flags=()
+        local dup_count=0
+        local opt
+        for opt in "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"; do
+            if [[ -z "${seen_flags[$opt]+x}" ]]; then
+                FINAL_CONFIG+=("$opt")
+                seen_flags[$opt]=1
+            else
+                ((dup_count++))
+            fi
+        done
+        if ((dup_count > 0)); then
+            log "Removed $dup_count duplicate configure flags"
+        fi
+
         execute env -u threads -u THREADS \
             -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV \
-            ../configure "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"
+            ../configure "${FINAL_CONFIG[@]}"
 
         # Fail fast if configure disabled the main `ffmpeg` program.
         if [[ -f ffbuild/config.mak ]] && ! grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak; then

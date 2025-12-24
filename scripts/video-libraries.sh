@@ -249,8 +249,6 @@ EOF
         # NVIDIA codec headers (CUDA only)
         # Check if NVIDIA GPU was detected (gpu_flag=0) and CUDA toolkit is installed
         if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
-            # Define CUDA paths
-            cuda_path="/usr/local/cuda/bin"
             # Check if nv-codec-headers was already built
             if [[ -f "$packages/nv-codec-headers.done" ]]; then
                 # Read the previously selected version from the lock file
@@ -285,16 +283,6 @@ EOF
                     execute make PREFIX="$workspace" install
                     build_done "nv-codec-headers" "$selected_version"
                 fi
-            fi
-
-            CONFIGURE_OPTIONS+=("--enable-"{cuda-nvcc,cuda-llvm,cuvid,nvdec,nvenc,ffnvcodec})
-
-            PATH+=":$cuda_path"
-            remove_duplicate_paths
-
-            # Use the nvidia_arch_type already set by hardware-detection.sh
-            if [[ -n "${nvidia_arch_type:-}" ]]; then
-                CONFIGURE_OPTIONS+=("--nvccflags=$nvidia_arch_type")
             fi
         fi
 
@@ -398,7 +386,7 @@ EOF
                       -DBUILD_{APPS,SHARED_LIBS,TESTING}=OFF -DENABLE_AVX512="$(check_avx512)" \
                       -DNATIVE=ON -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C Build/linux
-        execute ninja "-j$build_threads" -C Build/linux install
+        execute ninja -C Build/linux install
         [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig/"
         [[ -d "$workspace/lib/pkgconfig" ]] && [[ -f "Build/linux/SvtAv1Dec.pc" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig/"
         build_done "svt-av1" "$repo_version"
