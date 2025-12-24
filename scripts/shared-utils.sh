@@ -1028,10 +1028,9 @@ check_and_install_cargo_c() {
 }
 
 find_git_repo() {
-    local count repo_name third_flag url_choice
+    local count repo_name url_choice
     repo_name=$1
     url_choice=$2
-    third_flag=$3
     count=1
 
     case "$repo_name" in
