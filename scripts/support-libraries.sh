@@ -25,7 +25,7 @@ install_miscellaneous_libraries() {
         gnu_repo "$GNU_PRIMARY_MIRROR/gmp/"
         if build "gmp" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/gmp/gmp-$repo_version.tar.xz" "$GNU_FALLBACK_MIRROR/gmp/gmp-$repo_version.tar.xz"
-            execute ./configure --prefix="$workspace" --disable-shared --enable-static
+            execute sh configure --prefix="$workspace" --disable-shared --enable-static
             execute make "-j$build_threads"
             execute make install
             build_done "gmp" "$repo_version"
@@ -34,7 +34,7 @@ install_miscellaneous_libraries() {
         gnu_repo "$GNU_PRIMARY_MIRROR/nettle/"
         if build "nettle" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/nettle/nettle-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/nettle/nettle-$repo_version.tar.gz"
-            execute ./configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
+            execute sh configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
                                 --libdir="$workspace/lib" CPPFLAGS="-O2 -fno-lto -fPIC -march=native" LDFLAGS="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install
@@ -44,7 +44,7 @@ install_miscellaneous_libraries() {
         gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
         if build "gnutls" "$repo_version"; then
             download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
-            execute ./configure --prefix="$workspace" --disable-{cxx,doc,gtk-doc-html,guile,libdane,nls,shared,tests,tools} \
+            execute sh configure --prefix="$workspace" --disable-{cxx,doc,gtk-doc-html,guile,libdane,nls,shared,tests,tools} \
                                 --enable-{local-libopts,static} --with-included-{libtasn1,unistring} --without-p11-kit \
                                 CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS"
             execute make "-j$build_threads"
@@ -59,7 +59,7 @@ install_miscellaneous_libraries() {
     if build "freetype" "$repo_version_1"; then
         download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-$repo_version/freetype-VER-$repo_version.tar.bz2?ref_type=tags" "freetype-$repo_version_1.tar.bz2"
         extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
-        execute ./autogen.sh
+        execute sh autogen.sh
         execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
@@ -144,9 +144,8 @@ install_miscellaneous_libraries() {
 
     # Build libwebp
     git_caller "https://chromium.googlesource.com/webm/libwebp" "libwebp-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"  "libwebp-git"
+    if build "$repo_name" "$version"; then
+        cd "$packages/libwebp-git" || fail "Failed to cd into libwebp-git. Line: ${LINENO}"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DBUILD_SHARED_LIBS=OFF -DZLIB_INCLUDE_DIR="$workspace/include" \
                       -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,VWEBP}=OFF \
@@ -188,8 +187,8 @@ install_miscellaneous_libraries() {
     find_git_repo "mm2/Little-CMS" "1" "T"
     if build "lcms2" "$repo_version"; then
         download "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms$repo_version.tar.gz" "lcms2-$repo_version.tar.gz"
-        execute ./autogen.sh
-        execute ./configure --prefix="$workspace" --disable-shared --enable-static --with-threaded \
+        execute sh autogen.sh
+        execute sh configure --prefix="$workspace" --disable-shared --enable-static --with-threaded \
                         PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$PKG_CONFIG_PATH" \
                         LDFLAGS="$LDFLAGS" \
                         LIBS="-lwebp -lsharpyuv"
@@ -214,9 +213,8 @@ install_miscellaneous_libraries() {
 
     # Build OpenCL SDK
     git_caller "https://github.com/KhronosGroup/OpenCL-SDK.git" "opencl-sdk-git" "recurse"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
+    if build "$repo_name" "$version"; then
+        cd "$packages/opencl-sdk-git" || fail "Failed to cd into opencl-sdk-git. Line: ${LINENO}"
         execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_{DOCS,EXAMPLES,SHARED_LIBS,TESTING}=OFF -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
                 -DCMAKE_C_FLAGS="$CFLAGS" -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF \
@@ -249,9 +247,8 @@ install_miscellaneous_libraries() {
     # Build rubberband (GPL and non-free only)
     if "$NONFREE_AND_GPL"; then
         git_caller "https://github.com/m-ab-s/rubberband.git" "rubberband-git"
-        if build "$repo_name" "${version//\$ /}"; then
-            echo "Cloning \"$repo_name\" saving version \"$version\""
-            git_clone "$git_url"
+        if build "$repo_name" "$version"; then
+            cd "$packages/rubberband-git" || fail "Failed to cd into rubberband-git. Line: ${LINENO}"
             execute make "-j$build_threads" PREFIX="$workspace" install-static
             build_done "$repo_name" "$version"
         fi
@@ -272,9 +269,8 @@ install_miscellaneous_libraries() {
 
     # Build lv2
     git_caller "https://github.com/lv2/lv2.git" "lv2-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
+    if build "$repo_name" "$version"; then
+        cd "$packages/lv2-git" || fail "Failed to cd into lv2-git. Line: ${LINENO}"
 
         venv_packages=("lxml" "Markdown" "Pygments" "rdflib")
         setup_python_venv_and_install_packages "$workspace/python_virtual_environment/lv2-git" "${venv_packages[@]}"
@@ -326,7 +322,7 @@ install_miscellaneous_libraries() {
 	    if build "pcre2" "$pcre2_version"; then
 	        download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute sh configure --prefix="$workspace" --disable-shared
 	        execute make "-j$build_threads"
 	        execute make install
 	        build_done "pcre2" "$pcre2_version"
@@ -373,27 +369,13 @@ install_miscellaneous_libraries() {
     # lilv: Using system liblilv-dev package (installed via apt)
     CONFIGURE_OPTIONS+=("--enable-lv2")
 
-    # Build libmpg123 - Using system package instead of problematic git version
-    # The gypified fork has autotools configuration issues
-    if build "libmpg123" "system"; then
-        # Check if already installed on system
-        if dpkg -s libmpg123-dev &>/dev/null; then
-            log "libmpg123-dev already installed on system"
-        else
-            log "Installing libmpg123 using system package manager"
-            execute sudo apt install -y libmpg123-dev
-            log "libmpg123 system package installed successfully"
-        fi
-        build_done "libmpg123" "system"
-    fi
 
-    
 	    # Build jemalloc
 	    find_git_repo "jemalloc/jemalloc" "1" "T"
 	    if build "jemalloc" "$repo_version"; then
 	        download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
+	        execute sh configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
 	        execute make "-j$build_threads"
 	        execute make install
 	        build_done "jemalloc" "$repo_version"

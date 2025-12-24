@@ -24,7 +24,7 @@ install_image_libraries() {
 	        # Save original flags before modification
 	        save_compiler_flags
 	        CFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
-	        CXXFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
+	        CXXFLAGS="$CFLAGS"
 	        export CFLAGS CXXFLAGS
 	        local with_aom with_dav1d with_libde265 with_rav1e with_x265
 	        with_aom=OFF
@@ -34,8 +34,8 @@ install_image_libraries() {
 	        with_x265=OFF
 
 	        [[ -f "$workspace/lib/libaom.a" || -f "$workspace/lib64/libaom.a" ]] && with_aom=ON
-	        pkg-config --exists dav1d 2>/dev/null && with_dav1d=ON
-	        (pkg-config --exists libde265 2>/dev/null || ldconfig -p 2>/dev/null | grep -q 'libde265\.so') && with_libde265=ON
+	        pkgconf --exists dav1d 2>/dev/null && with_dav1d=ON
+	        (pkgconf --exists libde265 2>/dev/null || ldconfig -p 2>/dev/null | grep -q 'libde265\.so') && with_libde265=ON
 	        [[ -f "$workspace/lib/librav1e.a" || -f "$workspace/lib64/librav1e.a" ]] && with_rav1e=ON
 	        # x265 disabled due to static linking issues with NUMA dependencies
 
