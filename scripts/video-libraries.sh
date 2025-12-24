@@ -19,9 +19,8 @@ install_video_libraries() {
 
     # Build libaom (AV1)
     git_caller "https://aomedia.googlesource.com/aom" "av1-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
+    if build "$repo_name" "$version"; then
+        cd "$packages/av1-git" || fail "Failed to cd into av1-git. Line: ${LINENO}"
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" \
                       -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
                       -DCONFIG_AV1_{DECODER,ENCODER,HIGHBITDEPTH,TEMPORAL_DENOISING}=1 \
@@ -53,12 +52,11 @@ install_video_libraries() {
 
 	    # Build zimg
 	    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
-	    if build "$repo_name" "${version//\$ /}"; then
-	        echo "Cloning \"$repo_name\" saving version \"$version\""
-	        git_clone "$git_url" "zimg-git"
+	    if build "$repo_name" "$version"; then
+	        cd "$packages/zimg-git" || fail "Failed to cd into zimg-git. Line: ${LINENO}"
 	        execute git submodule update --init --recursive
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --with-pic --disable-shared --enable-static
+	        execute sh configure --prefix="$workspace" --with-pic --disable-shared --enable-static
 	        execute make "-j$build_threads"
 	        execute make install
 	        build_done "$repo_name" "$version"
@@ -113,9 +111,8 @@ install_video_libraries() {
     # Set ant path and build ant
     set_ant_path
     git_caller "https://github.com/apache/ant.git" "ant-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
+    if build "$repo_name" "$version"; then
+        cd "$packages/ant-git" || fail "Failed to cd into ant-git. Line: ${LINENO}"
         execute chmod -R u+rwX,go+rX "$workspace/ant"
         execute sh build.sh install-lite
         build_done "$repo_name" "$version"
@@ -130,7 +127,7 @@ install_video_libraries() {
 	        download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
 	        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute sh configure --prefix="$workspace" --disable-shared
 	        execute make "-j$build_threads"
 	        execute make install
 	        build_done "zenlib" "$repo_version"
@@ -142,7 +139,7 @@ install_video_libraries() {
 	        download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
 	        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute sh configure --prefix="$workspace" --disable-shared
 	        execute make "-j$build_threads"
 	        execute make install
 	        build_done "mediainfo-lib" "$repo_version"
@@ -154,7 +151,7 @@ install_video_libraries() {
 	        download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
 	        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --enable-staticlibs --disable-shared
+	        execute sh configure --prefix="$workspace" --enable-staticlibs --disable-shared
 	        execute make "-j$build_threads"
 	        execute make install
 	        execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
@@ -182,8 +179,9 @@ install_video_libraries() {
         if build "x264" "$repo_version"; then
             download "https://code.videolan.org/videolan/x264/-/archive/$x264_full_commit/x264-$x264_full_commit.tar.bz2" "x264-$repo_version.tar.bz2"
             # Default to a release-style build (debug/profiling can be enabled by users when needed).
-            execute ./configure --prefix="$workspace" --bit-depth=all --chroma-format=all \
+            execute sh configure --prefix="$workspace" --bit-depth=all --chroma-format=all \
                                 --enable-pic --enable-static --enable-strip \
+                                --disable-bashcompletion \
                                 --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install-lib-static install
@@ -342,8 +340,8 @@ EOF
         if build "xvidcore" "$clean_version"; then
             download "https://salsa.debian.org/multimedia-team/xvidcore/-/archive/$url_version/xvidcore-${url_version//\//-}.tar.bz2" "xvidcore-$clean_version.tar.bz2"
             cd "build/generic" || fail "Failed to cd into build/generic. Line: $LINENO"
-            execute ./bootstrap.sh
-            execute ./configure --prefix="$workspace"
+            execute sh bootstrap.sh
+            execute sh configure --prefix="$workspace"
             execute make "-j$build_threads"
             [[ -f "$workspace/lib/libxvidcore.so" ]] && rm "$workspace/lib/libxvidcore.so" "$workspace/lib/libxvidcore.so.4"
             execute make install
@@ -354,8 +352,7 @@ EOF
 
     # Build gpac
 	    git_caller "https://github.com/gpac/gpac.git" "gpac-git"
-	    if build "$repo_name" "${version//\$ /}"; then
-	        echo "Cloning \"$repo_name\" saving version \"$version\""
+	    if build "$repo_name" "$version"; then
 	        # Remove existing directory if it exists
 	        [[ -d "$packages/gpac-git" ]] && rm -fr "$packages/gpac-git"
 	        # Do a full clone instead of shallow clone for gpac
@@ -371,7 +368,7 @@ EOF
 	            gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
 	        fi
 	        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has internal ogg implementation)
-	        execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --use-ogg=no "${gpac_sdl_cfg[@]}"
+	        execute sh configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --use-ogg=no "${gpac_sdl_cfg[@]}"
 	        execute make "-j$build_threads"
 	        execute make install
 	        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
@@ -419,7 +416,7 @@ EOF
 	        
 	        # Assuming autogen, configure, make, and install steps for VapourSynth
 	        ensure_autotools
-	        execute ./configure --prefix="$workspace" --disable-shared
+	        execute sh configure --prefix="$workspace" --disable-shared
 	        execute make -j"$build_threads"
 	        execute make install
 
@@ -438,9 +435,8 @@ EOF
 
     # Build libgav1
     git_caller "https://chromium.googlesource.com/codecs/libgav1" "libgav1-git"
-    if build "$repo_name" "${version//\$ /}"; then
-        echo "Cloning \"$repo_name\" saving version \"$version\""
-        git_clone "$git_url"
+    if build "$repo_name" "$version"; then
+        cd "$packages/libgav1-git" || fail "Failed to cd into libgav1-git. Line: ${LINENO}"
         execute git clone -q -b "20220623.1" --depth 1 "https://github.com/abseil/abseil-cpp.git" "third_party/abseil-cpp"
         # Use -O2 to avoid GCC 14 ICE in SSE4 intra prediction code (lra-constraints.cc bug)
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \

@@ -43,7 +43,7 @@ install_audio_libraries() {
                       -DSDL2_DISABLE_INSTALL_DOCS=ON -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
-        # Fix missing iconv dependency in pkg-config (SDL2 uses iconv but doesn't declare it)
+        # Fix missing iconv dependency in pkgconf (SDL2 uses iconv but doesn't declare it)
         if ! grep -q -- "-liconv" "$workspace/lib/pkgconfig/sdl2.pc" 2>/dev/null; then
             sed -i 's/^Libs:.*/& -liconv/' "$workspace/lib/pkgconfig/sdl2.pc"
         fi
@@ -54,8 +54,8 @@ install_audio_libraries() {
     find_git_repo "libsndfile/libsndfile" "1" "T"
     if build "libsndfile" "$repo_version"; then
         download "https://github.com/libsndfile/libsndfile/releases/download/$repo_version/libsndfile-$repo_version.tar.xz"
-        execute /usr/bin/autoreconf -fi
-        execute ./configure --prefix="$workspace" --enable-static --with-pic
+        execute autoreconf -fi
+        execute sh configure --prefix="$workspace" --enable-static --with-pic
         execute make "-j$build_threads"
         execute make install
         build_done "libsndfile" "$repo_version"
@@ -79,7 +79,7 @@ install_audio_libraries() {
         if build "libfdk-aac" "$repo_version"; then
             download "https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v$repo_version.tar.gz" "libfdk-aac-$repo_version.tar.gz"
             ensure_autotools
-            execute ./configure --prefix="$workspace" --disable-shared
+            execute sh configure --prefix="$workspace" --disable-shared
             execute make "-j$build_threads"
             execute make install
             build_done "libfdk-aac" "$repo_version"
@@ -131,7 +131,7 @@ install_audio_libraries() {
     repo_version="${repo_version//debian\//}"
     if build "opencore-amr" "$repo_version"; then
         download "https://salsa.debian.org/multimedia-team/opencore-amr/-/archive/debian/$repo_version/opencore-amr-debian-$repo_version.tar.bz2" "opencore-amr-$repo_version.tar.bz2"
-        execute ./configure --prefix="$workspace" --disable-shared
+        execute sh configure --prefix="$workspace" --disable-shared
         execute make "-j$build_threads"
         execute make install
         build_done "opencore-amr" "$repo_version"
@@ -141,8 +141,10 @@ install_audio_libraries() {
     # Build liblame
     if build "liblame" "3.100"; then
         download "https://master.dl.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz?viasf=1" "liblame-3.100.tar.gz"
-        execute ./configure --prefix="$workspace" --disable-{gtktest,shared} \
-                            --enable-nasm --with-libiconv-prefix=/usr
+        execute sh configure --prefix="$workspace" \
+                             --disable-{gtktest,shared} \
+                             --enable-nasm \
+                             --with-libiconv-prefix=/usr
         execute make "-j$build_threads"
         execute make install
         build_done "liblame" "3.100"
@@ -153,16 +155,16 @@ install_audio_libraries() {
     if build "libtheora" "1.1.1"; then
         download "https://github.com/xiph/theora/archive/refs/tags/v1.1.1.tar.gz" "libtheora-1.1.1.tar.gz"
         ensure_autotools
-        sed "s/-fforce-addr//g" "configure" > "configure.patched"
-        chmod +x "configure.patched"
-        execute mv "configure.patched" "configure"
-        execute rm "config.guess"
-        execute curl -LSso "config.guess" "https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess"
-        chmod +x "config.guess"
-        execute ./configure --prefix="$workspace" --disable-{examples,oggtest,sdltest,shared,vorbistest} \
-                            --enable-static --with-ogg-includes="$workspace/include" --with-ogg-libraries="$workspace/lib" \
-                            --with-ogg="$workspace" --with-sdl-prefix="$workspace" --with-vorbis-includes="$workspace/include" \
-                            --with-vorbis-libraries="$workspace/lib" --with-vorbis="$workspace"
+        sed 's/-fforce-addr//g' configure > configure.patched
+        chmod +x configure.patched
+        execute mv configure.patched configure
+        execute rm config.guess
+        execute curl -LSso config.guess https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
+        chmod +x config.guess
+        execute sh configure --prefix="$workspace" --disable-{examples,oggtest,sdltest,shared,vorbistest} \
+                             --enable-static --with-ogg-includes="$workspace/include" --with-ogg-libraries="$workspace/lib" \
+                             --with-ogg="$workspace" --with-sdl-prefix="$workspace" --with-vorbis-includes="$workspace/include" \
+                             --with-vorbis-libraries="$workspace/lib" --with-vorbis="$workspace"
         execute make "-j$build_threads"
         execute make install
         build_done "libtheora" "1.1.1"

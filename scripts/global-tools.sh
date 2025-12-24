@@ -28,7 +28,7 @@ install_global_tools() {
     # Build m4
     if build "m4" "latest"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/m4/m4-latest.tar.xz" "$GNU_FALLBACK_MIRROR/m4/m4-latest.tar.xz"
-        execute ./configure --prefix="$workspace" --enable-c++ --enable-threads=posix
+        execute sh configure --prefix="$workspace" --enable-c++ --enable-threads=posix
         execute make "-j$build_threads"
         execute make install
         build_done "m4" "latest"
@@ -39,7 +39,7 @@ install_global_tools() {
     local autoconf_version="$repo_version"
     if build "autoconf" "$autoconf_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/autoconf/autoconf-$autoconf_version.tar.xz" "$GNU_FALLBACK_MIRROR/autoconf/autoconf-$autoconf_version.tar.xz"
-        execute ./configure --prefix="$workspace" M4="$workspace/bin/m4"
+        execute sh configure --prefix="$workspace" M4="$workspace/bin/m4"
         execute make "-j$build_threads"
         execute make install
         build_done "autoconf" "$autoconf_version"
@@ -50,7 +50,7 @@ install_global_tools() {
     local automake_version="$repo_version"
     if build "automake" "$automake_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/automake/automake-$automake_version.tar.xz" "$GNU_FALLBACK_MIRROR/automake/automake-$automake_version.tar.xz"
-        execute ./configure --prefix="$workspace"
+        execute sh configure --prefix="$workspace"
         execute make "-j$build_threads"
         execute make install
         build_done "automake" "$automake_version"
@@ -61,13 +61,13 @@ install_global_tools() {
     local libtool_version="$repo_version"
     if build "libtool" "$libtool_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/libtool/libtool-$libtool_version.tar.xz" "$GNU_FALLBACK_MIRROR/libtool/libtool-$libtool_version.tar.xz"
-        execute ./configure --prefix="$workspace" --with-pic M4="$workspace/bin/m4"
+        execute sh configure --prefix="$workspace" --with-pic M4="$workspace/bin/m4"
         execute make "-j$build_threads"
         execute make install
         build_done "libtool" "$libtool_version"
     fi
 
-    # Build pkgconf (modern pkg-config replacement)
+    # Build pkgconf (modern pkgconf replacement)
     # Tags are formatted as "pkgconf-X.Y.Z" so extract version directly
     local pkgconf_version
     pkgconf_version=$(curl -fsSL "https://github.com/pkgconf/pkgconf/tags" 2>/dev/null | grep -oP 'pkgconf-\K\d+\.\d+\.\d+(?=\.tar\.gz)' | head -1)
@@ -76,8 +76,8 @@ install_global_tools() {
         download "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-$pkgconf_version.tar.gz" "pkgconf-$pkgconf_version.tar.gz"
         # Release tarballs from GitHub need autoreconf
         execute autoreconf -fi
-        execute ./configure --prefix="$workspace" --enable-silent-rules \
-            --with-pkg-config-dir="$PKG_CONFIG_PATH" \
+        execute sh configure --prefix="$workspace" --enable-silent-rules \
+            --with-pkgconf-dir="$PKG_CONFIG_PATH" \
             --with-system-libdir="/lib:/lib64:/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu" \
             --with-system-includedir="/usr/include:/usr/include/x86_64-linux-gnu"
         execute make "-j$build_threads"
@@ -140,8 +140,12 @@ install_global_tools() {
     librist_repo_version
     if build "librist" "$repo_version"; then
         download "https://code.videolan.org/rist/librist/-/archive/v$repo_version/librist-v$repo_version.tar.bz2" "librist-$repo_version.tar.bz2"
-        execute meson setup build --prefix="$workspace" --buildtype=release \
-                                  --default-library=static --strip -Dbuilt_tools=false -Dtest=false
+        execute meson setup build --prefix="$workspace" \
+                                  --buildtype=release \
+                                  --default-library=static \
+                                  --strip \
+                                  -Dbuilt_tools=false \
+                                  -Dtest=false
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "librist" "$repo_version"
@@ -152,7 +156,7 @@ install_global_tools() {
 	    find_git_repo "madler/zlib" "1" "T"
 	    if build "zlib" "$repo_version"; then
 	        download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.xz"
-	        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE="Release" \
+	        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
 	                      -DINSTALL_BIN_DIR="$workspace/bin" -DINSTALL_INC_DIR="$workspace/include" \
 	                      -DINSTALL_LIB_DIR="$workspace/lib" -DINSTALL_MAN_DIR="$workspace/share/man" \
 	                      -DINSTALL_PKGCONFIG_DIR="$workspace/share/pkgconfig" -DZLIB_BUILD_EXAMPLES=OFF \
@@ -166,7 +170,7 @@ install_global_tools() {
     if "$NONFREE_AND_GPL"; then
         get_openssl_version() {
             openssl_version=$(
-                        curl -fsS "https://openssl-library.org/source/" |
+                        curl -fsS https://openssl-library.org/source/ |
                         grep -oP 'openssl-\K3\.0\.[0-9]+' | sort -ruV |
                         head -n1
                     )
@@ -174,8 +178,13 @@ install_global_tools() {
 	        get_openssl_version
 	        if build "openssl" "$openssl_version"; then
 	            download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
-	            execute ./Configure --prefix="$workspace" --openssldir="$workspace/ssl" \
-	                                no-shared no-pinshared threads zlib --with-rand-seed=os \
+	            execute ./Configure --prefix="$workspace" \
+                                        --openssldir="$workspace/ssl" \
+	                                no-shared \
+                                        no-pinshared \
+                                        threads \
+                                        zlib \
+                                        --with-rand-seed=os \
 	                                --with-zlib-include="$workspace/include" \
 	                                --with-zlib-lib="$workspace/lib"
 	            execute make "-j$build_threads"

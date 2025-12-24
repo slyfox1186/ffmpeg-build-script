@@ -21,7 +21,7 @@ install_core_libraries() {
     find_git_repo "yasm/yasm" "1" "T"
     if build "yasm" "$repo_version"; then
         download "https://www.tortall.net/projects/yasm/releases/yasm-$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
-        execute ./configure --prefix="$workspace"
+        execute sh configure --prefix="$workspace"
         execute make "-j$build_threads"
         execute make install
         build_done "yasm" "$repo_version"
@@ -33,14 +33,17 @@ install_core_libraries() {
     if build "nasm" "$nasm_version"; then
         download "https://www.nasm.us/pub/nasm/releasebuilds/$nasm_version/nasm-$nasm_version.tar.xz"
         ensure_autotools
-        execute ./configure --prefix="$workspace" --disable-pedantic --enable-ccache
+        execute sh configure --prefix="$workspace" --disable-pedantic --enable-ccache
         execute make "-j$build_threads"
         execute make install
         build_done "nasm" "$nasm_version"
     fi
 
     # Build giflib
-    giflib_version=$(curl -fsS "https://sourceforge.net/projects/giflib/files/" 2>/dev/null | grep -oP 'giflib-\K([0-9]+\.[0-9]+(?:\.[0-9]+)?)' | sort -ruV | head -n1)
+    giflib_version=$(curl -fsS "https://sourceforge.net/projects/giflib/files/" 2>/dev/null |
+                     grep -oP 'giflib-\K([0-9]+\.[0-9]+(?:\.[0-9]+)?)' |
+                     sort -ruV | head -n1
+                   )
     giflib_version="${giflib_version:-5.2.2}"
     if build "giflib" "$giflib_version"; then
         download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-$giflib_version.tar.gz?viasf=1"
@@ -54,7 +57,7 @@ install_core_libraries() {
     gnu_repo "$GNU_PRIMARY_MIRROR/libiconv/"
     if build "libiconv" "$repo_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/libiconv/libiconv-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/libiconv/libiconv-$repo_version.tar.gz"
-        execute ./configure --prefix="$workspace" --enable-static --with-pic
+        execute sh configure --prefix="$workspace" --enable-static --with-pic
         execute make "-j$build_threads"
         execute make install
         fix_libiconv
@@ -82,7 +85,7 @@ install_core_libraries() {
     if build "libpng" "$repo_version"; then
         download "https://github.com/pnggroup/libpng/archive/refs/tags/v$repo_version.tar.gz" "libpng-$repo_version.tar.gz"
         ensure_autotools
-        execute ./configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
+        execute sh configure --prefix="$workspace" --enable-hardware-optimizations=yes --with-pic
         execute make "-j$build_threads"
         execute make install-header-links install-library-links install
         build_done "libpng" "$repo_version"
@@ -94,7 +97,7 @@ install_core_libraries() {
         download "https://gitlab.com/libtiff/libtiff/-/archive/v$repo_version/libtiff-v$repo_version.tar.bz2" "libtiff-$repo_version.tar.bz2"
         # Use autoreconf instead of autogen.sh to avoid hanging downloads
         execute autoreconf -fi
-        execute ./configure --prefix="$workspace" --disable-{docs,sphinx,tests} --enable-cxx --with-pic
+        execute sh configure --prefix="$workspace" --disable-{docs,sphinx,tests} --enable-cxx --with-pic
         execute make "-j$build_threads"
         execute make install
         build_done "libtiff" "$repo_version"

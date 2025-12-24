@@ -99,7 +99,7 @@ check_remote_cuda_version() {
     local base_version cuda_regex html update_version
 
     remote_cuda_version=""
-    if ! html=$(curl -fsS "https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html" | tr -d '\0'); then
+    if ! html=$(curl -fsS https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html | tr -d '\0'); then
         return 1
     fi
 
@@ -152,7 +152,7 @@ nvidia_architecture() {
     # Get GPU name for logging
     gpu_name=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader 2>/dev/null | head -n1 | xargs)
     if [[ -z "$gpu_name" ]]; then
-        fail "Failed to query GPU name from nvidia-smi. Line: $LINENO"
+        fail "Failed to query GPU name from nvidia-smi. Line: ${LINENO}"
     fi
 
     # Get compute capability of installed GPU
@@ -183,7 +183,7 @@ nvidia_architecture() {
             log "Detected GPU: $gpu_name (SM $compute_cap) - using single architecture + PTX"
             return 0
         else
-            fail "No CUDA architectures detected and GPU compute capability unknown. Line: $LINENO"
+            fail "No CUDA architectures detected and GPU compute capability unknown. Line: ${LINENO}"
         fi
     fi
 
@@ -380,12 +380,12 @@ download_cuda() {
         # Debian 13 uses local installer method (different from keyring method)
         if [[ "$distro" == "debian13" ]]; then
             # Debian 13 uses CUDA 13.1 with local installer
-            local deb13_cuda_version="13.1.0"
-            local deb13_driver_version="590.44.01-1"
-            local deb13_pkg_version="13-1"
+            local deb13_cuda_version=13.1.0
+            local deb13_driver_version=590.44.01-1
+            local deb13_pkg_version=13-1
             local deb13_deb_file="cuda-repo-debian13-13-1-local_${deb13_cuda_version}-${deb13_driver_version}_amd64.deb"
             local deb13_deb_url="https://developer.download.nvidia.com/compute/cuda/${deb13_cuda_version}/local_installers/${deb13_deb_file}"
-            local deb13_cuda_prefix="/usr/local/cuda-13.1"
+            local deb13_cuda_prefix=/usr/local/cuda-13.1
 
             log "Downloading CUDA ${deb13_cuda_version} local installer for Debian 13..."
 
@@ -458,7 +458,7 @@ download_cuda() {
 
             # Add the CUDA repository pin
             if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/cuda.pin" "$pin_url"; then
-                sudo mv "$temp_dir/cuda.pin" "/etc/apt/preferences.d/cuda-repository-pin-600"
+                sudo mv "$temp_dir/cuda.pin" /etc/apt/preferences.d/cuda-repository-pin-600
             else
                 warn "Failed to download CUDA repository pin file"
             fi
@@ -616,7 +616,7 @@ install_windows_hardware_acceleration() {
     for file in "${!files[@]}"; do
         curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
             --output "$workspace/include/$file" "${files[$file]}" \
-            || fail "Failed to download Windows header '$file'. Line: $LINENO"
+            || fail "Failed to download Windows header '$file'. Line: ${LINENO}"
     done
 }
 

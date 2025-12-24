@@ -94,7 +94,7 @@ require_vars() {
     local var_name
     for var_name in "$@"; do
         if [[ -z "${!var_name:-}" ]]; then
-            fail "Required variable '$var_name' is not set. Line: $LINENO"
+            fail "Required variable '$var_name' is not set. Line: ${LINENO}"
         fi
     done
 }
@@ -104,20 +104,20 @@ require_vars() {
 validate_repo_version() {
     local context="${1:-unknown}"
     if [[ -z "${repo_version:-}" ]]; then
-        fail "Version detection failed for $context: repo_version is empty. Line: $LINENO"
+        fail "Version detection failed for $context: repo_version is empty. Line: ${LINENO}"
     fi
     # Basic validation: should contain at least one digit
     if [[ ! "$repo_version" =~ [0-9] ]]; then
-        fail "Version detection failed for $context: repo_version '$repo_version' does not look like a version. Line: $LINENO"
+        fail "Version detection failed for $context: repo_version '$repo_version' does not look like a version. Line: ${LINENO}"
     fi
 }
 
 require_sudo() {
     if ! command -v sudo >/dev/null 2>&1; then
-        fail "This script requires 'sudo' (run on a system with sudo configured). Line: $LINENO"
+        fail "This script requires 'sudo' (run on a system with sudo configured). Line: ${LINENO}"
     fi
     # Prompt once up front (better UX than failing mid-build).
-    sudo -v || fail "Unable to validate sudo credentials. Line: $LINENO"
+    sudo -v || fail "Unable to validate sudo credentials. Line: ${LINENO}"
 }
 
 fail() {
@@ -210,7 +210,7 @@ build() {
     package_version="${2:-}"
 
     if [[ -z "$package_name" ]]; then
-        fail "build() called without a package name. Line: $LINENO"
+        fail "build() called without a package name. Line: ${LINENO}"
     fi
 
     # Empty versions lead to broken URLs like `foo-.tar.gz` and confusing rebuild logic.
@@ -218,7 +218,7 @@ build() {
     # of silently building the wrong thing.
     stripped_version="$(printf '%s' "$package_version" | tr -d '[:space:]')"
     if [[ -z "$stripped_version" ]]; then
-        fail "build() called for \"$package_name\" with an empty version (version detection failed). Line: $LINENO"
+        fail "build() called for \"$package_name\" with an empty version (version detection failed). Line: ${LINENO}"
     fi
 
     echo
@@ -260,7 +260,7 @@ build_done() {
 }
 
 library_exists() {
-    if pkg-config --exists --print-errors "$1" >/dev/null 2>&1; then
+    if pkgconf --exists --print-errors "$1" >/dev/null 2>&1; then
         return 0
     else
         return 1
@@ -278,13 +278,13 @@ download_try() {
 
     # Input validation to prevent injection
     if [[ -z "$download_url" ]]; then
-        fail "Download URL is required. Line: $LINENO"
+        fail "Download URL is required. Line: ${LINENO}"
     fi
 
     
     # Validate filename (prevent directory traversal and special characters)
     if [[ "$download_file" =~ [\|\&\$\;\`\\]|\.\./|/\.\./ ]]; then
-        fail "Invalid filename: $download_file. Dangerous characters not allowed. Line: $LINENO"
+        fail "Invalid filename: $download_file. Dangerous characters not allowed. Line: ${LINENO}"
     fi
 
     if [[ "$download_file" =~ tar\. ]]; then
@@ -304,13 +304,13 @@ download_try() {
         local target=$1
         local target_resolved packages_resolved
 
-        [[ -n "$target" ]] || fail "Refusing to remove empty path. Line: $LINENO"
+        [[ -n "$target" ]] || fail "Refusing to remove empty path. Line: ${LINENO}"
         target_resolved="$(readlink -f -- "$target" 2>/dev/null || echo "$target")"
-        [[ "$target_resolved" != "/" ]] || fail "Refusing to remove '/'. Line: $LINENO"
+        [[ "$target_resolved" != "/" ]] || fail "Refusing to remove '/'. Line: ${LINENO}"
 
         packages_resolved="$(readlink -f -- "$packages" 2>/dev/null || echo "$packages")"
         if [[ -n "$packages_resolved" ]] && [[ "$target_resolved" != "$packages_resolved"* ]]; then
-            fail "Refusing to remove path outside packages dir: '$target_resolved'. Line: $LINENO"
+            fail "Refusing to remove path outside packages dir: '$target_resolved'. Line: ${LINENO}"
         fi
 
         rm -rf -- "$target"
@@ -466,7 +466,7 @@ download_try() {
 
 download() {
     if ! download_try "$@"; then
-        fail "Failed to download and extract \"$1\". Line: $LINENO"
+        fail "Failed to download and extract \"$1\". Line: ${LINENO}"
     fi
 }
 
@@ -479,7 +479,7 @@ download_with_fallback() {
     local primary_file fallback_file
 
     if [[ -z "$primary_url" || -z "$fallback_url" ]]; then
-        fail "Primary and fallback URLs are required. Line: $LINENO"
+        fail "Primary and fallback URLs are required. Line: ${LINENO}"
     fi
 
     primary_file="${primary_url##*/}"
@@ -496,7 +496,7 @@ download_with_fallback() {
         return 0
     fi
 
-    fail "Failed to download from both primary and fallback mirrors. Line: $LINENO"
+    fail "Failed to download from both primary and fallback mirrors. Line: ${LINENO}"
 }
 
 # Git repository management
@@ -558,9 +558,9 @@ git_clone() {
         if ! "${clone_args[@]}"; then
             warn "Failed to clone \"$target_directory\". Second attempt in 5 seconds..."
             sleep 5
-            "${clone_args[@]}" || fail "Failed to clone \"$target_directory\". Exiting script. Line: $LINENO"
+            "${clone_args[@]}" || fail "Failed to clone \"$target_directory\". Exiting script. Line: ${LINENO}"
         fi
-        cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: $LINENO"
+        cd "$target_directory" || fail "Failed to cd into \"$target_directory\". Line: ${LINENO}"
     fi
 
     echo "$version"
@@ -577,12 +577,12 @@ gnu_repo() {
 
     # Input validation
     if [[ -z "$repo" ]]; then
-        fail "Repository URL is required. Line: $LINENO"
+        fail "Repository URL is required. Line: ${LINENO}"
     fi
 
     # Validate URL format
     if [[ ! "$repo" =~ ^https?://[a-zA-Z0-9._/-]+\.[a-zA-Z0-9._/-]*$ ]]; then
-        fail "Invalid repository URL format: $repo. Line: $LINENO"
+        fail "Invalid repository URL format: $repo. Line: ${LINENO}"
     fi
 
     # Prefer a mirror (ibiblio), fall back to another mirror (team-cymru).
@@ -653,7 +653,7 @@ gnu_repo() {
         fi
     done
 
-    fail "Failed to detect latest version from $repo (tried: ${candidates[*]}). Line: $LINENO"
+    fail "Failed to detect latest version from $repo (tried: ${candidates[*]}). Line: ${LINENO}"
 }
 
 github_repo() {
@@ -666,17 +666,17 @@ github_repo() {
 
     # Input validation to prevent injection
     if [[ -z "$repo" || -z "$url" ]]; then
-        fail "Git repository and URL are required. Line: $LINENO"
+        fail "Git repository and URL are required. Line: ${LINENO}"
     fi
 
     # Validate repository name format (only allow alphanumeric, dots, hyphens, forward slashes)
     if [[ ! "$repo" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
-        fail "Invalid repository name format: $repo. Line: $LINENO"
+        fail "Invalid repository name format: $repo. Line: ${LINENO}"
     fi
 
     # Validate URL parameter (only allow alphanumeric, hyphens, forward slashes)
     if [[ ! "$url" =~ ^[a-zA-Z0-9/-]+$ ]]; then
-        fail "Invalid URL parameter: $url. Line: $LINENO"
+        fail "Invalid URL parameter: $url. Line: ${LINENO}"
     fi
 
     index=1
@@ -685,7 +685,7 @@ github_repo() {
     fi
 
     if [[ "$repo" == "xiph/rav1e" && "$index" -eq 1 ]]; then
-        page=$(curl -fsSL "https://github.com/xiph/rav1e/tags/") || fail "Failed to fetch tags for $repo. Line: $LINENO"
+        page=$(curl -fsSL "https://github.com/xiph/rav1e/tags/") || fail "Failed to fetch tags for $repo. Line: ${LINENO}"
         repo_version=$(
             printf '%s' "$page" |
             grep -oP 'p[0-9]+(?=\.tar\.gz")' |
@@ -694,10 +694,10 @@ github_repo() {
         if [[ -n "$repo_version" ]]; then
             return 0
         fi
-        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"
+        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
 
-    page=$(curl -fsSL "https://github.com/$repo/$url") || fail "Failed to fetch tags for $repo (url=$url). Line: $LINENO"
+    page=$(curl -fsSL "https://github.com/$repo/$url") || fail "Failed to fetch tags for $repo (url=$url). Line: ${LINENO}"
     version_candidates=$(
         printf '%s' "$page" |
         grep -oP 'href="[^"]*\.tar\.gz"' |
@@ -706,13 +706,13 @@ github_repo() {
 
     selected_version=$(printf '%s\n' "$version_candidates" | sort -ruV | sed -n "${index}p")
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
-        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"
+        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
 
     repo_version="$selected_version"
 
     if [[ -z "${repo_version//[[:space:]]/}" ]]; then
-        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"
+        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
 }
 
@@ -726,17 +726,17 @@ fetch_repo_version() {
     commit_id_jq_filter=$6
     count=0
 
-    response=$(curl -fsS "$base_url/$project/$api_path") || fail "Failed to fetch data from $base_url/$project/$api_path in the function \"fetch_repo_version\". Line: $LINENO"
+    response=$(curl -fsS "$base_url/$project/$api_path") || fail "Failed to fetch data from $base_url/$project/$api_path in the function \"fetch_repo_version\". Line: ${LINENO}"
 
     version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
     if [[ -z "$version" || "$version" == "null" ]]; then
-        fail "Failed to parse a version from $base_url/$project/$api_path (got: \"$version\"). Line: $LINENO"
+        fail "Failed to parse a version from $base_url/$project/$api_path (got: \"$version\"). Line: ${LINENO}"
     fi
     while [[ "$version" =~ $git_regex ]]; do
         ((++count))
         version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
         if [[ -z "$version" || "$version" == "null" ]]; then
-            fail "Failed to parse a non-pre-release version from $base_url/$project/$api_path (got: \"$version\"). Line: $LINENO"
+            fail "Failed to parse a non-pre-release version from $base_url/$project/$api_path (got: \"$version\"). Line: ${LINENO}"
         fi
     done
 
@@ -907,7 +907,7 @@ x264_version() {
     local full_commit
     full_commit=$(curl -sL "https://code.videolan.org/api/v4/projects/536/repository/branches" |
                   jq -r '.[] | select(.name == "stable") | .commit.id')
-    [[ -n "$full_commit" && "$full_commit" != "null" ]] || fail "Failed to detect x264 stable commit. Line: $LINENO"
+    [[ -n "$full_commit" && "$full_commit" != "null" ]] || fail "Failed to detect x264 stable commit. Line: ${LINENO}"
     repo_version="${full_commit:0:7}"
     x264_full_commit="$full_commit"
     export x264_full_commit
@@ -1238,12 +1238,12 @@ restore_compiler_flags() {
 # Autotools helper: avoid running `autoupdate` (it rewrites upstream build files).
 # Prefer a shipped `configure` when present; otherwise generate one.
 ensure_autotools() {
-    if [[ -f "./configure" ]]; then
+    if [[ -f configure ]]; then
         return 0
     fi
 
-    if [[ -f "./autogen.sh" ]]; then
-        execute sh ./autogen.sh
+    if [[ -f autogen.sh ]]; then
+        execute sh autogen.sh
         return 0
     fi
 
@@ -1273,10 +1273,10 @@ remove_duplicate_paths() {
 
 source_path() {
     # Prefer ccache wrappers when present (distro-dependent paths).
-    if [[ -d "/usr/lib/ccache/bin" ]]; then
-        ccache_dir="/usr/lib/ccache/bin"
-    elif [[ -d "/usr/lib/ccache" ]]; then
-        ccache_dir="/usr/lib/ccache"
+    if [[ -d /usr/lib/ccache/bin ]]; then
+        ccache_dir=/usr/lib/ccache/bin
+    elif [[ -d /usr/lib/ccache ]]; then
+        ccache_dir=/usr/lib/ccache
     else
         ccache_dir=""
     fi
@@ -1288,12 +1288,12 @@ source_path() {
 
 # Python virtualenv helper (used by multiple build stages)
 setup_python_venv_and_install_packages() {
-    local venv_path=$1
+    local venv_path="$1"
     shift
     local -a packages_to_install=("$@")
 
-    [[ -n "$venv_path" ]] || fail "Virtual environment path is required. Line: $LINENO"
-    [[ ${#packages_to_install[@]} -gt 0 ]] || fail "At least one Python package is required. Line: $LINENO"
+    [[ -n "$venv_path" ]] || fail "Virtual environment path is required. Line: ${LINENO}"
+    [[ ${#packages_to_install[@]} -gt 0 ]] || fail "At least one Python package is required. Line: ${LINENO}"
 
     remove_duplicate_paths
 
@@ -1302,7 +1302,7 @@ setup_python_venv_and_install_packages() {
 
     log "Activating the virtual environment..."
     # shellcheck source=/dev/null
-    source "$venv_path/bin/activate" || fail "Failed to activate virtual environment. Line: $LINENO"
+    source "$venv_path/bin/activate" || fail "Failed to activate virtual environment. Line: ${LINENO}"
 
     log "Upgrading pip..."
     execute pip install --quiet --disable-pip-version-check --upgrade pip

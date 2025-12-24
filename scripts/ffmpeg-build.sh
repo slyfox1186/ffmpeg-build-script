@@ -59,24 +59,24 @@ build_ffmpeg() {
         # Full FFmpeg configure with all built libraries - threading bug fixed in 7.0.2
         # Prefer system Python config to avoid Conda/toolchain contamination during linking.
         local python3_cflags python3_libs python3_config
-        python3_config="/usr/bin/python3-config"
+        python3_config=/usr/bin/python3-config
         if [[ ! -x "$python3_config" ]]; then
             python3_config="$(command -v python3-config)" || fail "python3-config not found. Line: $LINENO"
         fi
         python3_cflags="$("$python3_config" --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
         python3_libs="$("$python3_config" --ldflags --embed 2>/dev/null || "$python3_config" --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
         PYTHON3_CFLAGS="$python3_cflags"
-        export PYTHON3_CFLAGS
         PYTHON3_LIBS="$python3_libs"
-        export PYTHON3_LIBS
-        # Ensure we prefer locally-built pkg-config metadata first.
+        export PYTHON3_CFLAGS PYTHON3_LIBS
+        # Ensure we prefer locally-built pkgconf metadata first.
         export PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/share/pkgconfig:$PKG_CONFIG_PATH"
         # Start with basic configuration to ensure ffmpeg builds, then add libraries conditionally
         BASIC_CONFIG=(
             --prefix=/usr/local
             --arch="$(uname -m)"
             --cpu=native
-            --cc="$CC" --cxx="$CXX"
+            --cc="$CC"
+            --cxx="$CXX"
             --disable-shared
             --enable-static
             --enable-pthreads
@@ -93,12 +93,12 @@ build_ffmpeg() {
             --extra-cflags="-I$workspace/include"
             --extra-ldflags="-L$workspace/lib64 -L$workspace/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib"
             --extra-libs="-ldl -lpthread -lm -lz"
-            --pkg-config-flags="--static"
+            --pkgconf-flags="--static"
         )
-        
+
         # Add additional libraries only if they are available and built
         OPTIONAL_LIBS=()
-        
+
         # Check if workspace libraries exist before enabling them
         [[ -f "$workspace/lib/libx264.a" ]] && OPTIONAL_LIBS+=(--enable-libx264)
         [[ -f "$workspace/lib/libx265.a" ]] && OPTIONAL_LIBS+=(--enable-libx265)
@@ -114,22 +114,22 @@ build_ffmpeg() {
         [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
 
         # Check for system-installed libraries (from APT)
-        pkg-config --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
+        pkgconf --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
 
         # ═══════════════════════════════════════════════════════════════════════════
         # CUDA/NVENC Hardware Acceleration Support
         # ═══════════════════════════════════════════════════════════════════════════
         # Add CUDA/NVENC support if NVIDIA GPU detected and CUDA installed
-        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
+        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d /usr/local/cuda ]]; then
             if [[ "${NONFREE_AND_GPL:-false}" != "true" ]]; then
                 warn "NVIDIA GPU detected, but CUDA/NVENC requires --enable-nonfree. Skipping CUDA/NVENC. Re-run with --enable-gpl-and-non-free to enable."
             else
                 log "Enabling CUDA/NVENC hardware acceleration..."
 
                 # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
-                if ! pkg-config --exists ffnvcodec 2>/dev/null; then
+                if ! pkgconf --exists ffnvcodec 2>/dev/null; then
                     log "Installing nv-codec-headers (required for NVENC)..."
-                    local ffmpeg_build_dir="$PWD"
+                    local ffmpeg_build_dir="$(pwd)"
                     local nvcodec_dir="$packages/nv-codec-headers"
                     if [[ ! -d "$nvcodec_dir" ]]; then
                         git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git "$nvcodec_dir"
@@ -161,9 +161,9 @@ build_ffmpeg() {
                 # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
                 # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
                 # Only enable libnpp for CUDA 11.x and earlier
-                if [[ -f "/usr/local/cuda/lib64/libnppc.so" ]] || [[ -f "/usr/local/cuda/lib64/libnppc_static.a" ]]; then
+                if [[ -f /usr/local/cuda/lib64/libnppc.so ]] || [[ -f /usr/local/cuda/lib64/libnppc_static.a ]]; then
                     local cuda_major_ver
-                    cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -1)
+                    cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -n1)
                     if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
                         OPTIONAL_LIBS+=(--enable-libnpp)
                         log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
@@ -173,8 +173,9 @@ build_ffmpeg() {
                 fi
 
                 # Add CUDA paths to compiler/linker flags
-                local cuda_cflags="-I/usr/local/cuda/include"
-                local cuda_ldflags="-L/usr/local/cuda/lib64"
+                local cuda_cflags cuda_ldflags
+                cuda_cflags="-I/usr/local/cuda/include"
+                cuda_ldflags="-L/usr/local/cuda/lib64"
 
                 # Update BASIC_CONFIG with CUDA paths (append to existing flags)
                 for i in "${!BASIC_CONFIG[@]}"; do
@@ -203,8 +204,8 @@ build_ffmpeg() {
         # (while `ffprobe`/`ffplay` may still build). Sanitize those env vars for configure.
         local -a FINAL_CONFIG=()
         local -A seen_flags=()
-        local dup_count=0
-        local opt
+        local dup_count opt
+        dup_count=0
         for opt in "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"; do
             if [[ -z "${seen_flags[$opt]+x}" ]]; then
                 FINAL_CONFIG+=("$opt")
@@ -217,9 +218,9 @@ build_ffmpeg() {
             log "Removed $dup_count duplicate configure flags"
         fi
 
-        execute env -u threads -u THREADS \
-            -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV \
-            ../configure "${FINAL_CONFIG[@]}"
+        execute env -u threads -u THREADS -u CONDA_PREFIX -u CONDA_DEFAULT_ENV \
+                    -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV \
+                    ../configure "${FINAL_CONFIG[@]}"
 
         # Fail fast if configure disabled the main `ffmpeg` program.
         if [[ -f ffbuild/config.mak ]] && ! grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak; then
@@ -227,18 +228,18 @@ build_ffmpeg() {
         fi
         execute make "-j$build_threads"
         execute sudo make install
-        
+
         # Fix x265 library symlink issues
         if command -v fix_x265_libs >/dev/null 2>&1; then
             fix_x265_libs
         fi
-        
+
         build_done "ffmpeg" "n${repo_version}"
     fi
 
     # Add PulseAudio library path if missing to fix libpulsecommon-15.99.so not found error
-    if ! grep -q "/usr/lib/x86_64-linux-gnu/pulseaudio" /etc/ld.so.conf.d/custom_libs.conf 2>/dev/null; then
-        echo "/usr/lib/x86_64-linux-gnu/pulseaudio" | sudo tee -a /etc/ld.so.conf.d/custom_libs.conf >/dev/null
+    if ! grep -q /usr/lib/x86_64-linux-gnu/pulseaudio /etc/ld.so.conf.d/custom_libs.conf 2>/dev/null; then
+        echo /usr/lib/x86_64-linux-gnu/pulseaudio | sudo tee -a /etc/ld.so.conf.d/custom_libs.conf >/dev/null
         log "Added PulseAudio library path to ldconfig"
     fi
 
