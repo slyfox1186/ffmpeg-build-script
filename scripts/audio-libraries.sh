@@ -31,6 +31,7 @@ install_audio_libraries() {
 	    CONFIGURE_OPTIONS+=("--enable-libsoxr")
 
     # Build SDL2 (must use SDL2 branch - main branch is SDL3)
+    # Special case: filter to 2.x.x versions before sorting (SDL3 is incompatible)
     local sdl2_version
     sdl2_version=$(curl -fsSL "https://github.com/libsdl-org/SDL/tags" |
                    grep -oP 'releases/tag/release-\K2\.[0-9]+\.[0-9]+(?=")' |

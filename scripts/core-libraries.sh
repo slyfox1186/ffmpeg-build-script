@@ -29,14 +29,14 @@ install_core_libraries() {
 
     # Build nasm
     find_latest_nasm_version
-    if build "nasm" "$latest_nasm_version"; then
-        find_latest_nasm_version
-        download "https://www.nasm.us/pub/nasm/releasebuilds/$latest_nasm_version/nasm-$latest_nasm_version.tar.xz"
+    local nasm_version="$latest_nasm_version"
+    if build "nasm" "$nasm_version"; then
+        download "https://www.nasm.us/pub/nasm/releasebuilds/$nasm_version/nasm-$nasm_version.tar.xz"
         ensure_autotools
         execute ./configure --prefix="$workspace" --disable-pedantic --enable-ccache
         execute make "-j$build_threads"
         execute make install
-        build_done "nasm" "$latest_nasm_version"
+        build_done "nasm" "$nasm_version"
     fi
 
     # Build giflib

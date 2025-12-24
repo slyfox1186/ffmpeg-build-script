@@ -1,3 +1,5 @@
+Last Updated: 2025-12-24
+
 # scripts/
 
 Build orchestration modules for FFmpeg compilation. Each sources `shared-utils.sh` for common functions.
@@ -8,7 +10,7 @@ Build orchestration modules for FFmpeg compilation. Each sources `shared-utils.s
 
 **system-setup.sh** - OS/APT: `apt_pkgs()` installs build deps (compilers, dev libs, tools). Auto-detects latest JDK, checks availability, handles missing packages. Must run before builds.
 
-**hardware-detection.sh** - GPU/CUDA: `check_nvidia_gpu()`, `check_amd_gpu()` detect hardware. `install_cuda_toolkit()` downloads CUDA from NVIDIA if GPU found. Exports `$gpu_flag` (0=NVIDIA, 1=AMD), `$cuda_path`, `$nvccflags` for video-libraries.sh NVENC.
+**hardware-detection.sh** - GPU/CUDA: `check_nvidia_gpu()`, `check_amd_gpu()` detect hardware. `install_cuda_toolkit()` downloads CUDA from NVIDIA if GPU found. Exports `$gpu_flag` (0=NVIDIA, 1=AMD) and `$nvidia_arch_type` for FFmpeg `--nvccflags`.
 
 ## Build Toolchain
 
@@ -20,7 +22,7 @@ Build orchestration modules for FFmpeg compilation. Each sources `shared-utils.s
 
 **audio-libraries.sh** - `install_audio_libraries()`: Audio codecs/processors (libsoxr, SDL2, libsndfile, ogg, vorbis, opus, lame, fdk-aac, flac, mpg123, etc.). Appends to `$CONFIGURE_OPTIONS`.
 
-**video-libraries.sh** - `install_video_libraries()`: Video codecs (libaom AV1, rav1e, x264, x265, vpx, svt-av1/vp9/heif, dav1d, xvid). NVENC support via `$gpu_flag`/`$cuda_path`. Appends to `$CONFIGURE_OPTIONS`.
+**video-libraries.sh** - `install_video_libraries()`: Video codecs (libaom AV1, rav1e, x264, x265, vpx, svt-av1/vp9/heif, dav1d, xvid). Builds nv-codec-headers when CUDA is present. FFmpeg NVENC flags are set in `ffmpeg-build.sh`.
 
 **image-libraries.sh** - `install_image_libraries()`: Advanced image formats (libheif HEIF/AVIF, openjpeg JPEG2000, libjxl JPEG XL). Conditional codec detection for libheif.
 
@@ -49,7 +51,7 @@ Build orchestration modules for FFmpeg compilation. Each sources `shared-utils.s
 - `$CC`, `$CXX` - Compiler (gcc/clang)
 - `$CONFIGURE_OPTIONS` - Array of FFmpeg `./configure` flags (appended by library scripts)
 - `$gpu_flag` - 0=NVIDIA, 1=AMD (set by hardware-detection.sh)
-- `$cuda_path`, `$nvccflags` - CUDA toolkit path + compute capability flags
+- `$nvidia_arch_type` - CUDA compute capability flags (used for `--nvccflags`)
 - `$NONFREE_AND_GPL` - Boolean for non-free codec enablement
 - `$STATIC_VER` - Debian/Ubuntu version (affects compatibility)
 

@@ -301,18 +301,16 @@ install_miscellaneous_libraries() {
     fi
 
     # Build waflib (duplicate entries combined)
-    waf_version=$(curl -fsS "https://gitlab.com/ita1024/waf/-/tags" | 
-                  grep -oP 'href="[^"]*/-/tags/waf-\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                  sort -ruV | head -n1)
+    gitlab_version "https://gitlab.com" "ita1024/waf" "waf-"
+    waf_version="$repo_version"
     if build "waflib" "$waf_version"; then
         download "https://gitlab.com/ita1024/waf/-/archive/waf-$waf_version/waf-waf-$waf_version.tar.bz2" "waflib-$waf_version.tar.bz2"
         build_done "waflib" "$waf_version"
     fi
 
     # Build serd
-    serd_version=$(curl -fsS "https://gitlab.com/drobilla/serd/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                   sort -ruV | head -n1)
+    gitlab_version "https://gitlab.com" "drobilla/serd" "v"
+    serd_version="$repo_version"
     if build "serd" "$serd_version"; then
         download "https://gitlab.com/drobilla/serd/-/archive/v$serd_version/serd-v$serd_version.tar.bz2" "serd-$serd_version.tar.bz2"
         extracmds=("-D"{docs,html,man,man_html,singlehtml,tests,tools}"=disabled")
@@ -322,10 +320,9 @@ install_miscellaneous_libraries() {
         build_done "serd" "$serd_version"
     fi
 
-	    # Build pcre2
-	    pcre2_version=$(curl -fsS "https://github.com/PCRE2Project/pcre2/tags" | 
-	                    grep -oP 'href="/PCRE2Project/pcre2/releases/tag/pcre2-\K[0-9]+\.[0-9]+(?=")' | 
-	                    grep -v 'RC' | sort -ruV | head -n1)
+    # Build pcre2
+    github_version "PCRE2Project/pcre2" "pcre2-" "RC"
+    pcre2_version="$repo_version"
 	    if build "pcre2" "$pcre2_version"; then
 	        download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
 	        ensure_autotools
@@ -347,9 +344,8 @@ install_miscellaneous_libraries() {
     fi
 
     # Build sord
-    sord_version=$(curl -fsS "https://gitlab.com/drobilla/sord/-/tags" |
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' |
-                   sort -ruV | head -n1)
+    gitlab_version "https://gitlab.com" "drobilla/sord" "v"
+    sord_version="$repo_version"
     if build "sord" "$sord_version"; then
         save_compiler_flags
         CFLAGS+=" -I$workspace/include/serd-0"
@@ -363,9 +359,8 @@ install_miscellaneous_libraries() {
     fi
 
     # Build sratom
-    sratom_version=$(curl -fsS "https://gitlab.com/lv2/sratom/-/tags" | 
-                     grep -oP 'href="[^"]*/-/tags/v\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | 
-                     sort -ruV | head -n1)
+    gitlab_version "https://gitlab.com" "lv2/sratom" "v"
+    sratom_version="$repo_version"
     if build "sratom" "$sratom_version"; then
         download "https://gitlab.com/lv2/sratom/-/archive/v$sratom_version/sratom-v$sratom_version.tar.bz2" "sratom-$sratom_version.tar.bz2"
         extracmds=("-D"{docs,html,singlehtml,tests}"=disabled")

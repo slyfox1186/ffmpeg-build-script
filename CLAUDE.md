@@ -1,3 +1,5 @@
+Last Updated: 2025-12-24
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -109,8 +111,8 @@ Runs `bash -n` syntax check and `shellcheck -x` on all shell scripts.
 
 **GPU/CUDA detection:**
 - `gpu_flag=0` means NVIDIA GPU detected (counter-intuitive but intentional)
-- CUDA toolkit path exported as `cuda_path`
-- `nvccflags` contains compute capability flags for the detected GPU
+- CUDA toolkit path is added to `PATH` in `source_path`
+- `nvidia_arch_type` contains compute capability flags for the detected GPU (used as `--nvccflags`)
 
 **Build vs installed version check:**
 - The `build()` function compares installed version against requested version

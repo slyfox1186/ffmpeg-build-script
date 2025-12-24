@@ -15,6 +15,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 apt_pkgs() {
     local -a pkgs=() available_packages=() unavailable_packages=() extra_pkgs=()
     local pkg
+    local apt_updated=false
+
+    apt_update_once() {
+        if [[ "$apt_updated" == "false" ]]; then
+            sudo apt update
+            apt_updated=true
+        fi
+    }
 
     # Function to find the latest version of a package by pattern
     find_latest_version() {
@@ -72,7 +80,7 @@ apt_pkgs() {
         printf "          %s\n" "${available_packages[@]}"
         echo
         # Run apt commands directly (not via execute) so user sees progress
-        sudo apt update
+        apt_update_once
         sudo DEBIAN_FRONTEND=noninteractive apt -y install "${available_packages[@]}"
     else
         log "All required packages are already installed."
@@ -94,7 +102,7 @@ apt_pkgs() {
 
         if [[ -n "$nvidia_pkg" ]]; then
             log "nvidia-smi not found. Installing $nvidia_pkg..."
-            sudo apt update
+            apt_update_once
             sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg"
         else
             warn "nvidia-smi not found and no nvidia-utils/nvidia-driver-cuda package available."
@@ -138,7 +146,7 @@ debian_os_version() {
         12)
             debian_extra_pkgs=(
                 cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
-                libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack5
+                libhwy-dev libsrt-gnutls-dev libsharp-dev libdmalloc5 libumfpack5
                 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
                 software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4 librist-dev
             )
@@ -146,9 +154,9 @@ debian_os_version() {
         13|trixie|sid)
             debian_extra_pkgs=(
                 cppcheck libsvtav1enc-dev libyuv-utils libyuv0
-                libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack6
+                libhwy-dev libsrt-gnutls-dev libsharp-dev libdmalloc5 libumfpack6
                 libsuitesparseconfig7 libcolamd3 libcholmod5 libccolamd3 libcamd3 libamd3
-                software-properties-common libclang-dev libgegl-0.4-0t64 libgoogle-perftools4t64 librist-dev
+                libclang-dev libgegl-0.4-0t64 libgoogle-perftools4t64 librist-dev
             )
             ;;
         *)
@@ -308,6 +316,13 @@ initialize_system_setup() {
     
     # Set up paths
     source_path
+
+    # WSL2: ensure WSL library path is on PATH for NVIDIA Video Codec SDK tooling.
+    if [[ "${VARIABLE_OS:-}" == "WSL2" && -d "/usr/lib/wsl/lib" ]]; then
+        PATH="/usr/lib/wsl/lib:$PATH"
+        export PATH
+        remove_duplicate_paths
+    fi
     
     # Set up Java environment
     set_java_variables
