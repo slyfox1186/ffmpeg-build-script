@@ -93,7 +93,7 @@ build_ffmpeg() {
             --extra-cflags="-I$workspace/include"
             --extra-ldflags="-L$workspace/lib64 -L$workspace/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib"
             --extra-libs="-ldl -lpthread -lm -lz"
-            --pkgconf-flags="--static"
+            --pkg-config-flags="--static"
         )
 
         # Add additional libraries only if they are available and built
