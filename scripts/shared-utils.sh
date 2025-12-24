@@ -99,6 +99,19 @@ require_vars() {
     done
 }
 
+# Validate repo_version is set and looks like a version number
+# Call this after any *_version() function to ensure version detection succeeded
+validate_repo_version() {
+    local context="${1:-unknown}"
+    if [[ -z "${repo_version:-}" ]]; then
+        fail "Version detection failed for $context: repo_version is empty. Line: $LINENO"
+    fi
+    # Basic validation: should contain at least one digit
+    if [[ ! "$repo_version" =~ [0-9] ]]; then
+        fail "Version detection failed for $context: repo_version '$repo_version' does not look like a version. Line: $LINENO"
+    fi
+}
+
 require_sudo() {
     if ! command -v sudo >/dev/null 2>&1; then
         fail "This script requires 'sudo' (run on a system with sudo configured). Line: $LINENO"
@@ -335,7 +348,7 @@ download_try() {
 
         # Use a separate lock file and hold the lock during the entire download
         (
-            # Acquire exclusive lock (best-effort; `flock` may not be available everywhere).
+            # Acquire exclusive lock with fallback for systems without flock
             if command -v flock >/dev/null 2>&1; then
                 exec 200>"$lock_file"
                 if ! flock -n 200; then
@@ -348,6 +361,27 @@ download_try() {
                         exit 0  # File was downloaded by other process
                     fi
                 fi
+            else
+                # Fallback: simple spinlock using mkdir (atomic on POSIX)
+                local lock_dir="${lock_file}.d"
+                local max_wait=300  # 5 minutes max wait
+                local waited=0
+                while ! mkdir "$lock_dir" 2>/dev/null; do
+                    if [[ -f "$target_file" ]]; then
+                        # File was downloaded by another process
+                        rm -f "$temp_target_file"
+                        exit 0
+                    fi
+                    if ((waited >= max_wait)); then
+                        # Stale lock - remove and retry
+                        rm -rf "$lock_dir"
+                        continue
+                    fi
+                    sleep 1
+                    ((waited++))
+                done
+                # Clean up lock dir on exit from subshell
+                trap 'rm -rf "$lock_dir"' EXIT
             fi
 
             # We have the lock, proceed with download
@@ -623,12 +657,11 @@ gnu_repo() {
 }
 
 github_repo() {
-    local count max_attempts repo url url_flag
+    local repo url url_flag
+    local page version_candidates selected_version index
     repo=$1
     url=$2
     url_flag=$3
-    count=1
-    max_attempts=10
     repo_version=""
 
     # Input validation to prevent injection
@@ -646,45 +679,37 @@ github_repo() {
         fail "Invalid URL parameter: $url. Line: $LINENO"
     fi
 
-    while [[ "$count" -le "$max_attempts" ]]; do
-        if [[ "$repo" == "xiph/rav1e" && "$url_flag" -eq 1 ]]; then
-            repo_version=$(
-                        curl -fsSL "https://github.com/xiph/rav1e/tags/" |
-                        grep -oP 'p[0-9]+\.tar\.gz' | sed 's/\.tar\.gz//g' |
-                        head -n1
-                   )
-            if [[ -n "$repo_version" ]]; then
-                return 0
-            else
-                continue
-            fi
-        else
-            if [[ "$repo" == "FFmpeg/FFmpeg" ]]; then
-                curl_cmd=$(curl -fsSL "https://github.com/FFmpeg/FFmpeg/tags/" | grep -oP 'href="[^"]*[6-9]\..*\.tar\.gz"' | grep -v '\-dev' | sort -un)
-            else
-                curl_cmd=$(curl -fsSL "https://github.com/$repo/$url" | grep -oP 'href="[^"]*\.tar\.gz"')
-            fi
-        fi
+    index=1
+    if [[ "$url_flag" =~ ^[0-9]+$ ]] && [[ "$url_flag" -gt 0 ]]; then
+        index="$url_flag"
+    fi
 
-        line=$(echo "$curl_cmd" | grep -oP 'href="[^"]*\.tar\.gz"' | sed -n "${count}p")
-        if echo "$line" | grep -qP 'v*(\d+[._]\d+(?:[._]\d*){0,2})\.tar\.gz'; then
-            repo_version=$(echo "$line" | grep -oP '(\d+[._]\d+(?:[._]\d+){0,2})')
-            break
-        else
-            ((count++))
+    if [[ "$repo" == "xiph/rav1e" && "$index" -eq 1 ]]; then
+        page=$(curl -fsSL "https://github.com/xiph/rav1e/tags/") || fail "Failed to fetch tags for $repo. Line: $LINENO"
+        repo_version=$(
+            printf '%s' "$page" |
+            grep -oP 'p[0-9]+(?=\.tar\.gz")' |
+            head -n1
+        )
+        if [[ -n "$repo_version" ]]; then
+            return 0
         fi
-    done
+        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"
+    fi
 
-    while [[ "$repo_version" =~ $git_regex ]]; do
-        curl_cmd=$(curl -fsSL "https://github.com/$repo/$url" | grep -oP 'href="[^"]*\.tar\.gz"')
-        line=$(echo "$curl_cmd" | grep -oP 'href="[^"]*\.tar\.gz"' | sed -n "${count}p")
-        if echo "$line" | grep -qP 'v*(\d+[._]\d+(?:[._]\d*){0,2})\.tar\.gz'; then
-            repo_version=$(echo "$line" | grep -oP '(\d+[._]\d+(?:[._]\d+){0,2})')
-            break
-        else
-            ((count++))
-        fi
-    done
+    page=$(curl -fsSL "https://github.com/$repo/$url") || fail "Failed to fetch tags for $repo (url=$url). Line: $LINENO"
+    version_candidates=$(
+        printf '%s' "$page" |
+        grep -oP 'href="[^"]*\.tar\.gz"' |
+        grep -oP 'v?\K[0-9]+(?:[._][0-9]+){1,2}(?=\.tar\.gz")'
+    )
+
+    selected_version=$(printf '%s\n' "$version_candidates" | sort -ruV | sed -n "${index}p")
+    if [[ -z "${selected_version//[[:space:]]/}" ]]; then
+        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"
+    fi
+
+    repo_version="$selected_version"
 
     if [[ -z "${repo_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: $LINENO"

@@ -2,11 +2,53 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## MANDATORY: Context7 MCP Server Usage
+
+**THIS IS A NON-NEGOTIABLE REQUIREMENT. YOU MUST FOLLOW THESE INSTRUCTIONS.**
+
+Before writing, modifying, or suggesting ANY code in this repository, you **MUST** use the `context7` MCP server to gather the latest best practices, documentation, and usage patterns for the relevant technologies.
+
+### Required Actions
+
+1. **ALWAYS** call `mcp__context7__resolve-library-id` first to resolve the correct library ID for the technology you're working with (e.g., "ffmpeg", "bash", "cmake", "autoconf", "x264", "x265", etc.)
+
+2. **ALWAYS** call `mcp__context7__get-library-docs` with the resolved library ID to fetch current documentation and best practices
+
+3. **NEVER** rely solely on your training data for build configurations, compiler flags, library APIs, or FFmpeg options - these change frequently
+
+4. **NEVER** skip the context7 lookup step, even for "simple" changes
+
+### When to Query Context7
+
+You **MUST** query context7 when:
+- Modifying any `./configure` flags or options
+- Adding or updating library build procedures
+- Working with FFmpeg configuration options
+- Dealing with CUDA/NVENC/hardware acceleration
+- Updating codec libraries (x264, x265, aom, svt-av1, etc.)
+- Modifying CMake or Meson build configurations
+- Working with shell scripting best practices
+
+### Example Workflow
+
+```
+1. User asks to add a new codec library
+2. YOU MUST: Call mcp__context7__resolve-library-id for that library
+3. YOU MUST: Call mcp__context7__get-library-docs for current build instructions
+4. THEN: Implement the changes using the retrieved best practices
+```
+
+**FAILURE TO USE CONTEXT7 WILL RESULT IN OUTDATED OR INCORRECT CODE.**
+
+---
+
 ## Project Overview
 
 FFmpeg Build Script - builds a static FFmpeg binary from source with GPL and non-free codecs. Automatically downloads and compiles all dependencies including audio/video codecs, hardware acceleration (NVIDIA CUDA, AMD AMF), and support libraries.
 
-**Supported platforms:** Debian 11/12, Ubuntu 22.04/24.04 (x86_64 only)
+**Supported platforms:** Debian 12/13, Ubuntu 22.04/24.04, WSL (x86_64 only)
 
 ## Build Commands
 

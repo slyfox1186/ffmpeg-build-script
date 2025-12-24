@@ -13,15 +13,14 @@ set -o pipefail
 ##
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
-##  Script version: 4.2.0
+##  Script version: 4.3.1
 ##
-##  Updated: 10.31.2025
+##  Updated: 12.24.2025
 ##
 ##  CUDA SDK Toolkit version: 12.3.1
 ##
-##  Supported Distros: Debian 12
-##                     Ubuntu (20|22|24).04
-##                     (Other Debian-based distributions may also work)
+##  Supported Distros: Debian 12/13, Ubuntu 22.04/24.04, WSL
+##                     (Zorin OS 17 and Linux Mint 21.x also work)
 ##
 ##  Supported architecture: x86_64
 ##
@@ -34,7 +33,7 @@ fi
 
 # Define global variables
 script_name="${0##*/}"
-script_version="4.2.0"
+script_version="4.3.1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Keep build artifacts out of the repo root (prevents cleanup from deleting the repo).
@@ -90,7 +89,6 @@ usage() {
 COMPILER_FLAG=""
 CONFIGURE_OPTIONS=()
 LATEST=false
-LDEXEFLAGS=""
 NONFREE_AND_GPL=false
 GOOGLE_SPEECH=false
 DO_BUILD=false
@@ -186,10 +184,6 @@ if "$NONFREE_AND_GPL"; then
     echo
 fi
 
-if [[ -n "$LDEXEFLAGS" ]]; then
-    echo "The script has been configured to run in full static mode."
-    echo
-fi
 
 [[ -t 1 ]] && clear
 

@@ -78,6 +78,30 @@ apt_pkgs() {
         log "All required packages are already installed."
     fi
 
+    # Check if nvidia-smi is available; if not, try to install the appropriate package
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        local nvidia_pkg=""
+
+        # Try Ubuntu-style nvidia-utils-XXX first
+        nvidia_pkg=$(apt-cache search '^nvidia-utils-[0-9]+$' 2>/dev/null | sort -t'-' -k3 -rn | head -n1 | awk '{print $1}')
+
+        # If not found, try Debian-style nvidia-driver-cuda
+        if [[ -z "$nvidia_pkg" ]]; then
+            if apt-cache show nvidia-driver-cuda &>/dev/null; then
+                nvidia_pkg="nvidia-driver-cuda"
+            fi
+        fi
+
+        if [[ -n "$nvidia_pkg" ]]; then
+            log "nvidia-smi not found. Installing $nvidia_pkg..."
+            sudo apt update
+            sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg"
+        else
+            warn "nvidia-smi not found and no nvidia-utils/nvidia-driver-cuda package available."
+            warn "NVIDIA GPU support may not work. Consider installing NVIDIA drivers manually."
+        fi
+    fi
+
     # If the NVIDIA tools exist but the driver stack is in a bad state, prompt the user.
     if command -v nvidia-smi >/dev/null 2>&1; then
         if ! nvidia-smi &>/dev/null; then
@@ -106,29 +130,11 @@ check_avx512() {
     fi
 }
 
-# Debian WSL package configuration
-debian_msft() {
-    case "$VER" in
-        11) apt_pkgs "$debian_pkgs $1" ;;
-        12) apt_pkgs "$debian_pkgs $1" ;;
-        *) fail "Failed to parse the Debian MSFT version. Line: $LINENO" ;;
-    esac
-}
-
-# Debian OS version handling
+# Debian OS version handling (Debian 12 and 13 only)
 debian_os_version() {
     local -a debian_extra_pkgs=()
 
     case "$STATIC_VER" in
-        11)
-            debian_extra_pkgs=(
-                cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
-                libhwy-dev libsrt-gnutls-dev libyuv-dev libsharp-dev libdmalloc5 libumfpack5
-                libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
-                software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4
-            )
-            apt_pkgs "${debian_extra_pkgs[*]}"
-            ;;
         12)
             debian_extra_pkgs=(
                 cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils libyuv0
@@ -136,7 +142,6 @@ debian_os_version() {
                 libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
                 software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4 librist-dev
             )
-            apt_pkgs "${debian_extra_pkgs[*]}"
             ;;
         13|trixie|sid)
             debian_extra_pkgs=(
@@ -145,63 +150,44 @@ debian_os_version() {
                 libsuitesparseconfig7 libcolamd3 libcholmod5 libccolamd3 libcamd3 libamd3
                 software-properties-common libclang-dev libgegl-0.4-0t64 libgoogle-perftools4t64 librist-dev
             )
-            apt_pkgs "${debian_extra_pkgs[*]}"
             ;;
         *)
-            fail "Could not detect the Debian release version. Line: $LINENO"
+            fail "Unsupported Debian version: $STATIC_VER. Only Debian 12 and 13 are supported. Line: $LINENO"
             ;;
     esac
+    apt_pkgs "${debian_extra_pkgs[*]}"
 }
 
-# Ubuntu WSL package configuration
-ubuntu_msft() {
-    case "$STATIC_VER" in
-        23.04) apt_pkgs "$ubuntu_common_pkgs $jammy_pkgs $ubuntu_wsl_pkgs" ;;
-        22.04) apt_pkgs "$ubuntu_common_pkgs $jammy_pkgs $ubuntu_wsl_pkgs" ;;
-        20.04) apt_pkgs "$ubuntu_common_pkgs $focal_pkgs $ubuntu_wsl_pkgs" ;;
-        *) fail "Failed to parse the Ubuntu MSFT version. Line: $LINENO" ;;
-    esac
-}
-
-# Ubuntu OS version handling
+# Ubuntu OS version handling (Ubuntu 22.04 and 24.04 only, plus WSL)
 ubuntu_os_version() {
-    # Note: Zorin OS 16.x is treated as Ubuntu 20.04
     # Linux Mint 21.x is treated as Ubuntu 22.04
+    # Zorin OS 17 is treated as Ubuntu 22.04
 
-    local ubuntu_common_pkgs="cppcheck libgegl-0.4-0 libgoogle-perftools4"
-    focal_pkgs="libcunit1 libcunit1-dev libcunit1-doc libdmalloc5 libhwy-dev libreadline-dev librust-jemalloc-sys-dev librust-malloc-buf-dev"
-    focal_pkgs+=" libsrt-doc libsrt-gnutls-dev libvmmalloc-dev libvmmalloc1 libyuv-dev nvidia-utils-535 libcamd2 libccolamd2 libcholmod3"
-    focal_pkgs+=" libcolamd2 libsuitesparseconfig5 libumfpack5 libamd2"
-    jammy_pkgs="libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-dev librust-jemalloc-sys-dev"
-    jammy_pkgs+=" librust-malloc-buf-dev libsrt-doc libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libtbbmalloc2 libwayland-dev libclang1-15"
-    jammy_pkgs+=" libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5 libamd2"
-    lunar_kenetic_pkgs="libhwy-dev libjxl-dev librist-dev libsrt-gnutls-dev libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev libyuv-dev"
-    lunar_kenetic_pkgs+=" cargo-c libcamd2 libccolamd2 libcholmod3 libcolamd2 libsuitesparseconfig5 libumfpack5 libamd2"
-    mantic_pkgs="libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libhwy-dev libsrt-gnutls-dev libyuv-dev libcamd2"
-    mantic_pkgs+=" libccolamd2 libcholmod3 cargo-c libsuitesparseconfig5 libumfpack5 libjxl-dev libamd2"
+    local jammy_pkgs noble_pkgs
+
+    # Ubuntu 22.04 (Jammy) packages
+    jammy_pkgs="libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-dev"
+    jammy_pkgs+=" librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev"
+    jammy_pkgs+=" libtbbmalloc2 libwayland-dev libclang1-15 libcamd2 libccolamd2 libcholmod3 libcolamd2"
+    jammy_pkgs+=" libsuitesparseconfig5 libumfpack5 libamd2 cppcheck libgegl-0.4-0 libgoogle-perftools4"
+
+    # Ubuntu 24.04 (Noble) packages
     noble_pkgs="cargo-c libcamd3 libccolamd3 libcholmod5 libcolamd3 libsuitesparseconfig7"
     noble_pkgs+=" libumfpack6 libjxl-dev libamd3 libgegl-0.4-0t64 libgoogle-perftools4t64"
+
     case "$STATIC_VER" in
         msft)
-            ubuntu_msft
+            # WSL uses jammy packages as baseline
+            apt_pkgs "$jammy_pkgs"
             ;;
         24.04)
             apt_pkgs "$noble_pkgs"
             ;;
-        23.10)
-            apt_pkgs "$mantic_pkgs $lunar_kenetic_pkgs $jammy_pkgs $focal_pkgs"
-            ;;
-        23.04|22.10)
-            apt_pkgs "$ubuntu_common_pkgs $lunar_kenetic_pkgs $jammy_pkgs"
-            ;;
         22.04)
-            apt_pkgs "$ubuntu_common_pkgs $jammy_pkgs"
-            ;;
-        20.04)
-            apt_pkgs "$ubuntu_common_pkgs $focal_pkgs"
+            apt_pkgs "$jammy_pkgs"
             ;;
         *)
-            fail "Could not detect the Ubuntu release version. Line: $LINENO"
+            fail "Unsupported Ubuntu version: $STATIC_VER. Only Ubuntu 22.04 and 24.04 are supported. Line: $LINENO"
             ;;
     esac
 }
@@ -217,18 +203,19 @@ get_os_version() {
         VARIABLE_OS="$OS"
         STATIC_VER="$VER"
 
-        # Add detection for Zorin and Mint
+        # Add detection for Zorin and Mint (only supported versions)
         if [[ "$OS" == "Zorin" ]]; then
-            OS="Ubuntu"
             if [[ "$VER" == "17" ]]; then
+                OS="Ubuntu"
                 VER="22.04"  # Zorin OS 17 is based on Ubuntu 22.04
+                STATIC_VER="$VER"
             else
-                VER="20.04"  # Zorin OS 16 is based on Ubuntu 20.04
+                fail "Unsupported Zorin OS version: $VER. Only Zorin OS 17 is supported. Line: $LINENO"
             fi
-            STATIC_VER="$VER"
         elif [[ "$OS" == "Linux" && "$NAME" == "Linux Mint" ]]; then
             OS="Ubuntu"
             VER="22.04"  # Mint 21.x is based on Ubuntu 22.04
+            STATIC_VER="$VER"
         fi
     elif [[ -n "$find_lsb_release" ]]; then
         OS=$(lsb_release -d | awk '{print $2}')
@@ -240,19 +227,33 @@ get_os_version() {
 
 # Set up Java environment variables
 set_java_variables() {
+    # Recursion guard to prevent infinite loop if JVM install fails unexpectedly
+    if [[ "${_java_setup_in_progress:-}" == "1" ]]; then
+        fail "Java setup failed: /usr/lib/jvm/ still does not exist after installing openjdk. Line: $LINENO"
+    fi
+
     source_path
     if [[ -d "/usr/lib/jvm/" ]]; then
         locate_java=$(
                      find /usr/lib/jvm/ -type d -name "java-*-openjdk*" |
                      sort -ruV | head -n1
                   )
+        if [[ -z "$locate_java" ]]; then
+            fail "Found /usr/lib/jvm/ but no openjdk installation detected. Line: $LINENO"
+        fi
     else
         latest_openjdk_version=$(
                                  apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
                                  sort -ruV | head -n1 | awk '{print $1}'
                              )
+        if [[ -z "$latest_openjdk_version" ]]; then
+            fail "No openjdk package found in apt repositories. Line: $LINENO"
+        fi
         if execute sudo apt -y install "$latest_openjdk_version"; then
+            _java_setup_in_progress=1
             set_java_variables
+            unset _java_setup_in_progress
+            return
         else
             fail "Could not install openjdk. Line: $LINENO"
         fi
@@ -262,7 +263,11 @@ set_java_variables() {
                   sort -ruV | head -n1 | xargs dirname |
                   sed 's/bin/include/'
               )
-    CPPFLAGS+=" -I$java_include"
+    if [[ -z "$java_include" || ! -d "$java_include" ]]; then
+        warn "Java include directory not found, some features may not work"
+    else
+        CPPFLAGS+=" -I$java_include"
+    fi
     JDK_HOME="$locate_java"
     JAVA_HOME="$locate_java"
     PATH="$PATH:$JAVA_HOME/bin"

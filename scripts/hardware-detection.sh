@@ -293,7 +293,6 @@ download_cuda() {
     options=(
         "Debian 12 (Bookworm)"
         "Debian 13 (Trixie)"
-        "Ubuntu 20.04 (Focal Fossa)"
         "Ubuntu 22.04 (Jammy Jellyfish)"
         "Ubuntu 24.04 (Noble Numbat)"
         "Ubuntu WSL (Windows)"
@@ -307,9 +306,6 @@ download_cuda() {
                 ;;
             "Debian 13 (Trixie)")
                 distro="debian13"
-                ;;
-            "Ubuntu 20.04 (Focal Fossa)")
-                distro="ubuntu2004"
                 ;;
             "Ubuntu 22.04 (Jammy Jellyfish)")
                 distro="ubuntu2204"
