@@ -370,7 +370,8 @@ EOF
 	        elif command -v sdl2-config >/dev/null 2>&1; then
 	            gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
 	        fi
-	        execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local "${gpac_sdl_cfg[@]}"
+	        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has internal ogg implementation)
+	        execute ./configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --use-ogg=no "${gpac_sdl_cfg[@]}"
 	        execute make "-j$build_threads"
 	        execute make install
 	        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
