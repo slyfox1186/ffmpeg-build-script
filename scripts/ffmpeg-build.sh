@@ -129,7 +129,8 @@ build_ffmpeg() {
                 # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
                 if ! pkgconf --exists ffnvcodec 2>/dev/null; then
                     log "Installing nv-codec-headers (required for NVENC)..."
-                    local ffmpeg_build_dir="$(pwd)"
+                    local ffmpeg_build_dir
+                    ffmpeg_build_dir="$(pwd)"
                     local nvcodec_dir="$packages/nv-codec-headers"
                     if [[ ! -d "$nvcodec_dir" ]]; then
                         git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git "$nvcodec_dir"
