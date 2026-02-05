@@ -14,7 +14,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 # Install global build tools
 install_global_tools() {
     echo
-    box_out_banner_global "Installing Global Tools"
+    box_out_banner "Installing Global Tools"
     require_vars workspace packages build_threads
 
     # Alert the user that an AMD GPU was found without a Geforce GPU present

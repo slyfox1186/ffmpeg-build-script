@@ -13,6 +13,14 @@
 # rely on optional probes failing without aborting the whole build.
 set -o pipefail
 
+# Source guard: prevent redundant re-sourcing when multiple scripts source this file.
+# Each script sources shared-utils.sh for standalone usage, but during a full build
+# the orchestrator (build-ffmpeg.sh) already sources it first.
+if [[ -n "${_SHARED_UTILS_LOADED:-}" ]]; then
+    return 0 2>/dev/null || true
+fi
+_SHARED_UTILS_LOADED=1
+
 # Pre-defined color variables
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -53,26 +61,6 @@ box_out_banner() {
     tput sgr0 2>/dev/null || true
 }
 
-box_out_banner_global() {
-    box_out_banner "Installing Global Tools"
-}
-
-box_out_banner_audio() {
-    box_out_banner "Installing Audio Tools"
-}
-
-box_out_banner_video() {
-    box_out_banner "Installing Video Tools"
-}
-
-box_out_banner_images() {
-    box_out_banner "Installing Image Tools"
-}
-
-box_out_banner_ffmpeg() {
-    box_out_banner "Building FFmpeg"
-}
-
 # Logging functions
 log() {
     if [[ -n "${log_file:-}" ]]; then
@@ -80,10 +68,6 @@ log() {
     else
         printf '%s\n' "$1"
     fi
-}
-
-log_update() {
-    log "$1"
 }
 
 warn() {
@@ -216,7 +200,7 @@ build() {
     # Empty versions lead to broken URLs like `foo-.tar.gz` and confusing rebuild logic.
     # Treat this as a hard error so the root cause (version detection) is fixed instead
     # of silently building the wrong thing.
-    stripped_version="$(printf '%s' "$package_version" | tr -d '[:space:]')"
+    stripped_version="${package_version//[[:space:]]/}"
     if [[ -z "$stripped_version" ]]; then
         fail "build() called for \"$package_name\" with an empty version (version detection failed). Line: ${LINENO}"
     fi
@@ -259,13 +243,7 @@ build_done() {
     fi
 }
 
-library_exists() {
-    if pkgconf --exists --print-errors "$1" >/dev/null 2>&1; then
-        return 0
-    else
-        return 1
-    fi
-}
+library_exists() { pkgconf --exists --print-errors "$1" >/dev/null 2>&1; }
 
 # File download and extraction
 download_try() {
@@ -388,32 +366,20 @@ download_try() {
             log "Downloading \"$download_url\" saving as \"$download_file\""
             local download_success=false
 
-            if command -v download_with_bot_detection >/dev/null 2>&1; then
-                if download_with_bot_detection "$download_url" "$temp_target_file"; then
-                    download_success=true
-                else
-                    warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
-                    sleep 3
-                    if download_with_bot_detection "$download_url" "$temp_target_file"; then
-                        download_success=true
-                    fi
-                fi
+            # Plain curl (no browser-like headers).
+            # Some hosts (e.g., GitLab instances with JS challenges) will return an HTML "bot check"
+            # page if we pretend to be a browser. Plain curl is more reliable for fetching archives.
+            local -a curl_args=(
+                -fsSL --retry "$download_retry" --retry-delay "$download_retry_delay" --retry-connrefused
+                --connect-timeout "$download_connect_timeout" --max-time "$download_max_time"
+            )
+            if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
+                download_success=true
             else
-                # Default to plain curl (no browser-like headers).
-                # Some hosts (e.g., GitLab instances with JS challenges) will return an HTML "bot check"
-                # page if we pretend to be a browser. Plain curl is more reliable for fetching archives.
-                local -a curl_args=(
-                    -fsSL --retry "$download_retry" --retry-delay "$download_retry_delay" --retry-connrefused
-                    --connect-timeout "$download_connect_timeout" --max-time "$download_max_time"
-                )
+                warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
+                sleep 3
                 if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
                     download_success=true
-                else
-                    warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
-                    sleep 3
-                    if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
-                        download_success=true
-                    fi
                 fi
             fi
 
@@ -601,35 +567,20 @@ gnu_repo() {
         cymru_repo=""
     fi
 
+    # Deduplicate candidate URLs using an associative array
+    local -A seen_urls=()
     local -a candidates=()
-    local cand seen include_primary
-    include_primary=true
+    local include_primary=true
     [[ "$primary_repo" =~ ^https?://ftp\.gnu\.org/gnu/ ]] && include_primary=false
 
     for cand in "$ibiblio_repo" "$cymru_repo"; do
         [[ -n "$cand" ]] || continue
-        seen=false
-        for url in "${candidates[@]}"; do
-            if [[ "$url" == "$cand" ]]; then
-                seen=true
-                break
-            fi
-        done
-        if [[ "$seen" == "false" ]]; then
-            candidates+=("$cand")
-        fi
+        [[ -z "${seen_urls[$cand]+x}" ]] || continue
+        seen_urls[$cand]=1
+        candidates+=("$cand")
     done
-    if [[ "$include_primary" == "true" ]]; then
-        seen=false
-        for url in "${candidates[@]}"; do
-            if [[ "$url" == "$primary_repo" ]]; then
-                seen=true
-                break
-            fi
-        done
-        if [[ "$seen" == "false" ]]; then
-            candidates+=("$primary_repo")
-        fi
+    if [[ "$include_primary" == "true" && -z "${seen_urls[$primary_repo]+x}" ]]; then
+        candidates+=("$primary_repo")
     fi
 
     for url in "${candidates[@]}"; do
@@ -747,15 +698,6 @@ fetch_repo_version() {
     repo_version="$version"
 }
 
-cmake_repo_version() { github_version "Kitware/CMake" "v" "rc"; }
-meson_repo_version() { github_version "mesonbuild/meson" "" "rc"; }
-ninja_repo_version() { github_version "ninja-build/ninja" "v"; }
-zstd_repo_version() { github_version "facebook/zstd" "v"; }
-librist_repo_version() { gitlab_version "https://code.videolan.org" "rist/librist" "v"; }
-# zlib: Prefer releases over tags (tags can exist without published release assets)
-zlib_repo_version() { github_version "madler/zlib" "v" "" "releases"; }
-yasm_repo_version() { github_version "yasm/yasm" "v"; }
-
 ###################################################################################
 # Unified Version Extraction Functions
 # These replace repetitive per-repo functions with parameterized, robust versions
@@ -839,47 +781,6 @@ gitlab_version() {
 
     repo_version="$version"
 }
-
-# Legacy wrapper - kept for backward compatibility
-generic_github_version() {
-    github_version "$1" "v"
-}
-
-# Version functions for specific repos
-xiph_ogg_version() { generic_github_version "xiph/ogg"; }
-xiph_opus_version() { generic_github_version "xiph/opus"; }  
-xiph_vorbis_version() { generic_github_version "xiph/vorbis"; }
-freeglut_version() { generic_github_version "freeglut/freeglut"; }
-libass_version() { github_version "libass/libass" ""; }
-harfbuzz_version() { github_version "harfbuzz/harfbuzz" ""; }
-fribidi_version() { generic_github_version "fribidi/fribidi"; }
-brotli_version() { generic_github_version "google/brotli"; }
-highway_version() { github_version "google/highway" ""; }
-gflags_version() { generic_github_version "gflags/gflags"; }
-libjpeg_turbo_version() { github_version "libjpeg-turbo/libjpeg-turbo" ""; }
-c_ares_version() { generic_github_version "c-ares/c-ares"; }
-jansson_version() { generic_github_version "akheron/jansson"; }
-jemalloc_version() { github_version "jemalloc/jemalloc" ""; }
-lcms2_version() { github_version "mm2/Little-CMS" "lcms"; }
-libpng_version() { generic_github_version "pnggroup/libpng"; }
-libheif_version() { generic_github_version "strukturag/libheif"; }
-openjpeg_version() { generic_github_version "uclouvain/openjpeg"; }
-kvazaar_version() { generic_github_version "ultravideo/kvazaar"; }
-libavif_version() { generic_github_version "AOMediaCodec/libavif"; }
-srt_version() { generic_github_version "Haivision/srt"; }
-vid_stab_version() { generic_github_version "georgmartius/vid.stab"; }
-fdk_aac_version() { generic_github_version "mstorsjo/fdk-aac"; }
-libsndfile_version() { github_version "libsndfile/libsndfile" ""; }
-zix_version() { gitlab_version "https://gitlab.com" "drobilla/zix" "v"; }
-soxr_version() { github_version "chirlu/soxr" ""; }
-libmysofa_version() { generic_github_version "hoene/libmysofa"; }
-frei0r_version() { generic_github_version "dyne/frei0r"; }
-aribb24_version() { generic_github_version "nkoriyama/aribb24"; }
-
-libxml2_version() { gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" "v"; }
-libtiff_version() { gitlab_version "https://gitlab.com" "libtiff/libtiff" "v"; }
-freetype_version() { gitlab_version "https://gitlab.freedesktop.org" "freetype/freetype" "VER-" "-"; }
-fontconfig_version() { gitlab_version "https://gitlab.freedesktop.org" "fontconfig/fontconfig" ""; }
 
 debian_salsa_repo() {
     local project_id=$1
@@ -1034,57 +935,47 @@ find_git_repo() {
     count=1
 
     case "$repo_name" in
+        # Special version detection (non-standard methods)
         apache/ant)           git_caller "https://github.com/apache/ant.git" "" ant ;;
         FFmpeg/FFmpeg)        github_repo "$repo_name" "tags" "$url_choice" ;;
         xiph/rav1e)           github_repo "$repo_name" "tags" "$url_choice" ;;
-        Kitware/CMake)        cmake_repo_version ;;
-        mesonbuild/meson)     meson_repo_version ;;
-        ninja-build/ninja)    ninja_repo_version ;;
-        facebook/zstd)        zstd_repo_version ;;
-        madler/zlib)          zlib_repo_version ;;
-        yasm/yasm)            yasm_repo_version ;;
-        xiph/ogg)             xiph_ogg_version ;;
-        xiph/opus)            xiph_opus_version ;;
-        xiph/vorbis)          xiph_vorbis_version ;;
-        freeglut/freeglut)    freeglut_version ;;
-        libass/libass)        libass_version ;;
-        harfbuzz/harfbuzz)    harfbuzz_version ;;
-        fribidi/fribidi)      fribidi_version ;;
-        google/brotli)        brotli_version ;;
-        google/highway)       highway_version ;;
-        gflags/gflags)        gflags_version ;;
-        libjpeg-turbo/libjpeg-turbo) libjpeg_turbo_version ;;
-        c-ares/c-ares)        c_ares_version ;;
-        akheron/jansson)      jansson_version ;;
-        jemalloc/jemalloc)    jemalloc_version ;;
-        mm2/Little-CMS)       lcms2_version ;;
-        pnggroup/libpng)      libpng_version ;;
-        strukturag/libheif)   libheif_version ;;
-        uclouvain/openjpeg)   openjpeg_version ;;
-        ultravideo/kvazaar)   kvazaar_version ;;
-        AOMediaCodec/libavif) libavif_version ;;
-        Haivision/srt)        srt_version ;;
-        georgmartius/vid.stab) vid_stab_version ;;
-        mstorsjo/fdk-aac)     fdk_aac_version ;;
-        libsndfile/libsndfile) libsndfile_version ;;
-        drobilla/zix)         zix_version ;;
-        chirlu/soxr)          soxr_version ;;
-        hoene/libmysofa)      libmysofa_version ;;
-        dyne/frei0r)          frei0r_version ;;
-        nkoriyama/aribb24)    aribb24_version ;;
-        MediaArea/ZenLib)     mediaarea_version "$repo_name" ;;
-        MediaArea/MediaInfoLib) mediaarea_version "$repo_name" ;;
-        MediaArea/MediaInfo)  mediaarea_version "$repo_name" ;;
+        536)                  x264_version ;;
         GPUOpen-LibrariesAndSDKs/AMF) amf_version ;;
         avisynth/avisynthplus|AviSynth/AviSynthPlus) avisynth_version ;;
         vapoursynth/vapoursynth) vapoursynth_version ;;
+        MediaArea/ZenLib|MediaArea/MediaInfoLib|MediaArea/MediaInfo) mediaarea_version "$repo_name" ;;
+        24327400)             svt_av1_version ;;
+
+        # Debian Salsa / VideoLAN API-based repos
         8143)                 debian_salsa_repo "8143" "$url_choice" ;;
         8268)                 debian_salsa_repo "8268" "$url_choice" ;;
         76)                   videolan_repo "76" "$url_choice" ;;
         206)                  videolan_repo "206" "$url_choice" ;;
         363)                  videolan_repo "363" "$url_choice" ;;
-        536)                  x264_version ;;
-        24327400)             svt_av1_version ;;
+
+        # GitHub repos with custom prefix or exclude patterns (inlined from one-liner wrappers)
+        Kitware/CMake)        github_version "Kitware/CMake" "v" "rc" ;;
+        mesonbuild/meson)     github_version "mesonbuild/meson" "" "rc" ;;
+        madler/zlib)          github_version "madler/zlib" "v" "" "releases" ;;
+        mm2/Little-CMS)       github_version "mm2/Little-CMS" "lcms" ;;
+        libass/libass|harfbuzz/harfbuzz|google/highway|jemalloc/jemalloc)
+                              github_version "$repo_name" "" ;;
+        libjpeg-turbo/libjpeg-turbo|libsndfile/libsndfile|chirlu/soxr)
+                              github_version "$repo_name" "" ;;
+
+        # GitLab repos (inlined from one-liner wrappers)
+        drobilla/zix)         gitlab_version "https://gitlab.com" "drobilla/zix" ;;
+        libtiff/libtiff)      gitlab_version "https://gitlab.com" "libtiff/libtiff" ;;
+        GNOME/libxml2)        gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" ;;
+        freetype/freetype)    gitlab_version "https://gitlab.freedesktop.org" "freetype/freetype" "VER-" "-" ;;
+        fontconfig/fontconfig) gitlab_version "https://gitlab.freedesktop.org" "fontconfig/fontconfig" "" ;;
+        rist/librist)         gitlab_version "https://code.videolan.org" "rist/librist" ;;
+
+        # GitHub repos with default "v" prefix (inlined from one-liner wrappers)
+        ninja-build/ninja|facebook/zstd|yasm/yasm|xiph/ogg|xiph/opus|xiph/vorbis|freeglut/freeglut|fribidi/fribidi|google/brotli|gflags/gflags|c-ares/c-ares|akheron/jansson|pnggroup/libpng|strukturag/libheif|uclouvain/openjpeg|ultravideo/kvazaar|AOMediaCodec/libavif|Haivision/srt|georgmartius/vid.stab|mstorsjo/fdk-aac|hoene/libmysofa|dyne/frei0r|nkoriyama/aribb24)
+                              github_version "$repo_name" ;;
+
+        # Default fallback
         *)                    github_repo "$repo_name" "releases" "$url_choice" ;;
     esac
 }
@@ -1122,17 +1013,6 @@ cleanup() {
                 ;;
         esac
     done
-}
-
-# FFmpeg version checking
-check_ffmpeg_version() {
-    local ffmpeg_repo
-    ffmpeg_repo=$1
-
-    ffmpeg_git_version=$(git ls-remote --tags "$ffmpeg_repo" |
-                         awk -F'/' '/n[0-9]+(\.[0-9]+)*(-dev)?$/ {print $3}' |
-                         grep -Ev '\-dev' | sort -ruV | head -n1)
-    echo "$ffmpeg_git_version"
 }
 
 # Version display functions
@@ -1176,30 +1056,6 @@ show_versions() {
                 ;;
         esac
     done
-}
-
-# Disk space checking
-disk_space_requirements() {
-    # Set the required install directory size in megabytes
-    INSTALL_DIR_SIZE=7001
-    log "Required install directory size: $(awk -v mb="$INSTALL_DIR_SIZE" 'BEGIN{printf "%.2fG", mb/1024}')"
-
-    # Calculate the minimum required disk space with a 20% buffer
-    MIN_DISK_SPACE=$(( (INSTALL_DIR_SIZE * 120 + 99) / 100 ))
-    warn "Minimum required disk space (including 20% buffer): $(awk -v mb="$MIN_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
-
-    # Get the available disk space in megabytes
-    AVAILABLE_DISK_SPACE=$(df -PM . | awk 'NR==2 {print $4}')
-    warn "Available disk space: $(awk -v mb="$AVAILABLE_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
-
-    # Compare the available disk space with the minimum required
-    if (( AVAILABLE_DISK_SPACE < MIN_DISK_SPACE )); then
-        warn "Insufficient disk space."
-        warn "Minimum required (including 20% buffer): $(awk -v mb="$MIN_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
-        fail "Available disk space: $(awk -v mb="$AVAILABLE_DISK_SPACE" 'BEGIN{printf "%.2fG", mb/1024}')"
-    else
-        log "Sufficient disk space available."
-    fi
 }
 
 # Saved compiler flags for restoration

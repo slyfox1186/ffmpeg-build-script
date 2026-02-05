@@ -494,8 +494,8 @@ install_cuda() {
 
     echo -e "${CYAN}Checking GPU Status${NC}"
     echo "========================================================"
-    amd_gpu_test=$(check_amd_gpu)
-    check_nvidia_gpu
+    # Reuse GPU detection results from initialize_hardware_detection() instead of
+    # re-running expensive hardware probes (lshw, lspci, nvidia-smi, etc.).
 
     # If non-free builds are disabled, skip CUDA installation prompts entirely.
     if [[ "${NONFREE_AND_GPL:-false}" != "true" ]]; then

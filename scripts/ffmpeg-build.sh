@@ -14,7 +14,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 # Build FFmpeg
 build_ffmpeg() {
     echo
-    box_out_banner_ffmpeg "Building FFmpeg"
+    box_out_banner "Building FFmpeg"
     require_vars workspace build_threads CC CXX
 
     # Get DXVA2 and other essential Windows header files
@@ -36,19 +36,19 @@ build_ffmpeg() {
     echo
     if command -v ffmpeg >/dev/null 2>&1; then
         ffmpeg_installed_version=$(ffmpeg -version 2>/dev/null | grep -oP '\d+\.\d+(?:\.\d+)*' | head -n1)
-        log_update "The installed FFmpeg version is: n${ffmpeg_installed_version:-Unknown}"
+        log "The installed FFmpeg version is: n${ffmpeg_installed_version:-Unknown}"
     else
-        log_update "FFmpeg is not currently installed"
+        log "FFmpeg is not currently installed"
     fi
 
     if [[ -n "$ffmpeg_latest_version" ]]; then
-        log_update "The latest FFmpeg release version available: n$ffmpeg_latest_version"
+        log "The latest FFmpeg release version available: n$ffmpeg_latest_version"
     else
-        log_update "The latest FFmpeg release version available is: Unknown"
+        log "The latest FFmpeg release version available is: Unknown"
     fi
 
     repo_version="${ffmpeg_latest_version:-6.1.2}"
-    log_update "Using FFmpeg version n$repo_version"
+    log "Using FFmpeg version n$repo_version"
 
     if build "ffmpeg" "n${repo_version}"; then
         sudo chown -R "$USER:$USER" "$PWD"

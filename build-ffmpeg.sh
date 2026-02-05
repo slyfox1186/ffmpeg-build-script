@@ -45,7 +45,6 @@ cd "$cwd" || exit 1
 
 packages="$cwd/packages"
 workspace="$cwd/workspace"
-log_file="$cwd/build.log"
 
 # Source shared utilities
 source "$script_dir/scripts/shared-utils.sh"

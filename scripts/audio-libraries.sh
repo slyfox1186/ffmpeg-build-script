@@ -14,7 +14,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 # Install audio libraries
 install_audio_libraries() {
     echo
-    box_out_banner_audio "Installing Audio Tools"
+    box_out_banner "Installing Audio Tools"
     require_vars workspace packages build_threads STATIC_VER
 
 	    # Build libsoxr

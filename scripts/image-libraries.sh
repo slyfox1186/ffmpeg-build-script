@@ -14,7 +14,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 # Install image libraries
 install_image_libraries() {
     echo
-    box_out_banner_images "Installing Image Tools"
+    box_out_banner "Installing Image Tools"
     require_vars workspace build_threads STATIC_VER
 
     # Build libheif
