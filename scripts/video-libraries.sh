@@ -14,7 +14,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 # Install video libraries
 install_video_libraries() {
     echo
-    box_out_banner_video "Installing Video Tools"
+    box_out_banner "Installing Video Tools"
     require_vars workspace packages build_threads STATIC_VER
 
     # Build libaom (AV1)
