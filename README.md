@@ -32,8 +32,8 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/slyfox1186/ffmpeg-build-script.git
-   cd ffmpeg-build-script
+   git clone https://github.com/slyfox1186/ffmpeg-build-script.git && \
+   cd ffmpeg-build-script || exit 1
    ```
 
 2. Run the build script:
