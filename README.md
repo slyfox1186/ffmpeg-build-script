@@ -41,6 +41,21 @@ This repository provides a **streamlined script** to build a static FFmpeg binar
    bash build-ffmpeg.sh --build --enable-gpl-and-non-free --latest
    ```
 
+## Package Selection Config
+
+The repository now includes [example.toml](./example.toml), a flat package-selection config with one boolean per library or build target.
+
+```bash
+bash build-ffmpeg.sh --build --config ./example.toml
+```
+
+- `true` enables that individual package or FFmpeg feature toggle
+- `false` disables it
+- CLI flags still override config values
+- When a local build is disabled, the script now falls back to supported distro packages where possible
+- If a disabled package leaves an unresolved dependency, the script fails early with a dependency error before starting the long build
+- When changing selections on an existing workspace, run `bash build-ffmpeg.sh --cleanup` first so stale artifacts do not get reused
+
 ## Supported Codecs and Libraries
 
 | Library / Codec | Description |

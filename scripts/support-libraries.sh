@@ -65,7 +65,7 @@ install_miscellaneous_libraries() {
         execute ninja -C build install
         build_done "freetype" "$repo_version_1"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libfreetype")
+    append_configure_options_if_enabled "freetype" "--enable-libfreetype"
 
     # Build fontconfig
     fontconfig_version
@@ -87,7 +87,7 @@ install_miscellaneous_libraries() {
         restore_compiler_flags
         build_done "fontconfig" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libfontconfig")
+    append_configure_options_if_enabled "fontconfig" "--enable-libfontconfig"
 
     # Build harfbuzz
     find_git_repo "harfbuzz/harfbuzz" "1" "T"
@@ -99,7 +99,7 @@ install_miscellaneous_libraries() {
         execute ninja -C build install
         build_done "harfbuzz" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libharfbuzz")
+    append_configure_options_if_enabled "harfbuzz" "--enable-libharfbuzz"
 
     # Note: c2man is skipped - it has compatibility issues with modern systems
     # and is not needed since fribidi is built with -Ddocs=false
@@ -114,7 +114,7 @@ install_miscellaneous_libraries() {
         execute ninja -C build install
         build_done "fribidi" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libfribidi")
+    append_configure_options_if_enabled "fribidi" "--enable-libfribidi"
 
     # Build libass
     find_git_repo "libass/libass" "1" "T"
@@ -125,7 +125,7 @@ install_miscellaneous_libraries() {
         execute ninja -C build install
         build_done "libass" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libass")
+    append_configure_options_if_enabled "libass" "--enable-libass"
 
     # Build freeglut
     find_git_repo "freeglut/freeglut" "1" "T"
@@ -154,7 +154,7 @@ install_miscellaneous_libraries() {
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libwebp")
+    append_configure_options_if_enabled "libwebp-git" "--enable-libwebp"
 
     # Build libhwy
     find_git_repo "google/highway" "1" "T"
@@ -196,7 +196,7 @@ install_miscellaneous_libraries() {
         execute make install
         build_done "lcms2" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-lcms2")
+    append_configure_options_if_enabled "lcms2" "--enable-lcms2"
 
     # Build gflags
     find_git_repo "gflags/gflags" "1" "T"
@@ -224,7 +224,7 @@ install_miscellaneous_libraries() {
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-opencl")
+    append_configure_options_if_enabled "opencl-sdk-git" "--enable-opencl"
 
     # Build libjpeg-turbo
     find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"
@@ -252,7 +252,7 @@ install_miscellaneous_libraries() {
             execute make "-j$build_threads" PREFIX="$workspace" install-static
             build_done "$repo_name" "$version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-librubberband")
+        append_configure_options_if_enabled "rubberband-git" "--enable-librubberband"
     fi
 
     # Build c-ares
@@ -367,7 +367,7 @@ install_miscellaneous_libraries() {
     fi
 
     # lilv: Using system liblilv-dev package (installed via apt)
-    CONFIGURE_OPTIONS+=("--enable-lv2")
+    append_configure_options_if_enabled "lv2-git" "--enable-lv2"
 
 
 	    # Build jemalloc

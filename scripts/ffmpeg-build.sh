@@ -23,14 +23,9 @@ build_ffmpeg() {
     fi
 
     # Fetch latest release once (avoids duplicate network calls).
-    local ffmpeg_release_page ffmpeg_latest_version ffmpeg_installed_version
-    ffmpeg_release_page=$(curl -fsS "https://ffmpeg.org/releases/" 2>/dev/null || true)
-    if [[ -n "$ffmpeg_release_page" ]]; then
-        ffmpeg_latest_version=$(
-            printf '%s' "$ffmpeg_release_page" |
-            grep -oP 'ffmpeg-\K\d+\.\d+(?:\.\d+)?(?=\.tar\.xz)' |
-            sort -ruV | head -n1
-        )
+    local ffmpeg_latest_version ffmpeg_installed_version
+    if ffmpeg_repo_version; then
+        ffmpeg_latest_version="$repo_version"
     fi
 
     echo
@@ -47,7 +42,7 @@ build_ffmpeg() {
         log "The latest FFmpeg release version available is: Unknown"
     fi
 
-    repo_version="${ffmpeg_latest_version:-6.1.2}"
+    repo_version="${ffmpeg_latest_version:-8.0.1}"
     log "Using FFmpeg version n$repo_version"
 
     if build "ffmpeg" "n${repo_version}"; then
@@ -85,36 +80,37 @@ build_ffmpeg() {
             --enable-ffprobe
             --enable-version3
             --enable-bzlib
-            --enable-iconv
             --enable-lzma
-            --enable-sdl2
             --enable-vdpau
-            --enable-zlib
             --extra-cflags="-I$workspace/include"
             --extra-ldflags="-L$workspace/lib64 -L$workspace/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib"
             --extra-libs="-ldl -lpthread -lm -lz"
             --pkg-config-flags="--static"
         )
 
+        package_enabled "libiconv" && BASIC_CONFIG+=(--enable-iconv)
+        package_enabled "sdl2" && BASIC_CONFIG+=(--enable-sdl2)
+        package_enabled "zlib" && BASIC_CONFIG+=(--enable-zlib)
+
         # Add additional libraries only if they are available and built
         OPTIONAL_LIBS=()
 
         # Check if workspace libraries exist before enabling them
-        [[ -f "$workspace/lib/libx264.a" ]] && OPTIONAL_LIBS+=(--enable-libx264)
-        [[ -f "$workspace/lib/libx265.a" ]] && OPTIONAL_LIBS+=(--enable-libx265)
-        [[ -f "$workspace/lib/libxvid.a" ]] && OPTIONAL_LIBS+=(--enable-libxvid)
-        [[ -f "$workspace/lib/libass.a" ]] && OPTIONAL_LIBS+=(--enable-libass)
-        [[ -f "$workspace/lib/libfreetype.a" ]] && OPTIONAL_LIBS+=(--enable-libfreetype)
-        [[ -f "$workspace/lib/libfontconfig.a" ]] && OPTIONAL_LIBS+=(--enable-libfontconfig)
-        [[ -f "$workspace/lib/libmp3lame.a" ]] && OPTIONAL_LIBS+=(--enable-libmp3lame)
-        [[ -f "$workspace/lib/libopus.a" ]] && OPTIONAL_LIBS+=(--enable-libopus)
-        [[ -f "$workspace/lib/libvorbis.a" ]] && OPTIONAL_LIBS+=(--enable-libvorbis)
-        [[ -f "$workspace/lib/libvpx.a" ]] && OPTIONAL_LIBS+=(--enable-libvpx)
-        [[ -f "$workspace/lib/libwebp.a" ]] && OPTIONAL_LIBS+=(--enable-libwebp)
-        [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
+        package_enabled "x264" && [[ -f "$workspace/lib/libx264.a" ]] && OPTIONAL_LIBS+=(--enable-libx264)
+        package_enabled "x265" && [[ -f "$workspace/lib/libx265.a" ]] && OPTIONAL_LIBS+=(--enable-libx265)
+        package_enabled "xvidcore" && [[ -f "$workspace/lib/libxvid.a" ]] && OPTIONAL_LIBS+=(--enable-libxvid)
+        package_enabled "libass" && [[ -f "$workspace/lib/libass.a" ]] && OPTIONAL_LIBS+=(--enable-libass)
+        package_enabled "freetype" && [[ -f "$workspace/lib/libfreetype.a" ]] && OPTIONAL_LIBS+=(--enable-libfreetype)
+        package_enabled "fontconfig" && [[ -f "$workspace/lib/libfontconfig.a" ]] && OPTIONAL_LIBS+=(--enable-libfontconfig)
+        package_enabled "liblame" && [[ -f "$workspace/lib/libmp3lame.a" ]] && OPTIONAL_LIBS+=(--enable-libmp3lame)
+        package_enabled "libopus" && [[ -f "$workspace/lib/libopus.a" ]] && OPTIONAL_LIBS+=(--enable-libopus)
+        package_enabled "vorbis" && [[ -f "$workspace/lib/libvorbis.a" ]] && OPTIONAL_LIBS+=(--enable-libvorbis)
+        package_enabled "libvpx" && ([[ -f "$workspace/lib/libvpx.a" ]] || pkgconf --exists vpx 2>/dev/null) && OPTIONAL_LIBS+=(--enable-libvpx)
+        package_enabled "libwebp-git" && [[ -f "$workspace/lib/libwebp.a" ]] && OPTIONAL_LIBS+=(--enable-libwebp)
+        package_enabled "libxml2" && [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
 
         # Check for system-installed libraries (from APT)
-        pkgconf --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
+        package_enabled "libbluray" && pkgconf --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
 
         # ═══════════════════════════════════════════════════════════════════════════
         # CUDA/NVENC Hardware Acceleration Support
@@ -127,7 +123,9 @@ build_ffmpeg() {
                 log "Enabling CUDA/NVENC hardware acceleration..."
 
                 # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
-                if ! pkgconf --exists ffnvcodec 2>/dev/null; then
+                if ! package_enabled "nv-codec-headers"; then
+                    warn "nv-codec-headers is disabled by config, so CUDA/NVENC will be skipped."
+                elif ! pkgconf --exists ffnvcodec 2>/dev/null; then
                     log "Installing nv-codec-headers (required for NVENC)..."
                     local ffmpeg_build_dir
                     ffmpeg_build_dir="$(pwd)"
@@ -143,57 +141,59 @@ build_ffmpeg() {
                     log "nv-codec-headers already installed"
                 fi
 
-                # Enable CUDA-related FFmpeg features
-                OPTIONAL_LIBS+=(
-                    --enable-cuda
-                    --enable-cuda-nvcc
-                    --enable-cuvid
-                    --enable-nvenc
-                    --enable-nvdec
-                    --enable-ffnvcodec
-                )
-                if command -v llvm-config >/dev/null 2>&1; then
-                    OPTIONAL_LIBS+=(--enable-cuda-llvm)
-                else
-                    log "llvm-config not found; skipping --enable-cuda-llvm"
-                fi
-
-                # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
-                # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
-                # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
-                # Only enable libnpp for CUDA 11.x and earlier
-                if [[ -f /usr/local/cuda/lib64/libnppc.so ]] || [[ -f /usr/local/cuda/lib64/libnppc_static.a ]]; then
-                    local cuda_major_ver
-                    cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -n1)
-                    if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
-                        OPTIONAL_LIBS+=(--enable-libnpp)
-                        log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
+                if package_enabled "nv-codec-headers"; then
+                    # Enable CUDA-related FFmpeg features
+                    OPTIONAL_LIBS+=(
+                        --enable-cuda
+                        --enable-cuda-nvcc
+                        --enable-cuvid
+                        --enable-nvenc
+                        --enable-nvdec
+                        --enable-ffnvcodec
+                    )
+                    if command -v llvm-config >/dev/null 2>&1; then
+                        OPTIONAL_LIBS+=(--enable-cuda-llvm)
                     else
-                        log "NVIDIA Performance Primitives (libnpp) disabled - CUDA ${cuda_major_ver:-unknown} has incompatible NPP API"
+                        log "llvm-config not found; skipping --enable-cuda-llvm"
                     fi
-                fi
 
-                # Add CUDA paths to compiler/linker flags
-                local cuda_cflags cuda_ldflags
-                cuda_cflags="-I/usr/local/cuda/include"
-                cuda_ldflags="-L/usr/local/cuda/lib64"
-
-                # Update BASIC_CONFIG with CUDA paths (append to existing flags)
-                for i in "${!BASIC_CONFIG[@]}"; do
-                    if [[ "${BASIC_CONFIG[i]}" == --extra-cflags=* ]]; then
-                        BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_cflags"
-                    elif [[ "${BASIC_CONFIG[i]}" == --extra-ldflags=* ]]; then
-                        BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_ldflags"
+                    # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
+                    # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
+                    # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
+                    # Only enable libnpp for CUDA 11.x and earlier
+                    if [[ -f /usr/local/cuda/lib64/libnppc.so ]] || [[ -f /usr/local/cuda/lib64/libnppc_static.a ]]; then
+                        local cuda_major_ver
+                        cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -n1)
+                        if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
+                            OPTIONAL_LIBS+=(--enable-libnpp)
+                            log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
+                        else
+                            log "NVIDIA Performance Primitives (libnpp) disabled - CUDA ${cuda_major_ver:-unknown} has incompatible NPP API"
+                        fi
                     fi
-                done
 
-                # Add nvcc flags if GPU architecture was detected
-                if [[ -n "${nvidia_arch_type:-}" ]]; then
-                    BASIC_CONFIG+=("--nvccflags=$nvidia_arch_type")
-                    log "NVCC architecture flags: $nvidia_arch_type"
+                    # Add CUDA paths to compiler/linker flags
+                    local cuda_cflags cuda_ldflags
+                    cuda_cflags="-I/usr/local/cuda/include"
+                    cuda_ldflags="-L/usr/local/cuda/lib64"
+
+                    # Update BASIC_CONFIG with CUDA paths (append to existing flags)
+                    for i in "${!BASIC_CONFIG[@]}"; do
+                        if [[ "${BASIC_CONFIG[i]}" == --extra-cflags=* ]]; then
+                            BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_cflags"
+                        elif [[ "${BASIC_CONFIG[i]}" == --extra-ldflags=* ]]; then
+                            BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_ldflags"
+                        fi
+                    done
+
+                    # Add nvcc flags if GPU architecture was detected
+                    if [[ -n "${nvidia_arch_type:-}" ]]; then
+                        BASIC_CONFIG+=("--nvccflags=$nvidia_arch_type")
+                        log "NVCC architecture flags: $nvidia_arch_type"
+                    fi
+
+                    log "CUDA/NVENC support enabled successfully"
                 fi
-
-                log "CUDA/NVENC support enabled successfully"
             fi
         elif [[ "${gpu_flag:-1}" -eq 0 ]] && [[ ! -d "/usr/local/cuda" ]]; then
             warn "NVIDIA GPU detected but CUDA not found at /usr/local/cuda - NVENC disabled"

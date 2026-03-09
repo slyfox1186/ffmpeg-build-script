@@ -33,10 +33,10 @@ install_image_libraries() {
 	        with_rav1e=OFF
 	        with_x265=OFF
 
-	        [[ -f "$workspace/lib/libaom.a" || -f "$workspace/lib64/libaom.a" ]] && with_aom=ON
+        package_enabled "av1-git" && [[ -f "$workspace/lib/libaom.a" || -f "$workspace/lib64/libaom.a" ]] && with_aom=ON
 	        pkgconf --exists dav1d 2>/dev/null && with_dav1d=ON
 	        (pkgconf --exists libde265 2>/dev/null || ldconfig -p 2>/dev/null | grep -q 'libde265\.so') && with_libde265=ON
-	        [[ -f "$workspace/lib/librav1e.a" || -f "$workspace/lib64/librav1e.a" ]] && with_rav1e=ON
+        package_enabled "rav1e" && [[ -f "$workspace/lib/librav1e.a" || -f "$workspace/lib64/librav1e.a" ]] && with_rav1e=ON
 	        # x265 disabled due to static linking issues with NUMA dependencies
 
 	        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -63,5 +63,5 @@ install_image_libraries() {
         execute ninja -C build install
         build_done "openjpeg" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libopenjpeg")
+    append_configure_options_if_enabled "openjpeg" "--enable-libopenjpeg"
 }

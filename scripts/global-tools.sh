@@ -34,12 +34,18 @@ install_global_tools() {
         build_done "m4" "latest"
     fi
 
+    local m4_path
+    m4_path="$(resolve_tool_path "m4" "$workspace/bin/m4")"
+    if [[ "$m4_path" != "$workspace/bin/m4" ]]; then
+        log "Using system m4 fallback: $m4_path"
+    fi
+
     # Build autoconf
     gnu_repo "$GNU_PRIMARY_MIRROR/autoconf/"
     local autoconf_version="$repo_version"
     if build "autoconf" "$autoconf_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/autoconf/autoconf-$autoconf_version.tar.xz" "$GNU_FALLBACK_MIRROR/autoconf/autoconf-$autoconf_version.tar.xz"
-        execute sh configure --prefix="$workspace" M4="$workspace/bin/m4"
+        execute sh configure --prefix="$workspace" M4="$m4_path"
         execute make "-j$build_threads"
         execute make install
         build_done "autoconf" "$autoconf_version"
@@ -61,17 +67,15 @@ install_global_tools() {
     local libtool_version="$repo_version"
     if build "libtool" "$libtool_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/libtool/libtool-$libtool_version.tar.xz" "$GNU_FALLBACK_MIRROR/libtool/libtool-$libtool_version.tar.xz"
-        execute sh configure --prefix="$workspace" --with-pic M4="$workspace/bin/m4"
+        execute sh configure --prefix="$workspace" --with-pic M4="$m4_path"
         execute make "-j$build_threads"
         execute make install
         build_done "libtool" "$libtool_version"
     fi
 
     # Build pkgconf (modern pkgconf replacement)
-    # Tags are formatted as "pkgconf-X.Y.Z" so extract version directly
-    local pkgconf_version
-    pkgconf_version=$(curl -fsSL "https://github.com/pkgconf/pkgconf/tags" 2>/dev/null | grep -oP 'pkgconf-\K\d+\.\d+\.\d+(?=\.tar\.gz)' | head -1)
-    [[ -z "$pkgconf_version" ]] && fail "Failed to detect pkgconf version from GitHub"
+    pkgconf_repo_version || fail "Failed to detect pkgconf version. Line: ${LINENO}"
+    local pkgconf_version="$repo_version"
     if build "pkgconf" "$pkgconf_version"; then
         download "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-$pkgconf_version.tar.gz" "pkgconf-$pkgconf_version.tar.gz"
         # Release tarballs from GitHub need autoreconf
@@ -150,7 +154,7 @@ install_global_tools() {
         execute ninja -C build install
         build_done "librist" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-librist")
+    append_configure_options_if_enabled "librist" "--enable-librist"
 
 	    # Build zlib
 	    find_git_repo "madler/zlib" "1" "T"
@@ -168,29 +172,31 @@ install_global_tools() {
 
     # Build openssl (if GPL and non-free enabled)
     if "$NONFREE_AND_GPL"; then
-        get_openssl_version() {
-            openssl_version=$(
-                        curl -fsS https://openssl-library.org/source/ |
-                        grep -oP 'openssl-\K3\.0\.[0-9]+' | sort -ruV |
-                        head -n1
-                    )
-	        }
-	        get_openssl_version
-	        if build "openssl" "$openssl_version"; then
-	            download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
-	            execute ./Configure --prefix="$workspace" \
+        openssl_30_version || fail "Failed to detect OpenSSL 3.0.x version. Line: ${LINENO}"
+        local openssl_version="$repo_version"
+        if build "openssl" "$openssl_version"; then
+            local zlib_include_dir zlib_library_dir
+            if package_enabled "zlib" && [[ -f "$workspace/lib/libz.a" || -f "$workspace/lib/libz.so" ]]; then
+                zlib_include_dir="$workspace/include"
+                zlib_library_dir="$workspace/lib"
+            else
+                zlib_include_dir="$(resolve_pkgconf_include_dir "zlib")"
+                zlib_library_dir="$(resolve_pkgconf_library_dir "zlib")"
+            fi
+            download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
+            execute ./Configure --prefix="$workspace" \
                                         --openssldir="$workspace/ssl" \
-	                                no-shared \
+                                        no-shared \
                                         no-pinshared \
                                         threads \
                                         zlib \
                                         --with-rand-seed=os \
-	                                --with-zlib-include="$workspace/include" \
-	                                --with-zlib-lib="$workspace/lib"
-	            execute make "-j$build_threads"
-	            execute make install_sw
-	            build_done "openssl" "$openssl_version"
-	        fi
-	        CONFIGURE_OPTIONS+=("--enable-openssl")
-	    fi
+                                        --with-zlib-include="$zlib_include_dir" \
+                                        --with-zlib-lib="$zlib_library_dir"
+            execute make "-j$build_threads"
+            execute make install_sw
+            build_done "openssl" "$openssl_version"
+        fi
+        append_configure_options_if_enabled "openssl" "--enable-openssl"
+    fi
 }

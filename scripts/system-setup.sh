@@ -50,7 +50,11 @@ apt_pkgs() {
         libshine-dev libsmbclient-dev libsnappy-dev libspeex-dev libssh-dev libssl-dev
         libtesseract-dev libtool libaribb24-dev libtwolame-dev libv4l-dev libvdpau-dev
         libvo-amrwbenc-dev libvpl-dev libx11-dev libxi-dev libyuv-dev libzvbi-dev
-        libmpg123-dev perl python3 python3-dev python3-venv valgrind python3-pip
+        libaom-dev libfontconfig-dev libfreetype-dev libfribidi-dev libgmp-dev
+        libharfbuzz-dev
+        libogg-dev libsdl2-dev libvorbis-dev libvpx-dev libwebp-dev libxml2-dev
+        m4 meson nasm nettle-dev ninja-build perl pkgconf python3 python3-dev python3-pip
+        python3-venv valgrind yasm zlib1g-dev libmpg123-dev
     )
 
     # Note: GPU detection happens later; keep package install independent from GPU probing.
