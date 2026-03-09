@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2034,SC2068,SC2162,SC2317 source=/dev/null
 
 # Enable debug output to see what's happening
 # set -x
@@ -35,6 +35,7 @@ fi
 script_name="${0##*/}"
 script_version="4.3.1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+invocation_dir="$PWD"
 
 # Keep build artifacts out of the repo root (prevents cleanup from deleting the repo).
 # Override with BUILD_ROOT=/path/to/dir if desired.
@@ -73,6 +74,7 @@ usage() {
     echo "Options:"
     echo "  -h, --help                        Display usage information"
     echo "   --compiler=<gcc|clang>           Set the default CC and CXX compiler (default: gcc)"
+    echo "   --config <path>                  Load build/package selection from a TOML config file"
     echo "  -b, --build                       Starts the build process"
     echo "  -c, --cleanup                     Remove all working dirs"
     echo "  -g, --google-speech               Enable Google Speech for audible error messages (google_speech must already be installed to work)."
@@ -91,6 +93,45 @@ LATEST=false
 NONFREE_AND_GPL=false
 GOOGLE_SPEECH=false
 DO_BUILD=false
+PACKAGE_CONFIG_FILE=""
+
+resolve_config_path() {
+    local input_path="${1:-}" candidate_path
+
+    [[ -n "$input_path" ]] || fail "Missing config path for --config."
+
+    if [[ "$input_path" = /* ]]; then
+        candidate_path="$input_path"
+    elif [[ -f "$invocation_dir/$input_path" ]]; then
+        candidate_path="$invocation_dir/$input_path"
+    elif [[ -f "$script_dir/$input_path" ]]; then
+        candidate_path="$script_dir/$input_path"
+    else
+        candidate_path="$input_path"
+    fi
+
+    readlink -f -- "$candidate_path" 2>/dev/null || printf '%s\n' "$candidate_path"
+}
+
+cli_args=("$@")
+for ((i = 0; i < ${#cli_args[@]}; i++)); do
+    case "${cli_args[i]}" in
+        --config)
+            if ((i + 1 >= ${#cli_args[@]})); then
+                fail "Missing value for --config."
+            fi
+            PACKAGE_CONFIG_FILE="$(resolve_config_path "${cli_args[i + 1]}")"
+            ((i++))
+            ;;
+        --config=*)
+            PACKAGE_CONFIG_FILE="$(resolve_config_path "${cli_args[i]#*=}")"
+            ;;
+    esac
+done
+
+if [[ -n "$PACKAGE_CONFIG_FILE" ]]; then
+    load_package_selection_config "$PACKAGE_CONFIG_FILE"
+fi
 
 while (("$#" > 0)); do
     case "$1" in
@@ -103,9 +144,17 @@ while (("$#" > 0)); do
             echo "The script version is: $script_version"
             exit 0
             ;;
+        --config)
+            if [[ -z "${2:-}" ]]; then
+                fail "Missing value for --config."
+            fi
+            shift 2
+            ;;
+        --config=*)
+            shift
+            ;;
         -n|--enable-gpl-and-non-free)
-            CONFIGURE_OPTIONS+=("--enable-"{gpl,libsmbclient,libcdio,nonfree})
-            NONFREE_AND_GPL=true
+            enable_gpl_and_non_free
             shift
             ;;
         -b|--build)
@@ -192,6 +241,7 @@ require_sudo
 # Initialize system setup (OS detection, package installation, etc.)
 source "$script_dir/scripts/system-setup.sh"
 initialize_system_setup
+validate_package_selection
 
 # Initialize hardware detection and CUDA setup
 source "$script_dir/scripts/hardware-detection.sh" 

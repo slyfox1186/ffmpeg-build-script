@@ -40,11 +40,13 @@ install_core_libraries() {
     fi
 
     # Build giflib
-    giflib_version=$(curl -fsS "https://sourceforge.net/projects/giflib/files/" 2>/dev/null |
-                     grep -oP 'giflib-\K([0-9]+\.[0-9]+(?:\.[0-9]+)?)' |
-                     sort -ruV | head -n1
-                   )
-    giflib_version="${giflib_version:-5.2.2}"
+    local giflib_version
+    if giflib_repo_version; then
+        giflib_version="$repo_version"
+    else
+        giflib_version="5.2.2"
+        warn "Falling back to giflib version $giflib_version because upstream version detection failed."
+    fi
     if build "giflib" "$giflib_version"; then
         download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-$giflib_version.tar.gz?viasf=1"
         # Build only the library, skip documentation (requires ImageMagick)
@@ -78,7 +80,7 @@ install_core_libraries() {
         restore_compiler_flags
         build_done "libxml2" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libxml2")
+    append_configure_options_if_enabled "libxml2" "--enable-libxml2"
 
     # Build libpng
     find_git_repo "pnggroup/libpng" "1" "T"
@@ -105,7 +107,7 @@ install_core_libraries() {
 
     # aribb24 is now installed via system package manager (libaribb24-dev)
     if "$NONFREE_AND_GPL"; then
-        CONFIGURE_OPTIONS+=("--enable-libaribb24")
+        append_configure_options_if_enabled "libaribb24" "--enable-libaribb24"
     fi
 
     # Fix library issues

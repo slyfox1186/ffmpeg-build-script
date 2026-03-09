@@ -28,14 +28,11 @@ install_audio_libraries() {
 	        execute ninja -C build install
 	        build_done "libsoxr" "$repo_version"
 	    fi
-	    CONFIGURE_OPTIONS+=("--enable-libsoxr")
+    append_configure_options_if_enabled "libsoxr" "--enable-libsoxr"
 
     # Build SDL2 (must use SDL2 branch - main branch is SDL3)
-    # Special case: filter to 2.x.x versions before sorting (SDL3 is incompatible)
-    local sdl2_version
-    sdl2_version=$(curl -fsSL "https://github.com/libsdl-org/SDL/tags" |
-                   grep -oP 'releases/tag/release-\K2\.[0-9]+\.[0-9]+(?=")' |
-                   sort -ruV | head -n1)
+    sdl2_repo_version || fail "Failed to detect SDL2 version. Line: ${LINENO}"
+    local sdl2_version="$repo_version"
     if build "sdl2" "$sdl2_version"; then
         download "https://github.com/libsdl-org/SDL/releases/download/release-$sdl2_version/SDL2-$sdl2_version.tar.gz"
         execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -84,22 +81,30 @@ install_audio_libraries() {
             execute make install
             build_done "libfdk-aac" "$repo_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-libfdk-aac")
+        append_configure_options_if_enabled "libfdk-aac" "--enable-libfdk-aac"
     fi
 
     # Build vorbis
     find_git_repo "xiph/vorbis" "1" "T"
     if build "vorbis" "$repo_version"; then
+        local ogg_include_dir ogg_library
         download "https://github.com/xiph/vorbis/archive/refs/tags/v$repo_version.tar.gz" "vorbis-$repo_version.tar.gz"
+        if package_enabled "libogg" && [[ -f "$workspace/lib/libogg.a" ]]; then
+            ogg_include_dir="$workspace/include"
+            ogg_library="$workspace/lib/libogg.a"
+        else
+            ogg_include_dir="$(resolve_pkgconf_include_dir "ogg")"
+            ogg_library="$(resolve_pkgconf_library_file "ogg" "ogg")"
+        fi
         execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
-                      -DOGG_INCLUDE_DIR="$workspace/include" -DOGG_LIBRARY="$workspace/lib/libogg.a" \
+                      -DOGG_INCLUDE_DIR="$ogg_include_dir" -DOGG_LIBRARY="$ogg_library" \
                       -G Ninja -Wno-dev
         execute ninja "-j$build_threads" -C build
         execute ninja -C build install
         build_done "vorbis" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libvorbis")
+    append_configure_options_if_enabled "vorbis" "--enable-libvorbis"
 
     # Build libopus
     find_git_repo "xiph/opus" "1" "T"
@@ -112,7 +117,7 @@ install_audio_libraries() {
         execute ninja -C build install
         build_done "libopus" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libopus")
+    append_configure_options_if_enabled "libopus" "--enable-libopus"
 
     # Build libmysofa
     find_git_repo "hoene/libmysofa" "1" "T"
@@ -124,7 +129,7 @@ install_audio_libraries() {
         execute ninja -C build install
         build_done "libmysofa" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libmysofa")
+    append_configure_options_if_enabled "libmysofa" "--enable-libmysofa"
 
     # Build opencore-amr
     find_git_repo "8143" "6"
@@ -136,7 +141,7 @@ install_audio_libraries() {
         execute make install
         build_done "opencore-amr" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libopencore-"{amrnb,amrwb})
+    append_configure_options_if_enabled "opencore-amr" "--enable-libopencore-amrnb" "--enable-libopencore-amrwb"
 
     # Build liblame
     if build "liblame" "3.100"; then
@@ -149,10 +154,11 @@ install_audio_libraries() {
         execute make install
         build_done "liblame" "3.100"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libmp3lame")
+    append_configure_options_if_enabled "liblame" "--enable-libmp3lame"
 
     # Build libtheora
     if build "libtheora" "1.1.1"; then
+        local ogg_include_dir ogg_library_dir vorbis_include_dir vorbis_library_dir sdl_prefix
         download "https://github.com/xiph/theora/archive/refs/tags/v1.1.1.tar.gz" "libtheora-1.1.1.tar.gz"
         ensure_autotools
         sed 's/-fforce-addr//g' configure > configure.patched
@@ -161,13 +167,36 @@ install_audio_libraries() {
         execute rm config.guess
         execute curl -LSso config.guess https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
         chmod +x config.guess
+        if package_enabled "libogg" && [[ -f "$workspace/lib/libogg.a" ]]; then
+            ogg_include_dir="$workspace/include"
+            ogg_library_dir="$workspace/lib"
+        else
+            ogg_include_dir="$(resolve_pkgconf_include_dir "ogg")"
+            ogg_library_dir="$(resolve_pkgconf_library_dir "ogg")"
+        fi
+
+        if package_enabled "vorbis" && [[ -f "$workspace/lib/libvorbis.a" ]]; then
+            vorbis_include_dir="$workspace/include"
+            vorbis_library_dir="$workspace/lib"
+        else
+            vorbis_include_dir="$(resolve_pkgconf_include_dir "vorbis")"
+            vorbis_library_dir="$(resolve_pkgconf_library_dir "vorbis")"
+        fi
+
+        if package_enabled "sdl2" && [[ -x "$workspace/bin/sdl2-config" ]]; then
+            sdl_prefix="$workspace"
+        elif command -v sdl2-config >/dev/null 2>&1; then
+            sdl_prefix="$(sdl2-config --prefix)"
+        else
+            sdl_prefix="$(resolve_pkgconf_prefix "sdl2")"
+        fi
         execute sh configure --prefix="$workspace" --disable-{examples,oggtest,sdltest,shared,vorbistest} \
-                             --enable-static --with-ogg-includes="$workspace/include" --with-ogg-libraries="$workspace/lib" \
-                             --with-ogg="$workspace" --with-sdl-prefix="$workspace" --with-vorbis-includes="$workspace/include" \
-                             --with-vorbis-libraries="$workspace/lib" --with-vorbis="$workspace"
+                             --enable-static --with-ogg-includes="$ogg_include_dir" --with-ogg-libraries="$ogg_library_dir" \
+                             --with-sdl-prefix="$sdl_prefix" --with-vorbis-includes="$vorbis_include_dir" \
+                             --with-vorbis-libraries="$vorbis_library_dir"
         execute make "-j$build_threads"
         execute make install
         build_done "libtheora" "1.1.1"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libtheora")
+    append_configure_options_if_enabled "libtheora" "--enable-libtheora"
 }

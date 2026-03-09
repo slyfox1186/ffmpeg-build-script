@@ -30,7 +30,7 @@ install_video_libraries() {
         execute ninja -C build install
         build_done "$repo_name" "$version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libaom")
+    append_configure_options_if_enabled "av1-git" "--enable-libaom"
 
     # Build rav1e (Rust-based AV1 encoder)
     find_git_repo "xiph/rav1e" "1" "T" "enabled"
@@ -39,7 +39,7 @@ install_video_libraries() {
         source "$HOME/.cargo/env"
         [[ -f /usr/bin/rustc ]] && sudo rm -f /usr/bin/rustc
         check_and_install_cargo_c
-        download "https://github.com/xiph/rav1e/archive/refs/tags/$repo_version.tar.gz" "rav1e-$repo_version.tar.gz"
+        download "https://github.com/xiph/rav1e/archive/refs/tags/v$repo_version.tar.gz" "rav1e-$repo_version.tar.gz"
         # Ensure workspace directories have proper permissions
         sudo chown -R "$USER:$USER" "$workspace"
         if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
@@ -48,7 +48,7 @@ install_video_libraries() {
         fi
         build_done "rav1e" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-librav1e")
+    append_configure_options_if_enabled "rav1e" "--enable-librav1e"
 
 	    # Build zimg
 	    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
@@ -61,7 +61,7 @@ install_video_libraries() {
 	        execute make install
 	        build_done "$repo_name" "$version"
 	    fi
-	    CONFIGURE_OPTIONS+=("--enable-libzimg")
+    append_configure_options_if_enabled "zimg-git" "--enable-libzimg"
 
     # Build libavif
     find_git_repo "AOMediaCodec/libavif" "1" "T"
@@ -85,7 +85,7 @@ install_video_libraries() {
         execute ninja -C build install
         build_done "kvazaar" "$repo_version"
     fi
-    CONFIGURE_OPTIONS+=("--enable-libkvazaar")
+    append_configure_options_if_enabled "kvazaar" "--enable-libkvazaar"
 
     # Build libdvdread (uses meson since v7.0.0)
     find_git_repo "76" "2" "T"
@@ -171,7 +171,7 @@ install_video_libraries() {
             execute ninja -C build install
             build_done "vid-stab" "$repo_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-libvidstab")
+        append_configure_options_if_enabled "vid-stab" "--enable-libvidstab"
 
         
         # Build x264
@@ -187,7 +187,7 @@ install_video_libraries() {
             execute make install-lib-static install
             build_done "x264" "$repo_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-libx264")
+        append_configure_options_if_enabled "x264" "--enable-libx264"
 
         # Build x265
         if build "x265" "3.6"; then
@@ -242,7 +242,7 @@ EOF
 
             build_done "x265" "3.6"
         fi
-        CONFIGURE_OPTIONS+=("--enable-libx265")
+        append_configure_options_if_enabled "x265" "--enable-libx265"
 
         # NVIDIA codec headers (CUDA only)
         # Check if NVIDIA GPU was detected (gpu_flag=0) and CUDA toolkit is installed
@@ -289,7 +289,7 @@ EOF
             if build "vaapi" "1"; then
                 build_done "vaapi" "1"
             fi
-            CONFIGURE_OPTIONS+=("--enable-vaapi")
+            append_configure_options_if_enabled "vaapi" "--enable-vaapi"
         fi
 
         # Build AMF headers (use official headers-only tarball)
@@ -301,15 +301,22 @@ EOF
             execute cp -fr AMF "$workspace/include/"
             build_done "amf-headers" "$repo_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-amf")
+        append_configure_options_if_enabled "amf-headers" "--enable-amf"
 
         # Build SRT
         find_git_repo "Haivision/srt" "1" "T"
         if build "srt" "$repo_version"; then
+            local use_workspace_openssl
+            use_workspace_openssl=false
             download "https://github.com/Haivision/srt/archive/refs/tags/v$repo_version.tar.gz" "srt-$repo_version.tar.gz"
-            export OPENSSL_ROOT_DIR="$workspace"
-            export OPENSSL_LIB_DIR="$workspace/lib"
-            export OPENSSL_INCLUDE_DIR="$workspace/include"
+            if package_enabled "openssl" && [[ -f "$workspace/lib/libssl.a" || -f "$workspace/lib/libssl.so" ]]; then
+                export OPENSSL_ROOT_DIR="$workspace"
+                export OPENSSL_LIB_DIR="$workspace/lib"
+                export OPENSSL_INCLUDE_DIR="$workspace/include"
+                use_workspace_openssl=true
+            else
+                unset OPENSSL_ROOT_DIR OPENSSL_LIB_DIR OPENSSL_INCLUDE_DIR
+            fi
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
                           -DENABLE_{APPS,SHARED}=OFF -DENABLE_STATIC=ON -DUSE_STATIC_LIBSTDCXX=ON \
@@ -318,9 +325,13 @@ EOF
                           -G Ninja -Wno-dev
             execute ninja -C build "-j$build_threads"
             execute ninja -C build "-j$build_threads" install
+            if [[ "$use_workspace_openssl" == "false" ]]; then
+                log "Using system OpenSSL fallback for SRT"
+            fi
+            unset OPENSSL_ROOT_DIR OPENSSL_LIB_DIR OPENSSL_INCLUDE_DIR
             build_done "srt" "$repo_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-libsrt")
+        append_configure_options_if_enabled "srt" "--enable-libsrt"
 
         # Build Avisynth
         find_git_repo "avisynth/avisynthplus" "1" "T"
@@ -331,7 +342,7 @@ EOF
             execute make "-j$build_threads" -C build VersionGen install
             build_done "avisynth" "$repo_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-avisynth")
+        append_configure_options_if_enabled "avisynth" "--enable-avisynth"
 
         # Build xvidcore
         find_git_repo "8268" "2"
@@ -347,7 +358,7 @@ EOF
             execute make install
             build_done "xvidcore" "$clean_version"
         fi
-        CONFIGURE_OPTIONS+=("--enable-libxvid")
+        append_configure_options_if_enabled "xvidcore" "--enable-libxvid"
     fi
 
     # Build gpac
@@ -362,9 +373,9 @@ EOF
 	        mkdir -p include/gpac
 	        touch include/gpac/revision.h
 	        local -a gpac_sdl_cfg=()
-	        if [[ -x "$workspace/bin/sdl2-config" ]]; then
+        if package_enabled "sdl2" && [[ -x "$workspace/bin/sdl2-config" ]]; then
 	            gpac_sdl_cfg=(--sdl-cfg="$workspace/bin/sdl2-config")
-	        elif command -v sdl2-config >/dev/null 2>&1; then
+        elif package_enabled "sdl2" && command -v sdl2-config >/dev/null 2>&1; then
 	            gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
 	        fi
 	        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has internal ogg implementation)
@@ -431,7 +442,7 @@ EOF
         PATH="$ccache_dir:$workspace/python_virtual_environment/vapoursynth/bin:$PATH"
         remove_duplicate_paths
 	    fi
-	    CONFIGURE_OPTIONS+=("--enable-vapoursynth")
+    append_configure_options_if_enabled "vapoursynth" "--enable-vapoursynth"
 
     # Build libgav1
     git_caller "https://chromium.googlesource.com/codecs/libgav1" "libgav1-git"
@@ -454,30 +465,21 @@ EOF
 fetch_nv_codec_headers_versions() {
     # Build the `sorted_versions_and_dates` array in "version;MM-DD-YYYY" format.
     declare -a versions_and_dates=()
-    local scrape_html
+    local releases_json formatted_date published_date version
 
-    scrape_html=$(curl -fsSL "https://github.com/FFmpeg/nv-codec-headers/tags/")
-    local -a html_lines=()
-    mapfile -t html_lines <<<"$scrape_html"
+    releases_json=$(github_api_json "repos/FFmpeg/nv-codec-headers/releases?per_page=100") || {
+        warn "No nv-codec-headers releases found."
+        return 1
+    }
 
-    local current_version=""
-    local regex='href=\"/FFmpeg/nv-codec-headers/releases/tag/n([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\"'
-    local line
-    for line in "${html_lines[@]}"; do
-        if [[ $line =~ $regex ]]; then
-            current_version="${BASH_REMATCH[1]}"
-        fi
-
-        if [[ "$line" =~ datetime=\"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})Z\" ]]; then
-            if [[ -n "$current_version" ]]; then
-                local date="${BASH_REMATCH[1]}T${BASH_REMATCH[2]}Z"
-                local formatted_date
-                formatted_date=$(date -d "$date" +"%m-%d-%Y")
-                versions_and_dates+=("$current_version;$formatted_date")
-                current_version=""
-            fi
-        fi
-    done
+    while IFS=';' read -r version published_date; do
+        [[ -n "$version" && -n "$published_date" ]] || continue
+        formatted_date=$(date -d "$published_date" +"%m-%d-%Y" 2>/dev/null || echo "$published_date")
+        versions_and_dates+=("$version;$formatted_date")
+    done < <(
+        printf '%s' "$releases_json" |
+        jq -r '.[] | select(.tag_name | test("^n[0-9]+(\\.[0-9]+){3}$")) | "\(.tag_name | ltrimstr("n"));\(.published_at | split("T")[0])"'
+    )
 
     # Check if any versions were found
     if [[ ${#versions_and_dates[@]} -eq 0 ]]; then

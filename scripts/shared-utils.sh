@@ -38,6 +38,10 @@ debug=OFF
 GNU_PRIMARY_MIRROR="${GNU_PRIMARY_MIRROR:-https://mirrors.ibiblio.org/gnu}"
 GNU_FALLBACK_MIRROR="${GNU_FALLBACK_MIRROR:-https://mirror.team-cymru.com/gnu}"
 
+# Optional build selection loaded from a minimal TOML config.
+declare -Ag PACKAGE_SELECTION=()
+PACKAGE_SELECTION_CONFIG_FILE="${PACKAGE_SELECTION_CONFIG_FILE:-}"
+
 # Banner functions
 box_out_banner() {
     local text="$*"
@@ -83,6 +87,276 @@ require_vars() {
     done
 }
 
+trim_whitespace() {
+    local value="${1:-}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+enable_gpl_and_non_free() {
+    if [[ "${NONFREE_AND_GPL:-false}" == "true" ]]; then
+        return 0
+    fi
+
+    CONFIGURE_OPTIONS+=("--enable-"{gpl,libsmbclient,libcdio,nonfree})
+    NONFREE_AND_GPL=true
+}
+
+package_enabled() {
+    local package_name="${1:-}"
+    local selected_value
+
+    [[ -n "$package_name" ]] || fail "package_enabled() called without a package name. Line: ${LINENO}"
+
+    selected_value="${PACKAGE_SELECTION[$package_name]:-true}"
+    [[ "$selected_value" == "true" ]]
+}
+
+append_configure_options_if_enabled() {
+    local package_name="${1:-}"
+
+    [[ -n "$package_name" ]] || fail "append_configure_options_if_enabled() called without a package name. Line: ${LINENO}"
+    shift || true
+
+    package_enabled "$package_name" || return 0
+    CONFIGURE_OPTIONS+=("$@")
+}
+
+resolve_tool_path() {
+    local tool_name preferred_path resolved_path
+    tool_name="${1:-}"
+    preferred_path="${2:-}"
+
+    [[ -n "$tool_name" ]] || fail "resolve_tool_path() called without a tool name. Line: ${LINENO}"
+
+    if [[ -n "$preferred_path" ]] && [[ -x "$preferred_path" ]]; then
+        printf '%s\n' "$preferred_path"
+        return 0
+    fi
+
+    resolved_path="$(command -v "$tool_name" 2>/dev/null || true)"
+    if [[ -n "$resolved_path" ]]; then
+        printf '%s\n' "$resolved_path"
+        return 0
+    fi
+
+    fail "Required tool '$tool_name' was not found. Enable its package in config or install it with your system package manager."
+}
+
+resolve_pkgconf_prefix() {
+    local module_name prefix
+    module_name="${1:-}"
+
+    [[ -n "$module_name" ]] || fail "resolve_pkgconf_prefix() called without a module name. Line: ${LINENO}"
+
+    prefix="$(pkgconf --variable=prefix "$module_name" 2>/dev/null || true)"
+    [[ -n "$prefix" ]] || fail "Unable to resolve pkgconf prefix for '$module_name'. Install the matching development package or enable the local build dependency."
+    printf '%s\n' "$prefix"
+}
+
+resolve_pkgconf_include_dir() {
+    local module_name include_flags token include_dir
+    module_name="${1:-}"
+
+    [[ -n "$module_name" ]] || fail "resolve_pkgconf_include_dir() called without a module name. Line: ${LINENO}"
+
+    include_flags="$(pkgconf --cflags-only-I "$module_name" 2>/dev/null || true)"
+    for token in $include_flags; do
+        if [[ "$token" == -I* ]]; then
+            printf '%s\n' "${token#-I}"
+            return 0
+        fi
+    done
+
+    include_dir="$(pkgconf --variable=includedir "$module_name" 2>/dev/null || true)"
+    [[ -n "$include_dir" ]] || fail "Unable to resolve include dir for pkgconf module '$module_name'."
+    printf '%s\n' "$include_dir"
+}
+
+resolve_pkgconf_library_dir() {
+    local module_name lib_flags token lib_dir
+    module_name="${1:-}"
+
+    [[ -n "$module_name" ]] || fail "resolve_pkgconf_library_dir() called without a module name. Line: ${LINENO}"
+
+    lib_flags="$(pkgconf --libs-only-L "$module_name" 2>/dev/null || true)"
+    for token in $lib_flags; do
+        if [[ "$token" == -L* ]]; then
+            printf '%s\n' "${token#-L}"
+            return 0
+        fi
+    done
+
+    lib_dir="$(pkgconf --variable=libdir "$module_name" 2>/dev/null || true)"
+    [[ -n "$lib_dir" ]] || fail "Unable to resolve library dir for pkgconf module '$module_name'."
+    printf '%s\n' "$lib_dir"
+}
+
+resolve_pkgconf_library_file() {
+    local module_name library_basename library_dir candidate
+    module_name="${1:-}"
+    library_basename="${2:-}"
+
+    [[ -n "$module_name" ]] || fail "resolve_pkgconf_library_file() called without a module name. Line: ${LINENO}"
+    [[ -n "$library_basename" ]] || fail "resolve_pkgconf_library_file() called without a library basename. Line: ${LINENO}"
+
+    library_dir="$(resolve_pkgconf_library_dir "$module_name")"
+    for candidate in \
+        "$library_dir/lib${library_basename}.a" \
+        "$library_dir/lib${library_basename}.so" \
+        "$library_dir/lib${library_basename}.so.0"; do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    fail "Unable to locate lib${library_basename} in '$library_dir' for pkgconf module '$module_name'."
+}
+
+load_package_selection_config() {
+    local config_file current_table key raw_line value line line_no
+    config_file="${1:-}"
+    line_no=0
+
+    [[ -n "$config_file" ]] || fail "Missing config file path for --config. Line: ${LINENO}"
+    [[ -f "$config_file" ]] || fail "Config file not found: $config_file. Line: ${LINENO}"
+
+    PACKAGE_SELECTION_CONFIG_FILE="$config_file"
+    PACKAGE_SELECTION=()
+
+    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+        ((line_no++))
+        line="${raw_line%%#*}"
+        line="$(trim_whitespace "$line")"
+
+        [[ -z "$line" ]] && continue
+
+        if [[ "$line" =~ ^\[([A-Za-z0-9._-]+)\]$ ]]; then
+            current_table="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$line" =~ ^([A-Za-z0-9_-]+)[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+
+            case "$current_table" in
+                build)
+                    case "$key" in
+                        latest)
+                            LATEST="$value"
+                            ;;
+                        enable_gpl_and_non_free)
+                            if [[ "$value" == "true" ]]; then
+                                enable_gpl_and_non_free
+                            else
+                                NONFREE_AND_GPL=false
+                            fi
+                            ;;
+                        *)
+                            fail "Unsupported [build] key '$key' in $config_file:$line_no"
+                            ;;
+                    esac
+                    ;;
+                packages)
+                    PACKAGE_SELECTION["$key"]="$value"
+                    ;;
+                *)
+                    fail "Unsupported TOML table '${current_table:-<root>}' in $config_file:$line_no"
+                    ;;
+            esac
+            continue
+        fi
+
+        fail "Unsupported config syntax in $config_file:$line_no -> $raw_line"
+    done < "$config_file"
+
+    log "Loaded package selection config: $config_file"
+    log "If you are changing package selections on an existing workspace, run --cleanup first to avoid reusing old build artifacts."
+}
+
+validate_package_selection() {
+    local -a issues=()
+
+    if package_enabled "vorbis" && ! package_enabled "libogg" && ! pkgconf --exists ogg 2>/dev/null; then
+        issues+=("packages.vorbis=true requires packages.libogg=true or a system libogg development package")
+    fi
+
+    if package_enabled "libtheora"; then
+        if ! package_enabled "libogg" && ! pkgconf --exists ogg 2>/dev/null; then
+            issues+=("packages.libtheora=true requires packages.libogg=true or a system libogg development package")
+        fi
+        if ! package_enabled "vorbis" && ! pkgconf --exists vorbis 2>/dev/null; then
+            issues+=("packages.libtheora=true requires packages.vorbis=true or a system libvorbis development package")
+        fi
+        if ! package_enabled "sdl2" && ! command -v sdl2-config >/dev/null 2>&1 && ! pkgconf --exists sdl2 2>/dev/null; then
+            issues+=("packages.libtheora=true requires packages.sdl2=true or a system SDL2 development package")
+        fi
+    fi
+
+    if package_enabled "openssl" && ! package_enabled "zlib" && ! pkgconf --exists zlib 2>/dev/null; then
+        issues+=("packages.openssl=true requires packages.zlib=true or a system zlib development package")
+    fi
+
+    if package_enabled "gnutls"; then
+        if ! package_enabled "gmp" && ! pkgconf --exists gmp 2>/dev/null; then
+            issues+=("packages.gnutls=true requires packages.gmp=true or a system GMP development package")
+        fi
+        if ! package_enabled "nettle" && ! pkgconf --exists nettle 2>/dev/null; then
+            issues+=("packages.gnutls=true requires packages.nettle=true or a system nettle development package")
+        fi
+    fi
+
+    if package_enabled "srt" && ! package_enabled "openssl" && ! pkgconf --exists openssl 2>/dev/null; then
+        issues+=("packages.srt=true requires packages.openssl=true or a system OpenSSL development package")
+    fi
+
+    if package_enabled "fontconfig" && ! package_enabled "libxml2" && ! pkgconf --exists libxml-2.0 2>/dev/null; then
+        issues+=("packages.fontconfig=true requires packages.libxml2=true or a system libxml2 development package")
+    fi
+
+    if package_enabled "libass"; then
+        if ! package_enabled "fontconfig" && ! pkgconf --exists fontconfig 2>/dev/null; then
+            issues+=("packages.libass=true requires packages.fontconfig=true or a system fontconfig development package")
+        fi
+        if ! package_enabled "freetype" && ! pkgconf --exists freetype2 2>/dev/null; then
+            issues+=("packages.libass=true requires packages.freetype=true or a system freetype development package")
+        fi
+        if ! package_enabled "fribidi" && ! pkgconf --exists fribidi 2>/dev/null; then
+            issues+=("packages.libass=true requires packages.fribidi=true or a system fribidi development package")
+        fi
+        if ! package_enabled "harfbuzz" && ! pkgconf --exists harfbuzz 2>/dev/null; then
+            issues+=("packages.libass=true requires packages.harfbuzz=true or a system harfbuzz development package")
+        fi
+    fi
+
+    if package_enabled "lcms2" && ! package_enabled "libwebp-git" && ! pkgconf --exists libwebp 2>/dev/null; then
+        issues+=("packages.lcms2=true requires packages.libwebp-git=true or a system libwebp development package")
+    fi
+
+    if package_enabled "avif" && ! package_enabled "av1-git" && ! pkgconf --exists aom 2>/dev/null; then
+        issues+=("packages.avif=true requires packages.av1-git=true or a system libaom development package")
+    fi
+
+    if package_enabled "mediainfo-lib" && ! package_enabled "zenlib"; then
+        issues+=("packages.mediainfo-lib=true requires packages.zenlib=true")
+    fi
+
+    if package_enabled "mediainfo-cli" && ! package_enabled "mediainfo-lib"; then
+        issues+=("packages.mediainfo-cli=true requires packages.mediainfo-lib=true")
+    fi
+
+    if package_enabled "x264" && ! command -v yasm >/dev/null 2>&1 && ! command -v nasm >/dev/null 2>&1; then
+        issues+=("packages.x264=true requires yasm or nasm to be available")
+    fi
+
+    if ((${#issues[@]} > 0)); then
+        fail "$(printf 'Package selection has unresolved dependencies:\n - %s\n' "${issues[@]}")"
+    fi
+}
+
 # Validate repo_version is set and looks like a version number
 # Call this after any *_version() function to ensure version detection succeeded
 validate_repo_version() {
@@ -113,6 +387,10 @@ fail() {
         google_speech "Build failed. $1" >/dev/null 2>&1 || true
     fi
     exit 1
+}
+
+command_not_found_handle() {
+    fail "Command or function not found: $1"
 }
 
 exit_fn() {
@@ -203,6 +481,12 @@ build() {
     stripped_version="${package_version//[[:space:]]/}"
     if [[ -z "$stripped_version" ]]; then
         fail "build() called for \"$package_name\" with an empty version (version detection failed). Line: ${LINENO}"
+    fi
+
+    if ! package_enabled "$package_name"; then
+        echo
+        echo "$package_name is disabled by config${PACKAGE_SELECTION_CONFIG_FILE:+ ($PACKAGE_SELECTION_CONFIG_FILE)}."
+        return 1
     fi
 
     echo
@@ -609,7 +893,7 @@ gnu_repo() {
 
 github_repo() {
     local repo url url_flag
-    local page version_candidates selected_version index
+    local refs_json jq_filter selected_version index
     repo=$1
     url=$2
     url_flag=$3
@@ -635,27 +919,18 @@ github_repo() {
         index="$url_flag"
     fi
 
-    if [[ "$repo" == "xiph/rav1e" && "$index" -eq 1 ]]; then
-        page=$(curl -fsSL "https://github.com/xiph/rav1e/tags/") || fail "Failed to fetch tags for $repo. Line: ${LINENO}"
-        repo_version=$(
-            printf '%s' "$page" |
-            grep -oP 'p[0-9]+(?=\.tar\.gz")' |
-            head -n1
-        )
-        if [[ -n "$repo_version" ]]; then
-            return 0
-        fi
-        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
-    fi
+    case "$url" in
+        tags)     jq_filter='.[].name' ;;
+        releases) jq_filter='.[].tag_name' ;;
+        *) fail "Unsupported GitHub ref source \"$url\". Line: ${LINENO}" ;;
+    esac
 
-    page=$(curl -fsSL "https://github.com/$repo/$url") || fail "Failed to fetch tags for $repo (url=$url). Line: ${LINENO}"
-    version_candidates=$(
-        printf '%s' "$page" |
-        grep -oP 'href="[^"]*\.tar\.gz"' |
-        grep -oP 'v?\K[0-9]+(?:[._][0-9]+){1,2}(?=\.tar\.gz")'
+    refs_json=$(github_api_json "repos/$repo/$url?per_page=100") || fail "Failed to fetch $url for $repo. Line: ${LINENO}"
+    selected_version=$(
+        printf '%s' "$refs_json" |
+        jq -r "$jq_filter" |
+        select_extracted_version "$index"
     )
-
-    selected_version=$(printf '%s\n' "$version_candidates" | sort -ruV | sed -n "${index}p")
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
@@ -703,12 +978,95 @@ fetch_repo_version() {
 # These replace repetitive per-repo functions with parameterized, robust versions
 ###################################################################################
 
+github_api_json() {
+    local api_path=$1
+    local -a curl_args
+    local response
+
+    curl_args=(-fsSL
+               -H "Accept: application/vnd.github+json"
+               -H "X-GitHub-Api-Version: 2022-11-28")
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        curl_args+=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    fi
+
+    response=$(curl "${curl_args[@]}" "https://api.github.com/$api_path") || return 1
+    printf '%s' "$response" | jq -e 'type == "array"' >/dev/null || return 1
+    printf '%s' "$response"
+}
+
+gitlab_api_json() {
+    local base_url=$1
+    local project=$2
+    local api_path=$3
+    local project_encoded response
+
+    project_encoded="${project//\//%2F}"
+    response=$(curl -fsSL "$base_url/api/v4/projects/$project_encoded/$api_path") || return 1
+    printf '%s' "$response" | jq -e 'type == "array"' >/dev/null || return 1
+    printf '%s' "$response"
+}
+
+select_prefixed_version() {
+    local prefix=$1
+    local exclude_pattern=$2
+    local version_regex=$3
+    local index=${4:-1}
+    local ref version
+    local -a versions=()
+
+    while IFS= read -r ref; do
+        [[ -n "$ref" && "$ref" != "null" ]] || continue
+
+        if [[ -n "$exclude_pattern" ]] && [[ "$ref" =~ $exclude_pattern ]]; then
+            continue
+        fi
+
+        if [[ -n "$prefix" ]]; then
+            [[ "$ref" == "$prefix"* ]] || continue
+            version="${ref#"$prefix"}"
+        else
+            version="$ref"
+        fi
+
+        [[ "$version" =~ $version_regex ]] || continue
+        versions+=("$version")
+    done
+
+    [[ ${#versions[@]} -gt 0 ]] || return 1
+    printf '%s\n' "${versions[@]}" | sort -ruV | sed -n "${index}p"
+}
+
+select_extracted_version() {
+    local index=${1:-1}
+    local ref version
+    local -a versions=()
+
+    while IFS= read -r ref; do
+        [[ -n "$ref" && "$ref" != "null" ]] || continue
+
+        if [[ "$ref" =~ [Aa]lpha|[Bb]eta|[Rr][Cc]|[Pp]review|[Pp]re|[Dd]ev|[Nn]ightly|[Ss]napshot ]]; then
+            continue
+        fi
+
+        version=$(printf '%s\n' "$ref" | grep -oE '[0-9]+([._-][0-9]+){1,3}' | head -n1)
+        version="${version//_/.}"
+        [[ -n "$version" ]] || continue
+        versions+=("$version")
+    done
+
+    [[ ${#versions[@]} -gt 0 ]] || return 1
+    printf '%s\n' "${versions[@]}" | sort -ruV | sed -n "${index}p"
+}
+
 # github_version - Unified GitHub version extractor
-# Usage: github_version "owner/repo" [prefix] [exclude_pattern] [url_type]
+# Usage: github_version "owner/repo" [prefix] [exclude_pattern] [url_type] [version_regex] [index]
 #   repo:            Repository path (e.g., "ninja-build/ninja")
 #   prefix:          Tag prefix - "v" (default), "" (none), or custom (e.g., "lcms", "R")
 #   exclude_pattern: Optional grep -v pattern (e.g., "rc|beta")
 #   url_type:        "tags" (default) or "releases"
+#   version_regex:   Optional regex applied after prefix removal
+#   index:           Optional sorted match index (default 1)
 # Sets: repo_version
 github_version() {
     local repo=$1
@@ -716,26 +1074,34 @@ github_version() {
     local prefix=${2-v}
     local exclude_pattern=${3:-}
     local url_type=${4:-tags}
-    local page pattern version
+    local version_regex=$5
+    local index=${6:-1}
+    local refs_json jq_filter version
+    repo_version=""
 
-    page=$(curl -fsS "https://github.com/$repo/$url_type") || {
+    if [[ -z "$version_regex" ]]; then
+        version_regex='^[0-9]+(\.[0-9]+){1,3}$'
+    fi
+
+    case "$url_type" in
+        tags)     jq_filter='.[].name' ;;
+        releases) jq_filter='.[].tag_name' ;;
+        *)
+            warn "github_version: Unsupported ref source \"$url_type\" for $repo"
+            return 1
+            ;;
+    esac
+
+    refs_json=$(github_api_json "repos/$repo/$url_type?per_page=100") || {
         warn "github_version: Failed to fetch $url_type for $repo"
         return 1
     }
 
-    # Build regex pattern based on prefix
-    # The \K resets match start, (?=") is lookahead to ensure we stop at quote
-    if [[ -z "$prefix" ]]; then
-        pattern='href="/'"$repo"'/releases/tag/\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")'
-    else
-        pattern='href="/'"$repo"'/releases/tag/'"$prefix"'\K[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?=")'
-    fi
-
-    if [[ -n "$exclude_pattern" ]]; then
-        version=$(printf '%s' "$page" | grep -oP "$pattern" | grep -Ev "$exclude_pattern" | sort -ruV | head -n1)
-    else
-        version=$(printf '%s' "$page" | grep -oP "$pattern" | sort -ruV | head -n1)
-    fi
+    version=$(
+        printf '%s' "$refs_json" |
+        jq -r "$jq_filter" |
+        select_prefixed_version "$prefix" "$exclude_pattern" "$version_regex" "$index"
+    )
 
     if [[ -z "$version" ]]; then
         warn "github_version: No version found for $repo (prefix='$prefix')"
@@ -746,11 +1112,13 @@ github_version() {
 }
 
 # gitlab_version - Unified GitLab version extractor
-# Usage: gitlab_version "base_url" "project" [prefix] [separator]
+# Usage: gitlab_version "base_url" "project" [prefix] [separator] [version_regex] [index]
 #   base_url:   GitLab instance (e.g., "https://gitlab.com", "https://code.videolan.org")
 #   project:    Project path (e.g., "drobilla/zix", "AOMediaCodec/SVT-AV1")
 #   prefix:     Tag prefix - "v" (default), "" (none), or custom (e.g., "VER-")
 #   separator:  Version separator - "." (default) or "-"
+#   version_regex: Optional regex applied after prefix removal
+#   index:       Optional sorted match index (default 1)
 # Sets: repo_version
 gitlab_version() {
     local base_url=$1
@@ -758,21 +1126,28 @@ gitlab_version() {
     # Use ${3-v} not ${3:-v} so empty string "" is preserved, only unset defaults to "v"
     local prefix=${3-v}
     local separator=${4:-.}
-    local page pattern version
+    local version_regex=${5:-}
+    local index=${6:-1}
+    local refs_json version
+    repo_version=""
 
-    page=$(curl -fsS "$base_url/$project/-/tags") || {
+    if [[ -z "$version_regex" ]]; then
+        case "$separator" in
+            -) version_regex='^[0-9]+(-[0-9]+){2,3}$' ;;
+            *) version_regex='^[0-9]+(\.[0-9]+){1,3}$' ;;
+        esac
+    fi
+
+    refs_json=$(gitlab_api_json "$base_url" "$project" "repository/tags?per_page=100") || {
         warn "gitlab_version: Failed to fetch tags for $project from $base_url"
         return 1
     }
 
-    # Build regex based on separator type
-    if [[ "$separator" == "-" ]]; then
-        pattern='href="[^"]*/-/tags/'"$prefix"'\K[0-9]+-[0-9]+-[0-9]+(?=")'
-    else
-        pattern='href="[^"]*/-/tags/'"$prefix"'\K[0-9]+\.[0-9]+\.[0-9]+(?=")'
-    fi
-
-    version=$(printf '%s' "$page" | grep -oP "$pattern" | sort -ruV | head -n1)
+    version=$(
+        printf '%s' "$refs_json" |
+        jq -r '.[].name' |
+        select_prefixed_version "$prefix" "" "$version_regex" "$index"
+    )
 
     if [[ -z "$version" ]]; then
         warn "gitlab_version: No version found for $project (prefix='$prefix', sep='$separator')"
@@ -785,6 +1160,7 @@ gitlab_version() {
 debian_salsa_repo() {
     local project_id=$1
     local count=$2
+    repo_version=""
     repo_version=$(curl -sL "https://salsa.debian.org/api/v4/projects/$project_id/repository/tags" | 
                    jq -r '.[].name' | 
                    grep -E '^debian/' | 
@@ -796,6 +1172,7 @@ debian_salsa_repo() {
 videolan_repo() {
     local project_id=$1
     local count=$2
+    repo_version=""
     repo_version=$(curl -sL "https://code.videolan.org/api/v4/projects/$project_id/repository/tags" | 
                    jq -r '.[].name' | 
                    head -n"${count:-1}" | 
@@ -806,6 +1183,7 @@ videolan_repo() {
 x264_version() {
     # x264 uses branches, not tags - get stable branch commit
     local full_commit
+    repo_version=""
     full_commit=$(curl -sL "https://code.videolan.org/api/v4/projects/536/repository/branches" |
                   jq -r '.[] | select(.name == "stable") | .commit.id')
     [[ -n "$full_commit" && "$full_commit" != "null" ]] || fail "Failed to detect x264 stable commit. Line: ${LINENO}"
@@ -814,40 +1192,85 @@ x264_version() {
     export x264_full_commit
 }
 
+librist_repo_version() {
+    gitlab_version "https://code.videolan.org" "rist/librist" "v"
+}
+
+freetype_version() {
+    gitlab_version "https://gitlab.freedesktop.org" "freetype/freetype" "VER-" "-"
+}
+
+fontconfig_version() {
+    gitlab_version "https://gitlab.freedesktop.org" "fontconfig/fontconfig" ""
+}
+
+libxml2_version() {
+    gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" "v"
+}
+
+libtiff_version() {
+    gitlab_version "https://gitlab.com" "libtiff/libtiff" "v"
+}
+
 amf_version() {
-    repo_version=$(curl -sL "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/tags" | 
-                   grep -oP '/AMF/releases/tag/v\K[0-9.]+(?=")' | 
-                   head -n1
-                  )
+    github_version "GPUOpen-LibrariesAndSDKs/AMF" "v" "" "releases"
 }
 
 avisynth_version() {
-    repo_version=$(curl -sL "https://github.com/AviSynth/AviSynthPlus/tags" | 
-                   grep -oP '/AviSynthPlus/releases/tag/v\K[0-9.]+(?=")' | 
-                   head -n1
-                  )
+    github_version "AviSynth/AviSynthPlus" "v"
 }
 
 mediaarea_version() {
     local repo_name=$1
-    repo_version=$(curl -sL "https://github.com/$repo_name/tags" | 
-                   grep -oP "/$repo_name/releases/tag/v\K[0-9.]+(?=\")" | 
-                   head -n1
-                  )
+    github_version "$repo_name" "v"
 }
 
 svt_av1_version() {
-    repo_version=$(curl -sL "https://gitlab.com/AOMediaCodec/SVT-AV1/-/tags" | 
-                   grep -oP 'href="[^"]*/-/tags/v\K[0-9.]+(?=")' | 
-                   head -n1
-                  )
+    local index=${1:-1}
+    gitlab_version "https://gitlab.com" "AOMediaCodec/SVT-AV1" "v" "." "" "$index"
 }
 
 vapoursynth_version() {
-    repo_version=$(curl -sL "https://github.com/vapoursynth/vapoursynth/tags" |
-                   grep -oP '/vapoursynth/releases/tag/R\K[0-9]+(?=")' |
-                   head -n1
-                  )
+    github_version "vapoursynth/vapoursynth" "R" "[Rr][Cc]" "tags" '^[0-9]+$'
+}
+
+pkgconf_repo_version() {
+    github_version "pkgconf/pkgconf" "pkgconf-"
+}
+
+sdl2_repo_version() {
+    github_version "libsdl-org/SDL" "release-" "" "releases" '^2\.[0-9]+\.[0-9]+$'
+}
+
+ffmpeg_repo_version() {
+    github_version "FFmpeg/FFmpeg" "n"
+}
+
+openssl_30_version() {
+    github_version "openssl/openssl" "openssl-" "" "releases" '^3\.0\.[0-9]+$'
+}
+
+giflib_repo_version() {
+    local rss_feed version
+    repo_version=""
+
+    rss_feed=$(curl -fsSL "https://sourceforge.net/projects/giflib/rss?path=/") || {
+        warn "giflib_repo_version: Failed to fetch SourceForge RSS feed"
+        return 1
+    }
+
+    version=$(
+        printf '%s' "$rss_feed" |
+        grep -oP 'giflib-\K[0-9]+\.[0-9]+(?:\.[0-9]+)?(?=\.tar\.gz)' |
+        sort -ruV | head -n1
+    )
+
+    if [[ -z "$version" ]]; then
+        warn "giflib_repo_version: No version found in SourceForge RSS feed"
+        return 1
+    fi
+
+    repo_version="$version"
 }
 
 # NASM version fetching
@@ -937,14 +1360,14 @@ find_git_repo() {
     case "$repo_name" in
         # Special version detection (non-standard methods)
         apache/ant)           git_caller "https://github.com/apache/ant.git" "" ant ;;
-        FFmpeg/FFmpeg)        github_repo "$repo_name" "tags" "$url_choice" ;;
-        xiph/rav1e)           github_repo "$repo_name" "tags" "$url_choice" ;;
+        FFmpeg/FFmpeg)        ffmpeg_repo_version ;;
+        xiph/rav1e)           github_version "$repo_name" "v" "[Rr][Cc]|[Aa]lpha|[Bb]eta" "tags" ;;
         536)                  x264_version ;;
         GPUOpen-LibrariesAndSDKs/AMF) amf_version ;;
         avisynth/avisynthplus|AviSynth/AviSynthPlus) avisynth_version ;;
         vapoursynth/vapoursynth) vapoursynth_version ;;
         MediaArea/ZenLib|MediaArea/MediaInfoLib|MediaArea/MediaInfo) mediaarea_version "$repo_name" ;;
-        24327400)             svt_av1_version ;;
+        24327400)             svt_av1_version "$url_choice" ;;
 
         # Debian Salsa / VideoLAN API-based repos
         8143)                 debian_salsa_repo "8143" "$url_choice" ;;
@@ -978,6 +1401,10 @@ find_git_repo() {
         # Default fallback
         *)                    github_repo "$repo_name" "releases" "$url_choice" ;;
     esac
+
+    if [[ "$repo_name" != "apache/ant" ]] && [[ -z "${repo_version//[[:space:]]/}" ]]; then
+        fail "Failed to detect a version for \"$repo_name\". Line: ${LINENO}"
+    fi
 }
 
 # Cleanup function
