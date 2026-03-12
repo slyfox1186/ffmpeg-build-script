@@ -130,13 +130,11 @@ install_global_tools() {
         cd "build/meson" || fail "Failed to cd into build/meson. Line: $LINENO"
         local meson_dir="meson-build"
         rm -rf -- "$meson_dir"
-        execute meson setup "$meson_dir" --prefix="$workspace" \
-                                      --buildtype=release \
-                                      --default-library=static \
-                                      --strip \
-                                      -Dbin_tests=false
-        execute ninja "-j$build_threads" -C "$meson_dir"
-        execute ninja -C "$meson_dir" install
+        meson_ninja_install "$meson_dir" \
+            --buildtype=release \
+            --default-library=static \
+            --strip \
+            -Dbin_tests=false
         build_done "libzstd" "$repo_version"
     fi
 
@@ -144,31 +142,26 @@ install_global_tools() {
     librist_repo_version
     if build "librist" "$repo_version"; then
         download "https://code.videolan.org/rist/librist/-/archive/v$repo_version/librist-v$repo_version.tar.bz2" "librist-$repo_version.tar.bz2"
-        execute meson setup build --prefix="$workspace" \
-                                  --buildtype=release \
-                                  --default-library=static \
-                                  --strip \
-                                  -Dbuilt_tools=false \
-                                  -Dtest=false
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" \
+            --buildtype=release \
+            --default-library=static \
+            --strip \
+            -Dbuilt_tools=false \
+            -Dtest=false
         build_done "librist" "$repo_version"
     fi
     append_configure_options_if_enabled "librist" "--enable-librist"
 
 	    # Build zlib
-	    find_git_repo "madler/zlib" "1" "T"
-	    if build "zlib" "$repo_version"; then
-	        download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.xz"
-	        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-	                      -DINSTALL_BIN_DIR="$workspace/bin" -DINSTALL_INC_DIR="$workspace/include" \
-	                      -DINSTALL_LIB_DIR="$workspace/lib" -DINSTALL_MAN_DIR="$workspace/share/man" \
-	                      -DINSTALL_PKGCONFIG_DIR="$workspace/share/pkgconfig" -DZLIB_BUILD_EXAMPLES=OFF \
-	                      -G Ninja -Wno-dev
-	        execute ninja "-j$build_threads" -C build
-	        execute ninja -C build install
-	        build_done "zlib" "$repo_version"
-	    fi
+    find_git_repo "madler/zlib" "1" "T"
+    if build "zlib" "$repo_version"; then
+        download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.xz"
+        cmake_ninja_install "build" \
+            -DINSTALL_BIN_DIR="$workspace/bin" -DINSTALL_INC_DIR="$workspace/include" \
+            -DINSTALL_LIB_DIR="$workspace/lib" -DINSTALL_MAN_DIR="$workspace/share/man" \
+            -DINSTALL_PKGCONFIG_DIR="$workspace/share/pkgconfig" -DZLIB_BUILD_EXAMPLES=OFF
+        build_done "zlib" "$repo_version"
+    fi
 
     # Build openssl (if GPL and non-free enabled)
     if "$NONFREE_AND_GPL"; then
@@ -176,13 +169,8 @@ install_global_tools() {
         local openssl_version="$repo_version"
         if build "openssl" "$openssl_version"; then
             local zlib_include_dir zlib_library_dir
-            if package_enabled "zlib" && [[ -f "$workspace/lib/libz.a" || -f "$workspace/lib/libz.so" ]]; then
-                zlib_include_dir="$workspace/include"
-                zlib_library_dir="$workspace/lib"
-            else
-                zlib_include_dir="$(resolve_pkgconf_include_dir "zlib")"
-                zlib_library_dir="$(resolve_pkgconf_library_dir "zlib")"
-            fi
+            zlib_include_dir="$(resolve_workspace_or_pkgconf_include_dir "zlib" "zlib" "$workspace/lib/libz.a" "$workspace/lib/libz.so")"
+            zlib_library_dir="$(resolve_workspace_or_pkgconf_library_dir "zlib" "zlib" "$workspace/lib/libz.a" "$workspace/lib/libz.so")"
             download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
             execute ./Configure --prefix="$workspace" \
                                         --openssldir="$workspace/ssl" \

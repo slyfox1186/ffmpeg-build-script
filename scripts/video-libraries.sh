@@ -21,13 +21,11 @@ install_video_libraries() {
     git_caller "https://aomedia.googlesource.com/aom" "av1-git"
     if build "$repo_name" "$version"; then
         cd "$packages/av1-git" || fail "Failed to cd into av1-git. Line: ${LINENO}"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" \
-                      -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
-                      -DCONFIG_AV1_{DECODER,ENCODER,HIGHBITDEPTH,TEMPORAL_DENOISING}=1 \
-                      -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 \
-                      -DENABLE_CCACHE=1 -DENABLE_{EXAMPLES,TESTS}=0 -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCONFIG_AV1_{DECODER,ENCODER,HIGHBITDEPTH,TEMPORAL_DENOISING}=1 \
+            -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 \
+            -DENABLE_CCACHE=1 -DENABLE_{EXAMPLES,TESTS}=0
         build_done "$repo_name" "$version"
     fi
     append_configure_options_if_enabled "av1-git" "--enable-libaom"
@@ -39,7 +37,7 @@ install_video_libraries() {
         source "$HOME/.cargo/env"
         [[ -f /usr/bin/rustc ]] && sudo rm -f /usr/bin/rustc
         check_and_install_cargo_c
-        download "https://github.com/xiph/rav1e/archive/refs/tags/v$repo_version.tar.gz" "rav1e-$repo_version.tar.gz"
+        download "$(rav1e_download_url "$repo_version")" "rav1e-$repo_version.tar.gz"
         # Ensure workspace directories have proper permissions
         sudo chown -R "$USER:$USER" "$workspace"
         if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
@@ -67,11 +65,9 @@ install_video_libraries() {
     find_git_repo "AOMediaCodec/libavif" "1" "T"
     if build "avif" "$repo_version"; then
         download "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v$repo_version.tar.gz" "avif-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_{DECODE,ENCODE}=ON \
-                      -DAVIF_ENABLE_WERROR=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_{DECODE,ENCODE}=ON \
+            -DAVIF_ENABLE_WERROR=OFF
         build_done "avif" "$repo_version"
     fi
 
@@ -79,10 +75,7 @@ install_video_libraries() {
     find_git_repo "ultravideo/kvazaar" "1" "T"
     if build "kvazaar" "$repo_version"; then
         download "https://github.com/ultravideo/kvazaar/archive/refs/tags/v$repo_version.tar.gz" "kvazaar-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                               -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF
         build_done "kvazaar" "$repo_version"
     fi
     append_configure_options_if_enabled "kvazaar" "--enable-libkvazaar"
@@ -91,10 +84,7 @@ install_video_libraries() {
     find_git_repo "76" "2" "T"
     if build "libdvdread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version/libdvdread-$repo_version.tar.bz2"
-        execute meson setup build --prefix="$workspace" --default-library=static --buildtype=release \
-                      -Denable_docs=false
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --default-library=static --buildtype=release -Denable_docs=false
         build_done "libdvdread" "$repo_version"
     fi
 
@@ -102,9 +92,7 @@ install_video_libraries() {
     find_git_repo "363" "1" "T"
     if build "udfread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libudfread/-/archive/$repo_version/libudfread-$repo_version.tar.bz2"
-        execute meson setup build --prefix="$workspace" --default-library=static --buildtype=release
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --default-library=static --buildtype=release
         build_done "udfread" "$repo_version"
     fi
 
@@ -164,11 +152,8 @@ install_video_libraries() {
         find_git_repo "georgmartius/vid.stab" "1" "T"
         if build "vid-stab" "$repo_version"; then
             download "https://github.com/georgmartius/vid.stab/archive/refs/tags/v$repo_version.tar.gz" "vid-stab-$repo_version.tar.gz"
-            execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON \
-                          -G Ninja -Wno-dev
-            execute ninja "-j$build_threads" -C build
-            execute ninja -C build install
+            cmake_ninja_install "build" \
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DUSE_OMP=ON
             build_done "vid-stab" "$repo_version"
         fi
         append_configure_options_if_enabled "vid-stab" "--enable-libvidstab"

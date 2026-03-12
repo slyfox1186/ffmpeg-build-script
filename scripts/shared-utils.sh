@@ -215,6 +215,81 @@ resolve_pkgconf_library_file() {
     fail "Unable to locate lib${library_basename} in '$library_dir' for pkgconf module '$module_name'."
 }
 
+first_existing_path() {
+    local candidate
+
+    for candidate in "$@"; do
+        if [[ -n "$candidate" ]] && [[ -e "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+resolve_workspace_or_pkgconf_include_dir() {
+    local package_name module_name
+    package_name="${1:-}"
+    module_name="${2:-}"
+
+    [[ -n "$package_name" ]] || fail "resolve_workspace_or_pkgconf_include_dir() called without a package name. Line: ${LINENO}"
+    [[ -n "$module_name" ]] || fail "resolve_workspace_or_pkgconf_include_dir() called without a module name. Line: ${LINENO}"
+    shift 2 || true
+    require_vars workspace
+
+    if package_enabled "$package_name" && first_existing_path "$@" >/dev/null; then
+        printf '%s\n' "$workspace/include"
+        return 0
+    fi
+
+    resolve_pkgconf_include_dir "$module_name"
+}
+
+resolve_workspace_or_pkgconf_library_dir() {
+    local package_name module_name workspace_library
+    package_name="${1:-}"
+    module_name="${2:-}"
+
+    [[ -n "$package_name" ]] || fail "resolve_workspace_or_pkgconf_library_dir() called without a package name. Line: ${LINENO}"
+    [[ -n "$module_name" ]] || fail "resolve_workspace_or_pkgconf_library_dir() called without a module name. Line: ${LINENO}"
+    shift 2 || true
+    require_vars workspace
+
+    if package_enabled "$package_name"; then
+        workspace_library="$(first_existing_path "$@" || true)"
+        if [[ -n "$workspace_library" ]]; then
+            dirname -- "$workspace_library"
+            return 0
+        fi
+    fi
+
+    resolve_pkgconf_library_dir "$module_name"
+}
+
+resolve_workspace_or_pkgconf_library_file() {
+    local package_name module_name library_basename workspace_library
+    package_name="${1:-}"
+    module_name="${2:-}"
+    library_basename="${3:-}"
+
+    [[ -n "$package_name" ]] || fail "resolve_workspace_or_pkgconf_library_file() called without a package name. Line: ${LINENO}"
+    [[ -n "$module_name" ]] || fail "resolve_workspace_or_pkgconf_library_file() called without a module name. Line: ${LINENO}"
+    [[ -n "$library_basename" ]] || fail "resolve_workspace_or_pkgconf_library_file() called without a library basename. Line: ${LINENO}"
+    shift 3 || true
+    require_vars workspace
+
+    if package_enabled "$package_name"; then
+        workspace_library="$(first_existing_path "$@" || true)"
+        if [[ -n "$workspace_library" ]]; then
+            printf '%s\n' "$workspace_library"
+            return 0
+        fi
+    fi
+
+    resolve_pkgconf_library_file "$module_name" "$library_basename"
+}
+
 load_package_selection_config() {
     local config_file current_table key raw_line value line line_no
     config_file="${1:-}"
@@ -893,7 +968,7 @@ gnu_repo() {
 
 github_repo() {
     local repo url url_flag
-    local refs_json jq_filter selected_version index
+    local selected_version index
     repo=$1
     url=$2
     url_flag=$3
@@ -920,17 +995,11 @@ github_repo() {
     fi
 
     case "$url" in
-        tags)     jq_filter='.[].name' ;;
-        releases) jq_filter='.[].tag_name' ;;
+        tags|releases) ;;
         *) fail "Unsupported GitHub ref source \"$url\". Line: ${LINENO}" ;;
     esac
 
-    refs_json=$(github_api_json "repos/$repo/$url?per_page=100") || fail "Failed to fetch $url for $repo. Line: ${LINENO}"
-    selected_version=$(
-        printf '%s' "$refs_json" |
-        jq -r "$jq_filter" |
-        select_extracted_version "$index"
-    )
+    selected_version="$(run_github_version_helper "$repo" "$url" "" "" "" "$index" || true)"
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
@@ -978,19 +1047,39 @@ fetch_repo_version() {
 # These replace repetitive per-repo functions with parameterized, robust versions
 ###################################################################################
 
+run_github_version_helper() {
+    local repo="${1:-}"
+    local url_type="${2:-tags}"
+    local prefix="${3-}"
+    local exclude_pattern="${4:-}"
+    local version_regex="${5:-}"
+    local index="${6:-1}"
+    local helper_path
+    local -a cmd
+
+    [[ -n "$repo" ]] || fail "run_github_version_helper() called without a repo. Line: ${LINENO}"
+    helper_path="$(dirname "${BASH_SOURCE[0]}")/source_git_repo_version.py"
+    [[ -f "$helper_path" ]] || fail "Missing helper script: $helper_path. Line: ${LINENO}"
+
+    cmd=(
+        python3 "$helper_path"
+        --url "https://github.com/$repo"
+        --url-type "$url_type"
+        --index "$index"
+        --version-only
+    )
+    [[ -n "$prefix" ]] && cmd+=(--prefix "$prefix")
+    [[ -n "$exclude_pattern" ]] && cmd+=(--exclude-pattern "$exclude_pattern")
+    [[ -n "$version_regex" ]] && cmd+=(--version-regex "$version_regex")
+
+    "${cmd[@]}"
+}
+
 github_api_json() {
     local api_path=$1
-    local -a curl_args
     local response
 
-    curl_args=(-fsSL
-               -H "Accept: application/vnd.github+json"
-               -H "X-GitHub-Api-Version: 2022-11-28")
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        curl_args+=(-H "Authorization: Bearer $GITHUB_TOKEN")
-    fi
-
-    response=$(curl "${curl_args[@]}" "https://api.github.com/$api_path") || return 1
+    response=$(curl -fsSL "https://api.github.com/$api_path") || return 1
     printf '%s' "$response" | jq -e 'type == "array"' >/dev/null || return 1
     printf '%s' "$response"
 }
@@ -1037,28 +1126,6 @@ select_prefixed_version() {
     printf '%s\n' "${versions[@]}" | sort -ruV | sed -n "${index}p"
 }
 
-select_extracted_version() {
-    local index=${1:-1}
-    local ref version
-    local -a versions=()
-
-    while IFS= read -r ref; do
-        [[ -n "$ref" && "$ref" != "null" ]] || continue
-
-        if [[ "$ref" =~ [Aa]lpha|[Bb]eta|[Rr][Cc]|[Pp]review|[Pp]re|[Dd]ev|[Nn]ightly|[Ss]napshot ]]; then
-            continue
-        fi
-
-        version=$(printf '%s\n' "$ref" | grep -oE '[0-9]+([._-][0-9]+){1,3}' | head -n1)
-        version="${version//_/.}"
-        [[ -n "$version" ]] || continue
-        versions+=("$version")
-    done
-
-    [[ ${#versions[@]} -gt 0 ]] || return 1
-    printf '%s\n' "${versions[@]}" | sort -ruV | sed -n "${index}p"
-}
-
 # github_version - Unified GitHub version extractor
 # Usage: github_version "owner/repo" [prefix] [exclude_pattern] [url_type] [version_regex] [index]
 #   repo:            Repository path (e.g., "ninja-build/ninja")
@@ -1076,7 +1143,7 @@ github_version() {
     local url_type=${4:-tags}
     local version_regex=$5
     local index=${6:-1}
-    local refs_json jq_filter version
+    local version
     repo_version=""
 
     if [[ -z "$version_regex" ]]; then
@@ -1084,24 +1151,14 @@ github_version() {
     fi
 
     case "$url_type" in
-        tags)     jq_filter='.[].name' ;;
-        releases) jq_filter='.[].tag_name' ;;
+        tags|releases) ;;
         *)
             warn "github_version: Unsupported ref source \"$url_type\" for $repo"
             return 1
             ;;
     esac
 
-    refs_json=$(github_api_json "repos/$repo/$url_type?per_page=100") || {
-        warn "github_version: Failed to fetch $url_type for $repo"
-        return 1
-    }
-
-    version=$(
-        printf '%s' "$refs_json" |
-        jq -r "$jq_filter" |
-        select_prefixed_version "$prefix" "$exclude_pattern" "$version_regex" "$index"
-    )
+    version="$(run_github_version_helper "$repo" "$url_type" "$prefix" "$exclude_pattern" "$version_regex" "$index" || true)"
 
     if [[ -z "$version" ]]; then
         warn "github_version: No version found for $repo (prefix='$prefix')"
@@ -1239,11 +1296,59 @@ pkgconf_repo_version() {
 }
 
 sdl2_repo_version() {
-    github_version "libsdl-org/SDL" "release-" "" "releases" '^2\.[0-9]+\.[0-9]+$'
+    local release_page version
+    repo_version=""
+
+    release_page=$(curl -fsSL "https://www.libsdl.org/release/") || {
+        warn "sdl2_repo_version: Failed to fetch SDL release archive"
+        return 1
+    }
+
+    version=$(
+        printf '%s' "$release_page" |
+        grep -oE 'SDL2-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' |
+        sed -E 's/^SDL2-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.gz$/\1/' |
+        sort -uV |
+        tail -n1
+    )
+
+    if [[ -z "$version" ]]; then
+        warn "sdl2_repo_version: No SDL2 version found in SDL release archive"
+        return 1
+    fi
+
+    repo_version="$version"
+}
+
+sdl2_download_url() {
+    local version="${1:-}"
+
+    [[ -n "$version" ]] || fail "sdl2_download_url() called without a version. Line: ${LINENO}"
+    printf 'https://www.libsdl.org/release/SDL2-%s.tar.gz\n' "$version"
 }
 
 ffmpeg_repo_version() {
     github_version "FFmpeg/FFmpeg" "n"
+}
+
+rav1e_repo_version() {
+    local version
+    repo_version=""
+
+    version="$(run_github_version_helper "xiph/rav1e" "tags" "p" "" '^[0-9]{8}$' "1" || true)"
+    if [[ -z "$version" ]]; then
+        warn "rav1e_repo_version: No rav1e release tag found"
+        return 1
+    fi
+
+    repo_version="p$version"
+}
+
+rav1e_download_url() {
+    local version="${1:-}"
+
+    [[ -n "$version" ]] || fail "rav1e_download_url() called without a version. Line: ${LINENO}"
+    printf 'https://github.com/xiph/rav1e/archive/refs/tags/%s.tar.gz\n' "$version"
 }
 
 openssl_30_version() {
@@ -1271,6 +1376,17 @@ giflib_repo_version() {
     fi
 
     repo_version="$version"
+}
+
+giflib_download_url() {
+    local version="${1:-}"
+    local major_version
+
+    [[ -n "$version" ]] || fail "giflib_download_url() called without a version. Line: ${LINENO}"
+    [[ "$version" =~ ^([0-9]+)\. ]] || fail "giflib_download_url() received an invalid version: $version. Line: ${LINENO}"
+
+    major_version="${BASH_REMATCH[1]}"
+    printf 'https://sourceforge.net/projects/giflib/files/giflib-%s.x/giflib-%s.tar.gz/download\n' "$major_version" "$version"
 }
 
 # NASM version fetching
@@ -1361,7 +1477,7 @@ find_git_repo() {
         # Special version detection (non-standard methods)
         apache/ant)           git_caller "https://github.com/apache/ant.git" "" ant ;;
         FFmpeg/FFmpeg)        ffmpeg_repo_version ;;
-        xiph/rav1e)           github_version "$repo_name" "v" "[Rr][Cc]|[Aa]lpha|[Bb]eta" "tags" ;;
+        xiph/rav1e)           rav1e_repo_version ;;
         536)                  x264_version ;;
         GPUOpen-LibrariesAndSDKs/AMF) amf_version ;;
         avisynth/avisynthplus|AviSynth/AviSynthPlus) avisynth_version ;;
@@ -1531,6 +1647,36 @@ ensure_autotools() {
     fi
 
     execute autoreconf -fi
+}
+
+cmake_ninja_install() {
+    local build_dir
+    build_dir="${1:-}"
+
+    [[ -n "$build_dir" ]] || fail "cmake_ninja_install() called without a build directory. Line: ${LINENO}"
+    shift || true
+    require_vars workspace build_threads
+
+    execute cmake "$@" -B "$build_dir" \
+        -DCMAKE_INSTALL_PREFIX="$workspace" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -G Ninja \
+        -Wno-dev
+    execute ninja "-j$build_threads" -C "$build_dir"
+    execute ninja -C "$build_dir" install
+}
+
+meson_ninja_install() {
+    local build_dir
+    build_dir="${1:-}"
+
+    [[ -n "$build_dir" ]] || fail "meson_ninja_install() called without a build directory. Line: ${LINENO}"
+    shift || true
+    require_vars workspace build_threads
+
+    execute meson setup "$build_dir" --prefix="$workspace" "$@"
+    execute ninja "-j$build_threads" -C "$build_dir"
+    execute ninja -C "$build_dir" install
 }
 
 # PATH management
