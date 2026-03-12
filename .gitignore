@@ -88,6 +88,9 @@ cmake_bootstrap.log
 # Python virtual environments created during build
 python_virtual_environment/
 **/python_virtual_environment/
+__pycache__/
+**/__pycache__/
+*.pyc
 
 # Build directories within packages
 packages/*/build/
