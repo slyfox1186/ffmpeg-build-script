@@ -1054,15 +1054,25 @@ run_github_version_helper() {
     local exclude_pattern="${4:-}"
     local version_regex="${5:-}"
     local index="${6:-1}"
-    local helper_path
+    local helper_path python_executable prepared_python_executable
     local -a cmd
 
     [[ -n "$repo" ]] || fail "run_github_version_helper() called without a repo. Line: ${LINENO}"
     helper_path="$(dirname "${BASH_SOURCE[0]}")/source_git_repo_version.py"
     [[ -f "$helper_path" ]] || fail "Missing helper script: $helper_path. Line: ${LINENO}"
+    python_executable="python3"
+
+    if [[ -n "${workspace:-}" ]]; then
+        if ! prepared_python_executable="$(prepare_python_helper_environment)"; then
+            warn "Falling back to system python3 for github helper for '$repo' (helper environment unavailable)." >&2
+            python_executable="python3"
+        else
+            python_executable="$prepared_python_executable"
+        fi
+    fi
 
     cmd=(
-        python3 "$helper_path"
+        "$python_executable" "$helper_path"
         --url "https://github.com/$repo"
         --url-type "$url_type"
         --index "$index"
@@ -1073,6 +1083,78 @@ run_github_version_helper() {
     [[ -n "$version_regex" ]] && cmd+=(--version-regex "$version_regex")
 
     "${cmd[@]}"
+}
+
+prepare_python_helper_environment() {
+    local helper_dir helper_python requirements_file stamp_file desired_hash current_hash
+    local lock_dir lock_pid_file wait_seconds lock_owner_pid
+    local lock_timeout lock_stale_seconds lock_age lock_started
+
+    require_vars workspace
+    helper_dir="$workspace/python_virtual_environment/script-helpers"
+    helper_python="$helper_dir/bin/python"
+    requirements_file="$(dirname "${BASH_SOURCE[0]}")/python-helper-requirements.txt"
+    stamp_file="$helper_dir/.requirements.sha256"
+    lock_dir="$helper_dir.lock"
+    lock_pid_file="$lock_dir/pid"
+    wait_seconds=0
+    lock_timeout=300
+    lock_stale_seconds=120
+    lock_started="$(date +%s)"
+
+    while ! mkdir "$lock_dir" 2>/dev/null; do
+        lock_owner_pid="$(cat "$lock_pid_file" 2>/dev/null || true)"
+        if [[ "$lock_owner_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_owner_pid" 2>/dev/null; then
+            warn "Removing stale Python helper lock held by PID $lock_owner_pid." >&2
+            rm -rf -- "$lock_dir"
+            continue
+        fi
+
+        lock_age=$(($(date +%s) - lock_started))
+        if ((lock_age >= lock_stale_seconds)); then
+            warn "Removing stale Python helper lock held longer than ${lock_stale_seconds}s." >&2
+            rm -rf -- "$lock_dir"
+            continue
+        fi
+
+        if (((wait_seconds + 1) % 15 == 0)); then
+            warn "Waiting for Python helper lock (${wait_seconds}s, holder PID ${lock_owner_pid:-unknown})." >&2
+        fi
+
+        sleep 1
+        ((wait_seconds++))
+        if ((wait_seconds >= lock_timeout)); then
+            warn "Timed out waiting for Python helper environment lock, falling back to python3." >&2
+            return 1
+        fi
+    done
+    printf '%s\n' "$$" > "$lock_pid_file"
+    trap 'rm -rf -- "$lock_dir"' RETURN
+
+    if [[ ! -x "$helper_python" ]] || ! "$helper_python" -m pip --version >/dev/null 2>&1; then
+        rm -rf -- "$helper_dir"
+        log "Creating Python helper virtual environment at $helper_dir..." >&2
+        if ! python3 -m venv "$helper_dir"; then
+            warn "Failed to create Python helper virtual environment, falling back to python3." >&2
+            return 1
+        fi
+    fi
+
+    if [[ -f "$requirements_file" ]]; then
+        desired_hash="$(sha256sum "$requirements_file" | awk '{print $1}')"
+        current_hash="$(cat "$stamp_file" 2>/dev/null || true)"
+
+        if [[ "$desired_hash" != "$current_hash" ]]; then
+            log "Installing Python helper packages from $requirements_file..." >&2
+            if ! "$helper_python" -m pip install --disable-pip-version-check -r "$requirements_file" >&2; then
+                warn "Failed to install Python helper packages, falling back to python3." >&2
+                return 1
+            fi
+            printf '%s\n' "$desired_hash" > "$stamp_file"
+        fi
+    fi
+
+    printf '%s\n' "$helper_python"
 }
 
 github_api_json() {
