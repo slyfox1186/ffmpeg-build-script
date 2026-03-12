@@ -19,10 +19,10 @@ install_image_libraries() {
 
     # Build libheif
     find_git_repo "strukturag/libheif" "1" "T"
-	    if build "libheif" "$repo_version"; then
-	        download "https://github.com/strukturag/libheif/archive/refs/tags/v$repo_version.tar.gz" "libheif-$repo_version.tar.gz"
-	        # Save original flags before modification
-	        save_compiler_flags
+    if build "libheif" "$repo_version"; then
+        download "https://github.com/strukturag/libheif/archive/refs/tags/v$repo_version.tar.gz" "libheif-$repo_version.tar.gz"
+        # Save original flags before modification
+        save_compiler_flags
 	        CFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
 	        CXXFLAGS="$CFLAGS"
 	        export CFLAGS CXXFLAGS
@@ -34,19 +34,16 @@ install_image_libraries() {
 	        with_x265=OFF
 
         package_enabled "av1-git" && [[ -f "$workspace/lib/libaom.a" || -f "$workspace/lib64/libaom.a" ]] && with_aom=ON
-	        pkgconf --exists dav1d 2>/dev/null && with_dav1d=ON
-	        (pkgconf --exists libde265 2>/dev/null || ldconfig -p 2>/dev/null | grep -q 'libde265\.so') && with_libde265=ON
+        pkgconf --exists dav1d 2>/dev/null && with_dav1d=ON
+        (pkgconf --exists libde265 2>/dev/null || ldconfig -p 2>/dev/null | grep -q 'libde265\.so') && with_libde265=ON
         package_enabled "rav1e" && [[ -f "$workspace/lib/librav1e.a" || -f "$workspace/lib64/librav1e.a" ]] && with_rav1e=ON
-	        # x265 disabled due to static linking issues with NUMA dependencies
+        # x265 disabled due to static linking issues with NUMA dependencies
 
-	        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-	                      -DBUILD_SHARED_LIBS=OFF -DWITH_AOM_DECODER="$with_aom" -DWITH_AOM_ENCODER="$with_aom" \
-	                      -DWITH_DAV1D="$with_dav1d" -DWITH_LIBDE265="$with_libde265" -DWITH_RAV1E="$with_rav1e" \
-	                      -DWITH_X265="$with_x265" -DENABLE_PLUGIN_LOADING=OFF \
-	                      -DWITH_GDK_PIXBUF=OFF -DWITH_EXAMPLES=OFF \
-	                      -G Ninja -Wno-dev
-	        execute ninja "-j$build_threads" -C build
-	        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF -DWITH_AOM_DECODER="$with_aom" -DWITH_AOM_ENCODER="$with_aom" \
+            -DWITH_DAV1D="$with_dav1d" -DWITH_LIBDE265="$with_libde265" -DWITH_RAV1E="$with_rav1e" \
+            -DWITH_X265="$with_x265" -DENABLE_PLUGIN_LOADING=OFF \
+            -DWITH_GDK_PIXBUF=OFF -DWITH_EXAMPLES=OFF
         # Restore original compiler flags
         restore_compiler_flags
         build_done "libheif" "$repo_version"
@@ -56,11 +53,8 @@ install_image_libraries() {
     find_git_repo "uclouvain/openjpeg" "1" "T"
     if build "openjpeg" "$repo_version"; then
         download "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/v$repo_version" "openjpeg-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_{JPIP,JPWL,MJ2,SHARED_LIBS,TESTING}=OFF -DBUILD_THIRDPARTY=ON \
-                      -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_{JPIP,JPWL,MJ2,SHARED_LIBS,TESTING}=OFF -DBUILD_THIRDPARTY=ON
         build_done "openjpeg" "$repo_version"
     fi
     append_configure_options_if_enabled "openjpeg" "--enable-libopenjpeg"

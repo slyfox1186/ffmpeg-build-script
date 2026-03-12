@@ -60,9 +60,7 @@ install_miscellaneous_libraries() {
         download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-$repo_version/freetype-VER-$repo_version.tar.bz2?ref_type=tags" "freetype-$repo_version_1.tar.bz2"
         extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
         execute sh autogen.sh
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         build_done "freetype" "$repo_version_1"
     fi
     append_configure_options_if_enabled "freetype" "--enable-libfreetype"
@@ -76,14 +74,12 @@ install_miscellaneous_libraries() {
         # -D flags belong in CFLAGS/CPPFLAGS, not LDFLAGS
         CPPFLAGS+=" -DLIBXML_STATIC"
         sed -i "s|Cflags:|& -DLIBXML_STATIC|" "fontconfig.pc.in"
-        execute meson setup build --prefix="$workspace" \
-                                  --buildtype=release \
-                                  --default-library=static \
-                                  --strip -Diconv=enabled \
-                                  -Ddoc=disabled \
-                                  -Dxml-backend=libxml2
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" \
+            --buildtype=release \
+            --default-library=static \
+            --strip -Diconv=enabled \
+            -Ddoc=disabled \
+            -Dxml-backend=libxml2
         restore_compiler_flags
         build_done "fontconfig" "$repo_version"
     fi
@@ -94,9 +90,7 @@ install_miscellaneous_libraries() {
     if build "harfbuzz" "$repo_version"; then
         download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/$repo_version.tar.gz" "harfbuzz-$repo_version.tar.gz"
         extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}"=disabled")
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         build_done "harfbuzz" "$repo_version"
     fi
     append_configure_options_if_enabled "harfbuzz" "--enable-libharfbuzz"
@@ -109,9 +103,7 @@ install_miscellaneous_libraries() {
     if build "fribidi" "$repo_version"; then
         download "https://github.com/fribidi/fribidi/archive/refs/tags/v$repo_version.tar.gz" "fribidi-$repo_version.tar.gz"
         extracmds=("-D"{docs,tests}"=false")
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static "${extracmds[@]}"
         build_done "fribidi" "$repo_version"
     fi
     append_configure_options_if_enabled "fribidi" "--enable-libfribidi"
@@ -120,9 +112,7 @@ install_miscellaneous_libraries() {
     find_git_repo "libass/libass" "1" "T"
     if build "libass" "$repo_version"; then
         download "https://github.com/libass/libass/archive/refs/tags/$repo_version.tar.gz" "libass-$repo_version.tar.gz"
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static -Dfontconfig=enabled
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static -Dfontconfig=enabled
         build_done "libass" "$repo_version"
     fi
     append_configure_options_if_enabled "libass" "--enable-libass"
@@ -133,11 +123,8 @@ install_miscellaneous_libraries() {
         download "https://github.com/freeglut/freeglut/releases/download/v$repo_version/freeglut-$repo_version.tar.gz"
         save_compiler_flags
         CFLAGS+=" -DFREEGLUT_STATIC"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DFREEGLUT_BUILD_{DEMOS,SHARED_LIBS}=OFF \
-                      -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF -DFREEGLUT_BUILD_{DEMOS,SHARED_LIBS}=OFF
         restore_compiler_flags
         build_done "freeglut" "$repo_version"
     fi
@@ -146,12 +133,10 @@ install_miscellaneous_libraries() {
     git_caller "https://chromium.googlesource.com/webm/libwebp" "libwebp-git"
     if build "$repo_name" "$version"; then
         cd "$packages/libwebp-git" || fail "Failed to cd into libwebp-git. Line: ${LINENO}"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DZLIB_INCLUDE_DIR="$workspace/include" \
-                      -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,VWEBP}=OFF \
-                      -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=ON -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF -DZLIB_INCLUDE_DIR="$workspace/include" \
+            -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,VWEBP}=OFF \
+            -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=ON
         build_done "$repo_name" "$version"
     fi
     append_configure_options_if_enabled "libwebp-git" "--enable-libwebp"
@@ -163,11 +148,8 @@ install_miscellaneous_libraries() {
         save_compiler_flags
         CFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
         CXXFLAGS+=" -DHWY_COMPILE_ALL_ATTAINABLE"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_TESTING=OFF -DHWY_ENABLE_{EXAMPLES,TESTS}=OFF -DHWY_FORCE_STATIC_LIBS=ON \
-                      -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_TESTING=OFF -DHWY_ENABLE_{EXAMPLES,TESTS}=OFF -DHWY_FORCE_STATIC_LIBS=ON
         restore_compiler_flags
         build_done "libhwy" "$repo_version"
     fi
@@ -176,10 +158,7 @@ install_miscellaneous_libraries() {
     find_git_repo "google/brotli" "1" "T"
     if build "brotli" "$repo_version"; then
         download "https://github.com/google/brotli/archive/refs/tags/v$repo_version.tar.gz" "brotli-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
         build_done "brotli" "$repo_version"
     fi
 
@@ -202,12 +181,9 @@ install_miscellaneous_libraries() {
     find_git_repo "gflags/gflags" "1" "T"
     if build "gflags" "$repo_version"; then
         download "https://github.com/gflags/gflags/archive/refs/tags/v$repo_version.tar.gz" "gflags-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_gflags_LIB=ON -DBUILD_STATIC_LIBS=ON -DINSTALL_HEADERS=ON \
-                      -DREGISTER_{BUILD_DIR,INSTALL_PREFIX}=ON \
-                      -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_gflags_LIB=ON -DBUILD_STATIC_LIBS=ON -DINSTALL_HEADERS=ON \
+            -DREGISTER_{BUILD_DIR,INSTALL_PREFIX}=ON
         build_done "gflags" "$repo_version"
     fi
 
@@ -215,13 +191,11 @@ install_miscellaneous_libraries() {
     git_caller "https://github.com/KhronosGroup/OpenCL-SDK.git" "opencl-sdk-git" "recurse"
     if build "$repo_name" "$version"; then
         cd "$packages/opencl-sdk-git" || fail "Failed to cd into opencl-sdk-git. Line: ${LINENO}"
-        execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_{DOCS,EXAMPLES,SHARED_LIBS,TESTING}=OFF -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
-                -DCMAKE_C_FLAGS="$CFLAGS" -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF \
-                -DOPENCL_ICD_LOADER_BUILD_SHARED_LIBS=OFF -DOPENCL_SDK_BUILD_{OPENGL_SAMPLES,SAMPLES}=OFF \
-                -DOPENCL_SDK_TEST_SAMPLES=OFF -DTHREADS_PREFER_PTHREAD_FLAG=ON -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" -S . \
+            -DBUILD_{DOCS,EXAMPLES,SHARED_LIBS,TESTING}=OFF -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+            -DCMAKE_C_FLAGS="$CFLAGS" -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF \
+            -DOPENCL_ICD_LOADER_BUILD_SHARED_LIBS=OFF -DOPENCL_SDK_BUILD_{OPENGL_SAMPLES,SAMPLES}=OFF \
+            -DOPENCL_SDK_TEST_SAMPLES=OFF -DTHREADS_PREFER_PTHREAD_FLAG=ON
         build_done "$repo_name" "$version"
     fi
     append_configure_options_if_enabled "opencl-sdk-git" "--enable-opencl"
@@ -230,17 +204,12 @@ install_miscellaneous_libraries() {
     find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"
     if build "libjpeg-turbo" "$repo_version"; then
         download "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$repo_version.tar.gz" "libjpeg-turbo-$repo_version.tar.gz"
-        execute cmake -B build \
-                -DCMAKE_INSTALL_PREFIX="$workspace" \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DENABLE_SHARED=OFF \
-                -DENABLE_STATIC=ON \
-                -DWITH_JPEG8=1 \
-                -DWITH_TURBOJPEG=ON \
-                -DWITH_JAVA=OFF \
-                -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DENABLE_SHARED=OFF \
+            -DENABLE_STATIC=ON \
+            -DWITH_JPEG8=1 \
+            -DWITH_TURBOJPEG=ON \
+            -DWITH_JAVA=OFF
         build_done "libjpeg-turbo" "$repo_version"
     fi
 
@@ -259,11 +228,9 @@ install_miscellaneous_libraries() {
     find_git_repo "c-ares/c-ares" "1" "T"
     if build "c-ares" "$repo_version"; then
         download "https://github.com/c-ares/c-ares/archive/refs/tags/v$repo_version.tar.gz" "c-ares-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                               -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,SHARED,SYMBOL_HIDING}=OFF \
-                               -DCARES_{BUILD_TOOLS,STATIC,STATIC_PIC,THREADS}=ON -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,SHARED,SYMBOL_HIDING}=OFF \
+            -DCARES_{BUILD_TOOLS,STATIC,STATIC_PIC,THREADS}=ON
         build_done "c-ares" "$repo_version"
     fi
 
@@ -283,10 +250,8 @@ install_miscellaneous_libraries() {
         remove_duplicate_paths
 
         # Build with meson - removed deprecated 'plugins' option
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip \
-                                  -Ddocs=disabled -Dtests=disabled -Donline_docs=false
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip \
+            -Ddocs=disabled -Dtests=disabled -Donline_docs=false
         build_done "$repo_name" "$version"
     else
         # Set PYTHONPATH to include the virtual environment's site-packages directory
@@ -310,9 +275,7 @@ install_miscellaneous_libraries() {
     if build "serd" "$serd_version"; then
         download "https://gitlab.com/drobilla/serd/-/archive/v$serd_version/serd-v$serd_version.tar.bz2" "serd-$serd_version.tar.bz2"
         extracmds=("-D"{docs,html,man,man_html,singlehtml,tests,tools}"=disabled")
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip -Dstatic=true "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip -Dstatic=true "${extracmds[@]}"
         build_done "serd" "$serd_version"
     fi
 
@@ -333,9 +296,7 @@ install_miscellaneous_libraries() {
     if build "zix" "$repo_version"; then
         download "https://gitlab.com/drobilla/zix/-/archive/v$repo_version/zix-v$repo_version.tar.bz2" "zix-$repo_version.tar.bz2"
         extracmds=("-D"{benchmarks,docs,singlehtml,tests,tests_cpp}"=disabled")
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         build_done "zix" "$repo_version"
     fi
 
@@ -347,9 +308,7 @@ install_miscellaneous_libraries() {
         CFLAGS+=" -I$workspace/include/serd-0"
         download "https://gitlab.com/drobilla/sord/-/archive/v$sord_version/sord-v$sord_version.tar.bz2" "sord-$sord_version.tar.bz2"
         extracmds=("-D"{docs,tests,tools}"=disabled")
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         restore_compiler_flags
         build_done "sord" "$sord_version"
     fi
@@ -360,9 +319,7 @@ install_miscellaneous_libraries() {
     if build "sratom" "$sratom_version"; then
         download "https://gitlab.com/lv2/sratom/-/archive/v$sratom_version/sratom-v$sratom_version.tar.bz2" "sratom-$sratom_version.tar.bz2"
         extracmds=("-D"{docs,html,singlehtml,tests}"=disabled")
-        execute meson setup build --prefix="$workspace" --buildtype=release --default-library=static --strip "${extracmds[@]}"
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         build_done "sratom" "$sratom_version"
     fi
 

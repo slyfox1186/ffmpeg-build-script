@@ -48,7 +48,7 @@ install_core_libraries() {
         warn "Falling back to giflib version $giflib_version because upstream version detection failed."
     fi
     if build "giflib" "$giflib_version"; then
-        download "https://gigenet.dl.sourceforge.net/project/giflib/giflib-$giflib_version.tar.gz?viasf=1"
+        download "$(giflib_download_url "$giflib_version")" "giflib-$giflib_version.tar.gz"
         # Build only the library, skip documentation (requires ImageMagick)
         execute make libgif.a libgif.so
         execute make PREFIX="$workspace" install-lib install-include
@@ -73,10 +73,7 @@ install_core_libraries() {
         # Save flags before modification and restore after build
         save_compiler_flags
         CFLAGS+=" -DNOLIBTOOL"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF
         restore_compiler_flags
         build_done "libxml2" "$repo_version"
     fi

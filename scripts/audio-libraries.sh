@@ -17,29 +17,25 @@ install_audio_libraries() {
     box_out_banner "Installing Audio Tools"
     require_vars workspace packages build_threads STATIC_VER
 
-	    # Build libsoxr
-	    find_git_repo "chirlu/soxr" "1" "T"
-	    if build "libsoxr" "$repo_version"; then
-	        download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
-	        execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-	                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF \
-	                      -DWITH_OPENMP=OFF -G Ninja -Wno-dev
-	        execute ninja "-j$build_threads" -C build
-	        execute ninja -C build install
-	        build_done "libsoxr" "$repo_version"
-	    fi
+    # Build libsoxr
+    find_git_repo "chirlu/soxr" "1" "T"
+    if build "libsoxr" "$repo_version"; then
+        download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
+        cmake_ninja_install "build" -S . \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF \
+            -DWITH_OPENMP=OFF
+        build_done "libsoxr" "$repo_version"
+    fi
     append_configure_options_if_enabled "libsoxr" "--enable-libsoxr"
 
     # Build SDL2 (must use SDL2 branch - main branch is SDL3)
     sdl2_repo_version || fail "Failed to detect SDL2 version. Line: ${LINENO}"
     local sdl2_version="$repo_version"
     if build "sdl2" "$sdl2_version"; then
-        download "https://github.com/libsdl-org/SDL/releases/download/release-$sdl2_version/SDL2-$sdl2_version.tar.gz"
-        execute cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_CCACHE=ON \
-                      -DSDL2_DISABLE_INSTALL_DOCS=ON -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        download "$(sdl2_download_url "$sdl2_version")" "SDL2-$sdl2_version.tar.gz"
+        cmake_ninja_install "build" -S . \
+            -DBUILD_SHARED_LIBS=OFF -DSDL_ALSA_SHARED=OFF -DSDL_CCACHE=ON \
+            -DSDL2_DISABLE_INSTALL_DOCS=ON
         # Fix missing iconv dependency in pkgconf (SDL2 uses iconv but doesn't declare it)
         if ! grep -q -- "-liconv" "$workspace/lib/pkgconfig/sdl2.pc" 2>/dev/null; then
             sed -i 's/^Libs:.*/& -liconv/' "$workspace/lib/pkgconfig/sdl2.pc"
@@ -62,11 +58,9 @@ install_audio_libraries() {
     find_git_repo "xiph/ogg" "1" "T"
     if build "libogg" "$repo_version"; then
         download "https://github.com/xiph/ogg/archive/refs/tags/v$repo_version.tar.gz" "libogg-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF \
-                      -DCPACK_{BINARY_DEB,SOURCE_ZIP}=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DCPACK_{BINARY_DEB,SOURCE_ZIP}=OFF
         build_done "libogg" "$repo_version"
     fi
 
@@ -89,19 +83,11 @@ install_audio_libraries() {
     if build "vorbis" "$repo_version"; then
         local ogg_include_dir ogg_library
         download "https://github.com/xiph/vorbis/archive/refs/tags/v$repo_version.tar.gz" "vorbis-$repo_version.tar.gz"
-        if package_enabled "libogg" && [[ -f "$workspace/lib/libogg.a" ]]; then
-            ogg_include_dir="$workspace/include"
-            ogg_library="$workspace/lib/libogg.a"
-        else
-            ogg_include_dir="$(resolve_pkgconf_include_dir "ogg")"
-            ogg_library="$(resolve_pkgconf_library_file "ogg" "ogg")"
-        fi
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
-                      -DOGG_INCLUDE_DIR="$ogg_include_dir" -DOGG_LIBRARY="$ogg_library" \
-                      -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
+        ogg_library="$(resolve_workspace_or_pkgconf_library_file "libogg" "ogg" "ogg" "$workspace/lib/libogg.a")"
+        cmake_ninja_install "build" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
+            -DOGG_INCLUDE_DIR="$ogg_include_dir" -DOGG_LIBRARY="$ogg_library"
         build_done "vorbis" "$repo_version"
     fi
     append_configure_options_if_enabled "vorbis" "--enable-libvorbis"
@@ -110,11 +96,9 @@ install_audio_libraries() {
     find_git_repo "xiph/opus" "1" "T"
     if build "libopus" "$repo_version"; then
         download "https://github.com/xiph/opus/archive/refs/tags/v$repo_version.tar.gz" "libopus-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
-                      -DCPACK_SOURCE_ZIP=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
+            -DCPACK_SOURCE_ZIP=OFF
         build_done "libopus" "$repo_version"
     fi
     append_configure_options_if_enabled "libopus" "--enable-libopus"
@@ -123,10 +107,8 @@ install_audio_libraries() {
     find_git_repo "hoene/libmysofa" "1" "T"
     if build "libmysofa" "$repo_version"; then
         download "https://github.com/hoene/libmysofa/archive/refs/tags/v$repo_version.tar.gz" "libmysofa-$repo_version.tar.gz"
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON
         build_done "libmysofa" "$repo_version"
     fi
     append_configure_options_if_enabled "libmysofa" "--enable-libmysofa"
@@ -167,21 +149,11 @@ install_audio_libraries() {
         execute rm config.guess
         execute curl -LSso config.guess https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
         chmod +x config.guess
-        if package_enabled "libogg" && [[ -f "$workspace/lib/libogg.a" ]]; then
-            ogg_include_dir="$workspace/include"
-            ogg_library_dir="$workspace/lib"
-        else
-            ogg_include_dir="$(resolve_pkgconf_include_dir "ogg")"
-            ogg_library_dir="$(resolve_pkgconf_library_dir "ogg")"
-        fi
+        ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
+        ogg_library_dir="$(resolve_workspace_or_pkgconf_library_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
 
-        if package_enabled "vorbis" && [[ -f "$workspace/lib/libvorbis.a" ]]; then
-            vorbis_include_dir="$workspace/include"
-            vorbis_library_dir="$workspace/lib"
-        else
-            vorbis_include_dir="$(resolve_pkgconf_include_dir "vorbis")"
-            vorbis_library_dir="$(resolve_pkgconf_library_dir "vorbis")"
-        fi
+        vorbis_include_dir="$(resolve_workspace_or_pkgconf_include_dir "vorbis" "vorbis" "$workspace/lib/libvorbis.a")"
+        vorbis_library_dir="$(resolve_workspace_or_pkgconf_library_dir "vorbis" "vorbis" "$workspace/lib/libvorbis.a")"
 
         if package_enabled "sdl2" && [[ -x "$workspace/bin/sdl2-config" ]]; then
             sdl_prefix="$workspace"
