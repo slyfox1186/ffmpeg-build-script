@@ -175,8 +175,8 @@ install_video_libraries() {
         append_configure_options_if_enabled "x264" "--enable-libx264"
 
         # Build x265
-        if build "x265" "3.6"; then
-            download "https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz" "x265-3.6.tar.gz"
+        if build "x265" "4.1"; then
+            download "https://bitbucket.org/multicoreware/x265_git/get/1d117bed4747758b51bd2c124d738527e30392cb.tar.bz2" "x265-4.1.tar.bz2"
             
             # Fix CMake policy issues for modern CMake
             sed -i 's/cmake_policy(SET CMP0025 OLD)/cmake_policy(SET CMP0025 NEW)/' source/CMakeLists.txt
@@ -225,7 +225,7 @@ EOF
 
             fix_x265_libs # Fix the x265 shared library issue
 
-            build_done "x265" "3.6"
+            build_done "x265" "4.1"
         fi
         append_configure_options_if_enabled "x265" "--enable-libx265"
 
