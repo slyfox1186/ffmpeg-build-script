@@ -1001,11 +1001,11 @@ $ make -j32
 $ make install
 $ make install-lib-static
 
-Building x265 - version 3.6
+Building x265 - version 4.1
 ========================================================
-Downloading "https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz" saving as "x265-3.6.tar.gz"
+Downloading "https://bitbucket.org/multicoreware/x265_git/get/1d117bed4747758b51bd2c124d738527e30392cb.tar.bz2" saving as "x265-4.1.tar.bz2"
 Download Completed
-File extracted: x265-3.6.tar.gz
+File extracted: x265-4.1.tar.bz2
 
 $ making 12bit binaries
 $ cmake ../../../source -DCMAKE_INSTALL_PREFIX=/home/jman/tmp/ffmpeg-build-script/workspace -DCMAKE_BUILD_TYPE=Release -DENABLE_CLI=OFF -DENABLE_LIBVMAF=OFF -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DNATIVE_BUILD=ON -G Ninja -Wno-dev
