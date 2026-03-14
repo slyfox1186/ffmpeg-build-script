@@ -1087,8 +1087,9 @@ run_github_version_helper() {
 
 prepare_python_helper_environment() {
     local helper_dir helper_python requirements_file stamp_file desired_hash current_hash
-    local lock_dir lock_pid_file wait_seconds lock_owner_pid
-    local lock_timeout lock_stale_seconds lock_age lock_started
+    local lock_dir lock_pid_file lock_started_file wait_seconds lock_owner_pid
+    local lock_timeout lock_stale_seconds lock_age lock_epoch current_pid
+    local rebuild_attempt
 
     require_vars workspace
     helper_dir="$workspace/python_virtual_environment/script-helpers"
@@ -1097,20 +1098,109 @@ prepare_python_helper_environment() {
     stamp_file="$helper_dir/.requirements.sha256"
     lock_dir="$helper_dir.lock"
     lock_pid_file="$lock_dir/pid"
+    lock_started_file="$lock_dir/started"
     wait_seconds=0
     lock_timeout=300
     lock_stale_seconds=120
-    lock_started="$(date +%s)"
+    current_pid="${BASHPID:-$$}"
+
+    mkdir -p "$(dirname "$helper_dir")"
+
+    python_helper_is_ready() {
+        local ready_hash ready_stamp
+
+        [[ -x "$helper_python" ]] || return 1
+        "$helper_python" -m pip --version >/dev/null 2>&1 || return 1
+
+        if [[ -f "$requirements_file" ]]; then
+            ready_hash="$(sha256sum "$requirements_file" | awk '{print $1}')"
+            ready_stamp="$(cat "$stamp_file" 2>/dev/null || true)"
+            [[ -n "$ready_hash" && "$ready_hash" == "$ready_stamp" ]] || return 1
+        fi
+
+        return 0
+    }
+
+    rebuild_python_helper_environment() {
+        for rebuild_attempt in 1 2; do
+            if python_helper_is_ready; then
+                printf '%s\n' "$helper_python"
+                return 0
+            fi
+
+            if [[ -d "$helper_dir" ]]; then
+                warn "Repairing incomplete Python helper environment at $helper_dir (attempt ${rebuild_attempt}/2)." >&2
+                rm -rf -- "$helper_dir"
+            fi
+
+            log "Creating Python helper virtual environment at $helper_dir..." >&2
+            if ! python3 -m venv "$helper_dir"; then
+                warn "Failed to create Python helper virtual environment (attempt ${rebuild_attempt}/2)." >&2
+                continue
+            fi
+
+            if [[ -f "$requirements_file" ]]; then
+                desired_hash="$(sha256sum "$requirements_file" | awk '{print $1}')"
+                current_hash="$(cat "$stamp_file" 2>/dev/null || true)"
+
+                if [[ "$desired_hash" != "$current_hash" ]]; then
+                    log "Installing Python helper packages from $requirements_file..." >&2
+                    if ! "$helper_python" -m pip install --disable-pip-version-check -r "$requirements_file" >&2; then
+                        warn "Failed to install Python helper packages (attempt ${rebuild_attempt}/2)." >&2
+                        rm -rf -- "$helper_dir"
+                        continue
+                    fi
+                    printf '%s\n' "$desired_hash" > "$stamp_file"
+                fi
+            fi
+
+            if python_helper_is_ready; then
+                printf '%s\n' "$helper_python"
+                return 0
+            fi
+
+            warn "Python helper environment verification failed after rebuild attempt ${rebuild_attempt}/2." >&2
+            rm -rf -- "$helper_dir"
+        done
+
+        return 1
+    }
+
+    if python_helper_is_ready; then
+        printf '%s\n' "$helper_python"
+        return 0
+    fi
 
     while ! mkdir "$lock_dir" 2>/dev/null; do
+        if python_helper_is_ready; then
+            log "Using existing Python helper environment while lock cleanup is pending." >&2
+            printf '%s\n' "$helper_python"
+            return 0
+        fi
+
         lock_owner_pid="$(cat "$lock_pid_file" 2>/dev/null || true)"
+        lock_epoch="$(cat "$lock_started_file" 2>/dev/null || true)"
+        [[ "$lock_epoch" =~ ^[0-9]+$ ]] || lock_epoch="$(stat -c %Y "$lock_dir" 2>/dev/null || date +%s)"
+        lock_age=$(($(date +%s) - lock_epoch))
+
+        if [[ -z "$lock_owner_pid" ]] && ((lock_age >= 10)); then
+            warn "Removing Python helper lock with missing owner metadata." >&2
+            rm -rf -- "$lock_dir"
+            continue
+        fi
+
+        if [[ "$lock_owner_pid" == "$current_pid" ]]; then
+            warn "Removing recursive Python helper lock held by the current shell (PID $current_pid)." >&2
+            rm -rf -- "$lock_dir"
+            continue
+        fi
+
         if [[ "$lock_owner_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_owner_pid" 2>/dev/null; then
             warn "Removing stale Python helper lock held by PID $lock_owner_pid." >&2
             rm -rf -- "$lock_dir"
             continue
         fi
 
-        lock_age=$(($(date +%s) - lock_started))
         if ((lock_age >= lock_stale_seconds)); then
             warn "Removing stale Python helper lock held longer than ${lock_stale_seconds}s." >&2
             rm -rf -- "$lock_dir"
@@ -1124,37 +1214,25 @@ prepare_python_helper_environment() {
         sleep 1
         ((wait_seconds++))
         if ((wait_seconds >= lock_timeout)); then
+            if python_helper_is_ready; then
+                log "Using existing Python helper environment after lock wait timeout." >&2
+                printf '%s\n' "$helper_python"
+                return 0
+            fi
             warn "Timed out waiting for Python helper environment lock, falling back to python3." >&2
             return 1
         fi
     done
-    printf '%s\n' "$$" > "$lock_pid_file"
+    printf '%s\n' "$current_pid" > "$lock_pid_file"
+    printf '%s\n' "$(date +%s)" > "$lock_started_file"
     trap 'rm -rf -- "$lock_dir"' RETURN
 
-    if [[ ! -x "$helper_python" ]] || ! "$helper_python" -m pip --version >/dev/null 2>&1; then
-        rm -rf -- "$helper_dir"
-        log "Creating Python helper virtual environment at $helper_dir..." >&2
-        if ! python3 -m venv "$helper_dir"; then
-            warn "Failed to create Python helper virtual environment, falling back to python3." >&2
-            return 1
-        fi
+    if rebuild_python_helper_environment; then
+        return 0
     fi
 
-    if [[ -f "$requirements_file" ]]; then
-        desired_hash="$(sha256sum "$requirements_file" | awk '{print $1}')"
-        current_hash="$(cat "$stamp_file" 2>/dev/null || true)"
-
-        if [[ "$desired_hash" != "$current_hash" ]]; then
-            log "Installing Python helper packages from $requirements_file..." >&2
-            if ! "$helper_python" -m pip install --disable-pip-version-check -r "$requirements_file" >&2; then
-                warn "Failed to install Python helper packages, falling back to python3." >&2
-                return 1
-            fi
-            printf '%s\n' "$desired_hash" > "$stamp_file"
-        fi
-    fi
-
-    printf '%s\n' "$helper_python"
+    warn "Failed to repair Python helper environment, falling back to python3." >&2
+    return 1
 }
 
 github_api_json() {
