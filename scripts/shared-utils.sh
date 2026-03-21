@@ -1054,35 +1054,18 @@ run_github_version_helper() {
     local exclude_pattern="${4:-}"
     local version_regex="${5:-}"
     local index="${6:-1}"
-    local helper_path python_executable prepared_python_executable
-    local -a cmd
+    local helper_path version
 
     [[ -n "$repo" ]] || fail "run_github_version_helper() called without a repo. Line: ${LINENO}"
     helper_path="$(dirname "${BASH_SOURCE[0]}")/source_git_repo_version.py"
     [[ -f "$helper_path" ]] || fail "Missing helper script: $helper_path. Line: ${LINENO}"
-    python_executable="python3"
+    version="$(bash "$helper_path" "https://github.com/$repo")" || return 1
 
-    if [[ -n "${workspace:-}" ]]; then
-        if ! prepared_python_executable="$(prepare_python_helper_environment)"; then
-            warn "Falling back to system python3 for github helper for '$repo' (helper environment unavailable)." >&2
-            python_executable="python3"
-        else
-            python_executable="$prepared_python_executable"
-        fi
+    if [[ -n "$version_regex" ]] && [[ ! "$version" =~ $version_regex ]]; then
+        return 1
     fi
 
-    cmd=(
-        "$python_executable" "$helper_path"
-        --url "https://github.com/$repo"
-        --url-type "$url_type"
-        --index "$index"
-        --version-only
-    )
-    [[ -n "$prefix" ]] && cmd+=(--prefix "$prefix")
-    [[ -n "$exclude_pattern" ]] && cmd+=(--exclude-pattern "$exclude_pattern")
-    [[ -n "$version_regex" ]] && cmd+=(--version-regex "$version_regex")
-
-    "${cmd[@]}"
+    printf '%s\n' "$version"
 }
 
 prepare_python_helper_environment() {
