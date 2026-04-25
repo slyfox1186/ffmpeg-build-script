@@ -392,7 +392,7 @@ EOF
     if build "vapoursynth" "R${repo_version}"; then
         download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R${repo_version}.tar.gz" "vapoursynth-R${repo_version}.tar.gz"
 
-        venv_packages=("Cython>=3.0")
+        venv_packages=("Cython>=3.1.0")
         setup_python_venv_and_install_packages "$workspace/python_virtual_environment/vapoursynth" "${venv_packages[@]}"
 
         # Activate the virtual environment for the build process
@@ -404,17 +404,18 @@ EOF
         PATH="$ccache_dir:$workspace/python_virtual_environment/vapoursynth/bin:$PATH"
         remove_duplicate_paths
 
-        # Set Python flags for configure
+        # Set Python flags for Meson dependency detection
         PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
         export PYTHON3_CFLAGS
         PYTHON3_LIBS="$(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
-	        export PYTHON3_LIBS
-	        
-	        # Assuming autogen, configure, make, and install steps for VapourSynth
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --disable-shared
-	        execute make -j"$build_threads"
-	        execute make install
+        export PYTHON3_LIBS
+
+        meson_ninja_install "build" \
+            --buildtype=release \
+            --default-library=static \
+            --strip \
+            -Denable_python_module=false \
+            -Denable_vspipe=false
 
         # Deactivate the virtual environment after the build
         deactivate
@@ -450,20 +451,29 @@ EOF
 fetch_nv_codec_headers_versions() {
     # Build the `sorted_versions_and_dates` array in "version;MM-DD-YYYY" format.
     declare -a versions_and_dates=()
-    local releases_json formatted_date published_date version
+    local formatted_date releases_html token published_date version
 
-    releases_json=$(github_api_json "repos/FFmpeg/nv-codec-headers/releases?per_page=100") || {
+    releases_html=$(github_refs_html "FFmpeg/nv-codec-headers" "releases") || {
         warn "No nv-codec-headers releases found."
         return 1
     }
 
-    while IFS=';' read -r version published_date; do
-        [[ -n "$version" && -n "$published_date" ]] || continue
+    while IFS= read -r token; do
+        [[ -n "$token" ]] || continue
+
+        if [[ "$token" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            published_date="$token"
+            continue
+        fi
+
+        version="$token"
+        [[ "$version" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || continue
+        [[ -n "${published_date:-}" ]] || continue
         formatted_date=$(date -d "$published_date" +"%m-%d-%Y" 2>/dev/null || echo "$published_date")
         versions_and_dates+=("$version;$formatted_date")
     done < <(
-        printf '%s' "$releases_json" |
-        jq -r '.[] | select(.tag_name | test("^n[0-9]+(\\.[0-9]+){3}$")) | "\(.tag_name | ltrimstr("n"));\(.published_at | split("T")[0])"'
+        printf '%s' "$releases_html" |
+        grep -oP 'datetime="\K[0-9]{4}-[0-9]{2}-[0-9]{2}|href="[^"]*/releases/tag/n\K[0-9]+(\.[0-9]+){3}(?=")'
     )
 
     # Check if any versions were found

@@ -13,8 +13,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
 # Required build packages
 apt_pkgs() {
-    local -a pkgs=() available_packages=() unavailable_packages=() extra_pkgs=()
-    local apt_updated pkg
+    local -a pkgs=() available_packages=() unavailable_packages=() extra_pkgs=() split_pkgs=()
+    local apt_updated arg pkg
     apt_updated=false
 
     apt_update_once() {
@@ -32,10 +32,12 @@ apt_pkgs() {
         apt-cache search "^$1" | sort -ruV | head -n1 | awk '{print $1}'
     }
 
-    # Split any caller-provided package list into an array.
-    if [[ -n "${1:-}" ]]; then
-        read -r -a extra_pkgs <<< "$1"
-    fi
+    # Accept both `apt_pkgs "${array[@]}"` and `apt_pkgs "${array[*]}"` callers.
+    for arg in "$@"; do
+        [[ -n "$arg" ]] || continue
+        read -r -a split_pkgs <<< "$arg"
+        extra_pkgs+=("${split_pkgs[@]}")
+    done
 
     # Define an array of apt package names
     # Note: 'lex' and 'yacc' are virtual packages that resolve to flex/bison (already listed)
@@ -63,6 +65,7 @@ apt_pkgs() {
 
     # Find missing and categorize packages in one loop
     for pkg in "${pkgs[@]}"; do
+        [[ -n "$pkg" ]] || continue
         if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "ok installed"; then
             if apt-cache show "$pkg" &>/dev/null; then
                 available_packages+=("$pkg")
