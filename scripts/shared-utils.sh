@@ -999,7 +999,9 @@ github_repo() {
         *) fail "Unsupported GitHub ref source \"$url\". Line: ${LINENO}" ;;
     esac
 
-    selected_version="$(run_github_version_helper "$repo" "$url" "" "" "" "$index" || true)"
+    selected_version="$(run_github_version_helper "$repo" "$url" "v" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" ||
+                        run_github_version_helper "$repo" "$url" "" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" ||
+                        true)"
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
@@ -1054,12 +1056,31 @@ run_github_version_helper() {
     local exclude_pattern="${4:-}"
     local version_regex="${5:-}"
     local index="${6:-1}"
-    local helper_path version
+    local refs_html version
 
     [[ -n "$repo" ]] || fail "run_github_version_helper() called without a repo. Line: ${LINENO}"
-    helper_path="$(dirname "${BASH_SOURCE[0]}")/source_git_repo_version.sh"
-    [[ -f "$helper_path" ]] || fail "Missing helper script: $helper_path. Line: ${LINENO}"
-    version="$(bash "$helper_path" "https://github.com/$repo")" || return 1
+
+    if [[ -z "$version_regex" ]]; then
+        version_regex='^[0-9]+(\.[0-9]+){1,3}$'
+    fi
+
+    if [[ ! "$index" =~ ^[0-9]+$ ]] || [[ "$index" -lt 1 ]]; then
+        index=1
+    fi
+
+    case "$url_type" in
+        tags|releases) ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    refs_html="$(github_refs_html "$repo" "$url_type")" || return 1
+    version="$(
+        printf '%s' "$refs_html" |
+        grep -oP 'href="[^"]*/(?:releases/tag|tree)/\K[^"?/#]+|href="[^"]*/archive/refs/tags/\K[^"?]+(?=\.(?:tar\.gz|zip))' |
+        select_prefixed_version "$prefix" "$exclude_pattern" "$version_regex" "$index"
+    )" || return 1
 
     if [[ -n "$version_regex" ]] && [[ ! "$version" =~ $version_regex ]]; then
         return 1
@@ -1068,13 +1089,20 @@ run_github_version_helper() {
     printf '%s\n' "$version"
 }
 
-github_api_json() {
-    local api_path=$1
-    local response
+github_refs_html() {
+    local repo=$1
+    local url_type=${2:-tags}
+    local connect_timeout url
 
-    response=$(curl -fsSL "https://api.github.com/$api_path") || return 1
-    printf '%s' "$response" | jq -e 'type == "array"' >/dev/null || return 1
-    printf '%s' "$response"
+    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+
+    case "$url_type" in
+        tags) url="https://github.com/$repo/tags" ;;
+        releases) url="https://github.com/$repo/releases" ;;
+        *) return 1 ;;
+    esac
+
+    curl -fsSL --max-time 15 --connect-timeout "$connect_timeout" "$url" 2>/dev/null
 }
 
 gitlab_api_json() {

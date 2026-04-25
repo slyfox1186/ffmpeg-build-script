@@ -93,6 +93,15 @@ get_local_cuda_version() {
     jq -r '.cuda.version' < "$cuda_json" 2>/dev/null
 }
 
+cuda_version_at_least() {
+    local local_version="${1:-}"
+    local minimum_version="${2:-}"
+
+    [[ "$local_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || return 1
+    [[ "$minimum_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || return 1
+    [[ "$(printf '%s\n%s\n' "$local_version" "$minimum_version" | sort -V | head -n1)" == "$minimum_version" ]]
+}
+
 # Check remote CUDA version from NVIDIA documentation
 check_remote_cuda_version() {
     # Use curl to fetch the HTML content of the page
@@ -294,6 +303,27 @@ nvidia_architecture() {
     log "Selected CUDA architecture(s): ${selected_archs[*]}"
     log "nvccflags will use: $nvidia_arch_type"
     return 0
+}
+
+configure_nvidia_architecture_once() {
+    local failure_context="${1:-}"
+
+    if [[ -n "${nvidia_arch_type:-}" ]]; then
+        export nvidia_arch_type
+        return 0
+    fi
+
+    if nvidia_architecture; then
+        export nvidia_arch_type
+        return 0
+    fi
+
+    if [[ -n "$failure_context" ]]; then
+        warn "Failed to detect NVIDIA architecture $failure_context"
+    else
+        warn "Failed to detect NVIDIA architecture"
+    fi
+    return 1
 }
 
 # Interactive CUDA toolkit installer
@@ -541,11 +571,7 @@ install_cuda() {
                 # After successful install, set gpu_flag and prompt for architecture selection
                 gpu_flag=0
                 export gpu_flag
-                if nvidia_architecture; then
-                    export nvidia_arch_type
-                else
-                    warn "Failed to detect NVIDIA architecture after CUDA install"
-                fi
+                configure_nvidia_architecture_once "after CUDA install" || true
                 return 0
             fi
             gpu_flag=1
@@ -554,10 +580,15 @@ install_cuda() {
         fi
 
         if [[ "$remote_ok" == "true" ]]; then
-            if [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
-                echo -e "${GREEN}✓${NC} CUDA ${GREEN}$local_cuda_version${NC} is installed and up to date"
+            if cuda_version_at_least "$local_cuda_version" "$remote_cuda_version"; then
+                if [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
+                    echo -e "${GREEN}✓${NC} CUDA ${GREEN}$local_cuda_version${NC} is installed and up to date"
+                else
+                    echo -e "${GREEN}✓${NC} CUDA ${GREEN}$local_cuda_version${NC} is installed and newer than detected latest ${GREEN}$remote_cuda_version${NC}"
+                fi
                 gpu_flag=0
                 export gpu_flag
+                configure_nvidia_architecture_once "with the installed CUDA toolkit" || true
                 return 0
             fi
 
@@ -569,17 +600,14 @@ install_cuda() {
                 # After successful update, set gpu_flag and prompt for architecture selection
                 gpu_flag=0
                 export gpu_flag
-                if nvidia_architecture; then
-                    export nvidia_arch_type
-                else
-                    warn "Failed to detect NVIDIA architecture after CUDA update"
-                fi
+                configure_nvidia_architecture_once "after CUDA update" || true
                 return 0
             fi
 
             # User declined update, but CUDA is still installed - set flags appropriately
             gpu_flag=0
             export gpu_flag
+            configure_nvidia_architecture_once "with the installed CUDA toolkit" || true
             return 0
         fi
 
@@ -587,6 +615,7 @@ install_cuda() {
         warn "Unable to check for CUDA updates. Skipping update prompt."
         gpu_flag=0
         export gpu_flag
+        configure_nvidia_architecture_once "with the installed CUDA toolkit" || true
         return 0
     else
         gpu_flag=1
@@ -640,18 +669,6 @@ initialize_hardware_detection() {
     if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
         echo -e "${GREEN}✓${NC} NVIDIA GPU: ${GREEN}Detected${NC}"
         gpu_flag=0
-
-        # Determine NVIDIA GPU architecture for CUDA compilation
-        if [[ "${NONFREE_AND_GPL:-false}" == "true" ]]; then
-            if nvidia_architecture; then
-                export nvidia_arch_type
-                echo -e "${GREEN}✓${NC} NVIDIA architecture detected"
-            else
-                warn "Failed to detect NVIDIA architecture - CUDA compilation may use default settings"
-            fi
-        else
-            warn "Skipping CUDA architecture selection (non-free builds disabled)."
-        fi
     else
         echo -e "${RED}✗${NC} NVIDIA GPU: ${RED}Not detected${NC}"
         if [[ "$amd_gpu_test" != "AMD GPU detected" ]]; then

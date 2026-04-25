@@ -11,10 +11,12 @@ for f in "${files[@]}"; do
 done
 echo "bash -n: OK"
 
+bash tests/logical-flow-tests.sh
+echo "logical flow tests: OK"
+
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck -x "${files[@]}"
+  shellcheck -x "${files[@]}" tests/logical-flow-tests.sh
   echo "shellcheck: OK"
 else
   echo "shellcheck not installed; skipping"
 fi
-
