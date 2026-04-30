@@ -47,7 +47,7 @@ apt_pkgs() {
         gettext git gperf imagemagick jq ladspa-sdk libbluray-dev libbs2b-dev
         libbz2-dev libcaca-dev libcdio-dev libcdio-paranoia-dev libcdparanoia-dev
         libchromaprint-dev libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
-	libcunit1-dev frei0r-plugins-dev libgsm1-dev libjack-dev libjansson-dev
+        libcunit1-dev frei0r-plugins-dev libgsm1-dev libjack-dev libjansson-dev
         liblilv-dev libmodplug-dev libnghttp2-dev libde265-dev lv2-dev libnghttp3-dev
         libshine-dev libsmbclient-dev libsnappy-dev libspeex-dev libssh-dev libssl-dev
         libtesseract-dev libtool libaribb24-dev libtwolame-dev libv4l-dev libvdpau-dev
@@ -90,7 +90,8 @@ apt_pkgs() {
         echo
         # Run apt commands directly (not via execute) so user sees progress
         apt_update_once
-        sudo DEBIAN_FRONTEND=noninteractive apt -y install "${available_packages[@]}"
+        sudo DEBIAN_FRONTEND=noninteractive apt -y install "${available_packages[@]}" \
+            || fail "apt install failed for required packages. Line: ${LINENO}"
     else
         log "All required packages are already installed."
     fi
@@ -113,7 +114,8 @@ apt_pkgs() {
         if [[ -n "$nvidia_pkg" ]]; then
             log "nvidia-smi not found. Installing $nvidia_pkg..."
             apt_update_once
-            sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg"
+            sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg" \
+                || warn "Failed to install $nvidia_pkg; NVIDIA support may be limited."
         else
             warn "nvidia-smi not found and no nvidia-utils/nvidia-driver-cuda package available."
             warn "NVIDIA GPU support may not work. Consider installing NVIDIA drivers manually."
@@ -210,8 +212,12 @@ get_os_version() {
         . /etc/os-release
         OS_TMP="$NAME"
         VER_TMP="$VERSION_ID"
-        OS=$(echo "$OS_TMP" | awk '{print $1}')
-        VER=$(echo "$VER_TMP" | awk '{print $1}')
+        # Use `read -r` to grab the first whitespace-delimited token. This
+        # matches awk's default field-splitting behavior (handles tabs,
+        # repeated whitespace, and leading whitespace), unlike `${var%% *}`
+        # which only strips a single literal space.
+        read -r OS _ <<<"$OS_TMP"
+        read -r VER _ <<<"$VER_TMP"
         VARIABLE_OS="$OS"
         STATIC_VER="$VER"
 
@@ -337,6 +343,7 @@ initialize_system_setup() {
     case "$OS" in
         Ubuntu) ubuntu_os_version ;;
         Debian) debian_os_version ;;
+        *) fail "Unsupported OS: $OS $VER. Only Debian and Ubuntu (and derivatives mapped to them) are supported. Line: ${LINENO}" ;;
     esac
 
     log "System setup initialized: $OS $VER"

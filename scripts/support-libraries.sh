@@ -282,14 +282,14 @@ install_miscellaneous_libraries() {
     # Build pcre2
     github_version "PCRE2Project/pcre2" "pcre2-" "RC"
     pcre2_version="$repo_version"
-	    if build "pcre2" "$pcre2_version"; then
-	        download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --disable-shared
-	        execute make "-j$build_threads"
-	        execute make install
-	        build_done "pcre2" "$pcre2_version"
-	    fi
+    if build "pcre2" "$pcre2_version"; then
+        download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
+        ensure_autotools
+        execute sh configure --prefix="$workspace" --disable-shared
+        execute make "-j$build_threads"
+        execute make install
+        build_done "pcre2" "$pcre2_version"
+    fi
 
     # Build zix
     find_git_repo "drobilla/zix" "1" "T"
@@ -327,14 +327,14 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "lv2-git" "--enable-lv2"
 
 
-	    # Build jemalloc
-	    find_git_repo "jemalloc/jemalloc" "1" "T"
-	    if build "jemalloc" "$repo_version"; then
-	        download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
-	        execute make "-j$build_threads"
-	        execute make install
-	        build_done "jemalloc" "$repo_version"
-	    fi
+    # Build jemalloc
+    find_git_repo "jemalloc/jemalloc" "1" "T"
+    if build "jemalloc" "$repo_version"; then
+        download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
+        ensure_autotools
+        execute sh configure --prefix="$workspace" --disable-{debug,doc,fill,log,shared,prof,stats} --enable-{autogen,static,xmalloc}
+        execute make "-j$build_threads"
+        execute make install
+        build_done "jemalloc" "$repo_version"
+    fi
 }
