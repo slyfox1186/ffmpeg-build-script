@@ -54,10 +54,22 @@ install_miscellaneous_libraries() {
     fi
 
     # Build freetype
-    freetype_version
+    freetype_version || fail "Failed to detect FreeType version from the official FreeType release archive or FreeDesktop GitLab. Line: ${LINENO}"
+    [[ "$repo_version" =~ ^[0-9]+(-[0-9]+){2,3}$ ]] ||
+        fail "Invalid FreeType version detected: '$repo_version'. Line: ${LINENO}"
     repo_version_1="${repo_version//-/.}"
     if build "freetype" "$repo_version_1"; then
-        download "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-$repo_version/freetype-VER-$repo_version.tar.bz2?ref_type=tags" "freetype-$repo_version_1.tar.bz2"
+        if [[ "${freetype_version_source:-}" == "release" ]]; then
+            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
+                download_with_fallback \
+                    "$(freetype_release_archive_url "$repo_version_1")" \
+                    "$(freetype_sourceforge_archive_url "$repo_version_1")"
+        else
+            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
+                download_with_fallback \
+                    "$(freetype_gitlab_archive_url "$repo_version")" \
+                    "$(freetype_release_archive_url "$repo_version_1")"
+        fi
         extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
         execute sh autogen.sh
         meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
@@ -66,9 +78,19 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "freetype" "--enable-libfreetype"
 
     # Build fontconfig
-    fontconfig_version
+    fontconfig_version || fail "Failed to detect Fontconfig version from the official Fontconfig release archive or FreeDesktop GitLab. Line: ${LINENO}"
+    [[ "$repo_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] ||
+        fail "Invalid Fontconfig version detected: '$repo_version'. Line: ${LINENO}"
     if build "fontconfig" "$repo_version"; then
-        download "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$repo_version/fontconfig-$repo_version.tar.gz" "fontconfig-$repo_version.tar.gz"
+        if [[ "${fontconfig_version_source:-}" == "release" ]]; then
+            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
+                download "$(fontconfig_release_archive_url "$repo_version")" "fontconfig-$repo_version.tar.xz"
+        else
+            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
+                download_with_fallback \
+                    "$(fontconfig_gitlab_archive_url "$repo_version")" \
+                    "$(fontconfig_release_archive_url "$repo_version")"
+        fi
         # Save flags before modification and restore after
         save_compiler_flags
         # -D flags belong in CFLAGS/CPPFLAGS, not LDFLAGS

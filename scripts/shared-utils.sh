@@ -742,12 +742,12 @@ download_try() {
                 -fsSL --retry "$download_retry" --retry-delay "$download_retry_delay" --retry-connrefused
                 --connect-timeout "$download_connect_timeout" --max-time "$download_max_time"
             )
-            if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
+            if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url" 2>>"${log_file:-/dev/null}"; then
                 download_success=true
             else
                 warn "Failed to download \"$download_file\". Second attempt in 3 seconds..."
                 sleep 3
-                if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url"; then
+                if curl "${curl_args[@]}" --output "$temp_target_file" "$download_url" 2>>"${log_file:-/dev/null}"; then
                     download_success=true
                 fi
             fi
@@ -1119,11 +1119,17 @@ gitlab_api_json() {
     local base_url=$1
     local project=$2
     local api_path=$3
-    local project_encoded response
+    local connect_timeout max_time project_encoded response
+
+    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+    max_time="${VERSION_CHECK_MAX_TIME:-10}"
 
     project_encoded="${project//\//%2F}"
-    response=$(curl -fsSL "$base_url/api/v4/projects/$project_encoded/$api_path") || return 1
-    printf '%s' "$response" | jq -e 'type == "array"' >/dev/null || return 1
+    response=$(
+        curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+            "$base_url/api/v4/projects/$project_encoded/$api_path" 2>/dev/null
+    ) || return 1
+    printf '%s' "$response" | jq -e 'type == "array"' >/dev/null 2>&1 || return 1
     printf '%s' "$response"
 }
 
@@ -1155,6 +1161,97 @@ select_prefixed_version() {
 
     [[ ${#versions[@]} -gt 0 ]] || return 1
     printf '%s\n' "${versions[@]}" | sort -ruV | sed -n "${index}p"
+}
+
+meson_project_option_exists() {
+    local option_name="${1:-}"
+    local options_file="${2:-meson_options.txt}"
+
+    [[ -n "$option_name" ]] || return 1
+    [[ -f "$options_file" ]] || return 1
+    grep -Eq "^[[:space:]]*option\\([\"']${option_name}[\"']" "$options_file"
+}
+
+append_meson_project_option_if_exists() {
+    local target_array_name="${1:-}"
+    local option_name="${2:-}"
+    local option_value="${3:-}"
+    local options_file="${4:-meson_options.txt}"
+
+    [[ -n "$target_array_name" ]] || fail "append_meson_project_option_if_exists() called without a target array. Line: ${LINENO}"
+    [[ -n "$option_name" ]] || fail "append_meson_project_option_if_exists() called without an option name. Line: ${LINENO}"
+    [[ -n "$option_value" ]] || fail "append_meson_project_option_if_exists() called without an option value. Line: ${LINENO}"
+
+    if meson_project_option_exists "$option_name" "$options_file"; then
+        local -n target_array_ref="$target_array_name"
+        target_array_ref+=("-D${option_name}=${option_value}")
+    fi
+}
+
+find_vapoursynth_sdk_dir() {
+    local header_path sdk_dir
+
+    require_vars workspace
+
+    while IFS= read -r header_path; do
+        sdk_dir="${header_path%/include/VSScript4.h}"
+        if [[ -f "$sdk_dir/include/VapourSynth4.h" ]]; then
+            printf '%s\n' "$sdk_dir"
+            return 0
+        fi
+    done < <(find "$workspace" -maxdepth 8 -type f -path '*/vapoursynth/include/VSScript4.h' 2>/dev/null | sort -V)
+
+    return 1
+}
+
+vapoursynth_sdk_ready_for_ffmpeg() {
+    require_vars workspace
+
+    [[ -f "$workspace/include/vapoursynth/VSScript4.h" ]] || return 1
+    [[ -f "$workspace/include/vapoursynth/VapourSynth4.h" ]] || return 1
+    [[ -e "$workspace/lib/libvapoursynth-script.so" ]] || return 1
+}
+
+normalize_vapoursynth_sdk_for_ffmpeg() {
+    local sdk_dir sdk_include sdk_pc pc_version libvsscript_so
+
+    require_vars workspace
+
+    sdk_dir="$(find_vapoursynth_sdk_dir)" || return 1
+    sdk_include="$sdk_dir/include"
+
+    [[ -f "$sdk_include/VSScript4.h" ]] || return 1
+    [[ -f "$sdk_include/VapourSynth4.h" ]] || return 1
+
+    mkdir -p "$workspace/include/vapoursynth" "$workspace/lib" "$workspace/lib/pkgconfig"
+    cp -f "$sdk_include/"*.h "$workspace/include/vapoursynth/"
+
+    while IFS= read -r lib_path; do
+        cp -a "$lib_path" "$workspace/lib/"
+    done < <(find "$sdk_dir" -maxdepth 1 \( -type f -o -type l \) \( -name 'libvsscript.so*' -o -name 'libvapoursynth.so*' \) 2>/dev/null | sort -V)
+
+    libvsscript_so="$(find "$workspace/lib" -maxdepth 1 \( -type f -o -type l \) -name 'libvsscript.so*' 2>/dev/null | sort -V | head -n1)"
+    [[ -n "$libvsscript_so" ]] || return 1
+    ln -sfn "$(basename "$libvsscript_so")" "$workspace/lib/libvapoursynth-script.so"
+
+    pc_version="unknown"
+    sdk_pc="$sdk_dir/pkgconfig/vapoursynth.pc"
+    if [[ -f "$sdk_pc" ]]; then
+        pc_version="$(sed -n 's/^Version:[[:space:]]*//p' "$sdk_pc" | head -n1)"
+        [[ -n "$pc_version" ]] || pc_version="unknown"
+    fi
+
+    cat >"$workspace/lib/pkgconfig/vapoursynth.pc" <<EOF
+prefix=$workspace
+includedir=\${prefix}/include
+libdir=\${prefix}/lib
+
+Name: vapoursynth
+Description: A frameserver for the 21st century
+Version: $pc_version
+Cflags: -I\${includedir}
+Libs: -L\${libdir} -lvapoursynth-script
+EOF
 }
 
 # github_version - Unified GitHub version extractor
@@ -1284,12 +1381,172 @@ librist_repo_version() {
     gitlab_version "https://code.videolan.org" "rist/librist" "v"
 }
 
+freetype_release_version() {
+    local connect_timeout max_time releases_html version
+
+    repo_version=""
+    connect_timeout="${FREEDESKTOP_RELEASE_CONNECT_TIMEOUT:-${DOWNLOAD_CONNECT_TIMEOUT:-2}}"
+    max_time="${FREEDESKTOP_RELEASE_INDEX_MAX_TIME:-5}"
+
+    if ! releases_html=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+        "https://download.savannah.gnu.org/releases/freetype/" 2>/dev/null); then
+        return 1
+    fi
+
+    version=$(
+        printf '%s' "$releases_html" |
+        grep -oE 'freetype-[0-9]+\.[0-9]+\.[0-9]+\.tar\.(xz|gz|bz2)' |
+        sed -E 's/^freetype-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(xz|gz|bz2)$/\1/' |
+        sort -ruV |
+        head -n1
+    )
+
+    if [[ -z "$version" ]]; then
+        return 1
+    fi
+
+    repo_version="${version//./-}"
+}
+
+freetype_gitlab_version() {
+    local refs_json version
+
+    repo_version=""
+    refs_json=$(
+        DOWNLOAD_CONNECT_TIMEOUT="${FREEDESKTOP_GITLAB_CONNECT_TIMEOUT:-2}" \
+        VERSION_CHECK_MAX_TIME="${FREEDESKTOP_GITLAB_MAX_TIME:-3}" \
+            gitlab_api_json "https://gitlab.freedesktop.org" "freetype/freetype" "repository/tags?per_page=100"
+    ) ||
+        return 1
+
+    version=$(
+        printf '%s' "$refs_json" |
+        jq -r '.[].name' |
+        select_prefixed_version "VER-" "" '^[0-9]+(-[0-9]+){2,3}$' "1"
+    ) || return 1
+
+    [[ -n "$version" ]] || return 1
+    repo_version="$version"
+}
+
 freetype_version() {
-    gitlab_version "https://gitlab.freedesktop.org" "freetype/freetype" "VER-" "-"
+    if freetype_release_version; then
+        freetype_version_source="release"
+        export freetype_version_source
+        return 0
+    fi
+
+    warn "FreeType release archive is unavailable; trying FreeDesktop GitLab."
+    if freetype_gitlab_version; then
+        freetype_version_source="gitlab"
+        export freetype_version_source
+        return 0
+    fi
+
+    return 1
+}
+
+freetype_gitlab_archive_url() {
+    local hyphen_version="${1:-}"
+
+    [[ "$hyphen_version" =~ ^[0-9]+(-[0-9]+){2,3}$ ]] || return 1
+    printf 'https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-%s/freetype-VER-%s.tar.bz2?ref_type=tags\n' \
+        "$hyphen_version" "$hyphen_version"
+}
+
+freetype_release_archive_url() {
+    local dotted_version="${1:-}"
+
+    [[ "$dotted_version" =~ ^[0-9]+(\.[0-9]+){2,3}$ ]] || return 1
+    printf 'https://download-mirror.savannah.gnu.org/releases/freetype/freetype-%s.tar.xz\n' "$dotted_version"
+}
+
+freetype_sourceforge_archive_url() {
+    local dotted_version="${1:-}"
+
+    [[ "$dotted_version" =~ ^[0-9]+(\.[0-9]+){2,3}$ ]] || return 1
+    printf 'https://downloads.sourceforge.net/project/freetype/freetype2/%s/freetype-%s.tar.xz\n' \
+        "$dotted_version" "$dotted_version"
+}
+
+fontconfig_release_version() {
+    local connect_timeout max_time releases_html version
+
+    repo_version=""
+    connect_timeout="${FREEDESKTOP_RELEASE_CONNECT_TIMEOUT:-${DOWNLOAD_CONNECT_TIMEOUT:-2}}"
+    max_time="${FREEDESKTOP_RELEASE_INDEX_MAX_TIME:-5}"
+
+    if ! releases_html=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+        "https://www.freedesktop.org/software/fontconfig/release/" 2>/dev/null); then
+        return 1
+    fi
+
+    version=$(
+        printf '%s' "$releases_html" |
+        grep -oE 'fontconfig-[0-9]+\.[0-9]+\.[0-9]+\.tar\.(xz|gz|bz2)' |
+        sed -E 's/^fontconfig-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(xz|gz|bz2)$/\1/' |
+        sort -ruV |
+        head -n1
+    )
+
+    if [[ -z "$version" ]]; then
+        return 1
+    fi
+
+    repo_version="$version"
+}
+
+fontconfig_gitlab_version() {
+    local refs_json version
+
+    repo_version=""
+    refs_json=$(
+        DOWNLOAD_CONNECT_TIMEOUT="${FREEDESKTOP_GITLAB_CONNECT_TIMEOUT:-2}" \
+        VERSION_CHECK_MAX_TIME="${FREEDESKTOP_GITLAB_MAX_TIME:-3}" \
+            gitlab_api_json "https://gitlab.freedesktop.org" "fontconfig/fontconfig" "repository/tags?per_page=100"
+    ) ||
+        return 1
+
+    version=$(
+        printf '%s' "$refs_json" |
+        jq -r '.[].name' |
+        select_prefixed_version "" "" '^[0-9]+(\.[0-9]+){1,3}$' "1"
+    ) || return 1
+
+    [[ -n "$version" ]] || return 1
+    repo_version="$version"
 }
 
 fontconfig_version() {
-    gitlab_version "https://gitlab.freedesktop.org" "fontconfig/fontconfig" ""
+    if fontconfig_release_version; then
+        fontconfig_version_source="release"
+        export fontconfig_version_source
+        return 0
+    fi
+
+    warn "Fontconfig release archive is unavailable; trying FreeDesktop GitLab."
+    if fontconfig_gitlab_version; then
+        fontconfig_version_source="gitlab"
+        export fontconfig_version_source
+        return 0
+    fi
+
+    return 1
+}
+
+fontconfig_gitlab_archive_url() {
+    local version="${1:-}"
+
+    [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || return 1
+    printf 'https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/%s/fontconfig-%s.tar.gz\n' \
+        "$version" "$version"
+}
+
+fontconfig_release_archive_url() {
+    local version="${1:-}"
+
+    [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || return 1
+    printf 'https://www.freedesktop.org/software/fontconfig/release/fontconfig-%s.tar.xz\n' "$version"
 }
 
 libxml2_version() {
@@ -1537,8 +1794,8 @@ find_git_repo() {
         drobilla/zix)         gitlab_version "https://gitlab.com" "drobilla/zix" ;;
         libtiff/libtiff)      gitlab_version "https://gitlab.com" "libtiff/libtiff" ;;
         GNOME/libxml2)        gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" ;;
-        freetype/freetype)    gitlab_version "https://gitlab.freedesktop.org" "freetype/freetype" "VER-" "-" ;;
-        fontconfig/fontconfig) gitlab_version "https://gitlab.freedesktop.org" "fontconfig/fontconfig" "" ;;
+        freetype/freetype)    freetype_version ;;
+        fontconfig/fontconfig) fontconfig_version ;;
         rist/librist)         gitlab_version "https://code.videolan.org" "rist/librist" ;;
 
         # GitHub repos with default "v" prefix (inlined from one-liner wrappers)
