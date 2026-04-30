@@ -81,7 +81,7 @@ install_global_tools() {
         # Release tarballs from GitHub need autoreconf
         execute autoreconf -fi
         execute sh configure --prefix="$workspace" --enable-silent-rules \
-            --with-pkgconf-dir="$PKG_CONFIG_PATH" \
+            --with-pkg-config-dir="$PKG_CONFIG_PATH" \
             --with-system-libdir="/lib:/lib64:/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu" \
             --with-system-includedir="/usr/include:/usr/include/x86_64-linux-gnu"
         execute make "-j$build_threads"
@@ -152,7 +152,7 @@ install_global_tools() {
     fi
     append_configure_options_if_enabled "librist" "--enable-librist"
 
-	    # Build zlib
+    # Build zlib
     find_git_repo "madler/zlib" "1" "T"
     if build "zlib" "$repo_version"; then
         download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.xz"

@@ -127,7 +127,7 @@ install_audio_libraries() {
 
     # Build liblame
     if build "liblame" "3.100"; then
-        download "https://master.dl.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz?viasf=1" "liblame-3.100.tar.gz"
+        download "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz" "liblame-3.100.tar.gz"
         execute sh configure --prefix="$workspace" \
                              --disable-{gtktest,shared} \
                              --enable-nasm \

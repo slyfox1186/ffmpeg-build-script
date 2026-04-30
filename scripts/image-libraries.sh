@@ -23,15 +23,15 @@ install_image_libraries() {
         download "https://github.com/strukturag/libheif/archive/refs/tags/v$repo_version.tar.gz" "libheif-$repo_version.tar.gz"
         # Save original flags before modification
         save_compiler_flags
-	        CFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
-	        CXXFLAGS="$CFLAGS"
-	        export CFLAGS CXXFLAGS
-	        local with_aom with_dav1d with_libde265 with_rav1e with_x265
-	        with_aom=OFF
-	        with_dav1d=OFF
-	        with_libde265=OFF
-	        with_rav1e=OFF
-	        with_x265=OFF
+        CFLAGS="-O2 -pipe -fno-lto -fPIC -march=native"
+        CXXFLAGS="$CFLAGS"
+        export CFLAGS CXXFLAGS
+        local with_aom with_dav1d with_libde265 with_rav1e with_x265
+        with_aom=OFF
+        with_dav1d=OFF
+        with_libde265=OFF
+        with_rav1e=OFF
+        with_x265=OFF
 
         package_enabled "av1-git" && [[ -f "$workspace/lib/libaom.a" || -f "$workspace/lib64/libaom.a" ]] && with_aom=ON
         pkgconf --exists dav1d 2>/dev/null && with_dav1d=ON

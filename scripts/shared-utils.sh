@@ -494,6 +494,12 @@ exit_fn() {
 }
 
 # Execution function with error handling
+# NOTE on exit-code capture: bash sets `$?` to the result of `! cmd` (the
+# negation), not `cmd` itself. So `if ! "$@"; then exit_code=$?` always
+# captures 0. We run the command first, save `$?` immediately, and only
+# then test/branch. The pipeline branch keeps `${PIPESTATUS[0]}`, which
+# IS preserved across variable assignments and reflects the original
+# command's exit code (relies on `set -o pipefail` from the top of this file).
 execute() {
     printf '$'
     printf ' %q' "$@"
@@ -503,14 +509,16 @@ execute() {
 
     if [[ "$debug" == "ON" ]]; then
         if [[ -n "${log_file:-}" ]]; then
-            if ! "$@" 2>&1 | tee -a "$log_file"; then
-                exit_code=${PIPESTATUS[0]}
+            "$@" 2>&1 | tee -a "$log_file"
+            exit_code=${PIPESTATUS[0]}
+            if (( exit_code != 0 )); then
                 notify-send -t 5000 "Failed to execute $*" 2>/dev/null
                 fail "Failed to execute $* (exit code: $exit_code)"
             fi
         else
-            if ! "$@"; then
-                exit_code=$?
+            "$@"
+            exit_code=$?
+            if (( exit_code != 0 )); then
                 notify-send -t 5000 "Failed to execute $*" 2>/dev/null
                 fail "Failed to execute $* (exit code: $exit_code)"
             fi
@@ -521,8 +529,9 @@ execute() {
     if [[ -n "${log_file:-}" ]]; then
         local start_pos
         start_pos=$(wc -c <"$log_file" 2>/dev/null || echo 0)
-        if ! "$@" >>"$log_file" 2>>"$log_file"; then
-            exit_code=$?
+        "$@" >>"$log_file" 2>>"$log_file"
+        exit_code=$?
+        if (( exit_code != 0 )); then
             notify-send -t 5000 "Failed to execute $*" 2>/dev/null
             echo >&2
             if [[ -f "$log_file" ]]; then
@@ -533,8 +542,9 @@ execute() {
         return 0
     fi
 
-    if ! "$@"; then
-        exit_code=$?
+    "$@"
+    exit_code=$?
+    if (( exit_code != 0 )); then
         notify-send -t 5000 "Failed to execute $*" 2>/dev/null
         fail "Failed to execute $* (exit code: $exit_code)"
     fi
@@ -867,7 +877,7 @@ git_clone() {
     local store_prior_version=""
     [[ -f "$packages/$repo_name.done" ]] && store_prior_version=$(cat "$packages/$repo_name.done")
 
-    if [[ ! "$version" == "$store_prior_version" ]]; then
+    if [[ "$version" != "$store_prior_version" ]]; then
         local -a clone_args
         if [[ "$recurse_flag" -eq 1 ]]; then
             clone_args=(git clone --depth 1 --recursive -q "$repo_url" "$target_directory")

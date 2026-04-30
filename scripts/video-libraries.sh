@@ -48,17 +48,17 @@ install_video_libraries() {
     fi
     append_configure_options_if_enabled "rav1e" "--enable-librav1e"
 
-	    # Build zimg
-	    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
-	    if build "$repo_name" "$version"; then
-	        cd "$packages/zimg-git" || fail "Failed to cd into zimg-git. Line: ${LINENO}"
-	        execute git submodule update --init --recursive
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --with-pic --disable-shared --enable-static
-	        execute make "-j$build_threads"
-	        execute make install
-	        build_done "$repo_name" "$version"
-	    fi
+    # Build zimg
+    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
+    if build "$repo_name" "$version"; then
+        cd "$packages/zimg-git" || fail "Failed to cd into zimg-git. Line: ${LINENO}"
+        execute git submodule update --init --recursive
+        ensure_autotools
+        execute sh configure --prefix="$workspace" --with-pic --disable-shared --enable-static
+        execute make "-j$build_threads"
+        execute make install
+        build_done "$repo_name" "$version"
+    fi
     append_configure_options_if_enabled "zimg-git" "--enable-libzimg"
 
     # Build libavif
@@ -111,38 +111,38 @@ install_video_libraries() {
 
     # Build zenlib
     find_git_repo "MediaArea/ZenLib" "1" "T"
-	    if build "zenlib" "$repo_version"; then
-	        download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
-	        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --disable-shared
-	        execute make "-j$build_threads"
-	        execute make install
-	        build_done "zenlib" "$repo_version"
-	    fi
+    if build "zenlib" "$repo_version"; then
+        download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
+        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
+        ensure_autotools
+        execute sh configure --prefix="$workspace" --disable-shared
+        execute make "-j$build_threads"
+        execute make install
+        build_done "zenlib" "$repo_version"
+    fi
 
     # Build mediainfo-lib
     find_git_repo "MediaArea/MediaInfoLib" "1" "T"
-	    if build "mediainfo-lib" "$repo_version"; then
-	        download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
-	        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --disable-shared
-	        execute make "-j$build_threads"
-	        execute make install
-	        build_done "mediainfo-lib" "$repo_version"
-	    fi
+    if build "mediainfo-lib" "$repo_version"; then
+        download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
+        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
+        ensure_autotools
+        execute sh configure --prefix="$workspace" --disable-shared
+        execute make "-j$build_threads"
+        execute make install
+        build_done "mediainfo-lib" "$repo_version"
+    fi
 
     # Build mediainfo-cli
     find_git_repo "MediaArea/MediaInfo" "1" "T"
-	    if build "mediainfo-cli" "$repo_version"; then
-	        download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
-	        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
-	        ensure_autotools
-	        execute sh configure --prefix="$workspace" --enable-staticlibs --disable-shared
-	        execute make "-j$build_threads"
-	        execute make install
-	        execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
+    if build "mediainfo-cli" "$repo_version"; then
+        download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
+        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
+        ensure_autotools
+        execute sh configure --prefix="$workspace" --enable-staticlibs --disable-shared
+        execute make "-j$build_threads"
+        execute make install
+        execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
         build_done "mediainfo-cli" "$repo_version"
     fi
 
@@ -232,40 +232,31 @@ EOF
         # NVIDIA codec headers (CUDA only)
         # Check if NVIDIA GPU was detected (gpu_flag=0) and CUDA toolkit is installed
         if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
-            # Check if nv-codec-headers was already built
-            if [[ -f "$packages/nv-codec-headers.done" ]]; then
-                # Read the previously selected version from the lock file
+            # When LATEST is requested we always fetch the upstream list so that
+            # build() can compare a fresh candidate against the lockfile (its
+            # equality check at shared-utils.sh:572 happens BEFORE the LATEST
+            # branch, so feeding the prior lockfile version back never triggers
+            # a rebuild).
+            if [[ -f "$packages/nv-codec-headers.done" ]] && ! "$LATEST"; then
                 selected_version=$(cat "$packages/nv-codec-headers.done")
-                
-                # Use the build function to check if we should rebuild
-                if ! build "nv-codec-headers" "$selected_version"; then
-                    # Already built with this version, skip prompting
-                    :
-                else
-                    # Lock file was deleted or version changed, prompt for new version
-                    fetch_nv_codec_headers_versions
-                    prompt_user_for_version
-                    
-                    download_url="https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz"
-                    download_file="nv-codec-headers-${selected_version}.tar.gz"
-                    download "$download_url" "$download_file"
-                    execute make "-j$build_threads"
-                    execute make PREFIX="$workspace" install
-                    build_done "nv-codec-headers" "$selected_version"
-                fi
             else
-                # First time building, fetch versions and prompt user
-                fetch_nv_codec_headers_versions
-                prompt_user_for_version
-
-                if build "nv-codec-headers" "$selected_version"; then
-                    download_url="https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz"
-                    download_file="nv-codec-headers-${selected_version}.tar.gz"
-                    download "$download_url" "$download_file"
-                    execute make "-j$build_threads"
-                    execute make PREFIX="$workspace" install
-                    build_done "nv-codec-headers" "$selected_version"
+                fetch_nv_codec_headers_versions \
+                    || fail "Failed to fetch nv-codec-headers releases. Line: ${LINENO}"
+                if "$LATEST"; then
+                    # Newest release (sorted_versions_and_dates is sorted desc by version).
+                    selected_version="${sorted_versions_and_dates[0]%%;*}"
+                    log "Selecting latest nv-codec-headers release: $selected_version"
+                else
+                    prompt_user_for_version
                 fi
+            fi
+
+            if build "nv-codec-headers" "$selected_version"; then
+                download "https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz" \
+                         "nv-codec-headers-${selected_version}.tar.gz"
+                execute make "-j$build_threads"
+                execute make PREFIX="$workspace" install
+                build_done "nv-codec-headers" "$selected_version"
             fi
         fi
 
@@ -347,29 +338,29 @@ EOF
     fi
 
     # Build gpac
-	    git_caller "https://github.com/gpac/gpac.git" "gpac-git"
-	    if build "$repo_name" "$version"; then
-	        # Remove existing directory if it exists
-	        [[ -d "$packages/gpac-git" ]] && rm -fr "$packages/gpac-git"
-	        # Do a full clone instead of shallow clone for gpac
-	        git clone -q "$git_url" "$packages/gpac-git"
-	        cd "$packages/gpac-git" || fail "Failed to cd into gpac-git directory"
-	        # Create the include directory and empty revision.h to prevent rm error
-	        mkdir -p include/gpac
-	        touch include/gpac/revision.h
-	        local -a gpac_sdl_cfg=()
+    git_caller "https://github.com/gpac/gpac.git" "gpac-git"
+    if build "$repo_name" "$version"; then
+        # Remove existing directory if it exists
+        [[ -d "$packages/gpac-git" ]] && rm -fr "$packages/gpac-git"
+        # Do a full clone instead of shallow clone for gpac
+        git clone -q "$git_url" "$packages/gpac-git"
+        cd "$packages/gpac-git" || fail "Failed to cd into gpac-git directory"
+        # Create the include directory and empty revision.h to prevent rm error
+        mkdir -p include/gpac
+        touch include/gpac/revision.h
+        local -a gpac_sdl_cfg=()
         if package_enabled "sdl2" && [[ -x "$workspace/bin/sdl2-config" ]]; then
-	            gpac_sdl_cfg=(--sdl-cfg="$workspace/bin/sdl2-config")
+            gpac_sdl_cfg=(--sdl-cfg="$workspace/bin/sdl2-config")
         elif package_enabled "sdl2" && command -v sdl2-config >/dev/null 2>&1; then
-	            gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
-	        fi
-	        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has internal ogg implementation)
-	        execute sh configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --use-ogg=no "${gpac_sdl_cfg[@]}"
-	        execute make "-j$build_threads"
-	        execute make install
-	        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
-	        build_done "$repo_name" "$version"
-	    fi
+            gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
+        fi
+        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has internal ogg implementation)
+        execute sh configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --use-ogg=no "${gpac_sdl_cfg[@]}"
+        execute make "-j$build_threads"
+        execute make install
+        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
+        build_done "$repo_name" "$version"
+    fi
 
     # Build SVT-AV1
     find_git_repo "24327400" "3" "T"
@@ -427,7 +418,7 @@ EOF
         export PYTHON
         PATH="$ccache_dir:$workspace/python_virtual_environment/vapoursynth/bin:$PATH"
         remove_duplicate_paths
-	    fi
+    fi
     append_configure_options_if_enabled "vapoursynth" "--enable-vapoursynth"
 
     # Build libgav1
@@ -506,17 +497,18 @@ prompt_user_for_version() {
     done
 
     echo
-    local choice regex_choice
+    local choice regex_choice last_index
     regex_choice='^[0-9]+$'
+    last_index=$((index - 1))
     while true; do
-        read -rp "Select a version by number (1-10): " choice
-        if [[ "$choice" =~ $regex_choice ]] && ((choice >= 1 && choice <= index - 1)); then
+        read -rp "Select a version by number (1-$last_index): " choice
+        if [[ "$choice" =~ $regex_choice ]] && ((choice >= 1 && choice <= last_index)); then
             local selected_vd="${sorted_versions_and_dates[$((choice - 1))]}"
             selected_version="${selected_vd%%;*}"
             selected_date="${selected_vd##*;}"
             break
         else
-            printf "\n%s\n\n" "Invalid selection. Please enter a number between 1 and $((index - 1))."
+            printf "\n%s\n\n" "Invalid selection. Please enter a number between 1 and $last_index."
         fi
     done
 
