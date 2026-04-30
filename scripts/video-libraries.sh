@@ -380,7 +380,16 @@ EOF
 
     # Build VapourSynth
     find_git_repo "vapoursynth/vapoursynth" "1" "T"
-    if build "vapoursynth" "R${repo_version}"; then
+    local vapoursynth_package_version="R${repo_version}"
+    if package_enabled "vapoursynth" &&
+        [[ -f "$packages/vapoursynth.done" ]] &&
+        grep -Fx "$vapoursynth_package_version" "$packages/vapoursynth.done" >/dev/null &&
+        ! vapoursynth_sdk_ready_for_ffmpeg; then
+        warn "VapourSynth was marked built, but its FFmpeg SDK files are missing or incomplete; rebuilding it."
+        rm -f "$packages/vapoursynth.done"
+    fi
+
+    if build "vapoursynth" "$vapoursynth_package_version"; then
         download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R${repo_version}.tar.gz" "vapoursynth-R${repo_version}.tar.gz"
 
         venv_packages=("Cython>=3.1.0")
@@ -401,18 +410,29 @@ EOF
         PYTHON3_LIBS="$(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
         export PYTHON3_LIBS
 
+        local vapoursynth_meson_options=()
+        append_meson_project_option_if_exists vapoursynth_meson_options "enable_python_module" "false"
+        append_meson_project_option_if_exists vapoursynth_meson_options "enable_vspipe" "false"
+
         meson_ninja_install "build" \
             --buildtype=release \
-            --default-library=static \
+            --default-library=both \
             --strip \
-            -Denable_python_module=false \
-            -Denable_vspipe=false
+            "${vapoursynth_meson_options[@]}"
+
+        normalize_vapoursynth_sdk_for_ffmpeg ||
+            fail "VapourSynth built, but its FFmpeg SDK files could not be exposed from the Python site-packages install. Line: ${LINENO}"
 
         # Deactivate the virtual environment after the build
         deactivate
 
-        build_done "vapoursynth" "R${repo_version}"
+        build_done "vapoursynth" "$vapoursynth_package_version"
     else
+        if package_enabled "vapoursynth"; then
+            normalize_vapoursynth_sdk_for_ffmpeg ||
+                fail "VapourSynth is enabled but its FFmpeg SDK files are missing. Remove $packages/vapoursynth.done to rebuild it. Line: ${LINENO}"
+        fi
+
         # Explicitly set the PYTHON environment variable to the virtual environment's Python
         PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
         export PYTHON
