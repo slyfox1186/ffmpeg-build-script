@@ -13,6 +13,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
 # Global variables
 remote_cuda_version=""
+CUDA_DOWNLOADS_URL="https://developer.nvidia.com/cuda-downloads"
+CUDA_DOWNLOADS_HTML=""
 DEFAULT_CUDA_VERSION="12.8.1"
 
 # AMD GPU detection
@@ -102,29 +104,124 @@ cuda_version_at_least() {
     [[ "$(printf '%s\n%s\n' "$local_version" "$minimum_version" | sort -V | head -n1)" == "$minimum_version" ]]
 }
 
-# Check remote CUDA version from NVIDIA documentation
-check_remote_cuda_version() {
-    # Use curl to fetch the HTML content of the page
-    local base_version cuda_regex html update_version
+cuda_toolkit_heading_to_version() {
+    local heading="${1:-}"
+    local base_version update_version
 
-    remote_cuda_version=""
-    if ! html=$(curl -fsS https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html | tr -d '\0'); then
+    if [[ "$heading" =~ CUDA[[:space:]]+Toolkit[[:space:]]+([0-9]+\.[0-9]+)([[:space:]]+Update[[:space:]]+([0-9]+))? ]]; then
+        base_version="${BASH_REMATCH[1]}"
+        update_version="${BASH_REMATCH[3]}"
+        printf '%s.%s\n' "$base_version" "${update_version:-0}"
+        return 0
+    fi
+
+    return 1
+}
+
+extract_cuda_versions_from_html() {
+    local html="${1:-}"
+    local heading version
+
+    {
+        printf '%s\n' "$html" |
+            grep -oE '(/compute/cuda/|cuda-toolkit-[0-9]+-[0-9]+_|cuda-repo-[[:alnum:]-]+-[0-9]+-[0-9]+-local_)[0-9]+\.[0-9]+\.[0-9]+' |
+            grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true
+
+        while IFS= read -r heading; do
+            version="$(cuda_toolkit_heading_to_version "$heading" || true)"
+            [[ -n "$version" ]] && printf '%s\n' "$version"
+        done < <(printf '%s\n' "$html" | grep -oE 'CUDA[[:space:]]+Toolkit[[:space:]]+[0-9]+\.[0-9]+([[:space:]]+Update[[:space:]]+[0-9]+)?' || true)
+    } | sort -ruV
+}
+
+ensure_cuda_downloads_html() {
+    local html
+
+    if [[ -n "${CUDA_DOWNLOADS_HTML:-}" ]]; then
+        return 0
+    fi
+
+    if ! html=$(curl -fsSL "$CUDA_DOWNLOADS_URL" | tr -d '\0'); then
         return 1
     fi
 
-    # Parse the version directly from the fetched content
-    cuda_regex='CUDA\ ([0-9]+\.[0-9]+)(\ Update\ ([0-9]+))?'
-    if [[ "$html" =~ $cuda_regex ]]; then
-        base_version="${BASH_REMATCH[1]}"
-        update_version="${BASH_REMATCH[3]}"
-        remote_cuda_version="$base_version"
+    CUDA_DOWNLOADS_HTML="$html"
+}
 
-        # Append the update number if present
-        if [[ -n "$update_version" ]]; then
-            remote_cuda_version+=".$update_version"
-        else
-            remote_cuda_version+=".0"
-        fi
+cuda_toolkit_package_name() {
+    local cuda_version="${1:-}"
+    local cuda_major cuda_minor
+
+    [[ "$cuda_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    IFS='.' read -r cuda_major cuda_minor _ <<< "$cuda_version"
+    printf 'cuda-toolkit-%s-%s\n' "$cuda_major" "$cuda_minor"
+}
+
+cuda_local_installer_filename_from_html() {
+    local html="${1:-}"
+    local distro="${2:-}"
+    local cuda_version="${3:-}"
+    local cuda_major cuda_minor cuda_pkg_version pattern
+
+    [[ -n "$html" ]] || return 1
+    [[ "$distro" =~ ^[[:alnum:]-]+$ ]] || return 1
+    [[ "$cuda_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+
+    IFS='.' read -r cuda_major cuda_minor _ <<< "$cuda_version"
+    cuda_pkg_version="${cuda_major}-${cuda_minor}"
+    pattern="cuda-repo-${distro}-${cuda_pkg_version}-local_${cuda_version}[-_][[:alnum:].-]+_amd64\\.deb"
+
+    printf '%s\n' "$html" | grep -oE "$pattern" | sort -u | head -n1
+}
+
+cuda_local_installer_url() {
+    local cuda_version="${1:-}"
+    local deb_file="${2:-}"
+
+    [[ "$cuda_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    [[ "$deb_file" =~ ^cuda-repo-[[:alnum:]-]+_[[:alnum:].-]+_amd64\.deb$ ]] || return 1
+
+    printf 'https://developer.download.nvidia.com/compute/cuda/%s/local_installers/%s\n' "$cuda_version" "$deb_file"
+}
+
+cuda_local_repo_dir_from_filename() {
+    local deb_file="${1:-}"
+    local repo_name
+
+    [[ "$deb_file" =~ ^cuda-repo-[[:alnum:]-]+_[[:alnum:].-]+_amd64\.deb$ ]] || return 1
+    repo_name="${deb_file%%_*}"
+    printf '/var/%s\n' "$repo_name"
+}
+
+cuda_distro_pin_url() {
+    local distro="${1:-}"
+
+    case "$distro" in
+        ubuntu2204|ubuntu2404|wsl-ubuntu)
+            printf 'https://developer.download.nvidia.com/compute/cuda/repos/%s/x86_64/cuda-%s.pin\n' "$distro" "$distro"
+            ;;
+        debian12|debian13)
+            return 1
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+}
+
+# Check remote CUDA version from NVIDIA's official CUDA downloads page.
+check_remote_cuda_version() {
+    local html version
+
+    remote_cuda_version=""
+    if ! ensure_cuda_downloads_html; then
+        return 1
+    fi
+
+    html="$CUDA_DOWNLOADS_HTML"
+    version="$(extract_cuda_versions_from_html "$html" | head -n1)"
+    if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        remote_cuda_version="$version"
         return 0
     fi
 
@@ -326,17 +423,61 @@ configure_nvidia_architecture_once() {
     return 1
 }
 
+download_cuda_file() {
+    local url="${1:-}"
+    local output_file="${2:-}"
+    local download_success=false
+
+    [[ -n "$url" ]] || fail "download_cuda_file() called without a URL. Line: ${LINENO}"
+    [[ -n "$output_file" ]] || fail "download_cuda_file() called without an output file. Line: ${LINENO}"
+
+    if command -v aria2c &>/dev/null; then
+        log "Using aria2c for high-speed download..."
+        if aria2c -x16 -s16 -k1M --file-allocation=none --console-log-level=warn \
+            --summary-interval=5 --download-result=full \
+            -d "$(dirname "$output_file")" -o "$(basename "$output_file")" "$url"; then
+            download_success=true
+        else
+            warn "aria2c download failed, falling back to wget/curl..."
+        fi
+    fi
+
+    if [[ "$download_success" != "true" ]]; then
+        if command -v wget &>/dev/null; then
+            if wget --show-progress -cq -O "$output_file" "$url"; then
+                download_success=true
+            fi
+        elif curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
+            -o "$output_file" "$url"; then
+            download_success=true
+        fi
+    fi
+
+    [[ "$download_success" == "true" ]]
+}
+
+prompt_reboot_after_cuda_update() {
+    local choice
+
+    echo
+    warn "CUDA was installed or updated. Reboot before continuing so the updated CUDA and NVIDIA driver files are active."
+    read -r -p "Do you want to reboot now? (yes/no): " choice
+    if [[ "$choice" =~ ^(yes|y)$ ]]; then
+        execute sudo reboot
+    fi
+}
+
 # Interactive CUDA toolkit installer
 download_cuda() {
     local -a options=()
     local choice distro deb_file deb_url pin_url
     local cuda_version="${remote_cuda_version:-$DEFAULT_CUDA_VERSION}"
-    local cuda_major cuda_minor cuda_pkg_version cuda_path_suffix cuda_prefix
+    local cuda_path_suffix cuda_prefix cuda_toolkit_pkg downloads_html keyring_dir
 
-    IFS='.' read -r cuda_major cuda_minor _ <<< "$cuda_version"
-    cuda_pkg_version="${cuda_major}-${cuda_minor}"
-    cuda_path_suffix="${cuda_major}.${cuda_minor}"
+    cuda_path_suffix="${cuda_version%.*}"
     cuda_prefix="/usr/local/cuda-${cuda_path_suffix}"
+    cuda_toolkit_pkg="$(cuda_toolkit_package_name "$cuda_version")" ||
+        fail "Invalid CUDA version '$cuda_version'. Line: ${LINENO}"
 
     printf "\n%s\n%s\n\n" "Pick your Linux version from the list below:" "Supported architecture: x86_64"
 
@@ -380,6 +521,17 @@ download_cuda() {
 
     if [[ "$choice" != "Skip" ]]; then
         log "Installing CUDA $cuda_version for $choice..."
+        ensure_cuda_downloads_html ||
+            fail "Failed to fetch NVIDIA CUDA downloads page. Line: ${LINENO}"
+        downloads_html="$CUDA_DOWNLOADS_HTML"
+        deb_file="$(cuda_local_installer_filename_from_html "$downloads_html" "$distro" "$cuda_version")"
+        [[ -n "$deb_file" ]] ||
+            fail "Failed to find a CUDA $cuda_version local installer for $distro x86_64 on NVIDIA's downloads page. Line: ${LINENO}"
+        deb_url="$(cuda_local_installer_url "$cuda_version" "$deb_file")" ||
+            fail "Failed to build CUDA local installer URL for $deb_file. Line: ${LINENO}"
+        keyring_dir="$(cuda_local_repo_dir_from_filename "$deb_file")" ||
+            fail "Failed to derive CUDA local repository directory from $deb_file. Line: ${LINENO}"
+        pin_url="$(cuda_distro_pin_url "$distro" || true)"
 
         # Use secure temporary directory with cleanup trap (restore any prior traps).
         local temp_dir
@@ -407,106 +559,37 @@ download_cuda() {
         }
         trap cleanup_cuda_temp EXIT ERR INT TERM
 
-        # Debian 13 uses local installer method (different from keyring method)
-        if [[ "$distro" == "debian13" ]]; then
-            # Debian 13 uses CUDA 13.1 with local installer
-            local deb13_cuda_version=13.1.0
-            local deb13_driver_version=590.44.01-1
-            local deb13_pkg_version=13-1
-            local deb13_deb_file="cuda-repo-debian13-13-1-local_${deb13_cuda_version}-${deb13_driver_version}_amd64.deb"
-            local deb13_deb_url="https://developer.download.nvidia.com/compute/cuda/${deb13_cuda_version}/local_installers/${deb13_deb_file}"
-            local deb13_cuda_prefix=/usr/local/cuda-13.1
-
-            log "Downloading CUDA ${deb13_cuda_version} local installer for Debian 13..."
-
-            # Download the local installer package
-            # Prefer aria2c (tuned for high-speed fiber connections), fall back to wget
-            local download_success=false
-            if command -v aria2c &>/dev/null; then
-                log "Using aria2c for high-speed download..."
-                if aria2c -x16 -s16 -k1M --file-allocation=none --console-log-level=warn \
-                    --summary-interval=5 --download-result=full \
-                    -d "$temp_dir" -o "$deb13_deb_file" "$deb13_deb_url"; then
-                    download_success=true
-                else
-                    warn "aria2c download failed, falling back to wget..."
-                fi
-            fi
-
-            if [[ "$download_success" != "true" ]]; then
-                if command -v wget &>/dev/null; then
-                    log "Using wget for download..."
-                    if wget --show-progress -cq -O "$temp_dir/$deb13_deb_file" "$deb13_deb_url"; then
-                        download_success=true
-                    fi
-                else
-                    # Final fallback to curl
-                    if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
-                        -o "$temp_dir/$deb13_deb_file" "$deb13_deb_url"; then
-                        download_success=true
-                    fi
-                fi
-            fi
-
-            if [[ "$download_success" != "true" ]]; then
-                cleanup_cuda_temp
-                fail "Failed to download CUDA local installer package"
-            fi
-
-            sudo dpkg -i "$temp_dir/$deb13_deb_file" || { cleanup_cuda_temp; fail "Failed to install CUDA local repository package"; }
-
-            # Copy the keyring from the local repo
-            sudo cp -f /var/cuda-repo-debian13-13-1-local/cuda-*-keyring.gpg /usr/share/keyrings/ || warn "Failed to copy CUDA keyring"
-
-            # Update package lists and install CUDA
-            sudo apt update
-            if sudo apt -y install "cuda-toolkit-${deb13_pkg_version}"; then
-                log "CUDA ${deb13_cuda_version} installed successfully."
-                if [[ -d "$deb13_cuda_prefix/bin" ]]; then
-                    export PATH="$deb13_cuda_prefix/bin:$PATH"
-                fi
-                if [[ -d "$deb13_cuda_prefix/lib64" ]]; then
-                    export LD_LIBRARY_PATH="$deb13_cuda_prefix/lib64:$LD_LIBRARY_PATH"
-                fi
-            else
-                cleanup_cuda_temp
-                fail "Failed to install CUDA toolkit"
-            fi
-        else
-            # Other distros use keyring/network installer method
-            deb_file="cuda-keyring_1.1-1_all.deb"
-            deb_url="https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/$deb_file"
-            pin_url="https://developer.download.nvidia.com/compute/cuda/repos/$distro/x86_64/cuda-$distro.pin"
-
-            # Download and install the CUDA keyring
-            if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/$deb_file" "$deb_url"; then
-                sudo dpkg -i "$temp_dir/$deb_file" || { cleanup_cuda_temp; fail "Failed to install CUDA keyring package"; }
-            else
-                cleanup_cuda_temp
-                fail "Failed to download CUDA keyring package"
-            fi
-
-            # Add the CUDA repository pin
+        if [[ -n "$pin_url" ]]; then
             if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/cuda.pin" "$pin_url"; then
                 sudo mv "$temp_dir/cuda.pin" /etc/apt/preferences.d/cuda-repository-pin-600
             else
-                warn "Failed to download CUDA repository pin file"
-            fi
-
-            # Update package lists and install CUDA
-            sudo apt update
-            if sudo apt -y install "cuda-toolkit-${cuda_pkg_version}"; then
-                log "CUDA $cuda_version installed successfully."
-                if [[ -d "$cuda_prefix/bin" ]]; then
-                    export PATH="$cuda_prefix/bin:$PATH"
-                fi
-                if [[ -d "$cuda_prefix/lib64" ]]; then
-                    export LD_LIBRARY_PATH="$cuda_prefix/lib64:$LD_LIBRARY_PATH"
-                fi
-            else
                 cleanup_cuda_temp
-                fail "Failed to install CUDA toolkit"
+                fail "Failed to download CUDA repository pin file"
             fi
+        fi
+
+        log "Downloading CUDA $cuda_version local installer: $deb_file"
+        download_cuda_file "$deb_url" "$temp_dir/$deb_file" ||
+            { cleanup_cuda_temp; fail "Failed to download CUDA local installer package"; }
+
+        sudo dpkg -i "$temp_dir/$deb_file" ||
+            { cleanup_cuda_temp; fail "Failed to install CUDA local repository package"; }
+        sudo cp -f "$keyring_dir"/cuda-*-keyring.gpg /usr/share/keyrings/ ||
+            { cleanup_cuda_temp; fail "Failed to copy CUDA keyring from $keyring_dir"; }
+
+        sudo apt update
+        if sudo apt -y install "$cuda_toolkit_pkg"; then
+            log "CUDA $cuda_version installed successfully."
+            if [[ -d "$cuda_prefix/bin" ]]; then
+                export PATH="$cuda_prefix/bin:$PATH"
+            fi
+            if [[ -d "$cuda_prefix/lib64" ]]; then
+                export LD_LIBRARY_PATH="$cuda_prefix/lib64:$LD_LIBRARY_PATH"
+            fi
+            prompt_reboot_after_cuda_update
+        else
+            cleanup_cuda_temp
+            fail "Failed to install CUDA toolkit"
         fi
 
         # Clean up temporary files and restore previous traps
