@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2154 source=/dev/null
 
 ####################################################################################
 ##

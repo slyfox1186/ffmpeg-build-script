@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2068,SC2162,SC2317 source=/dev/null
+# shellcheck source=/dev/null
 
 # Enable debug output to see what's happening
 # set -x
@@ -14,8 +14,6 @@ set -o pipefail
 ##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
 ##
 ##  Script version: 4.3.1
-##
-##  Updated: 12.24.2025
 ##
 ##  CUDA SDK Toolkit version: 12.3.1
 ##
@@ -88,6 +86,9 @@ usage() {
 }
 
 COMPILER_FLAG=""
+# Populated by helpers in shared-utils.sh (append_configure_options_if_enabled)
+# and consumed by ffmpeg-build.sh; shellcheck can't see the cross-file use.
+# shellcheck disable=SC2034
 CONFIGURE_OPTIONS=()
 LATEST=false
 NONFREE_AND_GPL=false

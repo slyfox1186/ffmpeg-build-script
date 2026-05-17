@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
+# shellcheck source=/dev/null
 
 ####################################################################################
 ##
@@ -546,6 +546,9 @@ download_cuda() {
         restore_trap() {
             local sig=$1
             local saved=$2
+            # `$saved` is the output of `trap -p <sig>` (set above with $(trap -p ...)).
+            # bash already shell-quotes that output to be re-evaluable, so eval here
+            # is safe by construction; this is the documented restore-pattern for traps.
             if [[ -n "$saved" ]]; then
                 eval "$saved"
             else
@@ -605,7 +608,7 @@ download_cuda() {
 install_cuda() {
     local choice
 
-    echo -e "${CYAN}Checking GPU Status${NC}"
+    printf '%sChecking GPU Status%s\n' "$CYAN" "$NC"
     echo "========================================================"
     # Reuse GPU detection results from initialize_hardware_detection() instead of
     # re-running expensive hardware probes (lshw, lspci, nvidia-smi, etc.).
@@ -623,15 +626,15 @@ install_cuda() {
     fi
 
     if [[ "$amd_gpu_test" == "AMD GPU detected" ]] && [[ "$is_nvidia_gpu_present" == "NVIDIA GPU not detected" ]]; then
-        echo -e "${YELLOW}⚡${NC} AMD GPU detected"
-        echo -e "${RED}✗${NC} NVIDIA GPU not detected"
+        printf '%s⚡%s AMD GPU detected\n' "$YELLOW" "$NC"
+        printf '%s✗%s NVIDIA GPU not detected\n' "$RED" "$NC"
         warn "CUDA Hardware Acceleration will not be enabled"
         gpu_flag=1
         export gpu_flag
         return 0
     elif [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
-        echo -e "${GREEN}✓${NC} NVIDIA GPU detected"
-        echo -e "${CYAN}→${NC} Checking CUDA installation status..."
+        printf '%s✓%s NVIDIA GPU detected\n' "$GREEN" "$NC"
+        printf '%s→%s Checking CUDA installation status...\n' "$CYAN" "$NC"
         local remote_ok=false
         if check_remote_cuda_version; then
             remote_ok=true
@@ -641,11 +644,12 @@ install_cuda() {
         local_cuda_version=$(get_local_cuda_version)
 
         if [[ -z "$local_cuda_version" ]]; then
-            echo -e "${YELLOW}!${NC} CUDA is not currently installed"
+            printf '%s!%s CUDA is not currently installed\n' "$YELLOW" "$NC"
             if [[ "$remote_ok" == "true" ]]; then
-                echo -e "${CYAN}→${NC} Latest available version: ${GREEN}$remote_cuda_version${NC}"
+                printf '%s→%s Latest available version: %s%s%s\n' "$CYAN" "$NC" "$GREEN" "$remote_cuda_version" "$NC"
             else
-                echo -e "${CYAN}→${NC} Latest available version: ${YELLOW}Unknown${NC} (defaulting to ${GREEN}$DEFAULT_CUDA_VERSION${NC} if you install)"
+                printf '%s→%s Latest available version: %sUnknown%s (defaulting to %s%s%s if you install)\n' \
+                    "$CYAN" "$NC" "$YELLOW" "$NC" "$GREEN" "$DEFAULT_CUDA_VERSION" "$NC"
             fi
             echo
             read -r -p "Do you want to install the latest CUDA version? (yes/no): " choice
@@ -665,9 +669,12 @@ install_cuda() {
         if [[ "$remote_ok" == "true" ]]; then
             if cuda_version_at_least "$local_cuda_version" "$remote_cuda_version"; then
                 if [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
-                    echo -e "${GREEN}✓${NC} CUDA ${GREEN}$local_cuda_version${NC} is installed and up to date"
+                    printf '%s✓%s CUDA %s%s%s is installed and up to date\n' \
+                        "$GREEN" "$NC" "$GREEN" "$local_cuda_version" "$NC"
                 else
-                    echo -e "${GREEN}✓${NC} CUDA ${GREEN}$local_cuda_version${NC} is installed and newer than detected latest ${GREEN}$remote_cuda_version${NC}"
+                    printf '%s✓%s CUDA %s%s%s is installed and newer than detected latest %s%s%s\n' \
+                        "$GREEN" "$NC" "$GREEN" "$local_cuda_version" "$NC" \
+                        "$GREEN" "$remote_cuda_version" "$NC"
                 fi
                 gpu_flag=0
                 export gpu_flag
@@ -675,8 +682,8 @@ install_cuda() {
                 return 0
             fi
 
-            echo -e "${YELLOW}!${NC} Installed CUDA version: ${YELLOW}$local_cuda_version${NC}"
-            echo -e "${CYAN}→${NC} Latest available version: ${GREEN}$remote_cuda_version${NC}"
+            printf '%s!%s Installed CUDA version: %s%s%s\n' "$YELLOW" "$NC" "$YELLOW" "$local_cuda_version" "$NC"
+            printf '%s→%s Latest available version: %s%s%s\n' "$CYAN" "$NC" "$GREEN" "$remote_cuda_version" "$NC"
             read -r -p "Do you want to update/reinstall CUDA to the latest version? (yes/no): " choice
             if [[ "$choice" =~ ^(yes|y)$ ]]; then
                 download_cuda
@@ -694,7 +701,7 @@ install_cuda() {
             return 0
         fi
 
-        echo -e "${YELLOW}!${NC} Installed CUDA version: ${YELLOW}$local_cuda_version${NC}"
+        printf '%s!%s Installed CUDA version: %s%s%s\n' "$YELLOW" "$NC" "$YELLOW" "$local_cuda_version" "$NC"
         warn "Unable to check for CUDA updates. Skipping update prompt."
         gpu_flag=0
         export gpu_flag
@@ -735,7 +742,7 @@ install_windows_hardware_acceleration() {
 # Initialize hardware detection
 initialize_hardware_detection() {
     echo
-    echo -e "${CYAN}Detecting Hardware${NC}"
+    printf '%sDetecting Hardware%s\n' "$CYAN" "$NC"
     echo "========================================================"
 
     # Check AMD GPU
@@ -746,14 +753,14 @@ initialize_hardware_detection() {
 
     # Set up GPU flags and display results
     if [[ "$amd_gpu_test" == "AMD GPU detected" ]]; then
-        echo -e "${YELLOW}⚡${NC} AMD GPU: ${YELLOW}Detected${NC}"
+        printf '%s⚡%s AMD GPU: %sDetected%s\n' "$YELLOW" "$NC" "$YELLOW" "$NC"
     fi
 
     if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
-        echo -e "${GREEN}✓${NC} NVIDIA GPU: ${GREEN}Detected${NC}"
+        printf '%s✓%s NVIDIA GPU: %sDetected%s\n' "$GREEN" "$NC" "$GREEN" "$NC"
         gpu_flag=0
     else
-        echo -e "${RED}✗${NC} NVIDIA GPU: ${RED}Not detected${NC}"
+        printf '%s✗%s NVIDIA GPU: %sNot detected%s\n' "$RED" "$NC" "$RED" "$NC"
         if [[ "$amd_gpu_test" != "AMD GPU detected" ]]; then
             warn "No compatible GPU detected"
         else
