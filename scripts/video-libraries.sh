@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2154 source=/dev/null
 
 ####################################################################################
 ##
@@ -499,13 +499,13 @@ fetch_nv_codec_headers_versions() {
 
 prompt_user_for_version() {
     echo
-    echo -e "${GREEN}Available ${YELLOW}nv-codec-headers ${GREEN}versions${NC}:"
+    printf '%sAvailable %snv-codec-headers %sversions%s:\n' "$GREEN" "$YELLOW" "$GREEN" "$NC"
     echo "------------------------------------"
 
     local index
     index=1
 
-    echo -e "\n${GREEN}     Version        ${YELLOW}Date${NC}"
+    printf '\n%s     Version        %sDate%s\n' "$GREEN" "$YELLOW" "$NC"
     for vd in "${sorted_versions_and_dates[@]}"; do
         local formatted_date version
         version="${vd%%;*}"

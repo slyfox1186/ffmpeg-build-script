@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2068,SC2154,SC2162,SC2317 source=/dev/null
+# shellcheck disable=SC2154,SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -21,12 +21,14 @@ if [[ -n "${_SHARED_UTILS_LOADED:-}" ]]; then
 fi
 _SHARED_UTILS_LOADED=1
 
-# Pre-defined color variables
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Pre-defined color variables (ANSI-C quoting embeds the real ESC character so
+# we can emit them with plain `printf '%s'` instead of relying on the non-portable
+# `echo -e`. Refs: bash-hackers wiki, "Portability talk > echo command".)
+GREEN=$'\033[0;32m'
+RED=$'\033[0;31m'
+YELLOW=$'\033[0;33m'
+CYAN=$'\033[0;36m'
+NC=$'\033[0m'
 
 # Set a regex string to match and then exclude any found release candidate versions
 git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
@@ -75,7 +77,7 @@ log() {
 }
 
 warn() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    printf '%s[WARNING]%s %s\n' "$YELLOW" "$NC" "$1"
 }
 
 require_vars() {
@@ -455,9 +457,9 @@ require_sudo() {
 
 fail() {
     echo
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf '%s[ERROR]%s %s\n' "$RED" "$NC" "$1"
     echo
-    echo -e "${GREEN}[INFO]${NC} For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues"
+    printf '%s[INFO]%s For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues\n' "$GREEN" "$NC"
     if [[ "${GOOGLE_SPEECH:-false}" == "true" ]] && command -v google_speech >/dev/null 2>&1; then
         google_speech "Build failed. $1" >/dev/null 2>&1 || true
     fi
@@ -473,22 +475,22 @@ exit_fn() {
     echo
     box_out_banner "🎉 FFmpeg Build Completed Successfully! 🎉"
     echo
-    echo -e "${GREEN}✓ FFmpeg version:${NC} $("$ffmpeg_full_path" -version 2>/dev/null | grep -oP 'ffmpeg version \K\d+\.\d+(?:\.\d+)?' || echo 'Unknown')"
-    echo -e "${GREEN}✓ Installation path:${NC} /usr/local/bin"
-    echo -e "${GREEN}✓ Built tools:${NC} ffmpeg, ffprobe, ffplay"
-    echo -e "${GREEN}✓ Configuration:${NC} Static build with all supported codecs"
+    printf '%s✓ FFmpeg version:%s %s\n' "$GREEN" "$NC" "$("$ffmpeg_full_path" -version 2>/dev/null | grep -oP 'ffmpeg version \K\d+\.\d+(?:\.\d+)?' || echo 'Unknown')"
+    printf '%s✓ Installation path:%s /usr/local/bin\n' "$GREEN" "$NC"
+    printf '%s✓ Built tools:%s ffmpeg, ffprobe, ffplay\n' "$GREEN" "$NC"
+    printf '%s✓ Configuration:%s Static build with all supported codecs\n' "$GREEN" "$NC"
     echo
-    echo -e "${GREEN}✓ Available encoders:${NC} $("$ffmpeg_full_path" -encoders 2>/dev/null | grep -c . || echo 'N/A')"
-    echo -e "${GREEN}✓ Available decoders:${NC} $("$ffmpeg_full_path" -decoders 2>/dev/null | grep -c . || echo 'N/A')"
-    echo -e "${GREEN}✓ Available filters:${NC} $("$ffmpeg_full_path" -filters 2>/dev/null | grep -c . || echo 'N/A')"
+    printf '%s✓ Available encoders:%s %s\n' "$GREEN" "$NC" "$("$ffmpeg_full_path" -encoders 2>/dev/null | grep -c . || echo 'N/A')"
+    printf '%s✓ Available decoders:%s %s\n' "$GREEN" "$NC" "$("$ffmpeg_full_path" -decoders 2>/dev/null | grep -c . || echo 'N/A')"
+    printf '%s✓ Available filters:%s %s\n' "$GREEN" "$NC" "$("$ffmpeg_full_path" -filters 2>/dev/null | grep -c . || echo 'N/A')"
     echo
-    echo -e "${GREEN}✓ Hardware acceleration:${NC} CUDA, NVENC/NVDEC, VDPAU, AMF (if available)"
-    echo -e "${GREEN}✓ Key libraries:${NC} x264, x265, libopus, libvorbis, webp, SDL2, and more"
+    printf '%s✓ Hardware acceleration:%s CUDA, NVENC/NVDEC, VDPAU, AMF (if available)\n' "$GREEN" "$NC"
+    printf '%s✓ Key libraries:%s x264, x265, libopus, libvorbis, webp, SDL2, and more\n' "$GREEN" "$NC"
     echo
-    echo -e "${YELLOW}You can now use FFmpeg, ffprobe, and ffplay from anywhere in your terminal!${NC}"
+    printf '%sYou can now use FFmpeg, ffprobe, and ffplay from anywhere in your terminal!%s\n' "$YELLOW" "$NC"
     echo
-    echo -e "${GREEN}[INFO]${NC} Make sure to ${YELLOW}star${NC} this repository to show your support!"
-    echo -e "${GREEN}[INFO]${NC} https://github.com/slyfox1186/ffmpeg-build-script"
+    printf '%s[INFO]%s Make sure to %sstar%s this repository to show your support!\n' "$GREEN" "$NC" "$YELLOW" "$NC"
+    printf '%s[INFO]%s https://github.com/slyfox1186/ffmpeg-build-script\n' "$GREEN" "$NC"
     echo
     exit 0
 }
@@ -575,7 +577,9 @@ build() {
     fi
 
     echo
-    echo -e "${GREEN}Building${NC} ${YELLOW}$package_name${NC} - ${GREEN}version ${YELLOW}$package_version${NC}"
+    printf '%sBuilding%s %s%s%s - %sversion %s%s%s\n' \
+        "$GREEN" "$NC" "$YELLOW" "$package_name" "$NC" \
+        "$GREEN" "$YELLOW" "$package_version" "$NC"
     echo "========================================================"
 
     if [[ -f "$packages/$package_name.done" ]]; then
@@ -1855,12 +1859,12 @@ display_ffmpeg_versions() {
     echo
     for file in "${files[@]}"; do
         if [[ -x "$install_path/$file" ]]; then
-            echo -e "${GREEN}$file${NC} (${CYAN}$install_path/$file${NC}):"
-            "$install_path/$file" -version | head -1
+            printf '%s%s%s (%s%s%s):\n' "$GREEN" "$file" "$NC" "$CYAN" "$install_path/$file" "$NC"
+            "$install_path/$file" -version | head -n 1
             echo
         elif command -v "$file" >/dev/null 2>&1; then
-            echo -e "${YELLOW}$file${NC} ($(which "$file")):"
-            "$file" -version | head -1
+            printf '%s%s%s (%s):\n' "$YELLOW" "$file" "$NC" "$(command -v -- "$file")"
+            "$file" -version | head -n 1
             echo
         fi
     done
