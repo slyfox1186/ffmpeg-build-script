@@ -112,6 +112,56 @@ build_ffmpeg() {
         # Check for system-installed libraries (from APT)
         package_enabled "libbluray" && pkgconf --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
 
+        # ── System libraries whose -dev headers are installed by system-setup.sh ──
+        # Each is enabled by default but skipped if the dev package is absent on this
+        # distro (so a missing lib can never fail FFmpeg's configure). Detection mirrors
+        # FFmpeg 8.0's own configure: pkg-config for libs that ship a .pc, header probe
+        # for the rest. Override any of these with `<key> = false` in a --config TOML.
+        # pkg-config-detected:
+        package_enabled "libdav1d"     && library_exists dav1d        && OPTIONAL_LIBS+=(--enable-libdav1d)
+        package_enabled "libvpl"       && library_exists vpl          && OPTIONAL_LIBS+=(--enable-libvpl)
+        package_enabled "libspeex"     && library_exists speex        && OPTIONAL_LIBS+=(--enable-libspeex)
+        package_enabled "libssh"       && library_exists libssh       && OPTIONAL_LIBS+=(--enable-libssh)
+        package_enabled "chromaprint"  && library_exists libchromaprint && OPTIONAL_LIBS+=(--enable-chromaprint)
+        package_enabled "libjxl"       && library_exists libjxl && library_exists libjxl_threads && OPTIONAL_LIBS+=(--enable-libjxl)
+        package_enabled "libtesseract" && library_exists tesseract    && OPTIONAL_LIBS+=(--enable-libtesseract)
+        package_enabled "libzvbi"      && library_exists zvbi-0.2     && OPTIONAL_LIBS+=(--enable-libzvbi)
+        package_enabled "libmodplug"   && library_exists libmodplug   && OPTIONAL_LIBS+=(--enable-libmodplug)
+        package_enabled "libgme"       && library_exists libgme       && OPTIONAL_LIBS+=(--enable-libgme)
+        package_enabled "libshine"     && library_exists shine        && OPTIONAL_LIBS+=(--enable-libshine)
+        package_enabled "libcaca"      && library_exists caca         && OPTIONAL_LIBS+=(--enable-libcaca)
+        package_enabled "libbs2b"      && library_exists libbs2b      && OPTIONAL_LIBS+=(--enable-libbs2b)
+        package_enabled "libjack"      && library_exists jack         && OPTIONAL_LIBS+=(--enable-libjack)
+        package_enabled "libv4l2"      && library_exists libv4l2      && OPTIONAL_LIBS+=(--enable-libv4l2)
+        package_enabled "xlib"         && library_exists x11          && OPTIONAL_LIBS+=(--enable-xlib)
+        # header/static-lib-detected (no pkg-config file shipped):
+        package_enabled "libsnappy"    && header_exists snappy-c.h    && OPTIONAL_LIBS+=(--enable-libsnappy)
+        package_enabled "libtwolame"   && header_exists twolame.h     && OPTIONAL_LIBS+=(--enable-libtwolame)
+        package_enabled "libvo-amrwbenc" && header_exists vo-amrwbenc/enc_if.h && OPTIONAL_LIBS+=(--enable-libvo-amrwbenc)
+        package_enabled "libgsm"       && { header_exists gsm.h || header_exists gsm/gsm.h; } && OPTIONAL_LIBS+=(--enable-libgsm)
+        package_enabled "ladspa"       && header_exists ladspa.h      && OPTIONAL_LIBS+=(--enable-ladspa)
+        package_enabled "opengl"       && header_exists GL/glx.h      && OPTIONAL_LIBS+=(--enable-opengl)
+        # frei0r is GPL: only when GPL/non-free is enabled (and --enable-gpl is set).
+        [[ "${NONFREE_AND_GPL:-false}" == "true" ]] && package_enabled "frei0r" && header_exists frei0r.h && OPTIONAL_LIBS+=(--enable-frei0r)
+        # Additional system libraries (dev packages added to system-setup.sh). Same guard
+        # model; version-pinned where FFmpeg's configure mandates a minimum version.
+        package_enabled "libopenh264" && library_exists "openh264 >= 1.3.0"      && OPTIONAL_LIBS+=(--enable-libopenh264)
+        package_enabled "libopenmpt"  && library_exists "libopenmpt >= 0.2.6557" && OPTIONAL_LIBS+=(--enable-libopenmpt)
+        package_enabled "librtmp"     && library_exists librtmp                  && OPTIONAL_LIBS+=(--enable-librtmp)
+        package_enabled "librsvg"     && library_exists librsvg-2.0              && OPTIONAL_LIBS+=(--enable-librsvg)
+        package_enabled "libflite"    && header_exists flite/flite.h             && OPTIONAL_LIBS+=(--enable-libflite)
+        package_enabled "alsa"        && library_exists alsa                     && OPTIONAL_LIBS+=(--enable-alsa)
+        package_enabled "libpulse"    && library_exists libpulse                 && OPTIONAL_LIBS+=(--enable-libpulse)
+        package_enabled "sndio"       && library_exists sndio                    && OPTIONAL_LIBS+=(--enable-sndio)
+        # Vulkan GPU stack: headers are built into the workspace (vulkan_headers_recent
+        # checks FFmpeg's >= 1.3.277 floor); libshaderc supplies the SPIR-V compiler that
+        # the vulkan filters need; vf_libplacebo needs both vulkan and libplacebo, so
+        # libplacebo is gated on the headers too. libshaderc/libglslang are mutually
+        # exclusive in FFmpeg — shaderc is the recommended one, so libglslang is left off.
+        package_enabled "vulkan"     && vulkan_headers_recent                                       && OPTIONAL_LIBS+=(--enable-vulkan)
+        package_enabled "libshaderc" && library_exists "shaderc >= 2019.1"                          && OPTIONAL_LIBS+=(--enable-libshaderc)
+        package_enabled "libplacebo" && vulkan_headers_recent && library_exists "libplacebo >= 5.229.0" && OPTIONAL_LIBS+=(--enable-libplacebo)
+
         # ═══════════════════════════════════════════════════════════════════════════
         # CUDA/NVENC Hardware Acceleration Support
         # ═══════════════════════════════════════════════════════════════════════════

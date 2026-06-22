@@ -618,6 +618,21 @@ build_done() {
 
 library_exists() { pkgconf --exists --print-errors "$1" >/dev/null 2>&1; }
 
+# True if the active C toolchain can locate the given header (e.g. "frei0r.h",
+# "gsm/gsm.h"). Used to gate FFmpeg options for system libraries that ship a
+# header/static lib but no pkg-config file, mirroring how FFmpeg's own configure
+# detects them. No hardcoded include paths: the compiler's search path decides.
+header_exists() { printf '#include <%s>\n' "$1" | "${CC:-cc}" -E -x c - >/dev/null 2>&1; }
+
+# True if the Vulkan headers on the workspace include path meet FFmpeg 8.0's floor
+# for --enable-vulkan (VK_HEADER_VERSION >= 277, or Vulkan 1.4+). This is the exact
+# condition FFmpeg's own configure uses; most distros ship older headers, so the
+# workspace gets newer ones from the Vulkan-Headers build.
+vulkan_headers_recent() {
+    printf '#include <vulkan/vulkan.h>\n#if !(defined(VK_VERSION_1_4) || (defined(VK_VERSION_1_3) && VK_HEADER_VERSION >= 277))\n#error vulkan headers too old\n#endif\n' \
+        | "${CC:-cc}" -I"${workspace:-/nonexistent}/include" -E -x c - >/dev/null 2>&1
+}
+
 # File download and extraction
 download_try() {
     local download_file download_path download_url output_directory target_directory target_file
@@ -1924,6 +1939,25 @@ restore_compiler_flags() {
     CPPFLAGS="$_SAVED_CPPFLAGS"
     LDFLAGS="$_SAVED_LDFLAGS"
     export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
+}
+
+# Echo a separator-delimited list ($1) with every entry that points inside
+# $workspace removed. $2 is the separator (defaults to a space). Matches both
+# bare paths (e.g. PKG_CONFIG_PATH entries) and -I/-L flags. Used to build host
+# tools without exposing the half-built dependency tree we install in $workspace.
+strip_workspace_entries() {
+    local input="$1" sep="${2:- }"
+    local -a parts=()
+    local part result=""
+    IFS="$sep" read -ra parts <<<"$input"
+    for part in "${parts[@]}"; do
+        [[ -n "$part" ]] || continue
+        case "$part" in
+            "$workspace"/*|"$workspace"|-I"$workspace"*|-L"$workspace"*) continue ;;
+        esac
+        result="${result:+$result$sep}$part"
+    done
+    printf '%s' "$result"
 }
 
 # Autotools helper: avoid running `autoupdate` (it rewrites upstream build files).

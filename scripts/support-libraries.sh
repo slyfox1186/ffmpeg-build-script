@@ -51,6 +51,12 @@ install_miscellaneous_libraries() {
             execute make install
             build_done "gnutls" "$repo_version"
         fi
+
+        # Wire FFmpeg's TLS to the gnutls stack just built (free builds only; GPL/non-free
+        # builds use OpenSSL instead). Without this, a default build has no https/tls
+        # support at all. gmp additionally enables rtmpe/rtmpte.
+        append_configure_options_if_enabled "gnutls" "--enable-gnutls"
+        append_configure_options_if_enabled "gmp" "--enable-gmp"
     fi
 
     # Build freetype
@@ -221,6 +227,18 @@ install_miscellaneous_libraries() {
         build_done "$repo_name" "$version"
     fi
     append_configure_options_if_enabled "opencl-sdk-git" "--enable-opencl"
+
+    # Build Vulkan-Headers (header-only). FFmpeg 8.0 needs Vulkan headers >= 1.3.277
+    # for --enable-vulkan — newer than most distros ship — so install current headers
+    # into the workspace. FFmpeg loads the Vulkan loader (libvulkan1) at runtime, so
+    # only headers are required at build time; the --enable-vulkan flag is gated in
+    # ffmpeg-build.sh by vulkan_headers_recent against these workspace headers.
+    git_caller "https://github.com/KhronosGroup/Vulkan-Headers.git" "vulkan-headers-git"
+    if build "$repo_name" "$version"; then
+        cd "$packages/vulkan-headers-git" || fail "Failed to cd into vulkan-headers-git. Line: ${LINENO}"
+        cmake_ninja_install "build" -DVULKAN_HEADERS_ENABLE_MODULE=OFF
+        build_done "$repo_name" "$version"
+    fi
 
     # Build libjpeg-turbo
     find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"

@@ -57,6 +57,9 @@ apt_pkgs() {
         libogg-dev libsdl2-dev libvorbis-dev libvpx-dev libwebp-dev libxml2-dev
         m4 meson nasm nettle-dev ninja-build perl pkgconf python3 python3-dev python3-pip
         python3-venv valgrind yasm zlib1g-dev libmpg123-dev
+        libopenh264-dev libopenmpt-dev flite1-dev libasound2-dev libpulse-dev
+        libsndio-dev librtmp-dev librsvg2-dev
+        libvulkan-dev libshaderc-dev libplacebo-dev
     )
 
     # Note: GPU detection happens later; keep package install independent from GPU probing.
