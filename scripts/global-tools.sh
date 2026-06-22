@@ -95,9 +95,26 @@ install_global_tools() {
     find_git_repo "Kitware/CMake" "1" "T"
     if build "cmake" "$repo_version"; then
         download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
+        # CMake bootstraps with its own bundled curl and must build as a standalone
+        # host tool. A previous run may have installed a static OpenSSL (libcrypto.a,
+        # built with zlib) into $workspace. While the workspace is visible, CMake's
+        # bundled curl discovers that OpenSSL through pkg-config and links the static
+        # libcrypto.a with the non-static flag set ("-lssl -lcrypto", no "-lz"),
+        # leaving zlib symbols (inflate/deflate/...) undefined. Hide the workspace
+        # from CMake's build (both pkg-config discovery and the -L link path) so it
+        # falls back to the system OpenSSL, which resolves its own zlib dependency.
+        local cmake_saved_pkg_config_path="${PKG_CONFIG_PATH:-}"
+        save_compiler_flags
+        CPPFLAGS="$(strip_workspace_entries "$CPPFLAGS")"
+        LDFLAGS="$(strip_workspace_entries "$LDFLAGS")"
+        PKG_CONFIG_PATH="$(strip_workspace_entries "${PKG_CONFIG_PATH:-}" ":")"
+        export CPPFLAGS LDFLAGS PKG_CONFIG_PATH
         execute ./bootstrap --prefix="$workspace" --parallel="$build_threads" --enable-ccache --no-qt-gui --no-debugger
         execute make "-j$build_threads"
         execute make install
+        restore_compiler_flags
+        PKG_CONFIG_PATH="$cmake_saved_pkg_config_path"
+        export PKG_CONFIG_PATH
         build_done "cmake" "$repo_version"
     fi
 

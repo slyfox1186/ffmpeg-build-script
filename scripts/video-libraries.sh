@@ -30,6 +30,26 @@ install_video_libraries() {
     fi
     append_configure_options_if_enabled "av1-git" "--enable-libaom"
 
+    # Build libvmaf (VMAF perceptual quality metric → FFmpeg vmaf/libvmaf filter).
+    # Not packaged for Debian/Ubuntu, so build from source. built_in_models embeds the
+    # default models so the filter works without external model files; enable_float adds
+    # the float feature extractors the standard VMAF model needs.
+    find_git_repo "Netflix/vmaf" "1" "T"
+    local vmaf_version="${repo_version:-3.1.0}"
+    if build "libvmaf" "$vmaf_version"; then
+        download "https://github.com/Netflix/vmaf/archive/refs/tags/v$vmaf_version.tar.gz" "libvmaf-$vmaf_version.tar.gz"
+        cd "libvmaf" || fail "Failed to cd into libvmaf. Line: $LINENO"
+        meson_ninja_install "build" \
+            --buildtype=release \
+            --default-library=static \
+            -Denable_tests=false \
+            -Denable_docs=false \
+            -Dbuilt_in_models=true \
+            -Denable_float=true
+        build_done "libvmaf" "$vmaf_version"
+    fi
+    append_configure_options_if_enabled "libvmaf" "--enable-libvmaf"
+
     # Build rav1e (Rust-based AV1 encoder)
     find_git_repo "xiph/rav1e" "1" "T" "enabled"
     if build "rav1e" "$repo_version"; then
@@ -376,7 +396,9 @@ EOF
         [[ -d "$workspace/lib/pkgconfig" ]] && [[ -f "Build/linux/SvtAv1Dec.pc" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig/"
         build_done "svt-av1" "$repo_version"
     fi
-    # CONFIGURE_OPTIONS+=("--enable-libsvtav1") # Disabled due to API incompatibility with FFmpeg 6.1.2
+    # SVT-AV1 (AV1 encoder). The old FFmpeg 6.1.2 API mismatch no longer applies on the
+    # 8.0 target; modern SVT-AV1 (>= 0.9) links normally via SvtAv1Enc.pc.
+    append_configure_options_if_enabled "svt-av1" "--enable-libsvtav1"
 
     # Build VapourSynth
     find_git_repo "vapoursynth/vapoursynth" "1" "T"
