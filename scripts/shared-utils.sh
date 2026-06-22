@@ -633,6 +633,34 @@ vulkan_headers_recent() {
         | "${CC:-cc}" -I"${workspace:-/nonexistent}/include" -E -x c - >/dev/null 2>&1
 }
 
+# Append $2 (e.g. "-lstdc++") to the Libs.private of the workspace pkg-config file
+# named $1 (e.g. "libvmaf"), creating the line if absent. Idempotent. Some libraries
+# bundle C++ sources but ship a .pc that omits the C++ runtime, which breaks a static
+# link via the C compiler driver (undefined operator new/delete); this declares the
+# dependency the way x265/zimg/rubberband already do so `pkg-config --static` emits it.
+pkgconfig_add_private_lib() {
+    local pc_name="$1" extra_lib="$2" pc_file="" dir
+    for dir in "$workspace/lib/pkgconfig" "$workspace/lib64/pkgconfig" \
+               "$workspace/lib/x86_64-linux-gnu/pkgconfig" "$workspace/share/pkgconfig"; do
+        if [[ -f "$dir/$pc_name.pc" ]]; then
+            pc_file="$dir/$pc_name.pc"
+            break
+        fi
+    done
+    if [[ -z "$pc_file" ]]; then
+        warn "pkgconfig_add_private_lib: $pc_name.pc not found in workspace; skipping"
+        return 0
+    fi
+    if grep -qF -- "$extra_lib" "$pc_file"; then
+        return 0
+    fi
+    if grep -q '^Libs.private:' "$pc_file"; then
+        sed -i "/^Libs.private:/ s|\$| $extra_lib|" "$pc_file"
+    else
+        printf 'Libs.private: %s\n' "$extra_lib" >>"$pc_file"
+    fi
+}
+
 # File download and extraction
 download_try() {
     local download_file download_path download_url output_directory target_directory target_file

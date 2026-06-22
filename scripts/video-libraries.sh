@@ -48,6 +48,11 @@ install_video_libraries() {
             -Denable_float=true
         build_done "libvmaf" "$vmaf_version"
     fi
+    # libvmaf bundles C++ (libsvm) but its generated .pc omits the C++ runtime, so a
+    # static link through FFmpeg's C driver fails with undefined operator new[]/delete[].
+    # Declare it the way x265/zimg/rubberband do. Run unconditionally and idempotently so
+    # an already-installed libvmaf is fixed without forcing a rebuild.
+    package_enabled "libvmaf" && pkgconfig_add_private_lib "libvmaf" "-lstdc++"
     append_configure_options_if_enabled "libvmaf" "--enable-libvmaf"
 
     # Build rav1e (Rust-based AV1 encoder)
