@@ -1953,26 +1953,8 @@ display_ffmpeg_versions() {
 }
 
 show_versions() {
-    local choice
-
-    # Use loop instead of recursion to prevent stack exhaustion
-    while true; do
-        echo
-        read -r -p "Display the installed versions? (yes/no): " choice
-
-        case "$choice" in
-            [yY]*|[yY][eE][sS]*|"")
-                display_ffmpeg_versions
-                return 0
-                ;;
-            [nN]*|[nN][oO]*)
-                return 0
-                ;;
-            *)
-                warn "Invalid input. Please enter 'yes' or 'no'."
-                ;;
-        esac
-    done
+    # Always display the installed versions (no prompt).
+    display_ffmpeg_versions
 }
 
 # Saved compiler flags for restoration
