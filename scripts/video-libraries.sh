@@ -293,16 +293,20 @@ EOF
             append_configure_options_if_enabled "vaapi" "--enable-vaapi"
         fi
 
-        # Build AMF headers (use official headers-only tarball)
-        find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
-        if build "amf-headers" "$repo_version"; then
-            download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz"
-            # Install AMF headers to the location FFmpeg expects
-            execute rm -fr "$workspace/include/AMF"
-            execute cp -fr AMF "$workspace/include/"
-            build_done "amf-headers" "$repo_version"
+        # Build AMF headers (AMD's Media Framework encoder) — only on AMD GPUs.
+        if [[ "${is_amd_gpu_present:-}" == "AMD GPU detected" ]]; then
+            find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
+            if build "amf-headers" "$repo_version"; then
+                download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz"
+                # Install AMF headers to the location FFmpeg expects
+                execute rm -fr "$workspace/include/AMF"
+                execute cp -fr AMF "$workspace/include/"
+                build_done "amf-headers" "$repo_version"
+            fi
+            append_configure_options_if_enabled "amf-headers" "--enable-amf"
+        else
+            log "No AMD GPU detected — skipping AMF (AMD encoder) headers and --enable-amf."
         fi
-        append_configure_options_if_enabled "amf-headers" "--enable-amf"
 
         # Build SRT
         find_git_repo "Haivision/srt" "1" "T"

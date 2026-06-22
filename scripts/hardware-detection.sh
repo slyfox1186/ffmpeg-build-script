@@ -17,17 +17,56 @@ CUDA_DOWNLOADS_URL="https://developer.nvidia.com/cuda-downloads"
 CUDA_DOWNLOADS_HTML=""
 DEFAULT_CUDA_VERSION="12.8.1"
 
-# AMD GPU detection
+# Echo the PCI display-controller lines only (VGA/3D/Display), so vendor matching
+# looks at actual GPUs and never at an AMD/Intel *CPU*, chipset, or PCIe bridge.
+_gpu_controller_lines() {
+    command -v lspci >/dev/null 2>&1 || return 0
+    lspci 2>/dev/null | grep -iE 'vga compatible controller|3d controller|display controller'
+}
+
+# AMD GPU detection (GPU-class-specific: matches a Radeon/AMD *display* controller,
+# not the AMD CPU/chipset that an AMD-CPU machine always exposes via lspci).
 check_amd_gpu() {
-    if command -v lshw >/dev/null 2>&1 && lshw -C display 2>&1 | grep -Eioq "amdgpu|amd"; then
+    local gpus
+    gpus="$(_gpu_controller_lines)"
+    if grep -qiE 'amd/ati|advanced micro devices|radeon' <<<"$gpus"; then
         echo "AMD GPU detected"
-    elif dpkg -l 2>&1 | grep -iq "amdgpu"; then
-        echo "AMD GPU detected"
-    elif command -v lspci >/dev/null 2>&1 && lspci 2>&1 | grep -iq "amd"; then
+    elif command -v lshw >/dev/null 2>&1 && lshw -C display 2>&1 | grep -Eioq "amdgpu|radeon"; then
         echo "AMD GPU detected"
     else
         echo "No AMD GPU detected"
     fi
+}
+
+# Intel GPU detection (GPU-class-specific).
+check_intel_gpu() {
+    if grep -qi 'intel' <<<"$(_gpu_controller_lines)"; then
+        echo "Intel GPU detected"
+    else
+        echo "No Intel GPU detected"
+    fi
+}
+
+# Detect all GPU vendors once and publish the results as exported globals so both
+# package installation (system-setup) and FFmpeg flag selection can skip GPU stacks
+# the machine cannot use. Cheap (lspci / nvidia-smi), safe to call before apt.
+#   is_nvidia_gpu_present / is_amd_gpu_present / is_intel_gpu_present : "<vendor> GPU detected" | "... not detected"
+#   has_vulkan_gpu : 1 if any Vulkan-capable GPU (NVIDIA/AMD/Intel) is present, else 0
+detect_gpu_vendors() {
+    check_nvidia_gpu
+    is_amd_gpu_present="$(check_amd_gpu)"
+    is_intel_gpu_present="$(check_intel_gpu)"
+    # Back-compat alias used elsewhere (install_cuda).
+    amd_gpu_test="$is_amd_gpu_present"
+
+    if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" \
+       || "$is_amd_gpu_present" == "AMD GPU detected" \
+       || "$is_intel_gpu_present" == "Intel GPU detected" ]]; then
+        has_vulkan_gpu=1
+    else
+        has_vulkan_gpu=0
+    fi
+    export is_nvidia_gpu_present is_amd_gpu_present is_intel_gpu_present amd_gpu_test has_vulkan_gpu
 }
 
 # NVIDIA GPU detection (works in both native Linux and WSL2)
@@ -745,28 +784,28 @@ initialize_hardware_detection() {
     printf '%sDetecting Hardware%s\n' "$CYAN" "$NC"
     echo "========================================================"
 
-    # Check AMD GPU
-    amd_gpu_test=$(check_amd_gpu)
+    # Detect every GPU vendor once (idempotent; may already have run before apt).
+    detect_gpu_vendors
 
-    # Check NVIDIA GPU
-    check_nvidia_gpu
+    # Display results per vendor.
+    [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] \
+        && printf '%s✓%s NVIDIA GPU: %sDetected%s\n' "$GREEN" "$NC" "$GREEN" "$NC" \
+        || printf '%s✗%s NVIDIA GPU: %sNot detected%s\n' "$RED" "$NC" "$RED" "$NC"
+    [[ "$is_amd_gpu_present" == "AMD GPU detected" ]] \
+        && printf '%s✓%s AMD GPU: %sDetected%s\n' "$GREEN" "$NC" "$YELLOW" "$NC"
+    [[ "$is_intel_gpu_present" == "Intel GPU detected" ]] \
+        && printf '%s✓%s Intel GPU: %sDetected%s\n' "$GREEN" "$NC" "$CYAN" "$NC"
 
-    # Set up GPU flags and display results
-    if [[ "$amd_gpu_test" == "AMD GPU detected" ]]; then
-        printf '%s⚡%s AMD GPU: %sDetected%s\n' "$YELLOW" "$NC" "$YELLOW" "$NC"
-    fi
-
+    # gpu_flag drives CUDA: 0 = NVIDIA present (CUDA path), 1 = no NVIDIA.
     if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
-        printf '%s✓%s NVIDIA GPU: %sDetected%s\n' "$GREEN" "$NC" "$GREEN" "$NC"
         gpu_flag=0
     else
-        printf '%s✗%s NVIDIA GPU: %sNot detected%s\n' "$RED" "$NC" "$RED" "$NC"
-        if [[ "$amd_gpu_test" != "AMD GPU detected" ]]; then
-            warn "No compatible GPU detected"
-        else
-            warn "CUDA Hardware Acceleration will not be enabled"
-        fi
         gpu_flag=1
+        if [[ "$is_amd_gpu_present" != "AMD GPU detected" && "$is_intel_gpu_present" != "Intel GPU detected" ]]; then
+            warn "No GPU detected — GPU-accelerated stacks (CUDA, Vulkan, AMF, QSV) will be skipped."
+        else
+            warn "No NVIDIA GPU — CUDA/NVENC will be skipped (other GPU stacks gated by vendor)."
+        fi
     fi
     export gpu_flag
 }

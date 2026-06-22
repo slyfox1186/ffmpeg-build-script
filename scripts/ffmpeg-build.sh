@@ -119,7 +119,7 @@ build_ffmpeg() {
         # for the rest. Override any of these with `<key> = false` in a --config TOML.
         # pkg-config-detected:
         package_enabled "libdav1d"     && library_exists dav1d        && OPTIONAL_LIBS+=(--enable-libdav1d)
-        package_enabled "libvpl"       && library_exists vpl          && OPTIONAL_LIBS+=(--enable-libvpl)
+        [[ "${is_intel_gpu_present:-}" == "Intel GPU detected" ]] && package_enabled "libvpl" && library_exists vpl && OPTIONAL_LIBS+=(--enable-libvpl)
         package_enabled "libspeex"     && library_exists speex        && OPTIONAL_LIBS+=(--enable-libspeex)
         package_enabled "libssh"       && library_exists libssh       && OPTIONAL_LIBS+=(--enable-libssh)
         package_enabled "chromaprint"  && library_exists libchromaprint && OPTIONAL_LIBS+=(--enable-chromaprint)
@@ -153,14 +153,20 @@ build_ffmpeg() {
         package_enabled "alsa"        && library_exists alsa                     && OPTIONAL_LIBS+=(--enable-alsa)
         package_enabled "libpulse"    && library_exists libpulse                 && OPTIONAL_LIBS+=(--enable-libpulse)
         package_enabled "sndio"       && library_exists sndio                    && OPTIONAL_LIBS+=(--enable-sndio)
-        # Vulkan GPU stack: headers are built into the workspace (vulkan_headers_recent
-        # checks FFmpeg's >= 1.3.277 floor); libshaderc supplies the SPIR-V compiler that
-        # the vulkan filters need; vf_libplacebo needs both vulkan and libplacebo, so
-        # libplacebo is gated on the headers too. libshaderc/libglslang are mutually
-        # exclusive in FFmpeg — shaderc is the recommended one, so libglslang is left off.
-        package_enabled "vulkan"     && vulkan_headers_recent                                       && OPTIONAL_LIBS+=(--enable-vulkan)
-        package_enabled "libshaderc" && library_exists "shaderc >= 2019.1"                          && OPTIONAL_LIBS+=(--enable-libshaderc)
-        package_enabled "libplacebo" && vulkan_headers_recent && library_exists "libplacebo >= 5.229.0" && OPTIONAL_LIBS+=(--enable-libplacebo)
+        # Vulkan GPU stack — only on a Vulkan-capable GPU (NVIDIA/AMD/Intel; has_vulkan_gpu).
+        # vulkan_headers_recent checks FFmpeg's >= 1.3.277 header floor; libshaderc supplies
+        # the SPIR-V compiler the vulkan filters need; vf_libplacebo needs vulkan + libplacebo.
+        # libshaderc/libglslang are mutually exclusive in FFmpeg — shaderc is recommended, so
+        # libglslang is left off. libplacebo additionally requires PL_ALPHA_NONE: FFmpeg 8.1's
+        # vf_libplacebo.c uses it unconditionally but configure only enforces >= 5.229.0, so a
+        # too-old distro libplacebo (e.g. 6.x) passes configure yet fails to compile —
+        # libplacebo_has_pl_alpha_none feature-tests the actual symbol.
+        if [[ "${has_vulkan_gpu:-0}" -eq 1 ]]; then
+            package_enabled "vulkan"     && vulkan_headers_recent                                       && OPTIONAL_LIBS+=(--enable-vulkan)
+            package_enabled "libshaderc" && library_exists "shaderc >= 2019.1"                          && OPTIONAL_LIBS+=(--enable-libshaderc)
+            package_enabled "libplacebo" && vulkan_headers_recent && library_exists "libplacebo >= 5.229.0" \
+                && libplacebo_has_pl_alpha_none && OPTIONAL_LIBS+=(--enable-libplacebo)
+        fi
 
         # ═══════════════════════════════════════════════════════════════════════════
         # CUDA/NVENC Hardware Acceleration Support
