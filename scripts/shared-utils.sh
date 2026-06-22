@@ -447,12 +447,37 @@ validate_repo_version() {
     fi
 }
 
+# Background sudo credential refresher PID (see sudo_keepalive_start).
+_SUDO_KEEPALIVE_PID=""
+
+# Keep the cached sudo credential fresh for the whole build so long compile phases
+# never trigger a mid-run "[sudo] password" re-prompt. Without this, the single
+# `sudo -v` in require_sudo() expires (sudo's timestamp_timeout, ~15 min by default)
+# and every later sudo step prompts again. The refresher polls the parent script's
+# PID and exits on its own when the build finishes, so it needs no EXIT trap and
+# cannot clobber the save/restore traps used elsewhere (e.g. CUDA temp cleanup).
+sudo_keepalive_start() {
+    [[ -n "$_SUDO_KEEPALIVE_PID" ]] && kill -0 "$_SUDO_KEEPALIVE_PID" 2>/dev/null && return 0
+    local parent_pid=$$
+    (
+        while kill -0 "$parent_pid" 2>/dev/null; do
+            # -n: never prompt. If the cached credential can't be refreshed
+            # (e.g. timestamp_timeout=0), stop instead of spinning.
+            sudo -n -v 2>/dev/null || break
+            sleep 50
+        done
+    ) &
+    _SUDO_KEEPALIVE_PID=$!
+}
+
 require_sudo() {
     if ! command -v sudo >/dev/null 2>&1; then
         fail "This script requires 'sudo' (run on a system with sudo configured). Line: ${LINENO}"
     fi
     # Prompt once up front (better UX than failing mid-build).
     sudo -v || fail "Unable to validate sudo credentials. Line: ${LINENO}"
+    # Then keep that credential fresh so the long build never re-prompts.
+    sudo_keepalive_start
 }
 
 fail() {
