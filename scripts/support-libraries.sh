@@ -233,11 +233,16 @@ install_miscellaneous_libraries() {
     # into the workspace. FFmpeg loads the Vulkan loader (libvulkan1) at runtime, so
     # only headers are required at build time; the --enable-vulkan flag is gated in
     # ffmpeg-build.sh by vulkan_headers_recent against these workspace headers.
-    git_caller "https://github.com/KhronosGroup/Vulkan-Headers.git" "vulkan-headers-git"
-    if build "$repo_name" "$version"; then
-        cd "$packages/vulkan-headers-git" || fail "Failed to cd into vulkan-headers-git. Line: ${LINENO}"
-        cmake_ninja_install "build" -DVULKAN_HEADERS_ENABLE_MODULE=OFF
-        build_done "$repo_name" "$version"
+    # Skipped entirely when no Vulkan-capable GPU (NVIDIA/AMD/Intel) is present.
+    if [[ "${has_vulkan_gpu:-0}" -eq 1 ]]; then
+        git_caller "https://github.com/KhronosGroup/Vulkan-Headers.git" "vulkan-headers-git"
+        if build "$repo_name" "$version"; then
+            cd "$packages/vulkan-headers-git" || fail "Failed to cd into vulkan-headers-git. Line: ${LINENO}"
+            cmake_ninja_install "build" -DVULKAN_HEADERS_ENABLE_MODULE=OFF
+            build_done "$repo_name" "$version"
+        fi
+    else
+        log "No Vulkan-capable GPU detected — skipping Vulkan-Headers build."
     fi
 
     # Build libjpeg-turbo

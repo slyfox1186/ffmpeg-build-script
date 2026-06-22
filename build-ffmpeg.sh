@@ -239,13 +239,17 @@ fi
 # Validate sudo credentials once up front (many steps require sudo for installs).
 require_sudo
 
+# Detect GPU vendors up front so package installation only pulls the GPU stacks
+# this machine can actually use (CUDA→NVIDIA, AMF→AMD, QSV→Intel, Vulkan→any GPU).
+source "$script_dir/scripts/hardware-detection.sh"
+detect_gpu_vendors
+
 # Initialize system setup (OS detection, package installation, etc.)
 source "$script_dir/scripts/system-setup.sh"
 initialize_system_setup
 validate_package_selection
 
-# Initialize hardware detection and CUDA setup
-source "$script_dir/scripts/hardware-detection.sh" 
+# Report detected hardware and resolve CUDA setup.
 initialize_hardware_detection
 
 # Prompt the user to install the GeForce CUDA SDK-Toolkit

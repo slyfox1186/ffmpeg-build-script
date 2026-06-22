@@ -633,6 +633,20 @@ vulkan_headers_recent() {
         | "${CC:-cc}" -I"${workspace:-/nonexistent}/include" -E -x c - >/dev/null 2>&1
 }
 
+# True if the installed libplacebo provides PL_ALPHA_NONE. FFmpeg 8.1+'s
+# vf_libplacebo.c uses this enum unconditionally, yet FFmpeg's configure only
+# requires libplacebo >= 5.229.0 — too low: distro libplacebo 6.x (e.g. Ubuntu
+# 24.04's 6.338.2) passes configure but fails to compile ("PL_ALPHA_NONE
+# undeclared"); the enum arrived in libplacebo 7.x. Feature-test the actual symbol
+# (a compile check, not a version guess) so --enable-libplacebo is gated precisely.
+libplacebo_has_pl_alpha_none() {
+    local cflags
+    cflags="$(pkgconf --cflags libplacebo 2>/dev/null)" || return 1
+    # shellcheck disable=SC2086
+    printf '#include <libplacebo/colorspace.h>\nint chk(void){ return (int) PL_ALPHA_NONE; }\n' \
+        | "${CC:-cc}" $cflags -fsyntax-only -x c - >/dev/null 2>&1
+}
+
 # Append $2 (e.g. "-lstdc++") to the Libs.private of the workspace pkg-config file
 # named $1 (e.g. "libvmaf"), creating the line if absent. Idempotent. Some libraries
 # bundle C++ sources but ship a .pc that omits the C++ runtime, which breaks a static

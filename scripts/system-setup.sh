@@ -51,7 +51,7 @@ apt_pkgs() {
         liblilv-dev libmodplug-dev libnghttp2-dev libde265-dev lv2-dev libnghttp3-dev
         libshine-dev libsmbclient-dev libsnappy-dev libspeex-dev libssh-dev libssl-dev
         libtesseract-dev libtool libaribb24-dev libtwolame-dev libv4l-dev libvdpau-dev
-        libvo-amrwbenc-dev libvpl-dev libx11-dev libxi-dev libyuv-dev libzvbi-dev
+        libvo-amrwbenc-dev libx11-dev libxi-dev libyuv-dev libzvbi-dev pciutils
         libaom-dev libfontconfig-dev libfreetype-dev libfribidi-dev libgmp-dev
         libharfbuzz-dev
         libogg-dev libsdl2-dev libvorbis-dev libvpx-dev libwebp-dev libxml2-dev
@@ -59,10 +59,20 @@ apt_pkgs() {
         python3-venv valgrind yasm zlib1g-dev libmpg123-dev
         libopenh264-dev libopenmpt-dev flite1-dev libasound2-dev libpulse-dev
         libsndio-dev librtmp-dev librsvg2-dev
-        libvulkan-dev libshaderc-dev libplacebo-dev
     )
 
-    # Note: GPU detection happens later; keep package install independent from GPU probing.
+    # GPU-vendor-gated dev packages: only install the stacks this machine can use.
+    # detect_gpu_vendors() runs before this (see build-ffmpeg.sh) and exports the flags.
+    if [[ "${has_vulkan_gpu:-0}" -eq 1 ]]; then
+        pkgs+=(libvulkan-dev libshaderc-dev libplacebo-dev)
+    else
+        log "No Vulkan-capable GPU detected — skipping Vulkan dev packages (libvulkan-dev, libshaderc-dev, libplacebo-dev)."
+    fi
+    if [[ "${is_intel_gpu_present:-}" == "Intel GPU detected" ]]; then
+        pkgs+=(libvpl-dev)
+    else
+        log "No Intel GPU detected — skipping Intel QSV dev package (libvpl-dev)."
+    fi
 
     log "Checking package installation status..."
 
