@@ -15,7 +15,8 @@ set -o pipefail
 ##
 ##  Script version: 4.3.1
 ##
-##  CUDA SDK Toolkit version: 12.3.1
+##  CUDA SDK Toolkit: latest version detected from NVIDIA's downloads page at
+##                    runtime (fallback: DEFAULT_CUDA_VERSION in hardware-detection.sh)
 ##
 ##  Supported Distros: Debian 12/13, Ubuntu 22.04/24.04, WSL
 ##                     (Zorin OS 17 and Linux Mint 21.x also work)
@@ -95,6 +96,7 @@ NONFREE_AND_GPL=false
 GOOGLE_SPEECH=false
 DO_BUILD=false
 PACKAGE_CONFIG_FILE=""
+build_threads=""
 
 resolve_config_path() {
     local input_path="${1:-}" candidate_path

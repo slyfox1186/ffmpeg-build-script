@@ -59,7 +59,9 @@ install_video_libraries() {
     find_git_repo "xiph/rav1e" "1" "T" "enabled"
     if build "rav1e" "$repo_version"; then
         install_rustup
-        source "$HOME/.cargo/env"
+        # Guarded: distro-packaged Rust setups have cargo on PATH without ~/.cargo/env;
+        # a hard source would abort a build that could otherwise succeed.
+        [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
         [[ -f /usr/bin/rustc ]] && sudo rm -f /usr/bin/rustc
         check_and_install_cargo_c
         download "$(rav1e_download_url "$repo_version")" "rav1e-$repo_version.tar.gz"

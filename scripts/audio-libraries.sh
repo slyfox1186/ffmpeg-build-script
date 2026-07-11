@@ -147,7 +147,8 @@ install_audio_libraries() {
         chmod +x configure.patched
         execute mv configure.patched configure
         execute rm config.guess
-        execute curl -LSso config.guess https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
+        execute curl -fLSso config.guess --max-time 30 --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" \
+            https://raw.githubusercontent.com/gcc-mirror/gcc/master/config.guess
         chmod +x config.guess
         ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
         ogg_library_dir="$(resolve_workspace_or_pkgconf_library_dir "libogg" "ogg" "$workspace/lib/libogg.a")"

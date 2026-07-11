@@ -4,7 +4,8 @@
 # Example usage: ./source-git-repo-version.sh "https://github.com/rust-lang/rust.git"
 
 fetch_html() {
-    curl -fsSL "$1" 2>/dev/null
+    curl -fsSL --max-time "${VERSION_CHECK_MAX_TIME:-15}" \
+        --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" "$1" 2>/dev/null
 }
 
 # Function to fetch and parse the latest release version
