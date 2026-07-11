@@ -17,8 +17,10 @@ install_global_tools() {
     box_out_banner "Installing Global Tools"
     require_vars workspace packages build_threads
 
-    # Alert the user that an AMD GPU was found without a Geforce GPU present
-    if [[ "${gpu_flag:-0}" -eq 1 ]]; then
+    # Alert the user that an AMD GPU was found without a Geforce GPU present.
+    # gpu_flag=1 only means "no NVIDIA GPU" (also true on Intel-only and GPU-less
+    # machines), so additionally require that an AMD GPU was actually detected.
+    if [[ "${gpu_flag:-0}" -eq 1 && "${is_amd_gpu_present:-}" == "AMD GPU detected" ]]; then
         printf "\n%s\n" "An AMD GPU was detected without a Nvidia GPU present."
     fi
 

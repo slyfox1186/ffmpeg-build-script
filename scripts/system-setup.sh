@@ -109,29 +109,41 @@ apt_pkgs() {
         log "All required packages are already installed."
     fi
 
-    # Check if nvidia-smi is available; if not, try to install the appropriate package
+    # Check if nvidia-smi is available; if not, try to install the appropriate package.
+    # Gated on actual NVIDIA hardware: nvidia-utils pulls in the NVIDIA driver userspace
+    # stack (libnvidia-compute, nvidia-kernel-common, ...), which AMD/Intel-only and
+    # GPU-less machines must never install. detect_gpu_vendors() ran before apt_pkgs, but
+    # its probe is blind on minimal systems without pciutils — which this function may
+    # have just installed — so re-probe lspci here. WSL keeps the install attempt because
+    # its GPU probe (wmic via cmd.exe) is unreliable on newer Windows builds.
     if ! command -v nvidia-smi >/dev/null 2>&1; then
-        local nvidia_pkg
-        nvidia_pkg=""
+        if [[ "${is_nvidia_gpu_present:-}" == "NVIDIA GPU detected" ]] ||
+            { command -v lspci >/dev/null 2>&1 && lspci 2>/dev/null | grep -qi nvidia; } ||
+            grep -Eiq '(microsoft|slyfox1186)' /proc/version; then
+            local nvidia_pkg
+            nvidia_pkg=""
 
-        # Try Ubuntu-style nvidia-utils-XXX first
-        nvidia_pkg=$(apt-cache search '^nvidia-utils-[0-9]+$' 2>/dev/null | sort -t'-' -k3 -rn | head -n1 | awk '{print $1}')
+            # Try Ubuntu-style nvidia-utils-XXX first
+            nvidia_pkg=$(apt-cache search '^nvidia-utils-[0-9]+$' 2>/dev/null | sort -t'-' -k3 -rn | head -n1 | awk '{print $1}')
 
-        # If not found, try Debian-style nvidia-driver-cuda
-        if [[ -z "$nvidia_pkg" ]]; then
-            if apt-cache show nvidia-driver-cuda &>/dev/null; then
-                nvidia_pkg=nvidia-driver-cuda
+            # If not found, try Debian-style nvidia-driver-cuda
+            if [[ -z "$nvidia_pkg" ]]; then
+                if apt-cache show nvidia-driver-cuda &>/dev/null; then
+                    nvidia_pkg=nvidia-driver-cuda
+                fi
             fi
-        fi
 
-        if [[ -n "$nvidia_pkg" ]]; then
-            log "nvidia-smi not found. Installing $nvidia_pkg..."
-            apt_update_once
-            sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg" \
-                || warn "Failed to install $nvidia_pkg; NVIDIA support may be limited."
+            if [[ -n "$nvidia_pkg" ]]; then
+                log "nvidia-smi not found. Installing $nvidia_pkg..."
+                apt_update_once
+                sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg" \
+                    || warn "Failed to install $nvidia_pkg; NVIDIA support may be limited."
+            else
+                warn "nvidia-smi not found and no nvidia-utils/nvidia-driver-cuda package available."
+                warn "NVIDIA GPU support may not work. Consider installing NVIDIA drivers manually."
+            fi
         else
-            warn "nvidia-smi not found and no nvidia-utils/nvidia-driver-cuda package available."
-            warn "NVIDIA GPU support may not work. Consider installing NVIDIA drivers manually."
+            log "No NVIDIA GPU detected — skipping NVIDIA driver utilities (nvidia-utils/nvidia-driver-cuda)."
         fi
     fi
 
@@ -147,12 +159,14 @@ apt_pkgs() {
     fi
 }
 
-# Check AVX-512 CPU support
+# Check AVX-512 CPU support. Emits exactly "ON" or "OFF" on stdout — callers
+# substitute the output directly into cmake flags (-DENABLE_AVX512="$(check_avx512)"),
+# so diagnostics must never leak onto the value channel.
 check_avx512() {
-    # Checking if /proc/cpuinfo exists on the system
     if [[ ! -f /proc/cpuinfo ]]; then
-        echo "Error: /proc/cpuinfo does not exist on this system."
-        return 2
+        warn "/proc/cpuinfo does not exist on this system; assuming no AVX-512 support."
+        echo "OFF"
+        return
     fi
 
     # Search for AVX512 flag in cpuinfo
@@ -248,7 +262,7 @@ get_os_version() {
             VER=22.04
             STATIC_VER="$VER"
         fi
-    elif [[ -n "$find_lsb_release" ]]; then
+    elif command -v lsb_release >/dev/null 2>&1; then
         OS=$(lsb_release -d | awk '{print $2}')
         VER=$(lsb_release -r | awk '{print $2}')
     else
@@ -321,8 +335,6 @@ set_ant_path() {
 initialize_system_setup() {
     require_vars workspace
     # Test the OS and its version
-    find_lsb_release=$(find /usr/bin/ -type f -name lsb_release)
-
     get_os_version
 
     # Check if running Windows WSL2

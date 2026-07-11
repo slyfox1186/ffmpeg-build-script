@@ -30,9 +30,6 @@ YELLOW=$'\033[0;33m'
 CYAN=$'\033[0;36m'
 NC=$'\033[0m'
 
-# Set a regex string to match and then exclude any found release candidate versions
-git_regex='(Rc|rc|rC|RC|alpha|beta|early|init|next|pending|pre|tentative)+[0-9]*$'
-
 # Debug flag
 debug=OFF
 
@@ -69,15 +66,18 @@ box_out_banner() {
 
 # Logging functions
 log() {
+    printf '%s\n' "$1"
     if [[ -n "${log_file:-}" ]]; then
-        printf '%s\n' "$1" | tee -a "$log_file"
-    else
-        printf '%s\n' "$1"
+        printf '%s\n' "$1" >>"$log_file"
     fi
 }
 
+# Diagnostics go to stderr: several helpers (git_clone, resolve_tool_path, the
+# *_download_url builders, ...) are invoked inside $(...) command substitutions,
+# and stdout warnings would be captured into the caller's variable (e.g. a
+# clone-retry warning corrupting the detected version) instead of reaching the user.
 warn() {
-    printf '%s[WARNING]%s %s\n' "$YELLOW" "$NC" "$1"
+    printf '%s[WARNING]%s %s\n' "$YELLOW" "$NC" "$1" >&2
 }
 
 require_vars() {
@@ -434,19 +434,6 @@ validate_package_selection() {
     fi
 }
 
-# Validate repo_version is set and looks like a version number
-# Call this after any *_version() function to ensure version detection succeeded
-validate_repo_version() {
-    local context="${1:-unknown}"
-    if [[ -z "${repo_version:-}" ]]; then
-        fail "Version detection failed for $context: repo_version is empty. Line: ${LINENO}"
-    fi
-    # Basic validation: should contain at least one digit
-    if [[ ! "$repo_version" =~ [0-9] ]]; then
-        fail "Version detection failed for $context: repo_version '$repo_version' does not look like a version. Line: ${LINENO}"
-    fi
-}
-
 # Background sudo credential refresher PID (see sudo_keepalive_start).
 _SUDO_KEEPALIVE_PID=""
 
@@ -481,10 +468,10 @@ require_sudo() {
 }
 
 fail() {
-    echo
-    printf '%s[ERROR]%s %s\n' "$RED" "$NC" "$1"
-    echo
-    printf '%s[INFO]%s For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues\n' "$GREEN" "$NC"
+    echo >&2
+    printf '%s[ERROR]%s %s\n' "$RED" "$NC" "$1" >&2
+    echo >&2
+    printf '%s[INFO]%s For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues\n' "$GREEN" "$NC" >&2
     if [[ "${GOOGLE_SPEECH:-false}" == "true" ]] && command -v google_speech >/dev/null 2>&1; then
         google_speech "Build failed. $1" >/dev/null 2>&1 || true
     fi
@@ -520,6 +507,16 @@ exit_fn() {
     exit 0
 }
 
+# Desktop notification on failure. notify-send is an optional dependency (libnotify-bin
+# is not in the apt package list); calling it unguarded triggers command_not_found_handle
+# on headless systems, which prints a misleading "[ERROR] Command or function not found:
+# notify-send" right before the real failure message.
+notify_failure() {
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -t 5000 "$1" 2>/dev/null || true
+    fi
+}
+
 # Execution function with error handling
 # NOTE on exit-code capture: bash sets `$?` to the result of `! cmd` (the
 # negation), not `cmd` itself. So `if ! "$@"; then exit_code=$?` always
@@ -539,14 +536,14 @@ execute() {
             "$@" 2>&1 | tee -a "$log_file"
             exit_code=${PIPESTATUS[0]}
             if (( exit_code != 0 )); then
-                notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+                notify_failure "Failed to execute $*"
                 fail "Failed to execute $* (exit code: $exit_code)"
             fi
         else
             "$@"
             exit_code=$?
             if (( exit_code != 0 )); then
-                notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+                notify_failure "Failed to execute $*"
                 fail "Failed to execute $* (exit code: $exit_code)"
             fi
         fi
@@ -556,10 +553,10 @@ execute() {
     if [[ -n "${log_file:-}" ]]; then
         local start_pos
         start_pos=$(wc -c <"$log_file" 2>/dev/null || echo 0)
-        "$@" >>"$log_file" 2>>"$log_file"
+        "$@" >>"$log_file" 2>&1
         exit_code=$?
         if (( exit_code != 0 )); then
-            notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+            notify_failure "Failed to execute $*"
             echo >&2
             if [[ -f "$log_file" ]]; then
                 tail -c +$((start_pos + 1)) "$log_file" >&2 || true
@@ -572,7 +569,7 @@ execute() {
     "$@"
     exit_code=$?
     if (( exit_code != 0 )); then
-        notify-send -t 5000 "Failed to execute $*" 2>/dev/null
+        notify_failure "Failed to execute $*"
         fail "Failed to execute $* (exit code: $exit_code)"
     fi
 }
@@ -924,41 +921,28 @@ download_with_fallback() {
 git_caller() {
     git_url=$1
     repo_name=$2
-    third_flag=$3
     recurse_flag=0
 
-    [[ "$3" == "recurse" ]] && recurse_flag=1
+    [[ "${3:-}" == "recurse" ]] && recurse_flag=1
 
-    version=$(git_clone "$git_url" "$repo_name" "$third_flag")
+    version=$(git_clone "$git_url" "$repo_name")
 }
 
 git_clone() {
-    local repo_flag repo_name repo_url target_directory version
+    local repo_name repo_url target_directory version
     repo_url=$1
     repo_name="${2:-${1##*/}}"
     repo_name="${repo_name//\./-}"
-    repo_flag=$3
     target_directory="$packages/$repo_name"
 
-    case "$repo_flag" in
-        ant)
-            version=$(git ls-remote --tags "https://github.com/apache/ant.git" |
-                      awk -F'/' '/\/v?[0-9]+\.[0-9]+(\.[0-9]+)?(\^\{\})?$/ {tag = $4; sub(/^v/, "", tag); if (tag !~ /\^\{\}$/) print tag}' |
-                      sort -ruV | head -n1)
-            ;;
-        ffmpeg)
-            version=$(git ls-remote --tags "https://git.ffmpeg.org/ffmpeg.git" |
-                      awk -F/ '/\/n?[0-9]+\.[0-9]+(\.[0-9]+)?(\^\{\})?$/ {tag = $3; sub(/^[v]/, "", tag); print tag}' |
-                      grep -v '\^{}' | sort -ruV | head -n1)
-            ;;
-        *)
-            version=$(git ls-remote --tags "$repo_url" |
-                      awk -F'/' '/\/v?[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9]+)?(\^\{\})?$/ {tag = $3; sub(/^v/, "", tag); print tag}' |
-                      grep -v '\^{}' | sort -ruV | head -n1)
-            [[ -z "$version" ]] && version=$(git ls-remote "$repo_url" | awk '/HEAD/ {print substr($1,1,7)}')
-            [[ -z "$version" ]] && version="unknown"
-            ;;
-    esac
+    # $NF (not $3) so nested tags like apache/ant's refs/tags/rel/1.10.17
+    # yield the version instead of the literal path segment "rel"; for
+    # plain refs/tags/vX.Y.Z tags both fields are identical.
+    version=$(git ls-remote --tags "$repo_url" |
+              awk -F'/' '/\/v?[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9]+)?(\^\{\})?$/ {tag = $NF; sub(/^v/, "", tag); print tag}' |
+              grep -v '\^{}' | sort -ruV | head -n1)
+    [[ -z "$version" ]] && version=$(git ls-remote "$repo_url" | awk '/HEAD/ {print substr($1,1,7)}')
+    [[ -z "$version" ]] && version="unknown"
 
     local store_prior_version=""
     [[ -f "$packages/$repo_name.done" ]] && store_prior_version=$(cat "$packages/$repo_name.done")
@@ -968,11 +952,6 @@ git_clone() {
         if [[ "$recurse_flag" -eq 1 ]]; then
             clone_args=(git clone --depth 1 --recursive -q "$repo_url" "$target_directory")
         else
-            clone_args=(git clone --depth 1 -q "$repo_url" "$target_directory")
-        fi
-
-        if [[ -n "$3" && "$recurse_flag" -ne 1 ]]; then
-            target_directory="$packages/$3"
             clone_args=(git clone --depth 1 -q "$repo_url" "$target_directory")
         fi
         [[ -d "$target_directory" ]] && rm -rf -- "$target_directory"
@@ -1095,49 +1074,21 @@ github_repo() {
         *) fail "Unsupported GitHub ref source \"$url\". Line: ${LINENO}" ;;
     esac
 
-    selected_version="$(run_github_version_helper "$repo" "$url" "v" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" ||
-                        run_github_version_helper "$repo" "$url" "" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" ||
+    # Fetch the refs page once and reuse it for both prefix attempts; the second
+    # attempt only exists for repos without "v"-prefixed tags and must not cost a
+    # second network round-trip to the same URL.
+    local refs_html
+    refs_html="$(github_refs_html "$repo" "$url")" ||
+        fail "Failed to fetch https://github.com/$repo/$url for version detection. Line: ${LINENO}"
+
+    selected_version="$(run_github_version_helper "$repo" "$url" "v" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" "$refs_html" ||
+                        run_github_version_helper "$repo" "$url" "" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" "$refs_html" ||
                         true)"
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
     fi
 
     repo_version="$selected_version"
-
-    if [[ -z "${repo_version//[[:space:]]/}" ]]; then
-        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
-    fi
-}
-
-fetch_repo_version() {
-    local api_path base_url commit_id_jq_filter count project short_id_jq_filter version_jq_filter
-    base_url=$1
-    project=$2
-    api_path=$3
-    version_jq_filter=$4
-    short_id_jq_filter=$5
-    commit_id_jq_filter=$6
-    count=0
-
-    response=$(curl -fsS "$base_url/$project/$api_path") || fail "Failed to fetch data from $base_url/$project/$api_path in the function \"fetch_repo_version\". Line: ${LINENO}"
-
-    version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
-    if [[ -z "$version" || "$version" == "null" ]]; then
-        fail "Failed to parse a version from $base_url/$project/$api_path (got: \"$version\"). Line: ${LINENO}"
-    fi
-    while [[ "$version" =~ $git_regex ]]; do
-        ((++count))
-        version=$(echo "$response" | jq -r ".[$count]$version_jq_filter")
-        if [[ -z "$version" || "$version" == "null" ]]; then
-            fail "Failed to parse a non-pre-release version from $base_url/$project/$api_path (got: \"$version\"). Line: ${LINENO}"
-        fi
-    done
-
-    repo_short_id=$(echo "$response" | jq -r ".[$count]$short_id_jq_filter")
-    repo_commit_id=$(echo "$response" | jq -r ".[$count]$commit_id_jq_filter")
-    export repo_short_id repo_commit_id
-
-    repo_version="$version"
 }
 
 ###################################################################################
@@ -1152,7 +1103,10 @@ run_github_version_helper() {
     local exclude_pattern="${4:-}"
     local version_regex="${5:-}"
     local index="${6:-1}"
-    local refs_html version
+    # Optional pre-fetched refs page: callers that try multiple prefixes against the
+    # same page (github_repo) pass it in to avoid duplicate network round-trips.
+    local refs_html="${7:-}"
+    local version
 
     [[ -n "$repo" ]] || fail "run_github_version_helper() called without a repo. Line: ${LINENO}"
 
@@ -1171,7 +1125,9 @@ run_github_version_helper() {
             ;;
     esac
 
-    refs_html="$(github_refs_html "$repo" "$url_type")" || return 1
+    if [[ -z "$refs_html" ]]; then
+        refs_html="$(github_refs_html "$repo" "$url_type")" || return 1
+    fi
     version="$(
         printf '%s' "$refs_html" |
         grep -oP 'href="[^"]*/(?:releases/tag|tree)/\K[^"?/#]+|href="[^"]*/archive/refs/tags/\K[^"?]+(?=\.(?:tar\.gz|zip))' |
@@ -1431,11 +1387,14 @@ gitlab_version() {
 debian_salsa_repo() {
     local project_id=$1
     local count=$2
+    local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+    local max_time="${VERSION_CHECK_MAX_TIME:-10}"
     repo_version=""
-    repo_version=$(curl -sL "https://salsa.debian.org/api/v4/projects/$project_id/repository/tags" | 
-                   jq -r '.[].name' | 
-                   grep -E '^debian/' | 
-                   head -n"${count:-1}" | 
+    repo_version=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+                        "https://salsa.debian.org/api/v4/projects/$project_id/repository/tags" |
+                   jq -r '.[].name' |
+                   grep -E '^debian/' |
+                   head -n"${count:-1}" |
                    tail -n1
                   )
 }
@@ -1443,10 +1402,13 @@ debian_salsa_repo() {
 videolan_repo() {
     local project_id=$1
     local count=$2
+    local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+    local max_time="${VERSION_CHECK_MAX_TIME:-10}"
     repo_version=""
-    repo_version=$(curl -sL "https://code.videolan.org/api/v4/projects/$project_id/repository/tags" | 
-                   jq -r '.[].name' | 
-                   head -n"${count:-1}" | 
+    repo_version=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+                        "https://code.videolan.org/api/v4/projects/$project_id/repository/tags" |
+                   jq -r '.[].name' |
+                   head -n"${count:-1}" |
                    tail -n1
                   )
 }
@@ -1454,8 +1416,11 @@ videolan_repo() {
 x264_version() {
     # x264 uses branches, not tags - get stable branch commit
     local full_commit
+    local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+    local max_time="${VERSION_CHECK_MAX_TIME:-10}"
     repo_version=""
-    full_commit=$(curl -sL "https://code.videolan.org/api/v4/projects/536/repository/branches" |
+    full_commit=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+                       "https://code.videolan.org/api/v4/projects/536/repository/branches" |
                   jq -r '.[] | select(.name == "stable") | .commit.id')
     [[ -n "$full_commit" && "$full_commit" != "null" ]] || fail "Failed to detect x264 stable commit. Line: ${LINENO}"
     repo_version="${full_commit:0:7}"
@@ -1671,9 +1636,12 @@ pkgconf_repo_version() {
 
 sdl2_repo_version() {
     local release_page version
+    local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+    local max_time="${VERSION_CHECK_MAX_TIME:-15}"
     repo_version=""
 
-    release_page=$(curl -fsSL "https://www.libsdl.org/release/") || {
+    release_page=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+                        "https://www.libsdl.org/release/") || {
         warn "sdl2_repo_version: Failed to fetch SDL release archive"
         return 1
     }
@@ -1731,9 +1699,12 @@ openssl_30_version() {
 
 giflib_repo_version() {
     local rss_feed version
+    local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-5}"
+    local max_time="${VERSION_CHECK_MAX_TIME:-15}"
     repo_version=""
 
-    rss_feed=$(curl -fsSL "https://sourceforge.net/projects/giflib/rss?path=/") || {
+    rss_feed=$(curl -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+                    "https://sourceforge.net/projects/giflib/rss?path=/") || {
         warn "giflib_repo_version: Failed to fetch SourceForge RSS feed"
         return 1
     }
@@ -1825,8 +1796,11 @@ fix_x265_libs() {
 install_rustup() {
     if ! command -v rustup &>/dev/null; then
         log "Installing rustup..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-        source "$HOME/.cargo/env"
+        curl --proto '=https' --tlsv1.2 -sSf --max-time 30 --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" \
+            https://sh.rustup.rs | sh -s -- -y --default-toolchain stable ||
+            fail "Failed to install rustup. Line: ${LINENO}"
+        source "$HOME/.cargo/env" ||
+            fail "rustup installed but \$HOME/.cargo/env could not be sourced. Line: ${LINENO}"
     else
         log "Rustup is already installed"
     fi
@@ -1849,7 +1823,6 @@ find_git_repo() {
 
     case "$repo_name" in
         # Special version detection (non-standard methods)
-        apache/ant)           git_caller "https://github.com/apache/ant.git" "" ant ;;
         FFmpeg/FFmpeg)        ffmpeg_repo_version ;;
         xiph/rav1e)           rav1e_repo_version ;;
         536)                  x264_version ;;
@@ -1892,7 +1865,7 @@ find_git_repo() {
         *)                    github_repo "$repo_name" "releases" "$url_choice" ;;
     esac
 
-    if [[ "$repo_name" != "apache/ant" ]] && [[ -z "${repo_version//[[:space:]]/}" ]]; then
+    if [[ -z "${repo_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a version for \"$repo_name\". Line: ${LINENO}"
     fi
 }

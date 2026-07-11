@@ -47,12 +47,36 @@ check_intel_gpu() {
     fi
 }
 
+# Fingerprint of the probe tools GPU detection depends on. Within a single run the
+# detection result can only change when one of these tools appears (system-setup may
+# install pciutils or nvidia-utils mid-run), so their resolved paths are the
+# cache-invalidation key for detect_gpu_vendors. lshw and cmd.exe (WSL) are also
+# probed but are never installed by this script, so they cannot change mid-run.
+_gpu_probe_fingerprint() {
+    printf '%s:%s' \
+        "$(command -v lspci 2>/dev/null || echo none)" \
+        "$(command -v nvidia-smi 2>/dev/null || echo none)"
+}
+
+_GPU_VENDORS_FINGERPRINT=""
+
 # Detect all GPU vendors once and publish the results as exported globals so both
 # package installation (system-setup) and FFmpeg flag selection can skip GPU stacks
-# the machine cannot use. Cheap (lspci / nvidia-smi), safe to call before apt.
+# the machine cannot use.
 #   is_nvidia_gpu_present / is_amd_gpu_present / is_intel_gpu_present : "<vendor> GPU detected" | "... not detected"
 #   has_vulkan_gpu : 1 if any Vulkan-capable GPU (NVIDIA/AMD/Intel) is present, else 0
+# Memoized: the probes are slow (nvidia-smi ~0.3-2s, lshw can take seconds), so repeat
+# calls return the cached result unless a probe tool appeared since the last run —
+# which is exactly the case the post-apt re-detection exists for (a blind first probe
+# on a minimal system that just had pciutils/nvidia-utils installed).
 detect_gpu_vendors() {
+    local fingerprint
+    fingerprint="$(_gpu_probe_fingerprint)"
+    if [[ -n "$_GPU_VENDORS_FINGERPRINT" && "$_GPU_VENDORS_FINGERPRINT" == "$fingerprint" ]]; then
+        return 0
+    fi
+    _GPU_VENDORS_FINGERPRINT="$fingerprint"
+
     check_nvidia_gpu
     is_amd_gpu_present="$(check_amd_gpu)"
     is_intel_gpu_present="$(check_intel_gpu)"
@@ -73,6 +97,7 @@ detect_gpu_vendors() {
 check_nvidia_gpu() {
     local found=0
     local gpu_info=""
+    local dir ps_exe
 
     # Primary detection: nvidia-smi (most reliable)
     if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi --query-gpu=name --format=csv,noheader &>/dev/null; then
@@ -94,17 +119,26 @@ check_nvidia_gpu() {
             is_nvidia_gpu_present="NVIDIA GPU not detected"
         fi
     else
-        # WSL2 detection
+        # WSL2 detection. wmic is removed from current Windows 11 builds, so query
+        # the video controllers through PowerShell's CIM cmdlet first and keep wmic
+        # only as the fallback for older Windows versions that still ship it.
         for dir in "/mnt/c" "/c"; do
-            if [[ -d "$dir/Windows/System32" ]]; then
-                if [[ -f "$dir/Windows/System32/cmd.exe" ]]; then
-                    gpu_info=$("$dir/Windows/System32/cmd.exe" /d /c "wmic path win32_VideoController get name | findstr /i nvidia" 2>/dev/null)
-                    if [[ -n "$gpu_info" ]]; then
-                        found=1
-                        is_nvidia_gpu_present="NVIDIA GPU detected"
-                        break
-                    fi
-                fi
+            [[ -f "$dir/Windows/System32/cmd.exe" ]] || continue
+
+            gpu_info=""
+            ps_exe="$dir/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+            if [[ -f "$ps_exe" ]]; then
+                gpu_info=$("$ps_exe" -NoProfile -NonInteractive -Command \
+                    "(Get-CimInstance Win32_VideoController).Name" 2>/dev/null | grep -i nvidia)
+            fi
+            if [[ -z "$gpu_info" ]]; then
+                gpu_info=$("$dir/Windows/System32/cmd.exe" /d /c "wmic path win32_VideoController get name | findstr /i nvidia" 2>/dev/null)
+            fi
+
+            if [[ -n "$gpu_info" ]]; then
+                found=1
+                is_nvidia_gpu_present="NVIDIA GPU detected"
+                break
             fi
         done
 
@@ -180,7 +214,11 @@ ensure_cuda_downloads_html() {
         return 0
     fi
 
-    if ! html=$(curl -fsSL "$CUDA_DOWNLOADS_URL" | tr -d '\0'); then
+    # Generous cap: this page gates a hard-fail path in download_cuda(), so the limit
+    # only exists to stop an indefinite hang on a stalled connection (curl's default
+    # has no overall timeout), not to race a slow-but-working fetch.
+    if ! html=$(curl -fsSL --max-time "${CUDA_DOWNLOADS_MAX_TIME:-60}" \
+        --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" "$CUDA_DOWNLOADS_URL" | tr -d '\0'); then
         return 1
     fi
 
@@ -501,7 +539,7 @@ prompt_reboot_after_cuda_update() {
     echo
     warn "CUDA was installed or updated. Reboot before continuing so the updated CUDA and NVIDIA driver files are active."
     read -r -p "Do you want to reboot now? (yes/no): " choice
-    if [[ "$choice" =~ ^(yes|y)$ ]]; then
+    if [[ "${choice,,}" =~ ^(yes|y)$ ]]; then
         execute sudo reboot
     fi
 }
@@ -692,7 +730,7 @@ install_cuda() {
             fi
             echo
             read -r -p "Do you want to install the latest CUDA version? (yes/no): " choice
-            if [[ "$choice" =~ ^(yes|y)$ ]]; then
+            if [[ "${choice,,}" =~ ^(yes|y)$ ]]; then
                 download_cuda
                 # After successful install, set gpu_flag and prompt for architecture selection
                 gpu_flag=0
@@ -724,7 +762,7 @@ install_cuda() {
             printf '%s!%s Installed CUDA version: %s%s%s\n' "$YELLOW" "$NC" "$YELLOW" "$local_cuda_version" "$NC"
             printf '%s→%s Latest available version: %s%s%s\n' "$CYAN" "$NC" "$GREEN" "$remote_cuda_version" "$NC"
             read -r -p "Do you want to update/reinstall CUDA to the latest version? (yes/no): " choice
-            if [[ "$choice" =~ ^(yes|y)$ ]]; then
+            if [[ "${choice,,}" =~ ^(yes|y)$ ]]; then
                 download_cuda
                 # After successful update, set gpu_flag and prompt for architecture selection
                 gpu_flag=0
@@ -784,7 +822,9 @@ initialize_hardware_detection() {
     printf '%sDetecting Hardware%s\n' "$CYAN" "$NC"
     echo "========================================================"
 
-    # Detect every GPU vendor once (idempotent; may already have run before apt).
+    # Re-check GPU vendors after system setup. Memoized: this only re-probes when
+    # apt installed a probe tool (pciutils/nvidia-utils) since the pre-apt detection;
+    # otherwise the cached result is reused and the expensive probes are skipped.
     detect_gpu_vendors
 
     # Display results per vendor.
