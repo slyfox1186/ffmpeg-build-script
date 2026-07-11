@@ -30,6 +30,10 @@ YELLOW=$'\033[0;33m'
 CYAN=$'\033[0;36m'
 NC=$'\033[0m'
 
+# Resolve the invoking user once. $USER can be unset in non-login contexts
+# (cron, containers, `su -c`); `id -un` always resolves the effective user.
+BUILD_USER="${USER:-$(id -un)}"
+
 # Debug flag
 debug=OFF
 
@@ -584,18 +588,21 @@ build() {
         fail "build() called without a package name. Line: ${LINENO}"
     fi
 
+    # Disabled packages are checked FIRST so callers can skip version detection
+    # entirely for them (fetch_version_if_enabled leaves the version empty) without
+    # tripping the empty-version guard below.
+    if ! package_enabled "$package_name"; then
+        echo
+        echo "$package_name is disabled by config${PACKAGE_SELECTION_CONFIG_FILE:+ ($PACKAGE_SELECTION_CONFIG_FILE)}."
+        return 1
+    fi
+
     # Empty versions lead to broken URLs like `foo-.tar.gz` and confusing rebuild logic.
     # Treat this as a hard error so the root cause (version detection) is fixed instead
     # of silently building the wrong thing.
     stripped_version="${package_version//[[:space:]]/}"
     if [[ -z "$stripped_version" ]]; then
         fail "build() called for \"$package_name\" with an empty version (version detection failed). Line: ${LINENO}"
-    fi
-
-    if ! package_enabled "$package_name"; then
-        echo
-        echo "$package_name is disabled by config${PACKAGE_SELECTION_CONFIG_FILE:+ ($PACKAGE_SELECTION_CONFIG_FILE)}."
-        return 1
     fi
 
     echo
@@ -636,6 +643,22 @@ build_done() {
         rm -f "$temp_file"
         return 1
     fi
+}
+
+# Run a version fetcher only when its package is enabled. Disabled packages skip
+# the upstream network round-trip entirely: repo_version is cleared so the
+# following build() call takes its disabled-by-config path (build() checks
+# package_enabled before validating the version). Returns the fetcher's status
+# when it runs, 0 when skipped.
+fetch_version_if_enabled() {
+    local package_name="${1:-}"
+    [[ -n "$package_name" ]] || fail "fetch_version_if_enabled() called without a package name. Line: ${LINENO}"
+    shift
+    [[ $# -gt 0 ]] || fail "fetch_version_if_enabled() called without a fetch command. Line: ${LINENO}"
+
+    repo_version=""
+    package_enabled "$package_name" || return 0
+    "$@"
 }
 
 library_exists() { pkgconf --exists --print-errors "$1" >/dev/null 2>&1; }
@@ -917,13 +940,20 @@ download_with_fallback() {
     fail "Failed to download from both primary and fallback mirrors. Line: ${LINENO}"
 }
 
-# Git repository management
+# Git repository management. The repo name doubles as the package name for every
+# caller, so disabled packages skip the ls-remote/clone round-trip here and the
+# empty version routes the following build() call to its disabled-by-config path.
 git_caller() {
     git_url=$1
     repo_name=$2
     recurse_flag=0
 
     [[ "${3:-}" == "recurse" ]] && recurse_flag=1
+
+    if ! package_enabled "$repo_name"; then
+        version=""
+        return 0
+    fi
 
     version=$(git_clone "$git_url" "$repo_name")
 }
@@ -2097,9 +2127,9 @@ ensure_user_ownership() {
     for dir in "$@"; do
         [[ -d "$dir" ]] || continue
         owner=$(stat -c '%U' "$dir" 2>/dev/null || echo "")
-        if [[ "$owner" != "$USER" || ! -w "$dir" ]]; then
+        if [[ "$owner" != "$BUILD_USER" || ! -w "$dir" ]]; then
             if command -v sudo >/dev/null 2>&1; then
-                sudo chown -R "$USER:$USER" "$dir"
+                sudo chown -R "$BUILD_USER:$BUILD_USER" "$dir"
             else
                 warn "Directory $dir is not writable and sudo is unavailable."
             fi

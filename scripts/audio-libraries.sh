@@ -18,7 +18,7 @@ install_audio_libraries() {
     require_vars workspace packages build_threads STATIC_VER
 
     # Build libsoxr
-    find_git_repo "chirlu/soxr" "1" "T"
+    fetch_version_if_enabled "libsoxr" find_git_repo "chirlu/soxr" "1" "T"
     if build "libsoxr" "$repo_version"; then
         download "https://github.com/chirlu/soxr/archive/refs/tags/$repo_version.tar.gz" "libsoxr-$repo_version.tar.gz"
         cmake_ninja_install "build" -S . \
@@ -29,7 +29,7 @@ install_audio_libraries() {
     append_configure_options_if_enabled "libsoxr" "--enable-libsoxr"
 
     # Build SDL2 (must use SDL2 branch - main branch is SDL3)
-    sdl2_repo_version || fail "Failed to detect SDL2 version. Line: ${LINENO}"
+    fetch_version_if_enabled "sdl2" sdl2_repo_version || fail "Failed to detect SDL2 version. Line: ${LINENO}"
     local sdl2_version="$repo_version"
     if build "sdl2" "$sdl2_version"; then
         download "$(sdl2_download_url "$sdl2_version")" "SDL2-$sdl2_version.tar.gz"
@@ -44,7 +44,7 @@ install_audio_libraries() {
     fi
 
     # Build libsndfile
-    find_git_repo "libsndfile/libsndfile" "1" "T"
+    fetch_version_if_enabled "libsndfile" find_git_repo "libsndfile/libsndfile" "1" "T"
     if build "libsndfile" "$repo_version"; then
         download "https://github.com/libsndfile/libsndfile/releases/download/$repo_version/libsndfile-$repo_version.tar.xz"
         execute autoreconf -fi
@@ -55,7 +55,7 @@ install_audio_libraries() {
     fi
 
     # Build libogg
-    find_git_repo "xiph/ogg" "1" "T"
+    fetch_version_if_enabled "libogg" find_git_repo "xiph/ogg" "1" "T"
     if build "libogg" "$repo_version"; then
         download "https://github.com/xiph/ogg/archive/refs/tags/v$repo_version.tar.gz" "libogg-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -66,7 +66,7 @@ install_audio_libraries() {
 
     # Build libfdk-aac (GPL and non-free only)
     if "$NONFREE_AND_GPL"; then
-        find_git_repo "mstorsjo/fdk-aac" "1" "T"
+        fetch_version_if_enabled "libfdk-aac" find_git_repo "mstorsjo/fdk-aac" "1" "T"
         if build "libfdk-aac" "$repo_version"; then
             download "https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v$repo_version.tar.gz" "libfdk-aac-$repo_version.tar.gz"
             ensure_autotools
@@ -79,7 +79,7 @@ install_audio_libraries() {
     fi
 
     # Build vorbis
-    find_git_repo "xiph/vorbis" "1" "T"
+    fetch_version_if_enabled "vorbis" find_git_repo "xiph/vorbis" "1" "T"
     if build "vorbis" "$repo_version"; then
         local ogg_include_dir ogg_library
         download "https://github.com/xiph/vorbis/archive/refs/tags/v$repo_version.tar.gz" "vorbis-$repo_version.tar.gz"
@@ -93,7 +93,7 @@ install_audio_libraries() {
     append_configure_options_if_enabled "vorbis" "--enable-libvorbis"
 
     # Build libopus
-    find_git_repo "xiph/opus" "1" "T"
+    fetch_version_if_enabled "libopus" find_git_repo "xiph/opus" "1" "T"
     if build "libopus" "$repo_version"; then
         download "https://github.com/xiph/opus/archive/refs/tags/v$repo_version.tar.gz" "libopus-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -104,7 +104,7 @@ install_audio_libraries() {
     append_configure_options_if_enabled "libopus" "--enable-libopus"
 
     # Build libmysofa
-    find_git_repo "hoene/libmysofa" "1" "T"
+    fetch_version_if_enabled "libmysofa" find_git_repo "hoene/libmysofa" "1" "T"
     if build "libmysofa" "$repo_version"; then
         download "https://github.com/hoene/libmysofa/archive/refs/tags/v$repo_version.tar.gz" "libmysofa-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -114,7 +114,7 @@ install_audio_libraries() {
     append_configure_options_if_enabled "libmysofa" "--enable-libmysofa"
 
     # Build opencore-amr
-    find_git_repo "8143" "6"
+    fetch_version_if_enabled "opencore-amr" find_git_repo "8143" "6"
     repo_version="${repo_version//debian\//}"
     if build "opencore-amr" "$repo_version"; then
         download "https://salsa.debian.org/multimedia-team/opencore-amr/-/archive/debian/$repo_version/opencore-amr-debian-$repo_version.tar.bz2" "opencore-amr-$repo_version.tar.bz2"

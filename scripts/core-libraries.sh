@@ -18,7 +18,7 @@ install_core_libraries() {
     require_vars workspace packages build_threads STATIC_VER
 
     # Build yasm
-    find_git_repo "yasm/yasm" "1" "T"
+    fetch_version_if_enabled "yasm" find_git_repo "yasm/yasm" "1" "T"
     if build "yasm" "$repo_version"; then
         download "https://www.tortall.net/projects/yasm/releases/yasm-$repo_version.tar.gz" "yasm-$repo_version.tar.gz"
         execute sh configure --prefix="$workspace"
@@ -28,8 +28,11 @@ install_core_libraries() {
     fi
 
     # Build nasm
-    find_latest_nasm_version
-    local nasm_version="$latest_nasm_version"
+    local nasm_version=""
+    if package_enabled "nasm"; then
+        find_latest_nasm_version
+        nasm_version="$latest_nasm_version"
+    fi
     if build "nasm" "$nasm_version"; then
         download "https://www.nasm.us/pub/nasm/releasebuilds/$nasm_version/nasm-$nasm_version.tar.xz"
         ensure_autotools
@@ -41,7 +44,7 @@ install_core_libraries() {
 
     # Build giflib
     local giflib_version
-    if giflib_repo_version; then
+    if fetch_version_if_enabled "giflib" giflib_repo_version; then
         giflib_version="$repo_version"
     else
         giflib_version="5.2.2"
@@ -56,7 +59,7 @@ install_core_libraries() {
     fi
 
     # Build libiconv
-    gnu_repo "$GNU_PRIMARY_MIRROR/libiconv/"
+    fetch_version_if_enabled "libiconv" gnu_repo "$GNU_PRIMARY_MIRROR/libiconv/"
     if build "libiconv" "$repo_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/libiconv/libiconv-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/libiconv/libiconv-$repo_version.tar.gz"
         execute sh configure --prefix="$workspace" --enable-static --with-pic
@@ -67,7 +70,7 @@ install_core_libraries() {
     fi
 
     # Build libxml2
-    libxml2_version
+    fetch_version_if_enabled "libxml2" libxml2_version
     if build "libxml2" "$repo_version"; then
         download "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$repo_version/libxml2-v$repo_version.tar.bz2?ref_type=tags" "libxml2-$repo_version.tar.bz2"
         # Save flags before modification and restore after build
@@ -80,7 +83,7 @@ install_core_libraries() {
     append_configure_options_if_enabled "libxml2" "--enable-libxml2"
 
     # Build libpng
-    find_git_repo "pnggroup/libpng" "1" "T"
+    fetch_version_if_enabled "libpng" find_git_repo "pnggroup/libpng" "1" "T"
     if build "libpng" "$repo_version"; then
         download "https://github.com/pnggroup/libpng/archive/refs/tags/v$repo_version.tar.gz" "libpng-$repo_version.tar.gz"
         ensure_autotools
@@ -91,7 +94,7 @@ install_core_libraries() {
     fi
 
     # Build libtiff
-    libtiff_version
+    fetch_version_if_enabled "libtiff" libtiff_version
     if build "libtiff" "$repo_version"; then
         download "https://gitlab.com/libtiff/libtiff/-/archive/v$repo_version/libtiff-v$repo_version.tar.bz2" "libtiff-$repo_version.tar.bz2"
         # Use autoreconf instead of autogen.sh to avoid hanging downloads

@@ -18,7 +18,7 @@ install_image_libraries() {
     require_vars workspace build_threads STATIC_VER
 
     # Build libheif
-    find_git_repo "strukturag/libheif" "1" "T"
+    fetch_version_if_enabled "libheif" find_git_repo "strukturag/libheif" "1" "T"
     if build "libheif" "$repo_version"; then
         download "https://github.com/strukturag/libheif/archive/refs/tags/v$repo_version.tar.gz" "libheif-$repo_version.tar.gz"
         # Save original flags before modification
@@ -50,7 +50,7 @@ install_image_libraries() {
     fi
 
     # Build openjpeg
-    find_git_repo "uclouvain/openjpeg" "1" "T"
+    fetch_version_if_enabled "openjpeg" find_git_repo "uclouvain/openjpeg" "1" "T"
     if build "openjpeg" "$repo_version"; then
         download "https://codeload.github.com/uclouvain/openjpeg/tar.gz/refs/tags/v$repo_version" "openjpeg-$repo_version.tar.gz"
         cmake_ninja_install "build" \

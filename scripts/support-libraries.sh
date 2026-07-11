@@ -22,7 +22,7 @@ install_miscellaneous_libraries() {
 
     # Build additional libraries when not using GPL/non-free
     if ! "$NONFREE_AND_GPL"; then
-        gnu_repo "$GNU_PRIMARY_MIRROR/gmp/"
+        fetch_version_if_enabled "gmp" gnu_repo "$GNU_PRIMARY_MIRROR/gmp/"
         if build "gmp" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/gmp/gmp-$repo_version.tar.xz" "$GNU_FALLBACK_MIRROR/gmp/gmp-$repo_version.tar.xz"
             execute sh configure --prefix="$workspace" --disable-shared --enable-static
@@ -31,7 +31,7 @@ install_miscellaneous_libraries() {
             build_done "gmp" "$repo_version"
         fi
 
-        gnu_repo "$GNU_PRIMARY_MIRROR/nettle/"
+        fetch_version_if_enabled "nettle" gnu_repo "$GNU_PRIMARY_MIRROR/nettle/"
         if build "nettle" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/nettle/nettle-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/nettle/nettle-$repo_version.tar.gz"
             execute sh configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
@@ -41,7 +41,7 @@ install_miscellaneous_libraries() {
             build_done "nettle" "$repo_version"
         fi
 
-        gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
+        fetch_version_if_enabled "gnutls" gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
         if build "gnutls" "$repo_version"; then
             download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
             execute sh configure --prefix="$workspace" --disable-{cxx,doc,gtk-doc-html,guile,libdane,nls,shared,tests,tools} \
@@ -60,10 +60,13 @@ install_miscellaneous_libraries() {
     fi
 
     # Build freetype
-    freetype_version || fail "Failed to detect FreeType version from the official FreeType release archive or FreeDesktop GitLab. Line: ${LINENO}"
-    [[ "$repo_version" =~ ^[0-9]+(-[0-9]+){2,3}$ ]] ||
-        fail "Invalid FreeType version detected: '$repo_version'. Line: ${LINENO}"
-    repo_version_1="${repo_version//-/.}"
+    repo_version_1=""
+    if package_enabled "freetype"; then
+        freetype_version || fail "Failed to detect FreeType version from the official FreeType release archive or FreeDesktop GitLab. Line: ${LINENO}"
+        [[ "$repo_version" =~ ^[0-9]+(-[0-9]+){2,3}$ ]] ||
+            fail "Invalid FreeType version detected: '$repo_version'. Line: ${LINENO}"
+        repo_version_1="${repo_version//-/.}"
+    fi
     if build "freetype" "$repo_version_1"; then
         if [[ "${freetype_version_source:-}" == "release" ]]; then
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
@@ -84,9 +87,12 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "freetype" "--enable-libfreetype"
 
     # Build fontconfig
-    fontconfig_version || fail "Failed to detect Fontconfig version from the official Fontconfig release archive or FreeDesktop GitLab. Line: ${LINENO}"
-    [[ "$repo_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] ||
-        fail "Invalid Fontconfig version detected: '$repo_version'. Line: ${LINENO}"
+    repo_version=""
+    if package_enabled "fontconfig"; then
+        fontconfig_version || fail "Failed to detect Fontconfig version from the official Fontconfig release archive or FreeDesktop GitLab. Line: ${LINENO}"
+        [[ "$repo_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] ||
+            fail "Invalid Fontconfig version detected: '$repo_version'. Line: ${LINENO}"
+    fi
     if build "fontconfig" "$repo_version"; then
         if [[ "${fontconfig_version_source:-}" == "release" ]]; then
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
@@ -114,7 +120,7 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "fontconfig" "--enable-libfontconfig"
 
     # Build harfbuzz
-    find_git_repo "harfbuzz/harfbuzz" "1" "T"
+    fetch_version_if_enabled "harfbuzz" find_git_repo "harfbuzz/harfbuzz" "1" "T"
     if build "harfbuzz" "$repo_version"; then
         download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/$repo_version.tar.gz" "harfbuzz-$repo_version.tar.gz"
         extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}"=disabled")
@@ -127,7 +133,7 @@ install_miscellaneous_libraries() {
     # and is not needed since fribidi is built with -Ddocs=false
 
     # Build fribidi
-    find_git_repo "fribidi/fribidi" "1" "T"
+    fetch_version_if_enabled "fribidi" find_git_repo "fribidi/fribidi" "1" "T"
     if build "fribidi" "$repo_version"; then
         download "https://github.com/fribidi/fribidi/archive/refs/tags/v$repo_version.tar.gz" "fribidi-$repo_version.tar.gz"
         extracmds=("-D"{docs,tests}"=false")
@@ -137,7 +143,7 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "fribidi" "--enable-libfribidi"
 
     # Build libass
-    find_git_repo "libass/libass" "1" "T"
+    fetch_version_if_enabled "libass" find_git_repo "libass/libass" "1" "T"
     if build "libass" "$repo_version"; then
         download "https://github.com/libass/libass/archive/refs/tags/$repo_version.tar.gz" "libass-$repo_version.tar.gz"
         meson_ninja_install "build" --buildtype=release --default-library=static -Dfontconfig=enabled
@@ -146,7 +152,7 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "libass" "--enable-libass"
 
     # Build freeglut
-    find_git_repo "freeglut/freeglut" "1" "T"
+    fetch_version_if_enabled "freeglut" find_git_repo "freeglut/freeglut" "1" "T"
     if build "freeglut" "$repo_version"; then
         download "https://github.com/freeglut/freeglut/releases/download/v$repo_version/freeglut-$repo_version.tar.gz"
         save_compiler_flags
@@ -170,7 +176,7 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "libwebp-git" "--enable-libwebp"
 
     # Build libhwy
-    find_git_repo "google/highway" "1" "T"
+    fetch_version_if_enabled "libhwy" find_git_repo "google/highway" "1" "T"
     if build "libhwy" "$repo_version"; then
         download "https://github.com/google/highway/archive/refs/tags/$repo_version.tar.gz" "libhwy-$repo_version.tar.gz"
         save_compiler_flags
@@ -183,7 +189,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build brotli
-    find_git_repo "google/brotli" "1" "T"
+    fetch_version_if_enabled "brotli" find_git_repo "google/brotli" "1" "T"
     if build "brotli" "$repo_version"; then
         download "https://github.com/google/brotli/archive/refs/tags/v$repo_version.tar.gz" "brotli-$repo_version.tar.gz"
         cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
@@ -191,7 +197,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build lcms2
-    find_git_repo "mm2/Little-CMS" "1" "T"
+    fetch_version_if_enabled "lcms2" find_git_repo "mm2/Little-CMS" "1" "T"
     if build "lcms2" "$repo_version"; then
         download "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms$repo_version.tar.gz" "lcms2-$repo_version.tar.gz"
         execute sh autogen.sh
@@ -206,7 +212,7 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "lcms2" "--enable-lcms2"
 
     # Build gflags
-    find_git_repo "gflags/gflags" "1" "T"
+    fetch_version_if_enabled "gflags" find_git_repo "gflags/gflags" "1" "T"
     if build "gflags" "$repo_version"; then
         download "https://github.com/gflags/gflags/archive/refs/tags/v$repo_version.tar.gz" "gflags-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -246,7 +252,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build libjpeg-turbo
-    find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"
+    fetch_version_if_enabled "libjpeg-turbo" find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"
     if build "libjpeg-turbo" "$repo_version"; then
         download "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$repo_version.tar.gz" "libjpeg-turbo-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -270,7 +276,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build c-ares
-    find_git_repo "c-ares/c-ares" "1" "T"
+    fetch_version_if_enabled "c-ares" find_git_repo "c-ares/c-ares" "1" "T"
     if build "c-ares" "$repo_version"; then
         download "https://github.com/c-ares/c-ares/archive/refs/tags/v$repo_version.tar.gz" "c-ares-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -307,7 +313,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build waflib (duplicate entries combined)
-    gitlab_version "https://gitlab.com" "ita1024/waf" "waf-"
+    fetch_version_if_enabled "waflib" gitlab_version "https://gitlab.com" "ita1024/waf" "waf-"
     waf_version="$repo_version"
     if build "waflib" "$waf_version"; then
         download "https://gitlab.com/ita1024/waf/-/archive/waf-$waf_version/waf-waf-$waf_version.tar.bz2" "waflib-$waf_version.tar.bz2"
@@ -315,7 +321,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build serd
-    gitlab_version "https://gitlab.com" "drobilla/serd" "v"
+    fetch_version_if_enabled "serd" gitlab_version "https://gitlab.com" "drobilla/serd" "v"
     serd_version="$repo_version"
     if build "serd" "$serd_version"; then
         download "https://gitlab.com/drobilla/serd/-/archive/v$serd_version/serd-v$serd_version.tar.bz2" "serd-$serd_version.tar.bz2"
@@ -325,7 +331,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build pcre2
-    github_version "PCRE2Project/pcre2" "pcre2-" "RC"
+    fetch_version_if_enabled "pcre2" github_version "PCRE2Project/pcre2" "pcre2-" "RC"
     pcre2_version="$repo_version"
     if build "pcre2" "$pcre2_version"; then
         download "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-$pcre2_version.tar.gz" "pcre2-$pcre2_version.tar.gz"
@@ -337,7 +343,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build zix
-    find_git_repo "drobilla/zix" "1" "T"
+    fetch_version_if_enabled "zix" find_git_repo "drobilla/zix" "1" "T"
     if build "zix" "$repo_version"; then
         download "https://gitlab.com/drobilla/zix/-/archive/v$repo_version/zix-v$repo_version.tar.bz2" "zix-$repo_version.tar.bz2"
         extracmds=("-D"{benchmarks,docs,singlehtml,tests,tests_cpp}"=disabled")
@@ -346,7 +352,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build sord
-    gitlab_version "https://gitlab.com" "drobilla/sord" "v"
+    fetch_version_if_enabled "sord" gitlab_version "https://gitlab.com" "drobilla/sord" "v"
     sord_version="$repo_version"
     if build "sord" "$sord_version"; then
         save_compiler_flags
@@ -359,7 +365,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build sratom
-    gitlab_version "https://gitlab.com" "lv2/sratom" "v"
+    fetch_version_if_enabled "sratom" gitlab_version "https://gitlab.com" "lv2/sratom" "v"
     sratom_version="$repo_version"
     if build "sratom" "$sratom_version"; then
         download "https://gitlab.com/lv2/sratom/-/archive/v$sratom_version/sratom-v$sratom_version.tar.bz2" "sratom-$sratom_version.tar.bz2"
@@ -373,7 +379,7 @@ install_miscellaneous_libraries() {
 
 
     # Build jemalloc
-    find_git_repo "jemalloc/jemalloc" "1" "T"
+    fetch_version_if_enabled "jemalloc" find_git_repo "jemalloc/jemalloc" "1" "T"
     if build "jemalloc" "$repo_version"; then
         download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
         ensure_autotools

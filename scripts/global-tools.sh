@@ -43,7 +43,7 @@ install_global_tools() {
     fi
 
     # Build autoconf
-    gnu_repo "$GNU_PRIMARY_MIRROR/autoconf/"
+    fetch_version_if_enabled "autoconf" gnu_repo "$GNU_PRIMARY_MIRROR/autoconf/"
     local autoconf_version="$repo_version"
     if build "autoconf" "$autoconf_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/autoconf/autoconf-$autoconf_version.tar.xz" "$GNU_FALLBACK_MIRROR/autoconf/autoconf-$autoconf_version.tar.xz"
@@ -54,7 +54,7 @@ install_global_tools() {
     fi
 
     # Build automake
-    gnu_repo "$GNU_PRIMARY_MIRROR/automake/"
+    fetch_version_if_enabled "automake" gnu_repo "$GNU_PRIMARY_MIRROR/automake/"
     local automake_version="$repo_version"
     if build "automake" "$automake_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/automake/automake-$automake_version.tar.xz" "$GNU_FALLBACK_MIRROR/automake/automake-$automake_version.tar.xz"
@@ -65,7 +65,7 @@ install_global_tools() {
     fi
 
     # Build libtool
-    gnu_repo "$GNU_PRIMARY_MIRROR/libtool/"
+    fetch_version_if_enabled "libtool" gnu_repo "$GNU_PRIMARY_MIRROR/libtool/"
     local libtool_version="$repo_version"
     if build "libtool" "$libtool_version"; then
         download_with_fallback "$GNU_PRIMARY_MIRROR/libtool/libtool-$libtool_version.tar.xz" "$GNU_FALLBACK_MIRROR/libtool/libtool-$libtool_version.tar.xz"
@@ -76,7 +76,7 @@ install_global_tools() {
     fi
 
     # Build pkgconf (modern pkgconf replacement)
-    pkgconf_repo_version || fail "Failed to detect pkgconf version. Line: ${LINENO}"
+    fetch_version_if_enabled "pkgconf" pkgconf_repo_version || fail "Failed to detect pkgconf version. Line: ${LINENO}"
     local pkgconf_version="$repo_version"
     if build "pkgconf" "$pkgconf_version"; then
         download "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-$pkgconf_version.tar.gz" "pkgconf-$pkgconf_version.tar.gz"
@@ -94,7 +94,7 @@ install_global_tools() {
     fi
 
     # Build cmake
-    find_git_repo "Kitware/CMake" "1" "T"
+    fetch_version_if_enabled "cmake" find_git_repo "Kitware/CMake" "1" "T"
     if build "cmake" "$repo_version"; then
         download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
         # CMake bootstraps with its own bundled curl and must build as a standalone
@@ -121,7 +121,7 @@ install_global_tools() {
     fi
 
     # Build meson
-    find_git_repo "mesonbuild/meson" "1" "T"
+    fetch_version_if_enabled "meson" find_git_repo "mesonbuild/meson" "1" "T"
     if build "meson" "$repo_version"; then
         local meson_venv="$workspace/python_virtual_environment/build-tools"
         setup_python_venv_and_install_packages "$meson_venv" "meson==$repo_version"
@@ -134,7 +134,7 @@ install_global_tools() {
     fi
 
     # Build ninja
-    find_git_repo "ninja-build/ninja" "1" "T"
+    fetch_version_if_enabled "ninja" find_git_repo "ninja-build/ninja" "1" "T"
     if build "ninja" "$repo_version"; then
         download "https://github.com/ninja-build/ninja/archive/refs/tags/v$repo_version.tar.gz" "ninja-$repo_version.tar.gz"
         execute python3 configure.py --bootstrap
@@ -143,7 +143,7 @@ install_global_tools() {
     fi
 
     # Build libzstd
-    find_git_repo "facebook/zstd" "1" "T"
+    fetch_version_if_enabled "libzstd" find_git_repo "facebook/zstd" "1" "T"
     if build "libzstd" "$repo_version"; then
         download "https://github.com/facebook/zstd/archive/refs/tags/v$repo_version.tar.gz" "libzstd-$repo_version.tar.gz"
         cd "build/meson" || fail "Failed to cd into build/meson. Line: $LINENO"
@@ -158,7 +158,7 @@ install_global_tools() {
     fi
 
     # Build librist
-    librist_repo_version
+    fetch_version_if_enabled "librist" librist_repo_version
     if build "librist" "$repo_version"; then
         download "https://code.videolan.org/rist/librist/-/archive/v$repo_version/librist-v$repo_version.tar.bz2" "librist-$repo_version.tar.bz2"
         meson_ninja_install "build" \
@@ -172,7 +172,7 @@ install_global_tools() {
     append_configure_options_if_enabled "librist" "--enable-librist"
 
     # Build zlib
-    find_git_repo "madler/zlib" "1" "T"
+    fetch_version_if_enabled "zlib" find_git_repo "madler/zlib" "1" "T"
     if build "zlib" "$repo_version"; then
         download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.xz"
         cmake_ninja_install "build" \
@@ -184,7 +184,7 @@ install_global_tools() {
 
     # Build openssl (if GPL and non-free enabled)
     if "$NONFREE_AND_GPL"; then
-        openssl_30_version || fail "Failed to detect OpenSSL 3.0.x version. Line: ${LINENO}"
+        fetch_version_if_enabled "openssl" openssl_30_version || fail "Failed to detect OpenSSL 3.0.x version. Line: ${LINENO}"
         local openssl_version="$repo_version"
         if build "openssl" "$openssl_version"; then
             local zlib_include_dir zlib_library_dir
