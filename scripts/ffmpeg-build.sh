@@ -46,7 +46,7 @@ build_ffmpeg() {
     log "Using FFmpeg version n$repo_version"
 
     if build "ffmpeg" "n${repo_version}"; then
-        sudo chown -R "$USER:$USER" "$PWD"
+        sudo chown -R "$BUILD_USER:$BUILD_USER" "$PWD"
         download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
         # Create build directory idempotently (no error if exists)
         mkdir -p build

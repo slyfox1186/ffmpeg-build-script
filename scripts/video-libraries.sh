@@ -34,7 +34,7 @@ install_video_libraries() {
     # Not packaged for Debian/Ubuntu, so build from source. built_in_models embeds the
     # default models so the filter works without external model files; enable_float adds
     # the float feature extractors the standard VMAF model needs.
-    find_git_repo "Netflix/vmaf" "1" "T"
+    fetch_version_if_enabled "libvmaf" find_git_repo "Netflix/vmaf" "1" "T"
     local vmaf_version="${repo_version:-3.1.0}"
     if build "libvmaf" "$vmaf_version"; then
         download "https://github.com/Netflix/vmaf/archive/refs/tags/v$vmaf_version.tar.gz" "libvmaf-$vmaf_version.tar.gz"
@@ -56,7 +56,7 @@ install_video_libraries() {
     append_configure_options_if_enabled "libvmaf" "--enable-libvmaf"
 
     # Build rav1e (Rust-based AV1 encoder)
-    find_git_repo "xiph/rav1e" "1" "T" "enabled"
+    fetch_version_if_enabled "rav1e" find_git_repo "xiph/rav1e" "1" "T"
     if build "rav1e" "$repo_version"; then
         install_rustup
         # Guarded: distro-packaged Rust setups have cargo on PATH without ~/.cargo/env;
@@ -66,7 +66,7 @@ install_video_libraries() {
         check_and_install_cargo_c
         download "$(rav1e_download_url "$repo_version")" "rav1e-$repo_version.tar.gz"
         # Ensure workspace directories have proper permissions
-        sudo chown -R "$USER:$USER" "$workspace"
+        sudo chown -R "$BUILD_USER:$BUILD_USER" "$workspace"
         if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
             rm -fr "$HOME/.cargo/registry/index/"* "$HOME/.cargo/.package-cache"
             execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release
@@ -89,7 +89,7 @@ install_video_libraries() {
     append_configure_options_if_enabled "zimg-git" "--enable-libzimg"
 
     # Build libavif
-    find_git_repo "AOMediaCodec/libavif" "1" "T"
+    fetch_version_if_enabled "avif" find_git_repo "AOMediaCodec/libavif" "1" "T"
     if build "avif" "$repo_version"; then
         download "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v$repo_version.tar.gz" "avif-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -99,7 +99,7 @@ install_video_libraries() {
     fi
 
     # Build kvazaar
-    find_git_repo "ultravideo/kvazaar" "1" "T"
+    fetch_version_if_enabled "kvazaar" find_git_repo "ultravideo/kvazaar" "1" "T"
     if build "kvazaar" "$repo_version"; then
         download "https://github.com/ultravideo/kvazaar/archive/refs/tags/v$repo_version.tar.gz" "kvazaar-$repo_version.tar.gz"
         cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF
@@ -108,7 +108,7 @@ install_video_libraries() {
     append_configure_options_if_enabled "kvazaar" "--enable-libkvazaar"
 
     # Build libdvdread (uses meson since v7.0.0)
-    find_git_repo "76" "2" "T"
+    fetch_version_if_enabled "libdvdread" find_git_repo "76" "2" "T"
     if build "libdvdread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version/libdvdread-$repo_version.tar.bz2"
         meson_ninja_install "build" --default-library=static --buildtype=release -Denable_docs=false
@@ -116,7 +116,7 @@ install_video_libraries() {
     fi
 
     # Build udfread (uses meson since v1.2.0)
-    find_git_repo "363" "1" "T"
+    fetch_version_if_enabled "udfread" find_git_repo "363" "1" "T"
     if build "udfread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libudfread/-/archive/$repo_version/libudfread-$repo_version.tar.bz2"
         meson_ninja_install "build" --default-library=static --buildtype=release
@@ -137,7 +137,7 @@ install_video_libraries() {
 
 
     # Build zenlib
-    find_git_repo "MediaArea/ZenLib" "1" "T"
+    fetch_version_if_enabled "zenlib" find_git_repo "MediaArea/ZenLib" "1" "T"
     if build "zenlib" "$repo_version"; then
         download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
         cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
@@ -149,7 +149,7 @@ install_video_libraries() {
     fi
 
     # Build mediainfo-lib
-    find_git_repo "MediaArea/MediaInfoLib" "1" "T"
+    fetch_version_if_enabled "mediainfo-lib" find_git_repo "MediaArea/MediaInfoLib" "1" "T"
     if build "mediainfo-lib" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
         cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
@@ -161,7 +161,7 @@ install_video_libraries() {
     fi
 
     # Build mediainfo-cli
-    find_git_repo "MediaArea/MediaInfo" "1" "T"
+    fetch_version_if_enabled "mediainfo-cli" find_git_repo "MediaArea/MediaInfo" "1" "T"
     if build "mediainfo-cli" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
         cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
@@ -176,7 +176,7 @@ install_video_libraries() {
     # GPL and non-free only libraries
     if "$NONFREE_AND_GPL"; then
         # Build vid-stab
-        find_git_repo "georgmartius/vid.stab" "1" "T"
+        fetch_version_if_enabled "vid-stab" find_git_repo "georgmartius/vid.stab" "1" "T"
         if build "vid-stab" "$repo_version"; then
             download "https://github.com/georgmartius/vid.stab/archive/refs/tags/v$repo_version.tar.gz" "vid-stab-$repo_version.tar.gz"
             cmake_ninja_install "build" \
@@ -187,7 +187,7 @@ install_video_libraries() {
 
         
         # Build x264
-        find_git_repo "536" "2" "B"
+        fetch_version_if_enabled "x264" find_git_repo "536" "2" "B"
         if build "x264" "$repo_version"; then
             download "https://code.videolan.org/videolan/x264/-/archive/$x264_full_commit/x264-$x264_full_commit.tar.bz2" "x264-$repo_version.tar.bz2"
             # Default to a release-style build (debug/profiling can be enabled by users when needed).
@@ -258,7 +258,7 @@ EOF
 
         # NVIDIA codec headers (CUDA only)
         # Check if NVIDIA GPU was detected (gpu_flag=0) and CUDA toolkit is installed
-        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]]; then
+        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]] && package_enabled "nv-codec-headers"; then
             # When LATEST is requested we always fetch the upstream list so that
             # build() can compare a fresh candidate against the lockfile (its
             # equality check at shared-utils.sh:572 happens BEFORE the LATEST
@@ -297,7 +297,7 @@ EOF
 
         # Build AMF headers (AMD's Media Framework encoder) — only on AMD GPUs.
         if [[ "${is_amd_gpu_present:-}" == "AMD GPU detected" ]]; then
-            find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
+            fetch_version_if_enabled "amf-headers" find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
             if build "amf-headers" "$repo_version"; then
                 download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz"
                 # Install AMF headers to the location FFmpeg expects
@@ -311,7 +311,7 @@ EOF
         fi
 
         # Build SRT
-        find_git_repo "Haivision/srt" "1" "T"
+        fetch_version_if_enabled "srt" find_git_repo "Haivision/srt" "1" "T"
         if build "srt" "$repo_version"; then
             local use_workspace_openssl
             use_workspace_openssl=false
@@ -341,7 +341,7 @@ EOF
         append_configure_options_if_enabled "srt" "--enable-libsrt"
 
         # Build Avisynth
-        find_git_repo "avisynth/avisynthplus" "1" "T"
+        fetch_version_if_enabled "avisynth" find_git_repo "avisynth/avisynthplus" "1" "T"
         if build "avisynth" "$repo_version"; then
             download "https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v$repo_version.tar.gz" "avisynth-$repo_version.tar.gz"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -352,7 +352,7 @@ EOF
         append_configure_options_if_enabled "avisynth" "--enable-avisynth"
 
         # Build xvidcore
-        find_git_repo "8268" "2"
+        fetch_version_if_enabled "xvidcore" find_git_repo "8268" "2"
         clean_version="${repo_version//debian\/2%/}"  # Remove debian/2% prefix
         url_version="${repo_version//\%/%25}"  # URL-encode the % character
         if build "xvidcore" "$clean_version"; then
@@ -394,7 +394,7 @@ EOF
     fi
 
     # Build SVT-AV1
-    find_git_repo "24327400" "3" "T"
+    fetch_version_if_enabled "svt-av1" find_git_repo "24327400" "3" "T"
     if build "svt-av1" "$repo_version"; then
         download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$repo_version/SVT-AV1-v$repo_version.tar.bz2" "svt-av1-$repo_version.tar.bz2"
         execute cmake -S . -B Build/linux \
@@ -412,7 +412,7 @@ EOF
     append_configure_options_if_enabled "svt-av1" "--enable-libsvtav1"
 
     # Build VapourSynth
-    find_git_repo "vapoursynth/vapoursynth" "1" "T"
+    fetch_version_if_enabled "vapoursynth" find_git_repo "vapoursynth/vapoursynth" "1" "T"
     local vapoursynth_package_version="R${repo_version}"
     if package_enabled "vapoursynth" &&
         [[ -f "$packages/vapoursynth.done" ]] &&
