@@ -13,9 +13,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
 # Install video libraries
 install_video_libraries() {
+    local vmaf_version x265_release selected_version xvidcore_release
+    local vapoursynth_package_version
+    local PYTHON PYTHON3_CFLAGS PYTHON3_LIBS
+    local -a venv_packages=()
+
     echo
     box_out_banner "Installing Video Tools"
-    require_vars workspace packages build_threads STATIC_VER
+    require_vars workspace packages build_threads
 
     # Build libaom (AV1)
     git_caller "https://aomedia.googlesource.com/aom" "av1-git"
@@ -24,8 +29,17 @@ install_video_libraries() {
         cmake_ninja_install "build" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCONFIG_AV1_{DECODER,ENCODER,HIGHBITDEPTH,TEMPORAL_DENOISING}=1 \
-            -DCONFIG_DENOISE=1 -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 \
-            -DENABLE_CCACHE=1 -DENABLE_{EXAMPLES,TESTS}=0
+            -DCONFIG_DENOISE=1 \
+            -DCONFIG_DISABLE_FULL_PIXEL_SPLIT_8X8=1 \
+            -DCONFIG_PIC=1 \
+            -DCONFIG_SHARED=0 \
+            -DENABLE_CCACHE=1 \
+            -DENABLE_DOCS=0 \
+            -DENABLE_EXAMPLES=0 \
+            -DENABLE_NASM=1 \
+            -DENABLE_TESTDATA=0 \
+            -DENABLE_TESTS=0 \
+            -DENABLE_TOOLS=0
         build_done "$repo_name" "$version"
     fi
     append_configure_options_if_enabled "av1-git" "--enable-libaom"
@@ -34,8 +48,8 @@ install_video_libraries() {
     # Not packaged for Debian/Ubuntu, so build from source. built_in_models embeds the
     # default models so the filter works without external model files; enable_float adds
     # the float feature extractors the standard VMAF model needs.
-    fetch_version_if_enabled "libvmaf" find_git_repo "Netflix/vmaf" "1" "T"
-    local vmaf_version="${repo_version:-3.1.0}"
+    fetch_version_if_enabled "libvmaf" find_git_repo "Netflix/vmaf" "1"
+    vmaf_version="$repo_version"
     if build "libvmaf" "$vmaf_version"; then
         download "https://github.com/Netflix/vmaf/archive/refs/tags/v$vmaf_version.tar.gz" "libvmaf-$vmaf_version.tar.gz"
         cd "libvmaf" || fail "Failed to cd into libvmaf. Line: $LINENO"
@@ -44,6 +58,7 @@ install_video_libraries() {
             --default-library=static \
             -Denable_tests=false \
             -Denable_docs=false \
+            -Denable_tools=false \
             -Dbuilt_in_models=true \
             -Denable_float=true
         build_done "libvmaf" "$vmaf_version"
@@ -56,30 +71,21 @@ install_video_libraries() {
     append_configure_options_if_enabled "libvmaf" "--enable-libvmaf"
 
     # Build rav1e (Rust-based AV1 encoder)
-    fetch_version_if_enabled "rav1e" find_git_repo "xiph/rav1e" "1" "T"
+    fetch_version_if_enabled "rav1e" find_git_repo "xiph/rav1e" "1"
     if build "rav1e" "$repo_version"; then
-        install_rustup
-        # Guarded: distro-packaged Rust setups have cargo on PATH without ~/.cargo/env;
-        # a hard source would abort a build that could otherwise succeed.
-        [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
-        [[ -f /usr/bin/rustc ]] && sudo rm -f /usr/bin/rustc
-        check_and_install_cargo_c
         download "$(rav1e_download_url "$repo_version")" "rav1e-$repo_version.tar.gz"
-        # Ensure workspace directories have proper permissions
-        sudo chown -R "$BUILD_USER:$BUILD_USER" "$workspace"
-        if ! execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release; then
-            rm -fr "$HOME/.cargo/registry/index/"* "$HOME/.cargo/.package-cache"
-            execute cargo cinstall --prefix="$workspace" --library-type=staticlib --crt-static --release
-        fi
+        install_rustup
+        check_and_install_cargo_c
+        execute cargo cinstall --locked --prefix="$workspace" \
+            --libdir="$workspace/lib" --library-type=staticlib --release
         build_done "rav1e" "$repo_version"
     fi
     append_configure_options_if_enabled "rav1e" "--enable-librav1e"
 
     # Build zimg
-    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git"
+    git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git" "recurse"
     if build "$repo_name" "$version"; then
         cd "$packages/zimg-git" || fail "Failed to cd into zimg-git. Line: ${LINENO}"
-        execute git submodule update --init --recursive
         ensure_autotools
         execute sh configure --prefix="$workspace" --with-pic --disable-shared --enable-static
         execute make "-j$build_threads"
@@ -89,55 +95,82 @@ install_video_libraries() {
     append_configure_options_if_enabled "zimg-git" "--enable-libzimg"
 
     # Build libavif
-    fetch_version_if_enabled "avif" find_git_repo "AOMediaCodec/libavif" "1" "T"
+    fetch_version_if_enabled "avif" find_git_repo "AOMediaCodec/libavif" "1"
     if build "avif" "$repo_version"; then
         download "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v$repo_version.tar.gz" "avif-$repo_version.tar.gz"
         cmake_ninja_install "build" \
-            -DBUILD_SHARED_LIBS=OFF -DAVIF_CODEC_AOM=ON -DAVIF_CODEC_AOM_{DECODE,ENCODE}=ON \
-            -DAVIF_ENABLE_WERROR=OFF
+            -DAVIF_BUILD_APPS=OFF \
+            -DAVIF_BUILD_EXAMPLES=OFF \
+            -DAVIF_BUILD_MAN_PAGES=OFF \
+            -DAVIF_BUILD_TESTS=OFF \
+            -DAVIF_CODEC_AOM=SYSTEM \
+            -DAVIF_CODEC_AOM_DECODE=ON \
+            -DAVIF_CODEC_AOM_ENCODE=ON \
+            -DAVIF_CODEC_AVM=OFF \
+            -DAVIF_CODEC_DAV1D=OFF \
+            -DAVIF_CODEC_LIBGAV1=OFF \
+            -DAVIF_CODEC_RAV1E=OFF \
+            -DAVIF_CODEC_SVT=OFF \
+            -DAVIF_ENABLE_WERROR=OFF \
+            -DAVIF_JPEG=OFF \
+            -DAVIF_LIBYUV=OFF \
+            -DAVIF_ZLIBPNG=OFF \
+            -DBUILD_SHARED_LIBS=OFF
         build_done "avif" "$repo_version"
     fi
 
     # Build kvazaar
-    fetch_version_if_enabled "kvazaar" find_git_repo "ultravideo/kvazaar" "1" "T"
+    fetch_version_if_enabled "kvazaar" find_git_repo "ultravideo/kvazaar" "1"
     if build "kvazaar" "$repo_version"; then
         download "https://github.com/ultravideo/kvazaar/archive/refs/tags/v$repo_version.tar.gz" "kvazaar-$repo_version.tar.gz"
-        cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF
+        cmake_ninja_install "build" \
+            -DBUILD_KVAZAAR_BINARY=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_TESTS=OFF
         build_done "kvazaar" "$repo_version"
     fi
     append_configure_options_if_enabled "kvazaar" "--enable-libkvazaar"
 
     # Build libdvdread (uses meson since v7.0.0)
-    fetch_version_if_enabled "libdvdread" find_git_repo "76" "2" "T"
+    fetch_version_if_enabled "libdvdread" find_git_repo "76" "1"
     if build "libdvdread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libdvdread/-/archive/$repo_version/libdvdread-$repo_version.tar.bz2"
-        meson_ninja_install "build" --default-library=static --buildtype=release -Denable_docs=false
+        meson_ninja_install "build" \
+            --default-library=static \
+            --buildtype=release \
+            -Denable_docs=false \
+            -Dlibdvdcss=disabled
         build_done "libdvdread" "$repo_version"
     fi
 
     # Build udfread (uses meson since v1.2.0)
-    fetch_version_if_enabled "udfread" find_git_repo "363" "1" "T"
+    fetch_version_if_enabled "udfread" find_git_repo "363" "1"
     if build "udfread" "$repo_version"; then
         download "https://code.videolan.org/videolan/libudfread/-/archive/$repo_version/libudfread-$repo_version.tar.bz2"
-        meson_ninja_install "build" --default-library=static --buildtype=release
+        meson_ninja_install "build" \
+            --default-library=static \
+            --buildtype=release \
+            -Denable_examples=false
         build_done "udfread" "$repo_version"
     fi
 
-    # Set ant path and build ant
-    set_ant_path
-    git_caller "https://github.com/apache/ant.git" "ant-git"
-    if build "$repo_name" "$version"; then
-        cd "$packages/ant-git" || fail "Failed to cd into ant-git. Line: ${LINENO}"
-        execute chmod -R u+rwX,go+rX "$workspace/ant"
-        execute sh build.sh install-lite
-        build_done "$repo_name" "$version"
+    # Build Ant only when selected; no other recipe should force a JDK install
+    # or create an Ant prefix for a disabled ancillary tool.
+    if package_enabled "ant-git"; then
+        set_ant_path
+        git_caller "https://github.com/apache/ant.git" "ant-git"
+        if build "$repo_name" "$version"; then
+            cd "$packages/ant-git" || fail "Failed to cd into ant-git. Line: ${LINENO}"
+            execute chmod -R u+rwX,go+rX "$workspace/ant"
+            execute sh build.sh install-lite
+            build_done "$repo_name" "$version"
+        fi
+        path_prepend "$workspace/ant/bin"
     fi
-    PATH="$PATH:$workspace/ant/bin"
-    remove_duplicate_paths
 
 
     # Build zenlib
-    fetch_version_if_enabled "zenlib" find_git_repo "MediaArea/ZenLib" "1" "T"
+    fetch_version_if_enabled "zenlib" find_git_repo "MediaArea/ZenLib" "1"
     if build "zenlib" "$repo_version"; then
         download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
         cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
@@ -149,7 +182,7 @@ install_video_libraries() {
     fi
 
     # Build mediainfo-lib
-    fetch_version_if_enabled "mediainfo-lib" find_git_repo "MediaArea/MediaInfoLib" "1" "T"
+    fetch_version_if_enabled "mediainfo-lib" find_git_repo "MediaArea/MediaInfoLib" "1"
     if build "mediainfo-lib" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
         cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
@@ -161,7 +194,7 @@ install_video_libraries() {
     fi
 
     # Build mediainfo-cli
-    fetch_version_if_enabled "mediainfo-cli" find_git_repo "MediaArea/MediaInfo" "1" "T"
+    fetch_version_if_enabled "mediainfo-cli" find_git_repo "MediaArea/MediaInfo" "1"
     if build "mediainfo-cli" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
         cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
@@ -169,14 +202,13 @@ install_video_libraries() {
         execute sh configure --prefix="$workspace" --enable-staticlibs --disable-shared
         execute make "-j$build_threads"
         execute make install
-        execute sudo cp -f "$packages/mediainfo-cli-$repo_version/Project/GNU/CLI/mediainfo" "/usr/local/bin/"
         build_done "mediainfo-cli" "$repo_version"
     fi
 
     # GPL and non-free only libraries
-    if "$NONFREE_AND_GPL"; then
+    if is_true "$NONFREE_AND_GPL"; then
         # Build vid-stab
-        fetch_version_if_enabled "vid-stab" find_git_repo "georgmartius/vid.stab" "1" "T"
+        fetch_version_if_enabled "vid-stab" find_git_repo "georgmartius/vid.stab" "1"
         if build "vid-stab" "$repo_version"; then
             download "https://github.com/georgmartius/vid.stab/archive/refs/tags/v$repo_version.tar.gz" "vid-stab-$repo_version.tar.gz"
             cmake_ninja_install "build" \
@@ -185,60 +217,79 @@ install_video_libraries() {
         fi
         append_configure_options_if_enabled "vid-stab" "--enable-libvidstab"
 
-        
         # Build x264
-        fetch_version_if_enabled "x264" find_git_repo "536" "2" "B"
+        fetch_version_if_enabled "x264" find_git_repo "536"
         if build "x264" "$repo_version"; then
-            download "https://code.videolan.org/videolan/x264/-/archive/$x264_full_commit/x264-$x264_full_commit.tar.bz2" "x264-$repo_version.tar.bz2"
+            download "https://code.videolan.org/videolan/x264/-/archive/$repo_version/x264-$repo_version.tar.bz2"
             # Default to a release-style build (debug/profiling can be enabled by users when needed).
             execute sh configure --prefix="$workspace" --bit-depth=all --chroma-format=all \
                                 --enable-pic --enable-static --enable-strip \
-                                --disable-bashcompletion \
+                                --disable-bashcompletion --disable-cli \
                                 --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS"
             execute make "-j$build_threads"
-            execute make install-lib-static install
+            execute make install-lib-static
             build_done "x264" "$repo_version"
         fi
         append_configure_options_if_enabled "x264" "--enable-libx264"
 
-        # Build x265
-        if build "x265" "4.1"; then
-            download "https://bitbucket.org/multicoreware/x265_git/get/1d117bed4747758b51bd2c124d738527e30392cb.tar.bz2" "x265-4.1.tar.bz2"
-            
-            # Fix CMake policy issues for modern CMake
-            sed -i 's/cmake_policy(SET CMP0025 OLD)/cmake_policy(SET CMP0025 NEW)/' source/CMakeLists.txt
-            sed -i 's/cmake_policy(SET CMP0054 OLD)/cmake_policy(SET CMP0054 NEW)/' source/CMakeLists.txt
-            
-            fix_libstd_libs
+        # Build x265 as a combined 8/10/12-bit static archive.
+        fetch_version_if_enabled "x265" x265_version ||
+            fail "Failed to detect the latest stable x265 release. Line: ${LINENO}"
+        x265_release="$repo_version"
+        if build "x265" "$x265_release"; then
+            download "https://github.com/Multicorewareinc/x265/archive/refs/tags/$x265_release.tar.gz" \
+                "x265-$x265_release.tar.gz"
+
             cd build/linux || fail "Failed to cd into build/linux. Line: $LINENO"
-            rm -fr {8,10,12}bit 2>/dev/null
-            mkdir -p {8,10,12}bit
+            safe_remove_tree "$PWD/8bit" "$PWD"
+            safe_remove_tree "$PWD/10bit" "$PWD"
+            safe_remove_tree "$PWD/12bit" "$PWD"
+            execute mkdir -p {8,10,12}bit
             cd 12bit || fail "Failed to cd into 12bit. Line: $LINENO"
-            echo "$ making 12bit binaries"
+            log "Building x265 12-bit library"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
                           -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
-                          -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
+                          -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
+                          -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
+                          -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
+                          -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
+                          -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+                          -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
-            echo "$ making 10bit binaries"
+            log "Building x265 10-bit library"
             cd ../10bit || fail "Failed to cd into 10bit. Line: $LINENO"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
                           -DENABLE_HDR10_PLUS=ON -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON \
-                          -DNATIVE_BUILD=ON -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
+                          -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
+                          -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
+                          -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
+                          -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
+                          -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+                          -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
-            echo "$ making 8bit binaries"
+            log "Building x265 8-bit library"
             cd ../8bit || fail "Failed to cd into 8bit. Line: $LINENO"
-            ln -sf "../10bit/libx265.a" "libx265_main10.a"
-            ln -sf "../12bit/libx265.a" "libx265_main12.a"
+            execute ln -sf "../10bit/libx265.a" "libx265_main10.a"
+            execute ln -sf "../12bit/libx265.a" "libx265_main12.a"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_LIBVMAF=OFF -DENABLE_PIC=ON \
+                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF}=OFF -DENABLE_PIC=ON \
                           -DENABLE_SHARED=OFF -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
                           -DEXTRA_LINK_FLAGS="-L." -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
-                          -DNUMA_ROOT_DIR=/usr -G Ninja -Wno-dev
+                          -DENABLE_LIBNUMA=OFF \
+                          -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
+                          -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
+                          -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
+                          -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+                          -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
+            # Install headers and metadata while Ninja's declared 8-bit archive
+            # still exists, then replace only the installed archive with the
+            # verified combined 8/10/12-bit result below.
+            execute ninja install
 
-            mv "libx265.a" "libx265_main.a"
+            execute mv "libx265.a" "libx265_main.a"
 
             execute ar -M <<EOF
 CREATE libx265.a
@@ -247,37 +298,21 @@ ADDLIB libx265_main10.a
 ADDLIB libx265_main12.a
 SAVE
 EOF
+            execute ranlib libx265.a
 
-            execute ninja install
-
-            fix_x265_libs # Fix the x265 shared library issue
-
-            build_done "x265" "4.1"
+            execute install -Dm0644 libx265.a "$workspace/lib/libx265.a"
+            pkgconfig_add_private_lib "x265" "-lstdc++"
+            build_done "x265" "$x265_release"
         fi
         append_configure_options_if_enabled "x265" "--enable-libx265"
 
-        # NVIDIA codec headers (CUDA only)
-        # Check if NVIDIA GPU was detected (gpu_flag=0) and CUDA toolkit is installed
-        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d "/usr/local/cuda" ]] && package_enabled "nv-codec-headers"; then
-            # When LATEST is requested we always fetch the upstream list so that
-            # build() can compare a fresh candidate against the lockfile (its
-            # equality check at shared-utils.sh:572 happens BEFORE the LATEST
-            # branch, so feeding the prior lockfile version back never triggers
-            # a rebuild).
-            if [[ -f "$packages/nv-codec-headers.done" ]] && ! "$LATEST"; then
-                selected_version=$(cat "$packages/nv-codec-headers.done")
-            else
-                fetch_nv_codec_headers_versions \
-                    || fail "Failed to fetch nv-codec-headers releases. Line: ${LINENO}"
-                if "$LATEST"; then
-                    # Newest release (sorted_versions_and_dates is sorted desc by version).
-                    selected_version="${sorted_versions_and_dates[0]%%;*}"
-                    log "Selecting latest nv-codec-headers release: $selected_version"
-                else
-                    prompt_user_for_version
-                fi
-            fi
-
+        # NVIDIA codec interfaces need these headers even when the optional CUDA
+        # toolkit (used for CUDA-compiled filters) is not installed.
+        if [[ "${gpu_flag:-1}" -eq 0 ]] &&
+            package_enabled "nv-codec-headers"; then
+            fetch_version_if_enabled "nv-codec-headers" nv_codec_headers_version ||
+                fail "Failed to detect nv-codec-headers version. Line: ${LINENO}"
+            selected_version="$repo_version"
             if build "nv-codec-headers" "$selected_version"; then
                 download "https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz" \
                          "nv-codec-headers-${selected_version}.tar.gz"
@@ -287,21 +322,13 @@ EOF
             fi
         fi
 
-        # If the libva development SDK is installed, enable vaapi.
-        if library_exists "libva"; then
-            if build "vaapi" "1"; then
-                build_done "vaapi" "1"
-            fi
-            append_configure_options_if_enabled "vaapi" "--enable-vaapi"
-        fi
-
         # Build AMF headers (AMD's Media Framework encoder) — only on AMD GPUs.
         if [[ "${is_amd_gpu_present:-}" == "AMD GPU detected" ]]; then
-            fetch_version_if_enabled "amf-headers" find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1" "T"
+            fetch_version_if_enabled "amf-headers" find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1"
             if build "amf-headers" "$repo_version"; then
                 download "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v$repo_version/AMF-headers-v$repo_version.tar.gz"
                 # Install AMF headers to the location FFmpeg expects
-                execute rm -fr "$workspace/include/AMF"
+                safe_remove_tree "$workspace/include/AMF" "$workspace"
                 execute cp -fr AMF "$workspace/include/"
                 build_done "amf-headers" "$repo_version"
             fi
@@ -311,27 +338,37 @@ EOF
         fi
 
         # Build SRT
-        fetch_version_if_enabled "srt" find_git_repo "Haivision/srt" "1" "T"
+        fetch_version_if_enabled "srt" find_git_repo "Haivision/srt" "1"
         if build "srt" "$repo_version"; then
             local use_workspace_openssl
             use_workspace_openssl=false
             download "https://github.com/Haivision/srt/archive/refs/tags/v$repo_version.tar.gz" "srt-$repo_version.tar.gz"
-            if package_enabled "openssl" && [[ -f "$workspace/lib/libssl.a" || -f "$workspace/lib/libssl.so" ]]; then
+            if package_enabled "openssl" &&
+                [[ -f "$workspace/lib/libssl.a" || -f "$workspace/lib/libssl.so" ||
+                    -f "$workspace/lib64/libssl.a" || -f "$workspace/lib64/libssl.so" ]]; then
                 export OPENSSL_ROOT_DIR="$workspace"
-                export OPENSSL_LIB_DIR="$workspace/lib"
+                if [[ -f "$workspace/lib64/libssl.a" || -f "$workspace/lib64/libssl.so" ]]; then
+                    export OPENSSL_LIB_DIR="$workspace/lib64"
+                else
+                    export OPENSSL_LIB_DIR="$workspace/lib"
+                fi
                 export OPENSSL_INCLUDE_DIR="$workspace/include"
                 use_workspace_openssl=true
             else
                 unset OPENSSL_ROOT_DIR OPENSSL_LIB_DIR OPENSSL_INCLUDE_DIR
             fi
-            execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
-                          -DENABLE_{APPS,SHARED}=OFF -DENABLE_STATIC=ON -DUSE_STATIC_LIBSTDCXX=ON \
-                          -DENABLE_ENCRYPTION=ON -DENABLE_CXX11=ON -DUSE_OPENSSL_PC=ON \
-                          -DENABLE_UNITTESTS=OFF -DENABLE_LOGGING=ON -DENABLE_HEAVY_LOGGING=OFF \
-                          -G Ninja -Wno-dev
-            execute ninja -C build "-j$build_threads"
-            execute ninja -C build "-j$build_threads" install
+            cmake_ninja_install "build" \
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DENABLE_APPS=OFF \
+                -DENABLE_ENCRYPTION=ON \
+                -DENABLE_HEAVY_LOGGING=OFF \
+                -DENABLE_LOGGING=ON \
+                -DENABLE_SHARED=OFF \
+                -DENABLE_STATIC=ON \
+                -DENABLE_UNITTESTS=OFF \
+                -DOPENSSL_USE_STATIC_LIBS=TRUE \
+                -DUSE_OPENSSL_PC=ON
             if [[ "$use_workspace_openssl" == "false" ]]; then
                 log "Using system OpenSSL fallback for SRT"
             fi
@@ -341,29 +378,34 @@ EOF
         append_configure_options_if_enabled "srt" "--enable-libsrt"
 
         # Build Avisynth
-        fetch_version_if_enabled "avisynth" find_git_repo "avisynth/avisynthplus" "1" "T"
+        fetch_version_if_enabled "avisynth" find_git_repo "avisynth/avisynthplus" "1"
         if build "avisynth" "$repo_version"; then
             download "https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v$repo_version.tar.gz" "avisynth-$repo_version.tar.gz"
             execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DBUILD_SHARED_LIBS=OFF -DHEADERS_ONLY=OFF -DENABLE_PLUGINS=OFF -Wno-dev
+                -DBUILD_SHARED_LIBS=OFF -DHEADERS_ONLY=OFF -DENABLE_PLUGINS=OFF -Wno-dev
             execute make "-j$build_threads" -C build VersionGen install
             build_done "avisynth" "$repo_version"
         fi
         append_configure_options_if_enabled "avisynth" "--enable-avisynth"
 
         # Build xvidcore
-        fetch_version_if_enabled "xvidcore" find_git_repo "8268" "2"
-        clean_version="${repo_version//debian\/2%/}"  # Remove debian/2% prefix
-        url_version="${repo_version//\%/%25}"  # URL-encode the % character
-        if build "xvidcore" "$clean_version"; then
-            download "https://salsa.debian.org/multimedia-team/xvidcore/-/archive/$url_version/xvidcore-${url_version//\//-}.tar.bz2" "xvidcore-$clean_version.tar.bz2"
+        if fetch_version_if_enabled "xvidcore" xvidcore_version; then
+            xvidcore_release="$repo_version"
+        else
+            xvidcore_release="1.3.7"
+            warn "Falling back to Xvid $xvidcore_release because its official release index is unavailable."
+        fi
+        if build "xvidcore" "$xvidcore_release"; then
+            download "https://downloads.xvid.com/downloads/xvidcore-$xvidcore_release.tar.bz2"
             cd "build/generic" || fail "Failed to cd into build/generic. Line: $LINENO"
             execute sh bootstrap.sh
             execute sh configure --prefix="$workspace"
-            execute make "-j$build_threads"
-            [[ -f "$workspace/lib/libxvidcore.so" ]] && rm "$workspace/lib/libxvidcore.so" "$workspace/lib/libxvidcore.so.4"
-            execute make install
-            build_done "xvidcore" "$clean_version"
+            # Upstream's all/install targets unconditionally build and install
+            # both variants. FFmpeg needs only xvid.h and libxvidcore.a.
+            execute make "-j$build_threads" libxvidcore.a
+            execute install -Dm0644 =build/libxvidcore.a "$workspace/lib/libxvidcore.a"
+            execute install -Dm0644 ../../src/xvid.h "$workspace/include/xvid.h"
+            build_done "xvidcore" "$xvidcore_release"
         fi
         append_configure_options_if_enabled "xvidcore" "--enable-libxvid"
     fi
@@ -371,71 +413,55 @@ EOF
     # Build gpac
     git_caller "https://github.com/gpac/gpac.git" "gpac-git"
     if build "$repo_name" "$version"; then
-        # Remove existing directory if it exists
-        [[ -d "$packages/gpac-git" ]] && rm -fr "$packages/gpac-git"
-        # Do a full clone instead of shallow clone for gpac
-        git clone -q "$git_url" "$packages/gpac-git"
         cd "$packages/gpac-git" || fail "Failed to cd into gpac-git directory"
-        # Create the include directory and empty revision.h to prevent rm error
-        mkdir -p include/gpac
-        touch include/gpac/revision.h
         local -a gpac_sdl_cfg=()
         if package_enabled "sdl2" && [[ -x "$workspace/bin/sdl2-config" ]]; then
             gpac_sdl_cfg=(--sdl-cfg="$workspace/bin/sdl2-config")
         elif package_enabled "sdl2" && command -v sdl2-config >/dev/null 2>&1; then
             gpac_sdl_cfg=(--sdl-cfg="$(command -v sdl2-config)")
         fi
-        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has internal ogg implementation)
-        execute sh configure --prefix="$workspace" --static-{bin,modules} --use-{a52,faad,freetype,mad}=local --use-ogg=no "${gpac_sdl_cfg[@]}"
+        # --use-ogg=no prevents symbol conflicts with libogg.a (GPAC has an
+        # internal Ogg implementation). Let configure discover the remaining
+        # optional libraries instead of claiming nonexistent "local" copies.
+        execute sh configure --prefix="$workspace" --static-bin --static-modules \
+            --use-ogg=no "${gpac_sdl_cfg[@]}"
         execute make "-j$build_threads"
         execute make install
-        execute sudo cp -f bin/gcc/MP4Box /usr/local/bin
         build_done "$repo_name" "$version"
     fi
 
     # Build SVT-AV1
-    fetch_version_if_enabled "svt-av1" find_git_repo "24327400" "3" "T"
+    fetch_version_if_enabled "svt-av1" find_git_repo "24327400" "1"
     if build "svt-av1" "$repo_version"; then
         download "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$repo_version/SVT-AV1-v$repo_version.tar.bz2" "svt-av1-$repo_version.tar.bz2"
-        execute cmake -S . -B Build/linux \
-                      -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DBUILD_{APPS,SHARED_LIBS,TESTING}=OFF -DENABLE_AVX512="$(check_avx512)" \
-                      -DNATIVE=ON -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C Build/linux
-        execute ninja -C Build/linux install
-        [[ -f "Build/linux/SvtAv1Enc.pc" ]] && cp -f "Build/linux/SvtAv1Enc.pc" "$workspace/lib/pkgconfig/"
-        [[ -d "$workspace/lib/pkgconfig" ]] && [[ -f "Build/linux/SvtAv1Dec.pc" ]] && cp -f "Build/linux/SvtAv1Dec.pc" "$workspace/lib/pkgconfig/"
+        cmake_ninja_install "Build/linux" -S . \
+            -DBUILD_APPS=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DENABLE_AVX512="$(check_avx512)" \
+            -DEXCLUDE_HASH=ON \
+            -DNATIVE=ON \
+            -DREPRODUCIBLE_BUILDS=ON
         build_done "svt-av1" "$repo_version"
     fi
-    # SVT-AV1 (AV1 encoder). The old FFmpeg 6.1.2 API mismatch no longer applies on the
-    # 8.0 target; modern SVT-AV1 (>= 0.9) links normally via SvtAv1Enc.pc.
+    # FFmpeg 8.1 has explicit SVT-AV1 4.x API compatibility and links the
+    # current stable encoder normally through SvtAv1Enc.pc.
     append_configure_options_if_enabled "svt-av1" "--enable-libsvtav1"
 
     # Build VapourSynth
-    fetch_version_if_enabled "vapoursynth" find_git_repo "vapoursynth/vapoursynth" "1" "T"
-    local vapoursynth_package_version="R${repo_version}"
-    if package_enabled "vapoursynth" &&
-        [[ -f "$packages/vapoursynth.done" ]] &&
-        grep -Fx "$vapoursynth_package_version" "$packages/vapoursynth.done" >/dev/null &&
-        ! vapoursynth_sdk_ready_for_ffmpeg; then
-        warn "VapourSynth was marked built, but its FFmpeg SDK files are missing or incomplete; rebuilding it."
-        rm -f "$packages/vapoursynth.done"
-    fi
-
+    fetch_version_if_enabled "vapoursynth" find_git_repo "vapoursynth/vapoursynth" "1"
+    vapoursynth_package_version="R${repo_version}"
     if build "vapoursynth" "$vapoursynth_package_version"; then
         download "https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R${repo_version}.tar.gz" "vapoursynth-R${repo_version}.tar.gz"
 
-        venv_packages=("Cython>=3.1.0")
+        venv_packages=("Cython==3.2.8")
         setup_python_venv_and_install_packages "$workspace/python_virtual_environment/vapoursynth" "${venv_packages[@]}"
-
-        # Activate the virtual environment for the build process
-        source "$workspace/python_virtual_environment/vapoursynth/bin/activate" || fail "Failed to re-activate virtual environment"
 
         # Explicitly set the PYTHON environment variable to the virtual environment's Python
         export PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
 
-        PATH="$ccache_dir:$workspace/python_virtual_environment/vapoursynth/bin:$PATH"
-        remove_duplicate_paths
+        path_prepend "$workspace/python_virtual_environment/vapoursynth/bin"
+        [[ -n "${ccache_dir:-}" ]] && path_prepend "$ccache_dir"
 
         # Set Python flags for Meson dependency detection
         PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
@@ -456,9 +482,6 @@ EOF
         normalize_vapoursynth_sdk_for_ffmpeg ||
             fail "VapourSynth built, but its FFmpeg SDK files could not be exposed from the Python site-packages install. Line: ${LINENO}"
 
-        # Deactivate the virtual environment after the build
-        deactivate
-
         build_done "vapoursynth" "$vapoursynth_package_version"
     else
         if package_enabled "vapoursynth"; then
@@ -469,8 +492,8 @@ EOF
         # Explicitly set the PYTHON environment variable to the virtual environment's Python
         PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
         export PYTHON
-        PATH="$ccache_dir:$workspace/python_virtual_environment/vapoursynth/bin:$PATH"
-        remove_duplicate_paths
+        path_prepend "$workspace/python_virtual_environment/vapoursynth/bin"
+        [[ -n "${ccache_dir:-}" ]] && path_prepend "$ccache_dir"
     fi
     append_configure_options_if_enabled "vapoursynth" "--enable-vapoursynth"
 
@@ -478,92 +501,11 @@ EOF
     git_caller "https://chromium.googlesource.com/codecs/libgav1" "libgav1-git"
     if build "$repo_name" "$version"; then
         cd "$packages/libgav1-git" || fail "Failed to cd into libgav1-git. Line: ${LINENO}"
-        execute git clone -q -b "20220623.1" --depth 1 "https://github.com/abseil/abseil-cpp.git" "third_party/abseil-cpp"
-        # Use -O2 to avoid GCC 14 ICE in SSE4 intra prediction code (lra-constraints.cc bug)
-        execute cmake -B build -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                      -DCMAKE_CXX_FLAGS="-O2 -fPIC -DNDEBUG" \
-                      -DABSL_{ENABLE_INSTALL,PROPAGATE_CXX_STD}=ON -DBUILD_SHARED_LIBS=OFF \
-                      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_SBINDIR=sbin \
-                      -DLIBGAV1_ENABLE_TESTS=OFF -G Ninja -Wno-dev
-        execute ninja "-j$build_threads" -C build
-        execute ninja -C build install
+        cmake_ninja_install "build" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DLIBGAV1_ENABLE_EXAMPLES=OFF \
+            -DLIBGAV1_ENABLE_TESTS=OFF \
+            -DLIBGAV1_THREADPOOL_USE_STD_MUTEX=1
         build_done "$repo_name" "$version"
     fi
-}
-
-# NVIDIA codec headers helper functions (GPL and non-free only)
-fetch_nv_codec_headers_versions() {
-    # Build the `sorted_versions_and_dates` array in "version;MM-DD-YYYY" format.
-    declare -a versions_and_dates=()
-    local formatted_date releases_html token published_date version
-
-    releases_html=$(github_refs_html "FFmpeg/nv-codec-headers" "releases") || {
-        warn "No nv-codec-headers releases found."
-        return 1
-    }
-
-    while IFS= read -r token; do
-        [[ -n "$token" ]] || continue
-
-        if [[ "$token" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-            published_date="$token"
-            continue
-        fi
-
-        version="$token"
-        [[ "$version" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || continue
-        [[ -n "${published_date:-}" ]] || continue
-        formatted_date=$(date -d "$published_date" +"%m-%d-%Y" 2>/dev/null || echo "$published_date")
-        versions_and_dates+=("$version;$formatted_date")
-    done < <(
-        printf '%s' "$releases_html" |
-        grep -oP 'datetime="\K[0-9]{4}-[0-9]{2}-[0-9]{2}|href="[^"]*/releases/tag/n\K[0-9]+(\.[0-9]+){3}(?=")'
-    )
-
-    # Check if any versions were found
-    if [[ ${#versions_and_dates[@]} -eq 0 ]]; then
-        warn "No nv-codec-headers releases found."
-        return 1
-    fi
-
-    # Sort the versions in descending order based on version number
-    mapfile -t sorted_versions_and_dates < <(printf '%s\n' "${versions_and_dates[@]}" | sort -t ';' -k1Vr)
-}
-
-prompt_user_for_version() {
-    echo
-    printf '%sAvailable %snv-codec-headers %sversions%s:\n' "$GREEN" "$YELLOW" "$GREEN" "$NC"
-    echo "------------------------------------"
-
-    local index
-    index=1
-
-    printf '\n%s     Version        %sDate%s\n' "$GREEN" "$YELLOW" "$NC"
-    for vd in "${sorted_versions_and_dates[@]}"; do
-        local formatted_date version
-        version="${vd%%;*}"
-        formatted_date="${vd##*;}"
-        # Pad the index with a leading zero if it's less than 10
-        # Use a fixed-width field for the version (e.g., 12 characters, left-aligned)
-        printf "%02d) %-12s %s\n" "$index" "$version" "$formatted_date"
-        ((index++))
-    done
-
-    echo
-    local choice regex_choice last_index
-    regex_choice='^[0-9]+$'
-    last_index=$((index - 1))
-    while true; do
-        read -rp "Select a version by number (1-$last_index): " choice
-        if [[ "$choice" =~ $regex_choice ]] && ((choice >= 1 && choice <= last_index)); then
-            local selected_vd="${sorted_versions_and_dates[$((choice - 1))]}"
-            selected_version="${selected_vd%%;*}"
-            selected_date="${selected_vd##*;}"
-            break
-        else
-            printf "\n%s\n\n" "Invalid selection. Please enter a number between 1 and $last_index."
-        fi
-    done
-
-    echo "You selected version: $selected_version (Released on $selected_date)"
 }

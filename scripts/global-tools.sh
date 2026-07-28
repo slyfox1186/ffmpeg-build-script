@@ -27,13 +27,18 @@ install_global_tools() {
     # Source the compiler flags
     source_compiler_flags
 
-    # Build m4
-    if build "m4" "latest"; then
-        download_with_fallback "$GNU_PRIMARY_MIRROR/m4/m4-latest.tar.xz" "$GNU_FALLBACK_MIRROR/m4/m4-latest.tar.xz"
-        execute sh configure --prefix="$workspace" --enable-c++ --enable-threads=posix
+    # Build m4 from a versioned release. "m4-latest" is mutable and cannot be
+    # represented truthfully by a durable build marker.
+    fetch_version_if_enabled "m4" gnu_repo "$GNU_PRIMARY_MIRROR/m4/"
+    local m4_version="$repo_version"
+    if build "m4" "$m4_version"; then
+        download_with_fallback \
+            "$GNU_PRIMARY_MIRROR/m4/m4-$m4_version.tar.xz" \
+            "$GNU_FALLBACK_MIRROR/m4/m4-$m4_version.tar.xz"
+        execute sh configure --prefix="$workspace" --enable-threads=posix
         execute make "-j$build_threads"
         execute make install
-        build_done "m4" "latest"
+        build_done "m4" "$m4_version"
     fi
 
     local m4_path
@@ -89,12 +94,12 @@ install_global_tools() {
         execute make "-j$build_threads"
         execute make install
         # Create pkg-config symlink for compatibility
-        ln -sf "$workspace/bin/pkgconf" "$workspace/bin/pkg-config"
+        execute ln -sf "$workspace/bin/pkgconf" "$workspace/bin/pkg-config"
         build_done "pkgconf" "$pkgconf_version"
     fi
 
     # Build cmake
-    fetch_version_if_enabled "cmake" find_git_repo "Kitware/CMake" "1" "T"
+    fetch_version_if_enabled "cmake" find_git_repo "Kitware/CMake" "1"
     if build "cmake" "$repo_version"; then
         download "https://github.com/Kitware/CMake/archive/refs/tags/v$repo_version.tar.gz" "cmake-$repo_version.tar.gz"
         # CMake bootstraps with its own bundled curl and must build as a standalone
@@ -121,38 +126,37 @@ install_global_tools() {
     fi
 
     # Build meson
-    fetch_version_if_enabled "meson" find_git_repo "mesonbuild/meson" "1" "T"
+    fetch_version_if_enabled "meson" find_git_repo "mesonbuild/meson" "1"
     if build "meson" "$repo_version"; then
         local meson_venv="$workspace/python_virtual_environment/build-tools"
         setup_python_venv_and_install_packages "$meson_venv" "meson==$repo_version"
         build_done "meson" "$repo_version"
     fi
     # Ensure the build-tools venv is first on PATH so `meson` is consistent across builds.
-    if [[ -d "$workspace/python_virtual_environment/build-tools/bin" ]]; then
-        PATH="$workspace/python_virtual_environment/build-tools/bin:$PATH"
-        remove_duplicate_paths
-    fi
+    path_prepend "$workspace/python_virtual_environment/build-tools/bin"
 
     # Build ninja
-    fetch_version_if_enabled "ninja" find_git_repo "ninja-build/ninja" "1" "T"
+    fetch_version_if_enabled "ninja" find_git_repo "ninja-build/ninja" "1"
     if build "ninja" "$repo_version"; then
         download "https://github.com/ninja-build/ninja/archive/refs/tags/v$repo_version.tar.gz" "ninja-$repo_version.tar.gz"
         execute python3 configure.py --bootstrap
-        execute install -m 0755 ninja "$workspace/bin/ninja"
+        execute install -Dm0755 ninja "$workspace/bin/ninja"
         build_done "ninja" "$repo_version"
     fi
 
     # Build libzstd
-    fetch_version_if_enabled "libzstd" find_git_repo "facebook/zstd" "1" "T"
+    fetch_version_if_enabled "libzstd" find_git_repo "facebook/zstd" "1"
     if build "libzstd" "$repo_version"; then
         download "https://github.com/facebook/zstd/archive/refs/tags/v$repo_version.tar.gz" "libzstd-$repo_version.tar.gz"
         cd "build/meson" || fail "Failed to cd into build/meson. Line: $LINENO"
         local meson_dir="meson-build"
-        rm -rf -- "$meson_dir"
+        safe_remove_tree "$PWD/$meson_dir" "$PWD"
         meson_ninja_install "$meson_dir" \
             --buildtype=release \
             --default-library=static \
             --strip \
+            -Dbin_contrib=false \
+            -Dbin_programs=false \
             -Dbin_tests=false
         build_done "libzstd" "$repo_version"
     fi
@@ -172,19 +176,22 @@ install_global_tools() {
     append_configure_options_if_enabled "librist" "--enable-librist"
 
     # Build zlib
-    fetch_version_if_enabled "zlib" find_git_repo "madler/zlib" "1" "T"
+    fetch_version_if_enabled "zlib" find_git_repo "madler/zlib" "1"
     if build "zlib" "$repo_version"; then
         download "https://github.com/madler/zlib/releases/download/v$repo_version/zlib-$repo_version.tar.xz"
-        cmake_ninja_install "build" \
-            -DINSTALL_BIN_DIR="$workspace/bin" -DINSTALL_INC_DIR="$workspace/include" \
-            -DINSTALL_LIB_DIR="$workspace/lib" -DINSTALL_MAN_DIR="$workspace/share/man" \
-            -DINSTALL_PKGCONFIG_DIR="$workspace/share/pkgconfig" -DZLIB_BUILD_EXAMPLES=OFF
+        # zlib 1.3.x's CMake build always creates both explicit shared and
+        # static targets. Its documented --static configure path builds only
+        # the archive this workspace consumes.
+        execute sh configure --prefix="$workspace" --static
+        execute make "-j$build_threads"
+        execute make install
         build_done "zlib" "$repo_version"
     fi
 
     # Build openssl (if GPL and non-free enabled)
-    if "$NONFREE_AND_GPL"; then
-        fetch_version_if_enabled "openssl" openssl_30_version || fail "Failed to detect OpenSSL 3.0.x version. Line: ${LINENO}"
+    if is_true "$NONFREE_AND_GPL"; then
+        fetch_version_if_enabled "openssl" openssl_lts_version ||
+            fail "Failed to detect the latest OpenSSL 3.5 LTS release. Line: ${LINENO}"
         local openssl_version="$repo_version"
         if build "openssl" "$openssl_version"; then
             local zlib_include_dir zlib_library_dir
@@ -195,6 +202,9 @@ install_global_tools() {
                                         --openssldir="$workspace/ssl" \
                                         no-shared \
                                         no-pinshared \
+                                        no-apps \
+                                        no-docs \
+                                        no-tests \
                                         threads \
                                         zlib \
                                         --with-rand-seed=os \

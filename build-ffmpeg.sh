@@ -1,289 +1,472 @@
 #!/usr/bin/env bash
 # shellcheck source=/dev/null
 
-# Enable debug output to see what's happening
-# set -x
 set -o pipefail
 
-####################################################################################
-##
-##  Purpose: Build FFmpeg from source code with addon libraries which are
-##           also compiled from source to help ensure the latest functionality
-##           possible
-##
-##  GitHub: https://github.com/slyfox1186/ffmpeg-build-script
-##
-##  Script version: 4.3.1
-##
-##  CUDA SDK Toolkit: latest version detected from NVIDIA's downloads page at
-##                    runtime (fallback: DEFAULT_CUDA_VERSION in hardware-detection.sh)
-##
-##  Supported Distros: Debian 12/13, Ubuntu 22.04/24.04, WSL
-##                     (Zorin OS 17 and Linux Mint 21.x also work)
-##
-##  Supported architecture: x86_64
-##
-####################################################################################
+readonly SCRIPT_VERSION="6.0.0"
+readonly SCRIPT_NAME="${0##*/}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SCRIPT_DIR
+readonly REPO_ROOT="$SCRIPT_DIR"
+readonly INVOCATION_DIR="$PWD"
 
-if [[ "$EUID" -eq 0 ]]; then
-    echo "You must run this script without root or sudo."
-    exit 1
-fi
-
-# Define global variables
-script_name="${0##*/}"
-script_version="4.3.1"
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-invocation_dir="$PWD"
-
-# Keep build artifacts out of the repo root (prevents cleanup from deleting the repo).
-# Override with BUILD_ROOT=/path/to/dir if desired.
-repo_root="$script_dir"
-cwd="${BUILD_ROOT:-"$repo_root/build"}"
-mkdir -p "$cwd"
-cd "$cwd" || exit 1
-
-packages="$cwd/packages"
-workspace="$cwd/workspace"
-
-# Source shared utilities
-source "$script_dir/scripts/shared-utils.sh"
-
-# Print script banner
-echo
-box_out_banner "FFmpeg Build Script - v$script_version"
-
-# Create output directories
-mkdir -p "$packages" "$workspace"
-
-# Ensure staging directories remain writable between runs
-ensure_user_ownership "$packages" "$workspace"
-
-# Automatically overwrite the log file each time
-log_file="$cwd/build.log"
-rm -f "$log_file"
-touch "$log_file"
-
-
-# PRINT THE SCRIPT OPTIONS
-usage() {
-    echo
-    echo "Usage: $script_name [options]"
-    echo
-    echo "Options:"
-    echo "  -h, --help                        Display usage information"
-    echo "   --compiler=<gcc|clang>           Set the default CC and CXX compiler (default: gcc)"
-    echo "   --config <path>                  Load build/package selection from a TOML config file"
-    echo "  -b, --build                       Starts the build process"
-    echo "  -c, --cleanup                     Remove all working dirs"
-    echo "  -g, --google-speech               Enable Google Speech for audible error messages (google_speech must already be installed to work)."
-    echo "  -j, --jobs <number>               Set the number of CPU threads for parallel processing"
-    echo "  -l, --latest                      Force the script to build the latest version of dependencies if newer version is available"
-    echo "  -n, --enable-gpl-and-non-free     Enable GPL and non-free codecs - https://ffmpeg.org/legal.html"
-    echo "  -v, --version                     Display the current script version"
-    echo
-    echo "Example: bash $script_name --build --compiler=clang -j 8"
-    echo
-}
-
-COMPILER_FLAG=""
-# Populated by helpers in shared-utils.sh (append_configure_options_if_enabled)
-# and consumed by ffmpeg-build.sh; shellcheck can't see the cross-file use.
-# shellcheck disable=SC2034
+# Shared state consumed by the sourced build stages.
+COMPILER_FLAG="gcc"
 CONFIGURE_OPTIONS=()
 LATEST=false
 NONFREE_AND_GPL=false
 GOOGLE_SPEECH=false
 DO_BUILD=false
+DO_CLEANUP=false
 PACKAGE_CONFIG_FILE=""
 build_threads=""
+cwd=""
+packages=""
+workspace=""
+log_file=""
 
-resolve_config_path() {
-    local input_path="${1:-}" candidate_path
+# shellcheck source=scripts/shared-utils.sh
+source "$SCRIPT_DIR/scripts/shared-utils.sh"
 
-    [[ -n "$input_path" ]] || fail "Missing config path for --config."
-
-    if [[ "$input_path" = /* ]]; then
-        candidate_path="$input_path"
-    elif [[ -f "$invocation_dir/$input_path" ]]; then
-        candidate_path="$invocation_dir/$input_path"
-    elif [[ -f "$script_dir/$input_path" ]]; then
-        candidate_path="$script_dir/$input_path"
-    else
-        candidate_path="$input_path"
-    fi
-
-    readlink -f -- "$candidate_path" 2>/dev/null || printf '%s\n' "$candidate_path"
+usage() {
+    printf '\nFFmpeg Build Script %s\n' "$SCRIPT_VERSION"
+    printf 'Usage: %s [options]\n\n' "$SCRIPT_NAME"
+    printf '%s\n' \
+        "Actions:" \
+        "  -b, --build                       Build and install FFmpeg" \
+        "  -c, --cleanup                     Remove this project's build root" \
+        "" \
+        "Options:" \
+        "  -h, --help                        Show this help without changing the filesystem" \
+        "  -v, --version                     Show the script version" \
+        "      --compiler <gcc|clang>         Select the C/C++ compiler (default: gcc)" \
+        "      --config <path>                Load build/package choices from TOML" \
+        "  -j, --jobs <count>                 Set parallel build jobs (default: available CPUs)" \
+        "  -l, --latest                      Refresh and rebuild outdated dependencies" \
+        "  -n, --enable-gpl-and-non-free     Enable GPL/non-free components" \
+        "  -g, --google-speech               Announce failures if google_speech is installed" \
+        "" \
+        "Environment:" \
+        "  BUILD_ROOT=/path                  Override the default ./build directory" \
+        "  CUDA_INSTALL=ask|always|never     Control CUDA toolkit installation (default: ask)" \
+        "  CUDA_ARCH_MODE=native|all|custom  Select CUDA code-generation targets" \
+        "  FFMPEG_BUILD_DEBUG=ON             Stream commands while also logging them" \
+        "" \
+        "Example:" \
+        "  bash $SCRIPT_NAME --build --compiler clang --jobs 8 --config ./example.toml" \
+        ""
 }
 
-cli_args=("$@")
-for ((i = 0; i < ${#cli_args[@]}; i++)); do
-    case "${cli_args[i]}" in
-        --config)
-            if ((i + 1 >= ${#cli_args[@]})); then
-                fail "Missing value for --config."
-            fi
-            PACKAGE_CONFIG_FILE="$(resolve_config_path "${cli_args[i + 1]}")"
-            ((i++))
-            ;;
-        --config=*)
-            PACKAGE_CONFIG_FILE="$(resolve_config_path "${cli_args[i]#*=}")"
+resolve_config_path() {
+    local input_path="${1:-}"
+    local candidate_path
+
+    [[ -n "$input_path" ]] || fail "Missing config path for --config."
+    [[ ! "$input_path" =~ [[:cntrl:]] ]] ||
+        fail "Config paths may not contain control characters."
+    if [[ "$input_path" == /* ]]; then
+        candidate_path="$input_path"
+    elif [[ -f "$INVOCATION_DIR/$input_path" ]]; then
+        candidate_path="$INVOCATION_DIR/$input_path"
+    else
+        candidate_path="$SCRIPT_DIR/$input_path"
+    fi
+
+    canonicalize_path "$candidate_path"
+}
+
+show_requested_metadata_and_exit() {
+    local arg
+
+    for arg in "$@"; do
+        case "$arg" in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -v|--version)
+                printf '%s\n' "$SCRIPT_VERSION"
+                exit 0
+                ;;
+        esac
+    done
+}
+
+prescan_config() {
+    local -a arguments=("$@")
+    local index
+
+    for ((index = 0; index < ${#arguments[@]}; index++)); do
+        case "${arguments[index]}" in
+            --config)
+                ((index + 1 < ${#arguments[@]})) ||
+                    fail "Missing value for --config."
+                [[ -z "$PACKAGE_CONFIG_FILE" ]] ||
+                    fail "--config may only be specified once."
+                PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index + 1]}")"
+                ((index += 1))
+                ;;
+            --config=*)
+                [[ -z "$PACKAGE_CONFIG_FILE" ]] ||
+                    fail "--config may only be specified once."
+                PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index]#*=}")"
+                ;;
+        esac
+    done
+
+    [[ -z "$PACKAGE_CONFIG_FILE" ]] || load_package_selection_config "$PACKAGE_CONFIG_FILE"
+}
+
+parse_arguments() {
+    while (($# > 0)); do
+        case "$1" in
+            -b|--build)
+                DO_BUILD=true
+                shift
+                ;;
+            -c|--cleanup)
+                DO_CLEANUP=true
+                shift
+                ;;
+            -g|--google-speech)
+                GOOGLE_SPEECH=true
+                shift
+                ;;
+            -l|--latest)
+                LATEST=true
+                shift
+                ;;
+            -n|--enable-gpl-and-non-free)
+                enable_gpl_and_non_free
+                shift
+                ;;
+            --compiler)
+                (($# >= 2)) || fail "Missing value for --compiler."
+                COMPILER_FLAG="$2"
+                shift 2
+                ;;
+            --compiler=*)
+                COMPILER_FLAG="${1#*=}"
+                shift
+                ;;
+            -j|--jobs)
+                (($# >= 2)) || fail "Missing value for $1."
+                build_threads="$2"
+                shift 2
+                ;;
+            --config)
+                (($# >= 2)) || fail "Missing value for --config."
+                shift 2
+                ;;
+            --config=*)
+                shift
+                ;;
+            -h|--help|-v|--version)
+                # Handled before config loading so these options remain side-effect free.
+                shift
+                ;;
+            --)
+                shift
+                (($# == 0)) || fail "Unexpected positional arguments: $*"
+                ;;
+            *)
+                fail "Unknown option: $1"
+                ;;
+        esac
+    done
+
+    [[ "$COMPILER_FLAG" == "gcc" || "$COMPILER_FLAG" == "clang" ]] ||
+        fail "Invalid compiler '$COMPILER_FLAG'; expected gcc or clang."
+    if [[ -n "$build_threads" ]]; then
+        [[ "$build_threads" =~ ^[1-9][0-9]*$ ]] ||
+            fail "Invalid jobs value '$build_threads'; expected a positive integer."
+    fi
+    if is_true "$DO_BUILD" && is_true "$DO_CLEANUP"; then
+        fail "--build and --cleanup are mutually exclusive."
+    fi
+    [[ "$debug" == "ON" || "$debug" == "OFF" ]] ||
+        fail "Invalid FFMPEG_BUILD_DEBUG '$debug'; expected ON or OFF."
+}
+
+resolve_build_root() {
+    local requested_root="${BUILD_ROOT:-$REPO_ROOT/build}"
+
+    if [[ "$requested_root" != /* ]]; then
+        requested_root="$INVOCATION_DIR/$requested_root"
+    fi
+    cwd="$(canonicalize_path "$requested_root")" ||
+        fail "Unable to resolve build root '$requested_root'."
+    packages="$cwd/packages"
+    workspace="$cwd/workspace"
+    log_file="$cwd/build.log"
+}
+
+validate_build_root() {
+    local home_resolved parent first_entry
+
+    [[ "${HOME:-}" == /* ]] ||
+        fail "HOME must name an absolute user home directory."
+    home_resolved="$(canonicalize_path "${HOME:-}")" ||
+        fail "HOME must name an absolute user home directory."
+    [[ "$cwd" != *[[:space:]]* ]] ||
+        fail "BUILD_ROOT may not contain whitespace because several upstream build systems cannot represent it safely: '$cwd'."
+    case "$cwd" in
+        /|/bin|/boot|/dev|/etc|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+            fail "Refusing unsafe build root '$cwd'."
             ;;
     esac
-done
+    [[ "$cwd" != "$home_resolved" && "$cwd" != "$REPO_ROOT" ]] ||
+        fail "Refusing unsafe build root '$cwd'."
 
-if [[ -n "$PACKAGE_CONFIG_FILE" ]]; then
-    load_package_selection_config "$PACKAGE_CONFIG_FILE"
-fi
+    parent="$(dirname -- "$cwd")"
+    [[ -d "$parent" ]] ||
+        mkdir -p -- "$parent" ||
+        fail "Unable to create build-root parent '$parent'."
 
-while (("$#" > 0)); do
-    case "$1" in
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        -v|--version)
-            echo
-            echo "The script version is: $script_version"
-            exit 0
-            ;;
-        --config)
-            if [[ -z "${2:-}" ]]; then
-                fail "Missing value for --config."
+    [[ ! -e "$cwd" || -d "$cwd" ]] ||
+        fail "BUILD_ROOT exists but is not a directory: '$cwd'."
+    if [[ -d "$cwd" ]]; then
+        [[ -r "$cwd" && -x "$cwd" ]] ||
+            fail "BUILD_ROOT cannot be inspected safely by the current user: '$cwd'."
+        if ! first_entry="$(find "$cwd" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)"; then
+            fail "Unable to inspect existing BUILD_ROOT '$cwd'."
+        fi
+        if [[ -n "$first_entry" ]]; then
+            if build_root_marker_matches "$cwd/.ffmpeg-build-root" "$cwd"; then
+                :
+            elif legacy_build_root_marker "$cwd/.ffmpeg-build-root"; then
+                warn "BUILD_ROOT '$cwd' uses a legacy empty marker; this build will upgrade it to a path-bound marker."
+            else
+                fail "BUILD_ROOT '$cwd' already contains data and lacks a valid path-bound FFmpeg build-root marker."
             fi
-            shift 2
+        fi
+    fi
+}
+
+write_build_context_payload() {
+    local package_name
+
+    printf '%s\n' \
+        "ffmpeg-build-context:v1" \
+        "script_version=$SCRIPT_VERSION" \
+        "compiler=$COMPILER_FLAG" \
+        "gpl_and_non_free=$NONFREE_AND_GPL" \
+        "rust_toolchain=$RUST_TOOLCHAIN_VERSION" \
+        "cargo_c=$CARGO_C_VERSION"
+    printf 'cflags=%q\n' "${CFLAGS:-}"
+    printf 'cxxflags=%q\n' "${CXXFLAGS:-}"
+    printf 'cppflags=%q\n' "${CPPFLAGS:-}"
+    printf 'ldflags=%q\n' "${LDFLAGS:-}"
+    printf 'cuda_arch_mode=%q\n' "${CUDA_ARCH_MODE:-native}"
+    printf 'cuda_architectures=%q\n' "${CUDA_ARCHITECTURES:-}"
+    printf 'source_date_epoch=%q\n' "${SOURCE_DATE_EPOCH:-}"
+    for package_name in "${SUPPORTED_PACKAGE_NAMES[@]}"; do
+        if package_enabled "$package_name"; then
+            printf 'package.%s=true\n' "$package_name"
+        else
+            printf 'package.%s=false\n' "$package_name"
+        fi
+    done
+}
+
+ensure_build_context() {
+    local context_file="$cwd/.ffmpeg-build-context"
+    local temporary_context prior_marker
+
+    [[ ! -L "$context_file" ]] ||
+        fail "Refusing symlink build-context file '$context_file'."
+    if [[ -e "$context_file" ]]; then
+        [[ -f "$context_file" ]] ||
+            fail "Build-context path is not a regular file: '$context_file'."
+        [[ "$(stat -c '%h' "$context_file" 2>/dev/null || true)" == "1" ]] ||
+            fail "Refusing multiply-linked build-context file '$context_file'."
+    fi
+
+    temporary_context="$(mktemp --tmpdir="$cwd" '.ffmpeg-build-context.XXXXXX')" ||
+        fail "Unable to create a temporary build-context file."
+    if ! write_build_context_payload >"$temporary_context" ||
+        ! chmod 0600 "$temporary_context"; then
+        rm -f -- "$temporary_context"
+        fail "Unable to record the current build context."
+    fi
+
+    if [[ -f "$context_file" ]]; then
+        if cmp -s -- "$context_file" "$temporary_context"; then
+            rm -f -- "$temporary_context"
+            return 0
+        fi
+        rm -f -- "$temporary_context"
+        fail "Compiler, flags, licensing mode, CUDA targets, or package selections changed for this workspace. Run --cleanup before rebuilding."
+    fi
+
+    prior_marker="$(find "$packages" -maxdepth 1 -type f -name '*.done' -print -quit 2>/dev/null || true)"
+    if [[ -n "$prior_marker" ]]; then
+        rm -f -- "$temporary_context"
+        fail "This legacy workspace has package markers but no build-context record. Run --cleanup before rebuilding."
+    fi
+    mv -f -- "$temporary_context" "$context_file" ||
+        fail "Unable to publish build-context file '$context_file'."
+}
+
+initialize_build_root() {
+    local managed_file managed_path
+
+    validate_build_root
+    for managed_path in \
+        "$packages" \
+        "$workspace" \
+        "$log_file" \
+        "$cwd/.ffmpeg-build-root" \
+        "$cwd/.ffmpeg-build-context"; do
+        [[ ! -L "$managed_path" ]] ||
+            fail "Refusing symlink at managed build path '$managed_path'."
+    done
+    if ! mkdir -p -- "$packages" "$workspace"; then
+        execute sudo mkdir -p -- "$packages" "$workspace"
+    fi
+    if [[ "$(stat -c '%u' "$cwd" 2>/dev/null || true)" != "$BUILD_UID" ||
+        ! -w "$cwd" ]]; then
+        execute sudo chown "$BUILD_UID:$BUILD_GID" "$cwd"
+    fi
+    acquire_build_root_lock "$cwd"
+    [[ ! -e "$log_file" || -f "$log_file" ]] ||
+        fail "Build log path is not a regular file: '$log_file'."
+    [[ ! -e "$cwd/.ffmpeg-build-root" || -f "$cwd/.ffmpeg-build-root" ]] ||
+        fail "Build-root marker is not a regular file."
+    for managed_file in "$log_file" "$cwd/.ffmpeg-build-root" "$cwd/.ffmpeg-build-context"; do
+        if [[ -e "$managed_file" &&
+            "$(stat -c '%h' "$managed_file" 2>/dev/null || true)" != "1" ]]; then
+            fail "Refusing multiply-linked managed file '$managed_file'."
+        fi
+    done
+    write_build_root_marker "$cwd"
+    ensure_user_ownership \
+        "$packages" \
+        "$workspace" \
+        "$log_file" \
+        "$cwd/.ffmpeg-build-root" \
+        "$cwd/.ffmpeg-build-context"
+    : >"$log_file" || fail "Unable to initialize build log '$log_file'."
+    cd -- "$cwd" || fail "Unable to enter build root '$cwd'."
+}
+
+handle_signal() {
+    local signal_name="${1:-TERM}"
+    local exit_code
+
+    case "$signal_name" in
+        HUP) exit_code=129 ;;
+        INT) exit_code=130 ;;
+        TERM) exit_code=143 ;;
+        *) exit_code=1 ;;
+    esac
+    warn "Received $signal_name; stopping after preserving build files in '$cwd'."
+    exit "$exit_code"
+}
+
+configure_toolchain() {
+    build_threads="${build_threads:-$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN)}"
+    [[ "$build_threads" =~ ^[1-9][0-9]*$ ]] ||
+        fail "Unable to determine a valid parallel job count."
+
+    case "$COMPILER_FLAG" in
+        gcc)
+            CC=gcc
+            CXX=g++
             ;;
-        --config=*)
-            shift
-            ;;
-        -n|--enable-gpl-and-non-free)
-            enable_gpl_and_non_free
-            shift
-            ;;
-        -b|--build)
-            DO_BUILD=true
-            shift
-            ;;
-        -c|--cleanup)
-            cleanup
-            shift
-            exit 0
-            ;;
-        -g|--google-speech)
-            GOOGLE_SPEECH=true
-            shift
-            ;;
-        -l|--latest)
-            LATEST=true
-            shift
-            ;;
-        --compiler=gcc|--compiler=clang)
-            COMPILER_FLAG="${1#*=}"
-            shift
-            ;;
-        -j|--jobs)
-            if [[ -z "${2:-}" ]]; then
-                fail "Missing value for $1 (expected a number)."
-            fi
-            if [[ ! "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 1 ]]; then
-                fail "Invalid jobs value: '$2' (expected a positive integer)."
-            fi
-            build_threads="$2"
-            shift 2
-            ;;
-        *)
-            usage
-            exit 1
+        clang)
+            CC=clang
+            CXX=clang++
             ;;
     esac
-done
 
-if ! "$DO_BUILD"; then
-    usage
-    exit 0
-fi
+    MAKEFLAGS="-j$build_threads"
+    LC_ALL=C
+    TZ=UTC
+    export CC CXX MAKEFLAGS LATEST NONFREE_AND_GPL GOOGLE_SPEECH LC_ALL TZ
+    ACLOCAL_PATH="$workspace/share/aclocal:/usr/local/share/aclocal:/usr/share/aclocal"
+    export ACLOCAL_PATH
+}
 
-if [[ -z "$build_threads" ]]; then
-    # Set the available CPU thread and core count for parallel processing (speeds up the build process)
-    build_threads=$(nproc --all)
-fi
+run_build() {
+    [[ "$EUID" -ne 0 ]] ||
+        fail "Run this script as a normal user; it invokes sudo only for system changes."
+    [[ "$(uname -m)" == "x86_64" ]] ||
+        fail "This build currently supports x86_64 only; detected $(uname -m)."
 
-MAKEFLAGS="-j$build_threads"
+    umask 022
+    require_sudo
+    initialize_build_root
+    configure_toolchain
+    ensure_build_context
 
-if [[ -z "$COMPILER_FLAG" ]] || [[ "$COMPILER_FLAG" == "gcc" ]]; then
-    CC="gcc"
-    CXX="g++"
-elif [[ "$COMPILER_FLAG" == "clang" ]]; then
-    CC="clang"
-    CXX="clang++"
-else
-    fail "Invalid compiler specified. Valid options are 'gcc' or 'clang'."
-fi
-export CC CXX MAKEFLAGS
-export LATEST NONFREE_AND_GPL
-export GOOGLE_SPEECH
+    printf '\n'
+    box_out_banner "FFmpeg Build Script $SCRIPT_VERSION"
+    log "Build root: $cwd"
+    log "Parallel jobs: $build_threads"
+    log "Compiler family: $COMPILER_FLAG"
+    is_true "$NONFREE_AND_GPL" && warn "GPL and non-free components are enabled."
 
-# Set ACLOCAL_PATH to include workspace m4 files
-export ACLOCAL_PATH="$workspace/share/aclocal:/usr/share/aclocal"
+    # shellcheck source=scripts/system-setup.sh
+    source "$SCRIPT_DIR/scripts/system-setup.sh"
+    initialize_system_setup
+    validate_package_selection
 
-echo
-log "Utilizing $build_threads CPU threads"
-echo
+    # shellcheck source=scripts/hardware-detection.sh
+    source "$SCRIPT_DIR/scripts/hardware-detection.sh"
+    initialize_hardware_detection
+    install_cuda
 
-if "$NONFREE_AND_GPL"; then
-    warn "With GPL and non-free codecs enabled"
-    echo
-fi
+    # shellcheck source=scripts/global-tools.sh
+    source "$SCRIPT_DIR/scripts/global-tools.sh"
+    install_global_tools
 
+    # shellcheck source=scripts/core-libraries.sh
+    source "$SCRIPT_DIR/scripts/core-libraries.sh"
+    install_core_libraries
 
-[[ -t 1 ]] && clear
+    # shellcheck source=scripts/support-libraries.sh
+    source "$SCRIPT_DIR/scripts/support-libraries.sh"
+    install_miscellaneous_libraries
 
-# Validate sudo credentials once up front (many steps require sudo for installs).
-require_sudo
+    # shellcheck source=scripts/audio-libraries.sh
+    source "$SCRIPT_DIR/scripts/audio-libraries.sh"
+    install_audio_libraries
 
-# Detect GPU vendors up front so package installation only pulls the GPU stacks
-# this machine can actually use (CUDA→NVIDIA, AMF→AMD, QSV→Intel, Vulkan→any GPU).
-source "$script_dir/scripts/hardware-detection.sh"
-detect_gpu_vendors
+    # shellcheck source=scripts/video-libraries.sh
+    source "$SCRIPT_DIR/scripts/video-libraries.sh"
+    install_video_libraries
 
-# Initialize system setup (OS detection, package installation, etc.)
-source "$script_dir/scripts/system-setup.sh"
-initialize_system_setup
-validate_package_selection
+    # shellcheck source=scripts/image-libraries.sh
+    source "$SCRIPT_DIR/scripts/image-libraries.sh"
+    install_image_libraries
 
-# Report detected hardware and resolve CUDA setup.
-initialize_hardware_detection
+    # shellcheck source=scripts/ffmpeg-build.sh
+    source "$SCRIPT_DIR/scripts/ffmpeg-build.sh"
+    build_ffmpeg
+}
 
-# Prompt the user to install the GeForce CUDA SDK-Toolkit
-install_cuda
+main() {
+    show_requested_metadata_and_exit "$@"
+    prescan_config "$@"
+    parse_arguments "$@"
+    resolve_build_root
 
-# Update the ld linker search paths
-sudo ldconfig
+    trap sudo_keepalive_stop EXIT
+    trap 'handle_signal INT' INT
+    trap 'handle_signal TERM' TERM
+    trap 'handle_signal HUP' HUP
 
-# Install Global Tools
-source "$script_dir/scripts/global-tools.sh"
-install_global_tools
+    if is_true "$DO_CLEANUP"; then
+        cleanup
+        return 0
+    fi
+    if ! is_true "$DO_BUILD"; then
+        usage
+        return 0
+    fi
 
-# Install Core Libraries
-source "$script_dir/scripts/core-libraries.sh"
-install_core_libraries
+    run_build
+}
 
-# Install Support Libraries
-source "$script_dir/scripts/support-libraries.sh"
-install_miscellaneous_libraries
-
-# Install Audio Libraries
-source "$script_dir/scripts/audio-libraries.sh"
-install_audio_libraries
-
-# Install Video Libraries  
-source "$script_dir/scripts/video-libraries.sh"
-install_video_libraries
-
-# Install Image Libraries
-source "$script_dir/scripts/image-libraries.sh"
-install_image_libraries
-
-# Build FFmpeg
-source "$script_dir/scripts/ffmpeg-build.sh"
-build_ffmpeg
+main "$@"

@@ -1,148 +1,50 @@
-# Build directories (created by build-ffmpeg.sh)
+# Project build root and alternate legacy roots
+/build/
 /packages/
 /workspace/
 /ffmpeg-build-script/
 
-# All extracted source code in packages
-packages/*/
-!packages/.gitkeep
-
-# All autotools generated files
-**/configure
-**/config.status
-**/config.log
-**/config.h
-**/config.h.in
-**/Makefile
-**/Makefile.in
-**/libtool
-**/ltmain.sh
-**/config.guess
-**/config.sub
-**/compile
-**/depcomp
-**/install-sh
-**/missing
-**/mkinstalldirs
-**/stamp-h1
-**/aclocal.m4
-**/autom4te.cache/
-
-# All CMake generated files
-**/CMakeCache.txt
-**/CMakeFiles/
-**/cmake_install.cmake
-**/CMakeOutput.log
-**/CTestTestfile.cmake
-
-# All build artifacts
-**/build/
-**/.libs/
-**/.deps/
-**/*.la
-**/*.lo
-**/*.o
-**/*.Po
-**/*.Plo
-**/*.pc
-**/*.a
-**/*.so
-**/*.so.*
-**/*.dylib
-**/*.dll
-**/*.exe
-
-# Build artifacts and logs
-build.log
+# Build state and logs
 *.done
+*.log
 
-# Build logs generated during compilation
-config.log
-CMakeOutput.log
-cmake_bootstrap.log
-
-# Downloaded archives and source files
-*.tar.gz
+# Downloaded source archives
+*.tar
 *.tar.bz2
-*.tar.xz
+*.tar.gz
 *.tar.lz
+*.tar.xz
 *.tar.zst
-*.tgz
 *.tbz2
+*.tgz
 *.zip
-*.7z
 
-# Temporary files
-*.tmp
-*.temp
-*XXXXXX
-
-# Build artifacts (compiled libraries)
+# Native build output
 *.a
-*.so
-*.so.*
 *.dylib
-*.dll
-*.exe
-
-# Python virtual environments created during build
-python_virtual_environment/
-**/python_virtual_environment/
-__pycache__/
-**/__pycache__/
-*.pyc
-
-# Build directories within packages
-packages/*/build/
-packages/*/.libs/
-packages/*/.deps/
-packages/*/CMakeFiles/
-packages/*/cmake_install.cmake
-packages/*/Makefile
-packages/*/libtool
-packages/*/config.status
-
-# FFmpeg specific build files
-packages/ffmpeg-*/build/
-packages/ffmpeg-*/ffbuild/
-packages/ffmpeg-*/ffbuild/config.*
-packages/ffmpeg-*/config.*
-packages/ffmpeg-*/libavutil/avconfig.h
-packages/ffmpeg-*/libavcodec/bsf_list.c
-packages/ffmpeg-*/libavformat/protocol_list.c
-
-# Test and build artifacts
-*.test
-*.pc
 *.la
 *.lo
 *.o
-*.Po
-*.Plo
+*.so
+*.so.*
+**/.deps/
+**/.libs/
+**/CMakeCache.txt
+**/CMakeFiles/
+**/autom4te.cache/
+**/build/
 
-# Editor and IDE files
-*.swp
-*.swo
-*~
-.vscode/
-.idea/
-*.sublime-*
+# Python environments and bytecode
+**/__pycache__/
+**/python_virtual_environment/
+*.py[cod]
 
-# System files
+# Local configuration
+/local.toml
+
+# Editors and operating systems
 .DS_Store
-Thumbs.db
-
-# Runtime scripts
-/run-scripts/
-
-# Claude AI files
-.claude/
-.mcp.json
-
-# AI instruction files (except CLAUDE.md which is tracked)
-AGENTS.md
-GEMINI.md
-
-# Optional: Keep the original .gitignore and LICENSE commented out if needed
-# /.gitignore
-# /LICENSE
+.idea/
+.vscode/
+*.sw?
+*~

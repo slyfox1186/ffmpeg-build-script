@@ -6,14 +6,15 @@
 #   [packages]
 #   key = true|false
 #
-# CLI flags still override config values.
+# This file is an explicit allowlist: omitted package keys are disabled.
+# CLI opt-ins can still enable build.latest and GPL/non-free mode.
 # Disabled local packages will use supported system packages when available.
 # If a disabled package breaks a required dependency chain, the script will fail early.
 # If you change package selections on an existing workspace, run:
 #   bash build-ffmpeg.sh --cleanup
 
 [build]
-latest = true
+latest = false
 enable_gpl_and_non_free = false
 
 [packages]
@@ -56,12 +57,12 @@ libjpeg-turbo = true
 rubberband-git = false
 c-ares = true
 lv2-git = true
-waflib = true
 serd = true
 pcre2 = true
 zix = true
 sord = true
 sratom = true
+lilv = true
 jemalloc = true
 libsoxr = true
 sdl2 = true
@@ -104,8 +105,7 @@ libbluray = true
 libvpx = true
 
 # System libraries (provided by the -dev packages installed in system-setup.sh).
-# Enabled by default; set to false to omit a given library from FFmpeg's configure.
-# Skipped automatically if the dev package is absent on your distro.
+# Explicitly enabled entries require their development package to be available.
 libdav1d = true        # AV1 decoding (dav1d)
 libvpl = true          # Intel Quick Sync (oneVPL) hw enc/dec
 libspeex = true        # Speex speech codec
@@ -121,7 +121,7 @@ libcaca = true         # ASCII-art output
 libbs2b = true         # Bauer stereo-to-binaural
 libjack = true         # JACK audio
 libv4l2 = true         # Video4Linux2 capture
-xlib = true            # X11 grabbing (x11grab)
+xlib = true            # X11/XCB grabbing (x11grab)
 libsnappy = true       # Snappy (needed for HAP)
 libtwolame = true      # MP2 encoding
 libvo-amrwbenc = true  # AMR-WB encoding
@@ -137,8 +137,12 @@ libflite = true        # text-to-speech (flite)
 alsa = true            # ALSA audio I/O
 libpulse = true        # PulseAudio input
 sndio = true           # sndio audio I/O
+libdrm = true          # Linux DRM hardware contexts
+vdpau = true           # VDPAU hardware acceleration
+libsmbclient = true    # SMB/CIFS protocol (GPL/non-free mode only)
+libcdio = true         # audio-CD input (GPL/non-free mode only)
 libvmaf = true         # VMAF quality metric (built from source; not packaged for apt)
-vulkan-headers = true  # latest Vulkan headers (built from source; required for vulkan)
+vulkan-headers-git = true # latest Vulkan headers (built from source; required for vulkan)
 vulkan = true          # Vulkan hwaccel + GPU filters
 libshaderc = true      # SPIR-V compiler for the Vulkan filters
 libplacebo = true      # GPU tonemap/scale via vf_libplacebo (needs vulkan + libplacebo>=5.229)

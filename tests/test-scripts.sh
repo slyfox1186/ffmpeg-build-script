@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+# Literal bash -c programs and pkg-config variables in this test are intentional.
+# shellcheck disable=SC2016
+
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+temporary_parent="$(readlink -f -- "${TMPDIR:-/tmp}")"
+temporary_root="$(mktemp -d --tmpdir="$temporary_parent")"
+
+cleanup_temporary_root() {
+    [[ -n "${temporary_root:-}" && -d "$temporary_root" ]] || return 0
+    [[ "${temporary_root%/*}" == "$temporary_parent" &&
+        "${temporary_root##*/}" == tmp.* ]] || {
+        printf 'Refusing to remove unexpected test directory: %s\n' "$temporary_root" >&2
+        return 1
+    }
+    rm -rf --one-file-system -- "$temporary_root"
+}
+
+trap cleanup_temporary_root EXIT
+
+pass_count=0
+
+pass() {
+    ((pass_count += 1))
+    printf 'ok %d - %s\n' "$pass_count" "$1"
+}
+
+fail_test() {
+    printf 'not ok %d - %s\n' "$((pass_count + 1))" "$1" >&2
+    exit 1
+}
+
+assert_equal() {
+    local expected="${1-}" actual="${2-}" description="${3:-values match}"
+    [[ "$actual" == "$expected" ]] || {
+        printf 'expected: %q\nactual:   %q\n' "$expected" "$actual" >&2
+        fail_test "$description"
+    }
+    pass "$description"
+}
+
+assert_file() {
+    local file="${1:-}" description="${2:-file exists}"
+    [[ -f "$file" ]] || fail_test "$description"
+    pass "$description"
+}
+
+assert_not_exists() {
+    local path="${1:-}" description="${2:-path does not exist}"
+    [[ ! -e "$path" && ! -L "$path" ]] || fail_test "$description"
+    pass "$description"
+}
+
+assert_command_fails() {
+    local description="${1:-command fails}"
+    shift
+
+    if "$@" >/dev/null 2>&1; then
+        fail_test "$description"
+    fi
+    pass "$description"
+}
+
+help_root="$temporary_root/help-root"
+help_output="$(BUILD_ROOT="$help_root" bash "$repo_root/build-ffmpeg.sh" --help)"
+[[ "$help_output" == *"FFmpeg Build Script"* ]] || fail_test "--help prints usage"
+assert_not_exists "$help_root" "--help has no filesystem side effects"
+
+version_output="$(BUILD_ROOT="$temporary_root/version-root" bash "$repo_root/build-ffmpeg.sh" --version)"
+assert_equal "6.0.0" "$version_output" "--version is exact and side-effect free"
+assert_not_exists "$temporary_root/version-root" "--version does not create BUILD_ROOT"
+
+unknown_option_root="$temporary_root/unknown-option-root"
+assert_command_fails "unknown CLI options fail" \
+    env BUILD_ROOT="$unknown_option_root" bash "$repo_root/build-ffmpeg.sh" --definitely-unknown
+assert_not_exists "$unknown_option_root" "invalid CLI input has no filesystem side effects"
+
+unmarked_root="$temporary_root/unmarked-root"
+mkdir -p "$unmarked_root"
+printf 'not build data\n' >"$unmarked_root/user-file"
+assert_command_fails "cleanup refuses an unmarked build root" \
+    env BUILD_ROOT="$unmarked_root" bash "$repo_root/build-ffmpeg.sh" --cleanup
+assert_file "$unmarked_root/user-file" "refused cleanup preserves unrelated data"
+
+# shellcheck source=scripts/shared-utils.sh
+source "$repo_root/scripts/shared-utils.sh"
+# Consumed by sourced shared utility functions.
+# shellcheck disable=SC2034
+script_dir="$repo_root"
+packages="$temporary_root/packages"
+workspace="$temporary_root/workspace"
+# Consumed by sourced shared utility functions.
+# shellcheck disable=SC2034
+log_file="$temporary_root/test.log"
+LATEST=false
+# Consumed by sourced shared utility functions.
+# shellcheck disable=SC2034
+NONFREE_AND_GPL=false
+# Consumed by sourced shared utility functions.
+# shellcheck disable=SC2034
+CONFIGURE_OPTIONS=()
+mkdir -p "$packages" "$workspace"
+
+assert_equal "trimmed value" "$(trim_whitespace '  trimmed value  ')" "trim_whitespace"
+is_true true || fail_test "is_true accepts true"
+pass "is_true accepts true"
+! is_true TRUE || fail_test "is_true rejects non-canonical values"
+pass "is_true rejects non-canonical values"
+
+marker_root="$temporary_root/marker-root"
+marker_copy_root="$temporary_root/marker-copy-root"
+mkdir -p "$marker_root" "$marker_copy_root"
+write_build_root_marker "$marker_root"
+build_root_marker_matches "$marker_root/.ffmpeg-build-root" "$marker_root" ||
+    fail_test "path-bound build-root marker validates at its recorded root"
+pass "path-bound build-root marker validates at its recorded root"
+cp "$marker_root/.ffmpeg-build-root" "$marker_copy_root/.ffmpeg-build-root"
+assert_command_fails "copied build-root markers do not validate elsewhere" \
+    build_root_marker_matches "$marker_copy_root/.ffmpeg-build-root" "$marker_copy_root"
+
+lock_root="$temporary_root/lock-root"
+mkdir -p "$lock_root"
+exec {held_lock_fd}<"$lock_root"
+flock -n "$held_lock_fd"
+assert_command_fails "a build root cannot be acquired by two processes" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    acquire_build_root_lock "$2"
+' _ "$repo_root" "$lock_root"
+exec {held_lock_fd}>&-
+
+selection_file="$temporary_root/selection.toml"
+printf '%s\n' \
+    '[build]' \
+    'latest = true' \
+    'enable_gpl_and_non_free = false' \
+    '[packages]' \
+    'ffmpeg = true' \
+    'jemalloc = true' \
+    'vulkan-headers = false' >"$selection_file"
+load_package_selection_config "$selection_file"
+assert_equal "true" "$LATEST" "config loads build.latest"
+assert_equal "false" "${PACKAGE_SELECTION[vulkan-headers-git]}" "legacy config key maps canonically"
+assert_command_fails "an explicit config disables omitted package keys" \
+    package_enabled libopus
+
+duplicate_selection_file="$temporary_root/duplicate-selection.toml"
+printf '%s\n' \
+    '[packages]' \
+    'vulkan-headers = true' \
+    'vulkan-headers-git = false' >"$duplicate_selection_file"
+if bash -c '
+    source "$1/scripts/shared-utils.sh"
+    LATEST=false
+    NONFREE_AND_GPL=false
+    CONFIGURE_OPTIONS=()
+    load_package_selection_config "$2"
+' _ "$repo_root" "$duplicate_selection_file" >/dev/null 2>&1; then
+    fail_test "canonical duplicate config keys are rejected"
+fi
+pass "canonical duplicate config keys are rejected"
+
+unknown_selection_file="$temporary_root/unknown-selection.toml"
+printf '%s\n' \
+    '[packages]' \
+    'ffmepg = true' >"$unknown_selection_file"
+assert_command_fails "unknown config package names are rejected" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    LATEST=false
+    NONFREE_AND_GPL=false
+    CONFIGURE_OPTIONS=()
+    load_package_selection_config "$2"
+' _ "$repo_root" "$unknown_selection_file"
+
+unknown_table_file="$temporary_root/unknown-table.toml"
+printf '%s\n' '[package]' >"$unknown_table_file"
+assert_command_fails "unknown config tables are rejected even when empty" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    LATEST=false
+    NONFREE_AND_GPL=false
+    CONFIGURE_OPTIONS=()
+    load_package_selection_config "$2"
+' _ "$repo_root" "$unknown_table_file"
+
+removal_root="$temporary_root/removal-root"
+mkdir -p "$removal_root/child"
+safe_remove_tree "$removal_root/child" "$removal_root"
+assert_not_exists "$removal_root/child" "safe_remove_tree removes a bounded child"
+mkdir -p "$removal_root/child" "$temporary_root/removal-sibling"
+assert_command_fails "safe_remove_tree refuses its allowed root" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    safe_remove_tree "$2" "$2"
+' _ "$repo_root" "$removal_root"
+assert_command_fails "safe_remove_tree refuses a sibling path" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    safe_remove_tree "$2" "$3"
+' _ "$repo_root" "$temporary_root/removal-sibling" "$removal_root"
+[[ -d "$removal_root/child" && -d "$temporary_root/removal-sibling" ]] ||
+    fail_test "refused removals preserve both trees"
+pass "refused removals preserve both trees"
+
+archive_source="$temporary_root/archive-source"
+mkdir -p "$archive_source/project/sub"
+printf 'payload\n' >"$archive_source/project/sub/file.txt"
+archive="$packages/project.tar.gz"
+tar -czf "$archive" -C "$archive_source" project
+validate_tar_archive "$archive" || fail_test "valid single-root archive is accepted"
+pass "valid single-root archive is accepted"
+write_archive_checksum "$archive" || fail_test "archive checksum record is written"
+pass "archive checksum record is written"
+archive_checksum_matches "$archive" ||
+    fail_test "archive checksum record validates unchanged content"
+pass "archive checksum record validates unchanged content"
+printf 'tamper\n' >>"$archive"
+assert_command_fails "archive checksum detects changed content" \
+    archive_checksum_matches "$archive"
+tar -czf "$archive" -C "$archive_source" project
+write_archive_checksum "$archive" || fail_test "archive checksum can be refreshed for test extraction"
+extract_archive_transactionally "$archive" "$packages/project"
+assert_file "$packages/project/sub/file.txt" "transactional extraction publishes payload"
+
+multi_root_source="$temporary_root/multi-root-source"
+mkdir -p "$multi_root_source/root-a" "$multi_root_source/root-b"
+printf 'a\n' >"$multi_root_source/root-a/file"
+printf 'b\n' >"$multi_root_source/root-b/file"
+multi_root_archive="$packages/multi-root.tar.gz"
+tar -czf "$multi_root_archive" -C "$multi_root_source" root-a root-b
+assert_command_fails "multi-root archives are rejected" \
+    validate_tar_archive "$multi_root_archive"
+
+relative_link_source="$temporary_root/relative-link-source"
+mkdir -p "$relative_link_source/project"
+ln -s ../../outside "$relative_link_source/project/escape"
+relative_link_archive="$packages/relative-link.tar.gz"
+tar -czf "$relative_link_archive" -C "$relative_link_source" project
+assert_command_fails "out-of-tree relative archive symlinks are rejected" \
+    extract_archive_transactionally "$relative_link_archive" "$packages/relative-link"
+assert_not_exists "$packages/relative-link" "rejected relative symlink archive is not published"
+
+absolute_link_source="$temporary_root/absolute-link-source"
+mkdir -p "$absolute_link_source/project"
+ln -s /etc/passwd "$absolute_link_source/project/escape"
+absolute_link_archive="$packages/absolute-link.tar.gz"
+tar -czf "$absolute_link_archive" -C "$absolute_link_source" project
+assert_command_fails "absolute archive symlinks are rejected" \
+    extract_archive_transactionally "$absolute_link_archive" "$packages/absolute-link"
+assert_not_exists "$packages/absolute-link" "rejected absolute symlink archive is not published"
+
+special_source="$temporary_root/special-source"
+mkdir -p "$special_source/project"
+mkfifo "$special_source/project/fifo"
+special_archive="$packages/special.tar.gz"
+tar -czf "$special_archive" -C "$special_source" project
+assert_command_fails "special filesystem objects in archives are rejected" \
+    extract_archive_transactionally "$special_archive" "$packages/special"
+assert_not_exists "$packages/special" "rejected special-object archive is not published"
+
+mkdir -p "$workspace/lib/pkgconfig"
+printf '%s\n' \
+    "prefix=$workspace" \
+    'libdir=${prefix}/lib' \
+    'includedir=${prefix}/include' \
+    'Name: jemalloc' \
+    'Description: test-only jemalloc artifact' \
+    'Version: 1.2.3' \
+    'Libs: -L${libdir} -ljemalloc' \
+    'Cflags: -I${includedir}' >"$workspace/lib/pkgconfig/jemalloc.pc"
+PKG_CONFIG_PATH="$workspace/lib/pkgconfig"
+export PKG_CONFIG_PATH
+
+printf '%s\n' \
+    'Name: prefixless-workspace-module' \
+    'Description: test-only prefixless workspace metadata' \
+    'Version: 1.0.0' \
+    "Libs: -L$workspace/lib -lprefixless" \
+    "Cflags: -I$workspace/include" >"$workspace/lib/pkgconfig/prefixless-workspace-module.pc"
+workspace_pkgconf_modules_ready prefixless-workspace-module ||
+    fail_test "prefixless pkg-config metadata inside the workspace is accepted"
+pass "prefixless pkg-config metadata inside the workspace is accepted"
+
+external_pkgconfig="$temporary_root/external-pkgconfig"
+mkdir -p "$external_pkgconfig"
+printf '%s\n' \
+    'Name: prefixless-external-module' \
+    'Description: test-only prefixless external metadata' \
+    'Version: 1.0.0' \
+    'Libs: -lexternal' >"$external_pkgconfig/prefixless-external-module.pc"
+assert_command_fails \
+    "prefixless pkg-config metadata outside the workspace is rejected" \
+    env PKG_CONFIG_PATH="$external_pkgconfig:$PKG_CONFIG_PATH" bash -c '
+        source "$1/scripts/shared-utils.sh"
+        workspace="$2"
+        workspace_pkgconf_modules_ready prefixless-external-module
+    ' _ "$repo_root" "$workspace"
+
+build_done jemalloc 1.2.3
+assert_equal "1.2.3" "$(read_marker_version "$packages/jemalloc.done")" "build markers are atomic and readable"
+if build jemalloc 1.2.3 >/dev/null; then
+    fail_test "matching build marker skips rebuild"
+fi
+pass "matching build marker skips rebuild"
+
+printf '1..%d\n' "$pass_count"
