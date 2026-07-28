@@ -1,851 +1,322 @@
 #!/usr/bin/env bash
-# shellcheck source=/dev/null
+# shellcheck disable=SC2154 source=/dev/null
 
-####################################################################################
-##
-##  FFmpeg Build Script - Hardware Detection
-##  GPU/CPU detection, CUDA installation, and hardware acceleration functions
-##
-####################################################################################
+################################################################################
+# GPU discovery and optional CUDA toolkit installation.
+#
+# This script never installs or replaces an NVIDIA display driver. CUDA is added
+# from NVIDIA's signed network repository and only after an explicit opt-in.
+################################################################################
 
-# Source shared utilities
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
-# Global variables
-remote_cuda_version=""
-CUDA_DOWNLOADS_URL="https://developer.nvidia.com/cuda-downloads"
-CUDA_DOWNLOADS_HTML=""
-DEFAULT_CUDA_VERSION="12.8.1"
+CUDA_ROOT=""
+nvidia_arch_type=""
+gpu_flag=1
+has_vulkan_gpu=0
+is_nvidia_gpu_present="NVIDIA GPU not detected"
+is_amd_gpu_present="AMD GPU not detected"
+is_intel_gpu_present="Intel GPU not detected"
 
-# Echo the PCI display-controller lines only (VGA/3D/Display), so vendor matching
-# looks at actual GPUs and never at an AMD/Intel *CPU*, chipset, or PCIe bridge.
 _gpu_controller_lines() {
     command -v lspci >/dev/null 2>&1 || return 0
-    lspci 2>/dev/null | grep -iE 'vga compatible controller|3d controller|display controller'
+    lspci -nn 2>/dev/null |
+        grep -iE 'vga compatible controller|3d controller|display controller' || true
 }
 
-# AMD GPU detection (GPU-class-specific: matches a Radeon/AMD *display* controller,
-# not the AMD CPU/chipset that an AMD-CPU machine always exposes via lspci).
-check_amd_gpu() {
-    local gpus
-    gpus="$(_gpu_controller_lines)"
-    if grep -qiE 'amd/ati|advanced micro devices|radeon' <<<"$gpus"; then
-        echo "AMD GPU detected"
-    elif command -v lshw >/dev/null 2>&1 && lshw -C display 2>&1 | grep -Eioq "amdgpu|radeon"; then
-        echo "AMD GPU detected"
-    else
-        echo "No AMD GPU detected"
-    fi
-}
-
-# Intel GPU detection (GPU-class-specific).
-check_intel_gpu() {
-    if grep -qi 'intel' <<<"$(_gpu_controller_lines)"; then
-        echo "Intel GPU detected"
-    else
-        echo "No Intel GPU detected"
-    fi
-}
-
-# Fingerprint of the probe tools GPU detection depends on. Within a single run the
-# detection result can only change when one of these tools appears (system-setup may
-# install pciutils or nvidia-utils mid-run), so their resolved paths are the
-# cache-invalidation key for detect_gpu_vendors. lshw and cmd.exe (WSL) are also
-# probed but are never installed by this script, so they cannot change mid-run.
-_gpu_probe_fingerprint() {
-    printf '%s:%s' \
-        "$(command -v lspci 2>/dev/null || echo none)" \
-        "$(command -v nvidia-smi 2>/dev/null || echo none)"
-}
-
-_GPU_VENDORS_FINGERPRINT=""
-
-# Detect all GPU vendors once and publish the results as exported globals so both
-# package installation (system-setup) and FFmpeg flag selection can skip GPU stacks
-# the machine cannot use.
-#   is_nvidia_gpu_present / is_amd_gpu_present / is_intel_gpu_present : "<vendor> GPU detected" | "... not detected"
-#   has_vulkan_gpu : 1 if any Vulkan-capable GPU (NVIDIA/AMD/Intel) is present, else 0
-# Memoized: the probes are slow (nvidia-smi ~0.3-2s, lshw can take seconds), so repeat
-# calls return the cached result unless a probe tool appeared since the last run —
-# which is exactly the case the post-apt re-detection exists for (a blind first probe
-# on a minimal system that just had pciutils/nvidia-utils installed).
 detect_gpu_vendors() {
-    local fingerprint
-    fingerprint="$(_gpu_probe_fingerprint)"
-    if [[ -n "$_GPU_VENDORS_FINGERPRINT" && "$_GPU_VENDORS_FINGERPRINT" == "$fingerprint" ]]; then
-        return 0
+    local controllers nvidia_smi_path
+
+    gpu_flag=1
+    has_vulkan_gpu=0
+    is_nvidia_gpu_present="NVIDIA GPU not detected"
+    is_amd_gpu_present="AMD GPU not detected"
+    is_intel_gpu_present="Intel GPU not detected"
+
+    controllers="$(_gpu_controller_lines)"
+    nvidia_smi_path="$(command -v nvidia-smi 2>/dev/null || true)"
+    if [[ -z "$nvidia_smi_path" && -x /usr/lib/wsl/lib/nvidia-smi ]]; then
+        nvidia_smi_path=/usr/lib/wsl/lib/nvidia-smi
+        path_prepend /usr/lib/wsl/lib
     fi
-    _GPU_VENDORS_FINGERPRINT="$fingerprint"
 
-    check_nvidia_gpu
-    is_amd_gpu_present="$(check_amd_gpu)"
-    is_intel_gpu_present="$(check_intel_gpu)"
-    # Back-compat alias used elsewhere (install_cuda).
-    amd_gpu_test="$is_amd_gpu_present"
-
-    if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" \
-       || "$is_amd_gpu_present" == "AMD GPU detected" \
-       || "$is_intel_gpu_present" == "Intel GPU detected" ]]; then
-        has_vulkan_gpu=1
-    else
-        has_vulkan_gpu=0
-    fi
-    export is_nvidia_gpu_present is_amd_gpu_present is_intel_gpu_present amd_gpu_test has_vulkan_gpu
-}
-
-# NVIDIA GPU detection (works in both native Linux and WSL2)
-check_nvidia_gpu() {
-    local found=0
-    local gpu_info=""
-    local dir ps_exe
-
-    # Primary detection: nvidia-smi (most reliable)
-    if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi --query-gpu=name --format=csv,noheader &>/dev/null; then
+    if [[ -n "$nvidia_smi_path" ]] &&
+        "$nvidia_smi_path" --query-gpu=name --format=csv,noheader >/dev/null 2>&1; then
         is_nvidia_gpu_present="NVIDIA GPU detected"
-        return 0
+    elif grep -qi nvidia <<<"$controllers"; then
+        is_nvidia_gpu_present="NVIDIA GPU detected"
     fi
 
-    # Fallback: lspci (capture output to variable first to avoid pipe issues)
-    if ! grep -Eiq '(microsoft|slyfox1186)' /proc/version; then
-        if command -v lspci >/dev/null 2>&1; then
-            local lspci_output
-            lspci_output=$(lspci 2>/dev/null)
-            if echo "$lspci_output" | grep -qi nvidia; then
-                is_nvidia_gpu_present="NVIDIA GPU detected"
-            else
-                is_nvidia_gpu_present="NVIDIA GPU not detected"
-            fi
-        else
-            is_nvidia_gpu_present="NVIDIA GPU not detected"
-        fi
-    else
-        # WSL2 detection. wmic is removed from current Windows 11 builds, so query
-        # the video controllers through PowerShell's CIM cmdlet first and keep wmic
-        # only as the fallback for older Windows versions that still ship it.
-        for dir in "/mnt/c" "/c"; do
-            [[ -f "$dir/Windows/System32/cmd.exe" ]] || continue
+    if grep -qiE 'amd/ati|advanced micro devices|radeon' <<<"$controllers"; then
+        is_amd_gpu_present="AMD GPU detected"
+    fi
+    if grep -qi intel <<<"$controllers"; then
+        is_intel_gpu_present="Intel GPU detected"
+    fi
 
-            gpu_info=""
-            ps_exe="$dir/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-            if [[ -f "$ps_exe" ]]; then
-                gpu_info=$("$ps_exe" -NoProfile -NonInteractive -Command \
-                    "(Get-CimInstance Win32_VideoController).Name" 2>/dev/null | grep -i nvidia)
-            fi
-            if [[ -z "$gpu_info" ]]; then
-                gpu_info=$("$dir/Windows/System32/cmd.exe" /d /c "wmic path win32_VideoController get name | findstr /i nvidia" 2>/dev/null)
-            fi
+    if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
+        gpu_flag=0
+    fi
+    if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ||
+        "$is_amd_gpu_present" == "AMD GPU detected" ||
+        "$is_intel_gpu_present" == "Intel GPU detected" ]]; then
+        has_vulkan_gpu=1
+    fi
 
-            if [[ -n "$gpu_info" ]]; then
-                found=1
-                is_nvidia_gpu_present="NVIDIA GPU detected"
-                break
-            fi
-        done
+    # Compatibility aliases used by a few build recipes.
+    amd_gpu_test="$is_amd_gpu_present"
+    export is_nvidia_gpu_present is_amd_gpu_present is_intel_gpu_present
+    export amd_gpu_test gpu_flag has_vulkan_gpu
+}
 
-        if [[ "$found" -eq 0 ]]; then
-            is_nvidia_gpu_present="NVIDIA GPU not detected"
+find_cuda_root() {
+    local nvcc_path candidate
+
+    nvcc_path="$(command -v nvcc 2>/dev/null || true)"
+    if [[ -n "$nvcc_path" ]]; then
+        nvcc_path="$(readlink -f -- "$nvcc_path" 2>/dev/null || printf '%s' "$nvcc_path")"
+        candidate="$(dirname -- "$(dirname -- "$nvcc_path")")"
+        if [[ -x "$candidate/bin/nvcc" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
         fi
     fi
-}
 
-# Find CUDA version.json file location
-find_cuda_json_file() {
-    local cuda_json=""
-    if [[ -f "/opt/cuda/version.json" ]]; then
-        cuda_json="/opt/cuda/version.json"
-    elif [[ -f "/usr/local/cuda/version.json" ]]; then
-        cuda_json="/usr/local/cuda/version.json"
-    fi
-
-    echo "$cuda_json"
-}
-
-# Get local CUDA version
-get_local_cuda_version() {
-    local cuda_json
-    cuda_json=$(find_cuda_json_file)
-    [[ -n "$cuda_json" && -f "$cuda_json" ]] || return 1
-    jq -r '.cuda.version' < "$cuda_json" 2>/dev/null
-}
-
-cuda_version_at_least() {
-    local local_version="${1:-}"
-    local minimum_version="${2:-}"
-
-    [[ "$local_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || return 1
-    [[ "$minimum_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || return 1
-    [[ "$(printf '%s\n%s\n' "$local_version" "$minimum_version" | sort -V | head -n1)" == "$minimum_version" ]]
-}
-
-cuda_toolkit_heading_to_version() {
-    local heading="${1:-}"
-    local base_version update_version
-
-    if [[ "$heading" =~ CUDA[[:space:]]+Toolkit[[:space:]]+([0-9]+\.[0-9]+)([[:space:]]+Update[[:space:]]+([0-9]+))? ]]; then
-        base_version="${BASH_REMATCH[1]}"
-        update_version="${BASH_REMATCH[3]}"
-        printf '%s.%s\n' "$base_version" "${update_version:-0}"
-        return 0
-    fi
-
+    for candidate in /usr/local/cuda /opt/cuda; do
+        if [[ -x "$candidate/bin/nvcc" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
     return 1
 }
 
-extract_cuda_versions_from_html() {
-    local html="${1:-}"
-    local heading version
+get_local_cuda_version() {
+    local cuda_root="${1:-${CUDA_ROOT:-}}"
+    local version
 
-    {
-        printf '%s\n' "$html" |
-            grep -oE '(/compute/cuda/|cuda-toolkit-[0-9]+-[0-9]+_|cuda-repo-[[:alnum:]-]+-[0-9]+-[0-9]+-local_)[0-9]+\.[0-9]+\.[0-9]+' |
-            grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true
-
-        while IFS= read -r heading; do
-            version="$(cuda_toolkit_heading_to_version "$heading" || true)"
-            [[ -n "$version" ]] && printf '%s\n' "$version"
-        done < <(printf '%s\n' "$html" | grep -oE 'CUDA[[:space:]]+Toolkit[[:space:]]+[0-9]+\.[0-9]+([[:space:]]+Update[[:space:]]+[0-9]+)?' || true)
-    } | sort -ruV
+    [[ -n "$cuda_root" && -x "$cuda_root/bin/nvcc" ]] || return 1
+    version="$(
+        "$cuda_root/bin/nvcc" --version 2>/dev/null |
+            sed -nE 's/.*release ([0-9]+(\.[0-9]+){1,2}).*/\1/p' |
+            sed -n '1p'
+    )"
+    [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || return 1
+    printf '%s\n' "$version"
 }
 
-ensure_cuda_downloads_html() {
-    local html
-
-    if [[ -n "${CUDA_DOWNLOADS_HTML:-}" ]]; then
+cuda_repository_name() {
+    if [[ "${VARIABLE_OS:-}" == "WSL2" ]]; then
+        printf 'wsl-ubuntu\n'
         return 0
     fi
 
-    # Generous cap: this page gates a hard-fail path in download_cuda(), so the limit
-    # only exists to stop an indefinite hang on a stalled connection (curl's default
-    # has no overall timeout), not to race a slow-but-working fetch.
-    if ! html=$(curl -fsSL --max-time "${CUDA_DOWNLOADS_MAX_TIME:-60}" \
-        --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" "$CUDA_DOWNLOADS_URL" | tr -d '\0'); then
-        return 1
-    fi
-
-    CUDA_DOWNLOADS_HTML="$html"
-}
-
-cuda_toolkit_package_name() {
-    local cuda_version="${1:-}"
-    local cuda_major cuda_minor
-
-    [[ "$cuda_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
-    IFS='.' read -r cuda_major cuda_minor _ <<< "$cuda_version"
-    printf 'cuda-toolkit-%s-%s\n' "$cuda_major" "$cuda_minor"
-}
-
-cuda_local_installer_filename_from_html() {
-    local html="${1:-}"
-    local distro="${2:-}"
-    local cuda_version="${3:-}"
-    local cuda_major cuda_minor cuda_pkg_version pattern
-
-    [[ -n "$html" ]] || return 1
-    [[ "$distro" =~ ^[[:alnum:]-]+$ ]] || return 1
-    [[ "$cuda_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
-
-    IFS='.' read -r cuda_major cuda_minor _ <<< "$cuda_version"
-    cuda_pkg_version="${cuda_major}-${cuda_minor}"
-    pattern="cuda-repo-${distro}-${cuda_pkg_version}-local_${cuda_version}[-_][[:alnum:].-]+_amd64\\.deb"
-
-    printf '%s\n' "$html" | grep -oE "$pattern" | sort -u | head -n1
-}
-
-cuda_local_installer_url() {
-    local cuda_version="${1:-}"
-    local deb_file="${2:-}"
-
-    [[ "$cuda_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
-    [[ "$deb_file" =~ ^cuda-repo-[[:alnum:]-]+_[[:alnum:].-]+_amd64\.deb$ ]] || return 1
-
-    printf 'https://developer.download.nvidia.com/compute/cuda/%s/local_installers/%s\n' "$cuda_version" "$deb_file"
-}
-
-cuda_local_repo_dir_from_filename() {
-    local deb_file="${1:-}"
-    local repo_name
-
-    [[ "$deb_file" =~ ^cuda-repo-[[:alnum:]-]+_[[:alnum:].-]+_amd64\.deb$ ]] || return 1
-    repo_name="${deb_file%%_*}"
-    printf '/var/%s\n' "$repo_name"
-}
-
-cuda_distro_pin_url() {
-    local distro="${1:-}"
-
-    case "$distro" in
-        ubuntu2204|ubuntu2404|wsl-ubuntu)
-            printf 'https://developer.download.nvidia.com/compute/cuda/repos/%s/x86_64/cuda-%s.pin\n' "$distro" "$distro"
-            ;;
-        debian12|debian13)
-            return 1
-            ;;
-        *)
-            return 2
-            ;;
+    case "${OS:-}:${VER:-}" in
+        Ubuntu:22.04) printf 'ubuntu2204\n' ;;
+        Ubuntu:24.04) printf 'ubuntu2404\n' ;;
+        Ubuntu:26.04) printf 'ubuntu2604\n' ;;
+        Debian:12) printf 'debian12\n' ;;
+        Debian:13) printf 'debian13\n' ;;
+        *) return 1 ;;
     esac
 }
 
-# Check remote CUDA version from NVIDIA's official CUDA downloads page.
-check_remote_cuda_version() {
-    local html version
+install_cuda_toolkit() {
+    local repository keyring_url temp_directory keyring_file
 
-    remote_cuda_version=""
-    if ! ensure_cuda_downloads_html; then
-        return 1
+    repository="$(cuda_repository_name)" ||
+        fail "No supported NVIDIA CUDA repository mapping exists for $OS $VER."
+    temp_directory="$(mktemp -d)" ||
+        fail "Unable to create a temporary CUDA setup directory."
+    keyring_file="$temp_directory/cuda-keyring.deb"
+    keyring_url="https://developer.download.nvidia.com/compute/cuda/repos"
+    keyring_url+="/$repository/x86_64/cuda-keyring_1.1-1_all.deb"
+
+    log "Downloading NVIDIA's CUDA repository keyring for $repository..."
+    if ! curl_https --fail --silent --show-error --location \
+        --retry 3 --retry-all-errors --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" \
+        --max-time 120 --output "$keyring_file" "$keyring_url"; then
+        safe_remove_tree "$temp_directory" "$(dirname -- "$temp_directory")"
+        fail "Unable to download NVIDIA's CUDA repository keyring."
     fi
 
-    html="$CUDA_DOWNLOADS_HTML"
-    version="$(extract_cuda_versions_from_html "$html" | head -n1)"
-    if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        remote_cuda_version="$version"
-        return 0
-    fi
+    execute sudo dpkg -i "$keyring_file"
+    safe_remove_tree "$temp_directory" "$(dirname -- "$temp_directory")"
+    # This state is owned by the previously sourced system-setup.sh.
+    # shellcheck disable=SC2034
+    APT_INDEX_UPDATED=false
+    apt_update_once
+    execute sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        --no-install-recommends cuda-toolkit
+    hash -r
+    source_path
+}
 
+read_cuda_architectures() {
+    local nvcc="${CUDA_ROOT}/bin/nvcc"
+    local architecture
+
+    CUDA_AVAILABLE_ARCHITECTURES=()
+    while IFS= read -r architecture; do
+        [[ "$architecture" =~ ^[0-9]+$ ]] || continue
+        CUDA_AVAILABLE_ARCHITECTURES+=("$architecture")
+    done < <(
+        "$nvcc" --list-gpu-code 2>/dev/null |
+            grep -oE 'sm_[0-9]+' |
+            sed 's/^sm_//' |
+            sort -nu
+    )
+    ((${#CUDA_AVAILABLE_ARCHITECTURES[@]} > 0))
+}
+
+read_installed_gpu_architectures() {
+    local capability architecture
+    local -A seen_architectures=()
+
+    CUDA_INSTALLED_GPU_ARCHITECTURES=()
+    command -v nvidia-smi >/dev/null 2>&1 || return 1
+    while IFS= read -r capability; do
+        capability="$(trim_whitespace "$capability")"
+        [[ "$capability" =~ ^[0-9]+\.[0-9]+$ ]] || continue
+        architecture="${capability/.}"
+        if [[ -z "${seen_architectures[$architecture]+x}" ]]; then
+            seen_architectures["$architecture"]=1
+            CUDA_INSTALLED_GPU_ARCHITECTURES+=("$architecture")
+        fi
+    done < <(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null)
+    ((${#CUDA_INSTALLED_GPU_ARCHITECTURES[@]} > 0))
+}
+
+architecture_is_supported() {
+    local requested="${1:-}" available
+
+    for available in "${CUDA_AVAILABLE_ARCHITECTURES[@]}"; do
+        [[ "$available" == "$requested" ]] && return 0
+    done
     return 1
 }
 
-# Determine NVIDIA GPU architecture(s) for CUDA compilation
-# Supports both single-arch (fast compile) and multi-arch (broad compatibility) modes
-#
-# Sets global variable: nvidia_arch_type
-#   - Single mode: "compute_89,code=sm_89"
-#   - Multi mode:  "-gencode arch=compute_75,code=sm_75 -gencode arch=compute_86,code=sm_86 ..."
-#
-# Returns: 0 on success, 1 on failure
 nvidia_architecture() {
-    local gpu_name compute_cap_raw compute_cap
-    local -a available_archs=()
-    local -a selected_archs=()
+    local mode="${CUDA_ARCH_MODE:-native}"
+    local custom="${CUDA_ARCHITECTURES:-}"
+    local architecture highest=""
+    local -a selected=()
+    local -a custom_values=()
+    local -a flags=()
+    local -A selected_seen=()
 
-    # Prerequisite: Verify CUDA is installed
-    if [[ -z $(find_cuda_json_file) ]]; then
-        warn "CUDA installation not found (no version.json). Cannot determine GPU architecture."
-        return 1
-    fi
+    [[ -n "$CUDA_ROOT" ]] || CUDA_ROOT="$(find_cuda_root)" || return 1
+    read_cuda_architectures ||
+        fail "nvcc did not report any supported GPU code targets."
 
-    # Prerequisite: Verify nvidia-smi is functional
-    if ! nvidia-smi &>/dev/null; then
-        echo
-        warn "nvidia-smi is not responding. This typically occurs after a driver update."
-        warn "Please reboot your system and run the script again."
-        return 1
-    fi
+    case "$mode" in
+        native)
+            read_installed_gpu_architectures || {
+                warn "nvidia-smi could not report GPU compute capabilities."
+                return 1
+            }
+            selected=("${CUDA_INSTALLED_GPU_ARCHITECTURES[@]}")
+            ;;
+        all)
+            selected=("${CUDA_AVAILABLE_ARCHITECTURES[@]}")
+            ;;
+        custom)
+            custom="${custom//,/ }"
+            read -r -a custom_values <<<"$custom"
+            ((${#custom_values[@]} > 0)) ||
+                fail "CUDA_ARCH_MODE=custom requires CUDA_ARCHITECTURES (for example: '86 89')."
+            selected=("${custom_values[@]}")
+            ;;
+        *)
+            fail "Invalid CUDA_ARCH_MODE '$mode'; expected native, all, or custom."
+            ;;
+    esac
 
-    # Get GPU name for logging
-    gpu_name=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader 2>/dev/null | head -n1 | xargs)
-    if [[ -z "$gpu_name" ]]; then
-        fail "Failed to query GPU name from nvidia-smi. Line: ${LINENO}"
-    fi
-
-    # Get compute capability of installed GPU
-    compute_cap_raw=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | xargs)
-    if [[ -n "$compute_cap_raw" && "$compute_cap_raw" =~ ^[0-9]+\.[0-9]+$ ]]; then
-        compute_cap="${compute_cap_raw//./}"
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Query nvcc for all supported architectures
-    # ═══════════════════════════════════════════════════════════════════════════
-    if command -v nvcc &>/dev/null; then
-        # Get list of supported SM architectures from nvcc
-        while IFS= read -r arch; do
-            # Only include real/stable architectures (filter out experimental/future)
-            # Known stable architectures: 35, 37, 50, 52, 53, 60, 61, 62, 70, 72, 75, 80, 86, 87, 89, 90, 100
-            if [[ "$arch" =~ ^(3[57]|5[0-3]|6[0-2]|7[0-5]|8[0679]|90|100)$ ]]; then
-                available_archs+=("$arch")
+    for architecture in "${selected[@]}"; do
+        [[ "$architecture" =~ ^[0-9]+$ ]] ||
+            fail "Invalid CUDA architecture '$architecture'."
+        [[ -z "${selected_seen[$architecture]+x}" ]] || continue
+        selected_seen["$architecture"]=1
+        if ! architecture_is_supported "$architecture"; then
+            if [[ "$mode" == "native" ]]; then
+                warn "CUDA toolkit does not support this GPU's sm_$architecture target (available: ${CUDA_AVAILABLE_ARCHITECTURES[*]})."
+                return 1
             fi
-        done < <(nvcc --list-gpu-code 2>/dev/null | grep -oP 'sm_\K[0-9]+' | sort -n | uniq)
-    fi
-
-    # If no architectures found via nvcc, fall back to detected GPU only
-    if [[ ${#available_archs[@]} -eq 0 ]]; then
-        if [[ -n "$compute_cap" ]]; then
-            # Include a PTX target for forward compatibility (CUDA best practices).
-            nvidia_arch_type="-gencode arch=compute_${compute_cap},code=sm_${compute_cap} -gencode arch=compute_${compute_cap},code=compute_${compute_cap}"
-            log "Detected GPU: $gpu_name (SM $compute_cap) - using single architecture + PTX"
-            return 0
-        else
-            fail "No CUDA architectures detected and GPU compute capability unknown. Line: ${LINENO}"
+            fail "CUDA toolkit does not support sm_$architecture (available: ${CUDA_AVAILABLE_ARCHITECTURES[*]})."
         fi
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Prompt user for architecture selection strategy
-    # ═══════════════════════════════════════════════════════════════════════════
-    echo
-    echo "════════════════════════════════════════════════════════════════"
-    echo "  CUDA Architecture Selection"
-    echo "════════════════════════════════════════════════════════════════"
-    echo "  Detected GPU: $gpu_name"
-    [[ -n "$compute_cap" ]] && echo "  Compute Capability: $compute_cap_raw (sm_$compute_cap)"
-    echo
-    echo "  Available architectures from CUDA toolkit:"
-    echo "    ${available_archs[*]}"
-    echo
-    echo "  Options:"
-    echo "    1) Current GPU only (sm_${compute_cap:-??}) - Fastest compile, smallest binary"
-    echo "    2) Common architectures (75,86,89) - Good compatibility, moderate compile time"
-    echo "    3) All available architectures - Maximum compatibility, longest compile time"
-    echo "    4) Custom selection"
-    echo "════════════════════════════════════════════════════════════════"
-    echo
-
-    local choice
-    while true; do
-        read -rp "Select option [1-4, default=1]: " choice
-        choice="${choice:-1}"
-
-        case "$choice" in
-            1)
-                # Current GPU only
-                if [[ -n "$compute_cap" ]]; then
-                    selected_archs=("$compute_cap")
-                else
-                    warn "Could not detect current GPU architecture. Using common architectures instead."
-                    selected_archs=(75 86 89)
-                fi
-                break
-                ;;
-            2)
-                # Common architectures: Turing (75), Ampere (86), Ada (89)
-                # These cover most modern GPUs (RTX 20/30/40 series)
-                selected_archs=()
-                for arch in 75 86 89; do
-                    # Only include if supported by nvcc
-                    if printf '%s\n' "${available_archs[@]}" | grep -qx "$arch"; then
-                        selected_archs+=("$arch")
-                    fi
-                done
-                [[ ${#selected_archs[@]} -eq 0 ]] && selected_archs=("${available_archs[@]}")
-                break
-                ;;
-            3)
-                # All available architectures
-                selected_archs=("${available_archs[@]}")
-                break
-                ;;
-            4)
-                # Custom selection
-                echo
-                echo "Available architectures: ${available_archs[*]}"
-                echo "Enter space-separated list of architectures to include:"
-                read -rp "> " custom_input
-                read -ra selected_archs <<< "$custom_input"
-
-                # Validate selections
-                local valid=true
-                for arch in "${selected_archs[@]}"; do
-                    if ! printf '%s\n' "${available_archs[@]}" | grep -qx "$arch"; then
-                        warn "Architecture '$arch' is not available in your CUDA toolkit"
-                        valid=false
-                    fi
-                done
-
-                if [[ "$valid" == "true" && ${#selected_archs[@]} -gt 0 ]]; then
-                    break
-                else
-                    warn "Please enter valid architecture numbers from: ${available_archs[*]}"
-                fi
-                ;;
-            *)
-                warn "Invalid option. Please enter 1, 2, 3, or 4."
-                ;;
-        esac
-    done
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Build the nvccflags string
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Always use -gencode format for consistency
-    # This format works for both single and multiple architectures
-    local gencode_flags=""
-    local highest_arch=""
-    for arch in "${selected_archs[@]}"; do
-        gencode_flags+="-gencode arch=compute_${arch},code=sm_${arch} "
-        if [[ -z "$highest_arch" || "$arch" -gt "$highest_arch" ]]; then
-            highest_arch="$arch"
+        flags+=("-gencode arch=compute_${architecture},code=sm_${architecture}")
+        if [[ -z "$highest" || "$architecture" -gt "$highest" ]]; then
+            highest="$architecture"
         fi
     done
-    # Add a PTX target for the highest architecture to allow forward compatibility.
-    if [[ -n "$highest_arch" ]]; then
-        gencode_flags+="-gencode arch=compute_${highest_arch},code=compute_${highest_arch} "
-    fi
-    nvidia_arch_type="${gencode_flags% }"  # Remove trailing space
+    [[ -n "$highest" ]] || return 1
+    flags+=("-gencode arch=compute_${highest},code=compute_${highest}")
 
-    echo
-    log "Selected CUDA architecture(s): ${selected_archs[*]}"
-    log "nvccflags will use: $nvidia_arch_type"
-    return 0
+    nvidia_arch_type="${flags[*]}"
+    export CUDA_ROOT nvidia_arch_type
+    log "CUDA targets: ${selected[*]} (PTX fallback: compute_$highest)"
 }
 
 configure_nvidia_architecture_once() {
-    local failure_context="${1:-}"
+    local failure_context="${1:-CUDA configuration}"
 
-    if [[ -n "${nvidia_arch_type:-}" ]]; then
-        export nvidia_arch_type
-        return 0
-    fi
-
-    if nvidia_architecture; then
-        export nvidia_arch_type
-        return 0
-    fi
-
-    if [[ -n "$failure_context" ]]; then
-        warn "Failed to detect NVIDIA architecture $failure_context"
-    else
-        warn "Failed to detect NVIDIA architecture"
-    fi
-    return 1
-}
-
-download_cuda_file() {
-    local url="${1:-}"
-    local output_file="${2:-}"
-    local download_success=false
-
-    [[ -n "$url" ]] || fail "download_cuda_file() called without a URL. Line: ${LINENO}"
-    [[ -n "$output_file" ]] || fail "download_cuda_file() called without an output file. Line: ${LINENO}"
-
-    if command -v aria2c &>/dev/null; then
-        log "Using aria2c for high-speed download..."
-        if aria2c -x16 -s16 -k1M --file-allocation=none --console-log-level=warn \
-            --summary-interval=5 --download-result=full \
-            -d "$(dirname "$output_file")" -o "$(basename "$output_file")" "$url"; then
-            download_success=true
-        else
-            warn "aria2c download failed, falling back to wget/curl..."
-        fi
-    fi
-
-    if [[ "$download_success" != "true" ]]; then
-        if command -v wget &>/dev/null; then
-            if wget --show-progress -cq -O "$output_file" "$url"; then
-                download_success=true
-            fi
-        elif curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
-            -o "$output_file" "$url"; then
-            download_success=true
-        fi
-    fi
-
-    [[ "$download_success" == "true" ]]
-}
-
-prompt_reboot_after_cuda_update() {
-    local choice
-
-    echo
-    warn "CUDA was installed or updated. Reboot before continuing so the updated CUDA and NVIDIA driver files are active."
-    read -r -p "Do you want to reboot now? (yes/no): " choice
-    if [[ "${choice,,}" =~ ^(yes|y)$ ]]; then
-        execute sudo reboot
+    [[ -n "$nvidia_arch_type" ]] && return 0
+    if ! nvidia_architecture; then
+        warn "$failure_context: CUDA architecture detection failed; CUDA compilation will be disabled."
+        return 1
     fi
 }
 
-# Interactive CUDA toolkit installer
-download_cuda() {
-    local -a options=()
-    local choice distro deb_file deb_url pin_url
-    local cuda_version="${remote_cuda_version:-$DEFAULT_CUDA_VERSION}"
-    local cuda_path_suffix cuda_prefix cuda_toolkit_pkg downloads_html keyring_dir
-
-    cuda_path_suffix="${cuda_version%.*}"
-    cuda_prefix="/usr/local/cuda-${cuda_path_suffix}"
-    cuda_toolkit_pkg="$(cuda_toolkit_package_name "$cuda_version")" ||
-        fail "Invalid CUDA version '$cuda_version'. Line: ${LINENO}"
-
-    printf "\n%s\n%s\n\n" "Pick your Linux version from the list below:" "Supported architecture: x86_64"
-
-    options=(
-        "Debian 12 (Bookworm)"
-        "Debian 13 (Trixie)"
-        "Ubuntu 22.04 (Jammy Jellyfish)"
-        "Ubuntu 24.04 (Noble Numbat)"
-        "Ubuntu WSL (Windows)"
-        "Skip"
-    )
-
-    select choice in "${options[@]}"; do
-        case "$choice" in
-            "Debian 12 (Bookworm)")
-                distro="debian12"
-                ;;
-            "Debian 13 (Trixie)")
-                distro="debian13"
-                ;;
-            "Ubuntu 22.04 (Jammy Jellyfish)")
-                distro="ubuntu2204"
-                ;;
-            "Ubuntu 24.04 (Noble Numbat)")
-                distro="ubuntu2404"
-                ;;
-            "Ubuntu WSL (Windows)")
-                distro="wsl-ubuntu"
-                ;;
-            "Skip")
-                warn "Skipping CUDA installation."
-                return 0
-                ;;
-            *)
-                warn "Invalid selection. Please choose a valid option."
-                continue
-                ;;
-        esac
-        break
-    done
-
-    if [[ "$choice" != "Skip" ]]; then
-        log "Installing CUDA $cuda_version for $choice..."
-        ensure_cuda_downloads_html ||
-            fail "Failed to fetch NVIDIA CUDA downloads page. Line: ${LINENO}"
-        downloads_html="$CUDA_DOWNLOADS_HTML"
-        deb_file="$(cuda_local_installer_filename_from_html "$downloads_html" "$distro" "$cuda_version")"
-        [[ -n "$deb_file" ]] ||
-            fail "Failed to find a CUDA $cuda_version local installer for $distro x86_64 on NVIDIA's downloads page. Line: ${LINENO}"
-        deb_url="$(cuda_local_installer_url "$cuda_version" "$deb_file")" ||
-            fail "Failed to build CUDA local installer URL for $deb_file. Line: ${LINENO}"
-        keyring_dir="$(cuda_local_repo_dir_from_filename "$deb_file")" ||
-            fail "Failed to derive CUDA local repository directory from $deb_file. Line: ${LINENO}"
-        pin_url="$(cuda_distro_pin_url "$distro" || true)"
-
-        # Use secure temporary directory with cleanup trap (restore any prior traps).
-        local temp_dir
-        temp_dir=$(mktemp -d) || fail "Failed to create temporary directory"
-
-        local prev_trap_exit prev_trap_err prev_trap_int prev_trap_term
-        prev_trap_exit="$(trap -p EXIT || true)"
-        prev_trap_err="$(trap -p ERR || true)"
-        prev_trap_int="$(trap -p INT || true)"
-        prev_trap_term="$(trap -p TERM || true)"
-
-        restore_trap() {
-            local sig=$1
-            local saved=$2
-            # `$saved` is the output of `trap -p <sig>` (set above with $(trap -p ...)).
-            # bash already shell-quotes that output to be re-evaluable, so eval here
-            # is safe by construction; this is the documented restore-pattern for traps.
-            if [[ -n "$saved" ]]; then
-                eval "$saved"
-            else
-                trap - "$sig"
-            fi
-        }
-
-        # Set up cleanup trap to ensure temp files are removed on any exit.
-        cleanup_cuda_temp() {
-            rm -rf "$temp_dir" 2>/dev/null || true
-        }
-        trap cleanup_cuda_temp EXIT ERR INT TERM
-
-        if [[ -n "$pin_url" ]]; then
-            if curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 -o "$temp_dir/cuda.pin" "$pin_url"; then
-                sudo mv "$temp_dir/cuda.pin" /etc/apt/preferences.d/cuda-repository-pin-600
-            else
-                cleanup_cuda_temp
-                fail "Failed to download CUDA repository pin file"
-            fi
-        fi
-
-        log "Downloading CUDA $cuda_version local installer: $deb_file"
-        download_cuda_file "$deb_url" "$temp_dir/$deb_file" ||
-            { cleanup_cuda_temp; fail "Failed to download CUDA local installer package"; }
-
-        sudo dpkg -i "$temp_dir/$deb_file" ||
-            { cleanup_cuda_temp; fail "Failed to install CUDA local repository package"; }
-        sudo cp -f "$keyring_dir"/cuda-*-keyring.gpg /usr/share/keyrings/ ||
-            { cleanup_cuda_temp; fail "Failed to copy CUDA keyring from $keyring_dir"; }
-
-        sudo apt update
-        if sudo apt -y install "$cuda_toolkit_pkg"; then
-            log "CUDA $cuda_version installed successfully."
-            if [[ -d "$cuda_prefix/bin" ]]; then
-                export PATH="$cuda_prefix/bin:$PATH"
-            fi
-            if [[ -d "$cuda_prefix/lib64" ]]; then
-                export LD_LIBRARY_PATH="$cuda_prefix/lib64:$LD_LIBRARY_PATH"
-            fi
-            prompt_reboot_after_cuda_update
-        else
-            cleanup_cuda_temp
-            fail "Failed to install CUDA toolkit"
-        fi
-
-        # Clean up temporary files and restore previous traps
-        cleanup_cuda_temp
-        restore_trap EXIT "$prev_trap_exit"
-        restore_trap ERR "$prev_trap_err"
-        restore_trap INT "$prev_trap_int"
-        restore_trap TERM "$prev_trap_term"
-    fi
-}
-
-# Main CUDA installation coordinator
 install_cuda() {
-    local choice
+    local install_mode="${CUDA_INSTALL:-ask}"
+    local answer local_version
 
-    printf '%sChecking GPU Status%s\n' "$CYAN" "$NC"
-    echo "========================================================"
-    # Reuse GPU detection results from initialize_hardware_detection() instead of
-    # re-running expensive hardware probes (lshw, lspci, nvidia-smi, etc.).
+    case "$install_mode" in
+        ask|always|never) ;;
+        *) fail "Invalid CUDA_INSTALL '$install_mode'; expected ask, always, or never." ;;
+    esac
+    [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] || return 0
 
-    # If non-free builds are disabled, skip CUDA installation prompts entirely.
-    if [[ "${NONFREE_AND_GPL:-false}" != "true" ]]; then
-        if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
-            warn "NVIDIA GPU detected, but CUDA/NVENC requires --enable-nonfree. Skipping CUDA install."
-            gpu_flag=0
-        else
-            gpu_flag=1
-        fi
-        export gpu_flag
+    CUDA_ROOT="$(find_cuda_root || true)"
+    if [[ -n "$CUDA_ROOT" ]]; then
+        local_version="$(get_local_cuda_version "$CUDA_ROOT" || true)"
+        log "CUDA toolkit detected at $CUDA_ROOT (version ${local_version:-unknown})."
+        configure_nvidia_architecture_once "Installed CUDA toolkit"
+        export CUDA_ROOT
         return 0
     fi
 
-    if [[ "$amd_gpu_test" == "AMD GPU detected" ]] && [[ "$is_nvidia_gpu_present" == "NVIDIA GPU not detected" ]]; then
-        printf '%s⚡%s AMD GPU detected\n' "$YELLOW" "$NC"
-        printf '%s✗%s NVIDIA GPU not detected\n' "$RED" "$NC"
-        warn "CUDA Hardware Acceleration will not be enabled"
-        gpu_flag=1
-        export gpu_flag
+    if [[ "$install_mode" == "never" ]]; then
+        warn "NVIDIA GPU detected, but CUDA_INSTALL=never and no toolkit is installed."
         return 0
-    elif [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
-        printf '%s✓%s NVIDIA GPU detected\n' "$GREEN" "$NC"
-        printf '%s→%s Checking CUDA installation status...\n' "$CYAN" "$NC"
-        local remote_ok=false
-        if check_remote_cuda_version; then
-            remote_ok=true
-        else
-            warn "Unable to determine latest CUDA version from NVIDIA release notes."
-        fi
-        local_cuda_version=$(get_local_cuda_version)
-
-        if [[ -z "$local_cuda_version" ]]; then
-            printf '%s!%s CUDA is not currently installed\n' "$YELLOW" "$NC"
-            if [[ "$remote_ok" == "true" ]]; then
-                printf '%s→%s Latest available version: %s%s%s\n' "$CYAN" "$NC" "$GREEN" "$remote_cuda_version" "$NC"
-            else
-                printf '%s→%s Latest available version: %sUnknown%s (defaulting to %s%s%s if you install)\n' \
-                    "$CYAN" "$NC" "$YELLOW" "$NC" "$GREEN" "$DEFAULT_CUDA_VERSION" "$NC"
-            fi
-            echo
-            read -r -p "Do you want to install the latest CUDA version? (yes/no): " choice
-            if [[ "${choice,,}" =~ ^(yes|y)$ ]]; then
-                download_cuda
-                # After successful install, set gpu_flag and prompt for architecture selection
-                gpu_flag=0
-                export gpu_flag
-                configure_nvidia_architecture_once "after CUDA install" || true
-                return 0
-            fi
-            gpu_flag=1
-            export gpu_flag
-            return 0
-        fi
-
-        if [[ "$remote_ok" == "true" ]]; then
-            if cuda_version_at_least "$local_cuda_version" "$remote_cuda_version"; then
-                if [[ "$local_cuda_version" == "$remote_cuda_version" ]]; then
-                    printf '%s✓%s CUDA %s%s%s is installed and up to date\n' \
-                        "$GREEN" "$NC" "$GREEN" "$local_cuda_version" "$NC"
-                else
-                    printf '%s✓%s CUDA %s%s%s is installed and newer than detected latest %s%s%s\n' \
-                        "$GREEN" "$NC" "$GREEN" "$local_cuda_version" "$NC" \
-                        "$GREEN" "$remote_cuda_version" "$NC"
-                fi
-                gpu_flag=0
-                export gpu_flag
-                configure_nvidia_architecture_once "with the installed CUDA toolkit" || true
-                return 0
-            fi
-
-            printf '%s!%s Installed CUDA version: %s%s%s\n' "$YELLOW" "$NC" "$YELLOW" "$local_cuda_version" "$NC"
-            printf '%s→%s Latest available version: %s%s%s\n' "$CYAN" "$NC" "$GREEN" "$remote_cuda_version" "$NC"
-            read -r -p "Do you want to update/reinstall CUDA to the latest version? (yes/no): " choice
-            if [[ "${choice,,}" =~ ^(yes|y)$ ]]; then
-                download_cuda
-                # After successful update, set gpu_flag and prompt for architecture selection
-                gpu_flag=0
-                export gpu_flag
-                configure_nvidia_architecture_once "after CUDA update" || true
-                return 0
-            fi
-
-            # User declined update, but CUDA is still installed - set flags appropriately
-            gpu_flag=0
-            export gpu_flag
-            configure_nvidia_architecture_once "with the installed CUDA toolkit" || true
-            return 0
-        fi
-
-        printf '%s!%s Installed CUDA version: %s%s%s\n' "$YELLOW" "$NC" "$YELLOW" "$local_cuda_version" "$NC"
-        warn "Unable to check for CUDA updates. Skipping update prompt."
-        gpu_flag=0
-        export gpu_flag
-        configure_nvidia_architecture_once "with the installed CUDA toolkit" || true
-        return 0
-    else
-        gpu_flag=1
-        export gpu_flag
     fi
-    return 0
+    if [[ "$install_mode" == "ask" ]]; then
+        if [[ ! -t 0 ]]; then
+            warn "NVIDIA GPU detected, but input is non-interactive; skipping CUDA toolkit installation."
+            return 0
+        fi
+        printf '\n'
+        read -r -p "Install the CUDA toolkit from NVIDIA's signed APT repository? [y/N]: " answer
+        [[ "$answer" =~ ^([yY]|[yY][eE][sS])$ ]] || return 0
+    fi
+
+    install_cuda_toolkit
+    CUDA_ROOT="$(find_cuda_root || true)"
+    [[ -n "$CUDA_ROOT" ]] ||
+        fail "CUDA toolkit installation completed, but nvcc could not be located."
+    configure_nvidia_architecture_once "New CUDA toolkit"
+    export CUDA_ROOT
 }
 
-# Download Windows headers for hardware acceleration
-install_windows_hardware_acceleration() {
-    local file
-    : "${workspace:?workspace is required}"
-    mkdir -p "$workspace/include"
-
-    declare -A files=(
-        ["objbase.h"]="https://raw.githubusercontent.com/wine-mirror/wine/master/include/objbase.h"
-        ["dxva2api.h"]="https://download.videolan.org/pub/contrib/dxva2api.h"
-        ["windows.h"]="https://raw.githubusercontent.com/tpn/winsdk-10/master/Include/10.0.10240.0/um/Windows.h"
-        ["direct.h"]="https://raw.githubusercontent.com/tpn/winsdk-10/master/Include/10.0.10240.0/km/crt/direct.h"
-        ["dxgidebug.h"]="https://raw.githubusercontent.com/apitrace/dxsdk/master/Include/dxgidebug.h"
-        ["dxva.h"]="https://raw.githubusercontent.com/nihon-tc/Rtest/master/header/Microsoft%20SDKs/Windows/v7.0A/Include/dxva.h"
-        ["intrin.h"]="https://raw.githubusercontent.com/yuikns/intrin/master/intrin.h"
-        ["arm_neon.h"]="https://raw.githubusercontent.com/gcc-mirror/gcc/master/gcc/config/arm/arm_neon.h"
-        ["conio.h"]="https://raw.githubusercontent.com/zoelabbb/conio.h/master/conio.h"
-    )
-
-    for file in "${!files[@]}"; do
-        curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 600 \
-            --output "$workspace/include/$file" "${files[$file]}" \
-            || fail "Failed to download Windows header '$file'. Line: ${LINENO}"
-    done
-}
-
-# Initialize hardware detection
 initialize_hardware_detection() {
-    echo
-    printf '%sDetecting Hardware%s\n' "$CYAN" "$NC"
-    echo "========================================================"
-
-    # Re-check GPU vendors after system setup. Memoized: this only re-probes when
-    # apt installed a probe tool (pciutils/nvidia-utils) since the pre-apt detection;
-    # otherwise the cached result is reused and the expensive probes are skipped.
     detect_gpu_vendors
 
-    # Display results per vendor.
-    [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] \
-        && printf '%s✓%s NVIDIA GPU: %sDetected%s\n' "$GREEN" "$NC" "$GREEN" "$NC" \
-        || printf '%s✗%s NVIDIA GPU: %sNot detected%s\n' "$RED" "$NC" "$RED" "$NC"
-    [[ "$is_amd_gpu_present" == "AMD GPU detected" ]] \
-        && printf '%s✓%s AMD GPU: %sDetected%s\n' "$GREEN" "$NC" "$YELLOW" "$NC"
-    [[ "$is_intel_gpu_present" == "Intel GPU detected" ]] \
-        && printf '%s✓%s Intel GPU: %sDetected%s\n' "$GREEN" "$NC" "$CYAN" "$NC"
-
-    # gpu_flag drives CUDA: 0 = NVIDIA present (CUDA path), 1 = no NVIDIA.
-    if [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]]; then
-        gpu_flag=0
-    else
-        gpu_flag=1
-        if [[ "$is_amd_gpu_present" != "AMD GPU detected" && "$is_intel_gpu_present" != "Intel GPU detected" ]]; then
-            warn "No GPU detected — GPU-accelerated stacks (CUDA, Vulkan, AMF, QSV) will be skipped."
-        else
-            warn "No NVIDIA GPU — CUDA/NVENC will be skipped (other GPU stacks gated by vendor)."
-        fi
+    printf '\n'
+    box_out_banner "Hardware Detection"
+    printf 'NVIDIA: %s\n' "$is_nvidia_gpu_present"
+    printf 'AMD:    %s\n' "$is_amd_gpu_present"
+    printf 'Intel:  %s\n' "$is_intel_gpu_present"
+    if ((has_vulkan_gpu == 0)); then
+        warn "No supported GPU was detected; proprietary GPU integrations will be omitted and generic hardware APIs may have no runtime device."
     fi
-    export gpu_flag
 }

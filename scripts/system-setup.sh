@@ -1,375 +1,422 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154 source=/dev/null
 
-####################################################################################
-##
-##  FFmpeg Build Script - System Setup
-##  OS detection, package installation, and environment setup functions
-##
-####################################################################################
+################################################################################
+# Host validation, package installation, and toolchain environment setup.
+################################################################################
 
-# Source shared utilities
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
-# Required build packages
-apt_pkgs() {
-    local -a pkgs=() available_packages=() unavailable_packages=() extra_pkgs=() split_pkgs=()
-    local apt_updated arg pkg
-    apt_updated=false
+APT_INDEX_UPDATED=false
 
-    apt_update_once() {
-        if [[ "$apt_updated" == "false" ]]; then
-            if sudo apt update; then
-                apt_updated=true
-            else
-                apt_updated=false
-            fi
-        fi
-    }
-
-    # Function to find the latest version of a package by pattern
-    find_latest_version() {
-        apt-cache search "^$1" | sort -ruV | head -n1 | awk '{print $1}'
-    }
-
-    # Accept both `apt_pkgs "${array[@]}"` and `apt_pkgs "${array[*]}"` callers.
-    for arg in "$@"; do
-        [[ -n "$arg" ]] || continue
-        read -r -a split_pkgs <<< "$arg"
-        extra_pkgs+=("${split_pkgs[@]}")
-    done
-
-    # Define an array of apt package names
-    # Note: 'lex' and 'yacc' are virtual packages that resolve to flex/bison (already listed)
-    pkgs=(
-        "${extra_pkgs[@]}" "$(find_latest_version 'openjdk-[0-9]+-jdk')"
-        autoconf autopoint bison build-essential ccache clang cmake curl flex
-        gettext git gperf imagemagick jq ladspa-sdk libbluray-dev libbs2b-dev
-        libbz2-dev libcaca-dev libcdio-dev libcdio-paranoia-dev libcdparanoia-dev
-        libchromaprint-dev libdav1d-dev libgl1-mesa-dev libglu1-mesa-dev libgme-dev
-        libcunit1-dev frei0r-plugins-dev libgsm1-dev libjack-dev libjansson-dev
-        liblilv-dev libmodplug-dev libnghttp2-dev libde265-dev lv2-dev libnghttp3-dev
-        libshine-dev libsmbclient-dev libsnappy-dev libspeex-dev libssh-dev libssl-dev
-        libtesseract-dev libtool libaribb24-dev libtwolame-dev libv4l-dev libvdpau-dev
-        libvo-amrwbenc-dev libx11-dev libxi-dev libyuv-dev libzvbi-dev pciutils
-        libaom-dev libfontconfig-dev libfreetype-dev libfribidi-dev libgmp-dev
-        libharfbuzz-dev
-        libogg-dev libsdl2-dev libvorbis-dev libvpx-dev libwebp-dev libxml2-dev
-        m4 meson nasm nettle-dev ninja-build perl pkgconf python3 python3-dev python3-pip
-        python3-venv valgrind yasm zlib1g-dev libmpg123-dev
-        libopenh264-dev libopenmpt-dev flite1-dev libasound2-dev libpulse-dev
-        libsndio-dev librtmp-dev librsvg2-dev
-    )
-
-    # GPU-vendor-gated dev packages: only install the stacks this machine can use.
-    # detect_gpu_vendors() runs before this (see build-ffmpeg.sh) and exports the flags.
-    if [[ "${has_vulkan_gpu:-0}" -eq 1 ]]; then
-        pkgs+=(libvulkan-dev libshaderc-dev libplacebo-dev)
-    else
-        log "No Vulkan-capable GPU detected — skipping Vulkan dev packages (libvulkan-dev, libshaderc-dev, libplacebo-dev)."
+apt_update_once() {
+    if ! is_true "$APT_INDEX_UPDATED"; then
+        log "Refreshing APT package metadata..."
+        execute sudo apt-get update
+        APT_INDEX_UPDATED=true
     fi
-    if [[ "${is_intel_gpu_present:-}" == "Intel GPU detected" ]]; then
-        pkgs+=(libvpl-dev)
-    else
-        log "No Intel GPU detected — skipping Intel QSV dev package (libvpl-dev)."
-    fi
+}
 
-    log "Checking package installation status..."
+apt_package_available() {
+    local package_name="${1:-}"
 
-    # Find missing and categorize packages in one loop
-    for pkg in "${pkgs[@]}"; do
-        [[ -n "$pkg" ]] || continue
-        if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "ok installed"; then
-            if apt-cache show "$pkg" &>/dev/null; then
-                available_packages+=("$pkg")
-            else
-                unavailable_packages+=("$pkg")
-            fi
+    [[ "$package_name" =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*$ ]] || return 1
+    apt-cache show "$package_name" >/dev/null 2>&1
+}
+
+apt_package_installed() {
+    local package_name="${1:-}"
+
+    dpkg-query -W -f='${Status}' "$package_name" 2>/dev/null |
+        grep -q '^install ok installed$'
+}
+
+append_unique_packages() {
+    local target_name="${1:-}"
+    shift || true
+
+    [[ "$target_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
+        fail "append_unique_packages() received an invalid array name."
+    [[ "$(declare -p "$target_name" 2>/dev/null || true)" == "declare -a "* ]] ||
+        fail "append_unique_packages() target is not an indexed array."
+    local -n target_ref="$target_name"
+    local package_name
+
+    for package_name in "$@"; do
+        [[ -n "$package_name" ]] || continue
+        if [[ -z "${_APT_PACKAGE_SEEN[$package_name]+x}" ]]; then
+            _APT_PACKAGE_SEEN["$package_name"]=1
+            target_ref+=("$package_name")
         fi
     done
+}
 
-    # Print unavailable packages
-    if [[ ${#unavailable_packages[@]} -gt 0 ]]; then
-        echo
-        warn "Unavailable packages:"
-        printf "          %s\n" "${unavailable_packages[@]}"
+append_packages_if_enabled() {
+    local target_name="${1:-}"
+    local selection_name="${2:-}"
+    shift 2 || true
+
+    package_enabled "$selection_name" || return 0
+    append_unique_packages "$target_name" "$@"
+    if package_explicitly_enabled "$selection_name"; then
+        mark_required_packages "$@"
+    fi
+}
+
+append_required_packages() {
+    local target_name="${1:-}"
+    shift || true
+
+    append_unique_packages "$target_name" "$@"
+    mark_required_packages "$@"
+}
+
+mark_required_packages() {
+    local package_name
+
+    for package_name in "$@"; do
+        _APT_PACKAGE_REQUIRED["$package_name"]=1
+    done
+}
+
+install_apt_packages() {
+    local package_name
+    local -a requested_packages=("$@")
+    local -a pending_packages=()
+    local -a missing_packages=()
+    local -a required_unavailable_packages=()
+    local -a unavailable_packages=()
+
+    for package_name in "${requested_packages[@]}"; do
+        if apt_package_installed "$package_name"; then
+            continue
+        fi
+        pending_packages+=("$package_name")
+    done
+
+    if ((${#pending_packages[@]} == 0)); then
+        log "All requested host packages are already installed."
+        return 0
     fi
 
-    # Install available packages
-    if [[ ${#available_packages[@]} -gt 0 ]]; then
-        echo
-        log "Installing missing packages:"
-        printf "          %s\n" "${available_packages[@]}"
-        echo
-        # Run apt commands directly (not via execute) so user sees progress
-        apt_update_once
-        sudo DEBIAN_FRONTEND=noninteractive apt -y install "${available_packages[@]}" \
-            || fail "apt install failed for required packages. Line: ${LINENO}"
-    else
-        log "All required packages are already installed."
-    fi
-
-    # Check if nvidia-smi is available; if not, try to install the appropriate package.
-    # Gated on actual NVIDIA hardware: nvidia-utils pulls in the NVIDIA driver userspace
-    # stack (libnvidia-compute, nvidia-kernel-common, ...), which AMD/Intel-only and
-    # GPU-less machines must never install. detect_gpu_vendors() ran before apt_pkgs, but
-    # its probe is blind on minimal systems without pciutils — which this function may
-    # have just installed — so re-probe lspci here. WSL keeps the install attempt because
-    # its GPU probe (wmic via cmd.exe) is unreliable on newer Windows builds.
-    if ! command -v nvidia-smi >/dev/null 2>&1; then
-        if [[ "${is_nvidia_gpu_present:-}" == "NVIDIA GPU detected" ]] ||
-            { command -v lspci >/dev/null 2>&1 && lspci 2>/dev/null | grep -qi nvidia; } ||
-            grep -Eiq '(microsoft|slyfox1186)' /proc/version; then
-            local nvidia_pkg
-            nvidia_pkg=""
-
-            # Try Ubuntu-style nvidia-utils-XXX first
-            nvidia_pkg=$(apt-cache search '^nvidia-utils-[0-9]+$' 2>/dev/null | sort -t'-' -k3 -rn | head -n1 | awk '{print $1}')
-
-            # If not found, try Debian-style nvidia-driver-cuda
-            if [[ -z "$nvidia_pkg" ]]; then
-                if apt-cache show nvidia-driver-cuda &>/dev/null; then
-                    nvidia_pkg=nvidia-driver-cuda
-                fi
-            fi
-
-            if [[ -n "$nvidia_pkg" ]]; then
-                log "nvidia-smi not found. Installing $nvidia_pkg..."
-                apt_update_once
-                sudo DEBIAN_FRONTEND=noninteractive apt -y install "$nvidia_pkg" \
-                    || warn "Failed to install $nvidia_pkg; NVIDIA support may be limited."
-            else
-                warn "nvidia-smi not found and no nvidia-utils/nvidia-driver-cuda package available."
-                warn "NVIDIA GPU support may not work. Consider installing NVIDIA drivers manually."
-            fi
+    apt_update_once
+    for package_name in "${pending_packages[@]}"; do
+        if apt_package_available "$package_name"; then
+            missing_packages+=("$package_name")
+        elif [[ -n "${_APT_PACKAGE_REQUIRED[$package_name]+x}" ]]; then
+            required_unavailable_packages+=("$package_name")
         else
-            log "No NVIDIA GPU detected — skipping NVIDIA driver utilities (nvidia-utils/nvidia-driver-cuda)."
+            unavailable_packages+=("$package_name")
         fi
+    done
+
+    if ((${#required_unavailable_packages[@]} > 0)); then
+        fail "Required host packages are unavailable on $OS $VER: ${required_unavailable_packages[*]}"
+    fi
+    if ((${#unavailable_packages[@]} > 0)); then
+        warn "Optional packages unavailable on $OS $VER: ${unavailable_packages[*]}"
+    fi
+    if ((${#missing_packages[@]} == 0)); then
+        log "All available host packages are already installed."
+        return 0
     fi
 
-    # If the NVIDIA tools exist but the driver stack is in a bad state, prompt the user.
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        if ! nvidia-smi &>/dev/null; then
-            echo "The \"nvidia-smi\" command exists but is not working (this can happen after a driver update)."
-            echo "Rebooting often resolves this. The script may require a working NVIDIA driver stack to complete GPU-enabled builds."
-            echo
-            read -r -p "Do you want to reboot now? (y/n): " reboot_choice
-            [[ "$reboot_choice" =~ ^[Yy]$ ]] && execute sudo reboot
-        fi
-    fi
+    log "Installing ${#missing_packages[@]} host package(s): ${missing_packages[*]}"
+    execute sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        --no-install-recommends "${missing_packages[@]}"
 }
 
-# Check AVX-512 CPU support. Emits exactly "ON" or "OFF" on stdout — callers
-# substitute the output directly into cmake flags (-DENABLE_AVX512="$(check_avx512)"),
-# so diagnostics must never leak onto the value channel.
-check_avx512() {
-    if [[ ! -f /proc/cpuinfo ]]; then
-        warn "/proc/cpuinfo does not exist on this system; assuming no AVX-512 support."
-        echo "OFF"
-        return
-    fi
+detect_operating_system() {
+    local detected_id detected_version detected_like ubuntu_codename
 
-    # Search for AVX512 flag in cpuinfo
-    if grep -q avx512 /proc/cpuinfo; then
-        echo "ON"
-    else
-        echo "OFF"
-    fi
-}
+    [[ -r /etc/os-release ]] ||
+        fail "/etc/os-release is required for operating-system detection."
+    # shellcheck source=/dev/null
+    source /etc/os-release
 
-# Debian OS version handling (Debian 12 and 13 only)
-debian_os_version() {
-    local -a debian_extra_pkgs=()
+    detected_id="${ID:-}"
+    detected_version="${VERSION_ID:-}"
+    detected_like="${ID_LIKE:-}"
+    ubuntu_codename="${UBUNTU_CODENAME:-}"
+    [[ -n "$detected_id" && -n "$detected_version" ]] ||
+        fail "Unable to identify the operating system from /etc/os-release."
 
-    case "$STATIC_VER" in
-        12)
-            debian_extra_pkgs=(
-                cppcheck libsvtav1dec-dev libsvtav1-dev libsvtav1enc-dev libyuv-utils
-                libyuv0 libhwy-dev libsrt-gnutls-dev libsharp-dev libdmalloc5 libumfpack5
-                libsuitesparseconfig5 libcolamd2 libcholmod3 libccolamd2 libcamd2 libamd2
-                software-properties-common libclang-16-dev libgegl-0.4-0 libgoogle-perftools4
-                librist-dev
-            )
+    VARIABLE_OS="$detected_id"
+    case "$detected_id" in
+        debian)
+            OS=Debian
+            VER="${detected_version%%.*}"
+            case "$VER" in
+                12|13) ;;
+                *) fail "Unsupported Debian release '$detected_version'; supported releases are 12 and 13." ;;
+            esac
             ;;
-        13|trixie|sid)
-            debian_extra_pkgs=(
-                cppcheck libsvtav1enc-dev libyuv-utils libyuv0 libhwy-dev libsrt-gnutls-dev
-                libsharp-dev libdmalloc5 libumfpack6 libsuitesparseconfig7 libcolamd3
-                libcholmod5 libccolamd3 libcamd3 libamd3 libclang-dev libgegl-0.4-0t64
-                libgoogle-perftools4t64 librist-dev
-            )
-            ;;
-        *)  fail "Unsupported Debian version: $STATIC_VER. Only Debian 12 and 13 are supported. Line: ${LINENO}" ;;
-    esac
-    apt_pkgs "${debian_extra_pkgs[*]}"
-}
-
-# Ubuntu OS version handling (Ubuntu 22.04 and 24.04 only, plus WSL)
-ubuntu_os_version() {
-    # Linux Mint 21.x is treated as Ubuntu 22.04
-    # Zorin OS 17 is treated as Ubuntu 22.04
-
-    local jammy_pkgs noble_pkgs
-
-    # Ubuntu 22.04 (Jammy) packages
-    jammy_pkgs=(
-        libacl1-dev libdecor-0-dev liblz4-dev libmimalloc-dev libpipewire-0.3-dev libpsl-dev libreadline-dev
-        librust-jemalloc-sys-dev librust-malloc-buf-dev libsrt-doc libsvtav1-dev libsvtav1dec-dev libsvtav1enc-dev
-        libtbbmalloc2 libwayland-dev libclang1-15 libcamd2 libccolamd2 libcholmod3 libcolamd2
-        libsuitesparseconfig5 libumfpack5 libamd2 cppcheck libgegl-0.4-0 libgoogle-perftools4
-    )
-
-    # Ubuntu 24.04 (Noble) packages
-    noble_pkgs=(
-        cargo-c libcamd3 libccolamd3 libcholmod5 libcolamd3 libsuitesparseconfig7
-        libumfpack6 libjxl-dev libamd3 libgegl-0.4-0t64 libgoogle-perftools4t64
-    )
-
-    case "$STATIC_VER" in
-        msft)  apt_pkgs "${jammy_pkgs[@]}" ;;
-        24.04) apt_pkgs "${noble_pkgs[@]}" ;;
-        22.04) apt_pkgs "${jammy_pkgs[@]}" ;;
-        *)     fail "Unsupported Ubuntu version: $STATIC_VER. Only Ubuntu 22.04 and 24.04 are supported. Line: ${LINENO}" ;;
-    esac
-}
-
-# Main OS detection function
-get_os_version() {
-    if [[ -f /etc/os-release ]]; then
-        . /etc/os-release
-        OS_TMP="$NAME"
-        VER_TMP="$VERSION_ID"
-        # Use `read -r` to grab the first whitespace-delimited token. This
-        # matches awk's default field-splitting behavior (handles tabs,
-        # repeated whitespace, and leading whitespace), unlike `${var%% *}`
-        # which only strips a single literal space.
-        read -r OS _ <<<"$OS_TMP"
-        read -r VER _ <<<"$VER_TMP"
-        VARIABLE_OS="$OS"
-        STATIC_VER="$VER"
-
-        # Add detection for Zorin and Mint (only supported versions)
-        if [[ "$OS" == "Zorin" ]]; then
-            if [[ "$VER" == "17" ]]; then
-                OS=Ubuntu
-                VER=22.04  # Zorin OS 17 is based on Ubuntu 22.04
-                STATIC_VER="$VER"
-            else
-                fail "Unsupported Zorin OS version: $VER. Only Zorin OS 17 is supported. Line: ${LINENO}"
-            fi
-        elif [[ "$OS" == "Linux" && "$NAME" == "Linux Mint" ]]; then
+        ubuntu)
             OS=Ubuntu
-            VER=22.04
-            STATIC_VER="$VER"
-        fi
-    elif command -v lsb_release >/dev/null 2>&1; then
-        OS=$(lsb_release -d | awk '{print $2}')
-        VER=$(lsb_release -r | awk '{print $2}')
-    else
-        fail "Failed to define \"\$OS\" and/or \"\$VER\". Line: ${LINENO}"
-    fi
-}
+            VER="$detected_version"
+            case "$VER" in
+                22.04|24.04|26.04) ;;
+                *) fail "Unsupported Ubuntu release '$detected_version'; supported releases are 22.04, 24.04, and 26.04." ;;
+            esac
+            ;;
+        linuxmint|zorin)
+            [[ "$detected_like" == *ubuntu* ]] ||
+                fail "Unsupported $detected_id base; an Ubuntu-compatible base is required."
+            OS=Ubuntu
+            case "$ubuntu_codename" in
+                jammy) VER=22.04 ;;
+                noble) VER=24.04 ;;
+                resolute) VER=26.04 ;;
+                *) fail "Unsupported Ubuntu derivative base '${ubuntu_codename:-unknown}'." ;;
+            esac
+            ;;
+        *)
+            fail "Unsupported operating system '$detected_id $detected_version'; use Debian or Ubuntu."
+            ;;
+    esac
 
-# Set up Java environment variables
-set_java_variables() {
-    # Recursion guard to prevent infinite loop if JVM install fails unexpectedly
-    if [[ "${_java_setup_in_progress:-}" == "1" ]]; then
-        fail "Java setup failed: /usr/lib/jvm/ still does not exist after installing openjdk. Line: ${LINENO}"
-    fi
-
-    source_path
-    if [[ -d /usr/lib/jvm ]]; then
-        locate_java=$(
-                     find /usr/lib/jvm/ -type d -name "java-*-openjdk*" |
-                     sort -ruV | head -n1
-                  )
-        if [[ -z "$locate_java" ]]; then
-            fail "Found /usr/lib/jvm/ but no openjdk installation detected. Line: ${LINENO}"
-        fi
-    else
-        latest_openjdk_version=$(
-                                 apt-cache search '^openjdk-[0-9]+-jdk-headless$' |
-                                 sort -ruV | head -n1 | awk '{print $1}'
-                             )
-        if [[ -z "$latest_openjdk_version" ]]; then
-            fail "No openjdk package found in apt repositories. Line: ${LINENO}"
-        fi
-        if execute sudo apt -y install "$latest_openjdk_version"; then
-            _java_setup_in_progress=1
-            set_java_variables
-            unset _java_setup_in_progress
-            return
-        else
-            fail "Could not install openjdk. Line: ${LINENO}"
-        fi
-    fi
-    java_include=$(
-                  find /usr/lib/jvm/ -type f -name javac |
-                  sort -ruV | head -n1 | xargs dirname |
-                  sed 's/bin/include/'
-              )
-    if [[ -z "$java_include" || ! -d "$java_include" ]]; then
-        warn "Java include directory not found, some features may not work"
-    else
-        CPPFLAGS+=" -I$java_include"
-    fi
-    JDK_HOME="$locate_java"
-    JAVA_HOME="$locate_java"
-    PATH="$PATH:$JAVA_HOME/bin"
-    export CPPFLAGS JDK_HOME JAVA_HOME PATH
-    remove_duplicate_paths
-}
-
-# Set up Apache Ant paths
-set_ant_path() {
-    export ANT_HOME="$workspace/ant"
-    if [[ ! -d "$workspace/ant/bin" ]] || [[ ! -d "$workspace/ant/lib" ]]; then
-        mkdir -p "$workspace/ant/bin" "$workspace/ant/lib" 2>/dev/null
-    fi
-}
-
-# Note: `source_path`, `remove_duplicate_paths`, and Python venv helpers live in shared-utils.sh
-# so they behave consistently across all scripts.
-
-# Initialize system setup
-initialize_system_setup() {
-    require_vars workspace
-    # Test the OS and its version
-    get_os_version
-
-    # Check if running Windows WSL2
-    if grep -qi "Microsoft" /proc/version; then
+    if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+        [[ "$OS" == "Ubuntu" ]] ||
+            fail "WSL builds require a supported Ubuntu userspace."
         VARIABLE_OS=WSL2
     fi
+    STATIC_VER="$VER"
     export OS VER STATIC_VER VARIABLE_OS
+}
 
-    # Set up PKG_CONFIG_PATH
-    # Order: workspace (custom) -> /usr/local (manual installs) -> system
-    PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/lib/x86_64-linux-gnu/pkgconfig:$workspace/share/pkgconfig"
-    PKG_CONFIG_PATH+=":/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/share/pkgconfig"
+collect_host_packages() {
+    local target_name="${1:-}"
+    [[ "$target_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
+        fail "collect_host_packages() received an invalid array name."
+    [[ "$(declare -p "$target_name" 2>/dev/null || true)" == "declare -a "* ]] ||
+        fail "collect_host_packages() target is not an indexed array."
+    local -n output_ref="$target_name"
+    local -a base_packages=(
+        autoconf automake autopoint bison build-essential ca-certificates ccache
+        cmake curl flex g++ gcc gettext git gnupg gperf libtool libtool-bin
+        m4 meson nasm ninja-build patch pciutils perl pkgconf python3 python3-dev
+        python3-venv tar xz-utils yasm
+    )
+    local -a essential_development_packages=(
+        libbz2-dev liblzma-dev libssl-dev zlib1g-dev
+    )
+
+    declare -gA _APT_PACKAGE_SEEN=()
+    declare -gA _APT_PACKAGE_REQUIRED=()
+    # output_ref refers to the validated caller array.
+    # shellcheck disable=SC2034
+    output_ref=()
+    append_unique_packages "$target_name" "${base_packages[@]}"
+    append_unique_packages "$target_name" "${essential_development_packages[@]}"
+    mark_required_packages "${base_packages[@]}" "${essential_development_packages[@]}"
+
+    if [[ "$COMPILER_FLAG" == "clang" ]]; then
+        append_unique_packages "$target_name" clang
+        mark_required_packages clang
+    fi
+
+    append_packages_if_enabled "$target_name" "libaribb24" libaribb24-dev
+    append_packages_if_enabled "$target_name" "libbluray" libbluray-dev
+    append_packages_if_enabled "$target_name" "libdav1d" libdav1d-dev
+    append_packages_if_enabled "$target_name" "libvpl" libvpl-dev
+    append_packages_if_enabled "$target_name" "libspeex" libspeex-dev
+    append_packages_if_enabled "$target_name" "libssh" libssh-dev
+    append_packages_if_enabled "$target_name" "chromaprint" libchromaprint-dev
+    append_packages_if_enabled "$target_name" "libjxl" libjxl-dev
+    append_packages_if_enabled "$target_name" "libtesseract" libtesseract-dev
+    append_packages_if_enabled "$target_name" "libzvbi" libzvbi-dev
+    append_packages_if_enabled "$target_name" "libmodplug" libmodplug-dev
+    append_packages_if_enabled "$target_name" "libgme" libgme-dev
+    append_packages_if_enabled "$target_name" "libshine" libshine-dev
+    append_packages_if_enabled "$target_name" "libcaca" libcaca-dev
+    append_packages_if_enabled "$target_name" "libbs2b" libbs2b-dev
+    append_packages_if_enabled "$target_name" "libjack" libjack-dev
+    append_packages_if_enabled "$target_name" "libv4l2" libv4l-dev
+    append_packages_if_enabled "$target_name" "libsnappy" libsnappy-dev
+    append_packages_if_enabled "$target_name" "libtwolame" libtwolame-dev
+    append_packages_if_enabled "$target_name" "libvo-amrwbenc" libvo-amrwbenc-dev
+    append_packages_if_enabled "$target_name" "libgsm" libgsm1-dev
+    append_packages_if_enabled "$target_name" "ladspa" ladspa-sdk
+    append_packages_if_enabled "$target_name" "frei0r" frei0r-plugins-dev
+    append_packages_if_enabled "$target_name" "libopenh264" libopenh264-dev
+    append_packages_if_enabled "$target_name" "libopenmpt" libopenmpt-dev
+    append_packages_if_enabled "$target_name" "librtmp" librtmp-dev
+    append_packages_if_enabled "$target_name" "librsvg" librsvg2-dev
+    append_packages_if_enabled "$target_name" "libflite" flite1-dev
+    append_packages_if_enabled "$target_name" "alsa" libasound2-dev
+    append_packages_if_enabled "$target_name" "libpulse" libpulse-dev
+    append_packages_if_enabled "$target_name" "sndio" libsndio-dev
+    append_packages_if_enabled "$target_name" "libdrm" libdrm-dev
+    append_packages_if_enabled "$target_name" "vdpau" libvdpau-dev
+    append_packages_if_enabled "$target_name" "vaapi" libva-dev
+    append_packages_if_enabled "$target_name" "libvpx" libvpx-dev
+    append_packages_if_enabled "$target_name" "libshaderc" libshaderc-dev
+    append_packages_if_enabled "$target_name" "libplacebo" libplacebo-dev
+    append_packages_if_enabled "$target_name" "vulkan" libvulkan-dev
+
+    if package_enabled "xlib" || package_enabled "opengl" ||
+        package_enabled "freeglut" || package_enabled "sdl2" ||
+        package_enabled "gpac-git"; then
+        append_unique_packages "$target_name" libx11-dev
+    fi
+    if package_enabled "xlib"; then
+        append_unique_packages "$target_name" \
+            libxcb-shape0-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb1-dev \
+            libxext-dev libxv-dev
+        if package_explicitly_enabled "xlib"; then
+            mark_required_packages \
+                libx11-dev \
+                libxcb-shape0-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb1-dev \
+                libxext-dev libxv-dev
+        fi
+    fi
+    if package_enabled "opengl" || package_enabled "freeglut"; then
+        append_unique_packages "$target_name" libgl1-mesa-dev libglu1-mesa-dev
+    fi
+    package_enabled "freeglut" &&
+        append_unique_packages "$target_name" libxi-dev
+    if package_enabled "sdl2"; then
+        append_unique_packages "$target_name" \
+            libasound2-dev libdecor-0-dev libdrm-dev libpulse-dev \
+            libwayland-dev libx11-dev
+    fi
+    package_enabled "libheif" &&
+        append_unique_packages "$target_name" libde265-dev
+
+    if ! package_enabled "av1-git" && package_enabled "avif"; then
+        append_required_packages "$target_name" libaom-dev
+    fi
+    if ! package_enabled "libogg" &&
+        { package_enabled "vorbis" || package_enabled "libtheora"; }; then
+        append_required_packages "$target_name" libogg-dev
+    fi
+    if ! package_enabled "gmp" && package_enabled "gnutls"; then
+        append_required_packages "$target_name" libgmp-dev
+    fi
+    if ! package_enabled "nettle" && package_enabled "gnutls"; then
+        append_required_packages "$target_name" nettle-dev
+    fi
+    if package_enabled "fontconfig"; then
+        package_enabled "libxml2" ||
+            append_required_packages "$target_name" libxml2-dev
+        package_enabled "freetype" ||
+            append_required_packages "$target_name" libfreetype-dev
+    fi
+    if package_enabled "libass"; then
+        package_enabled "fontconfig" ||
+            append_required_packages "$target_name" libfontconfig-dev
+        package_enabled "freetype" ||
+            append_required_packages "$target_name" libfreetype-dev
+        package_enabled "fribidi" ||
+            append_required_packages "$target_name" libfribidi-dev
+        package_enabled "harfbuzz" ||
+            append_required_packages "$target_name" libharfbuzz-dev
+    fi
+    if package_enabled "lilv" && ! package_enabled "lv2-git"; then
+        append_required_packages "$target_name" lv2-dev
+    fi
+    if package_enabled "lilv"; then
+        package_enabled "serd" ||
+            append_required_packages "$target_name" libserd-dev
+        package_enabled "zix" ||
+            append_required_packages "$target_name" libzix-dev
+        package_enabled "sord" ||
+            append_required_packages "$target_name" libsord-dev
+        package_enabled "sratom" ||
+            append_required_packages "$target_name" libsratom-dev
+    fi
+    if package_enabled "sord"; then
+        package_enabled "serd" ||
+            append_required_packages "$target_name" libserd-dev
+        package_enabled "zix" ||
+            append_required_packages "$target_name" libzix-dev
+    fi
+    if package_enabled "sratom"; then
+        package_enabled "lv2-git" ||
+            append_required_packages "$target_name" lv2-dev
+        package_enabled "serd" ||
+            append_required_packages "$target_name" libserd-dev
+    fi
+
+    if is_true "$NONFREE_AND_GPL"; then
+        append_packages_if_enabled "$target_name" "libsmbclient" libsmbclient-dev
+        append_packages_if_enabled "$target_name" "libcdio" \
+            libcdio-dev libcdio-paranoia-dev
+    fi
+    if package_enabled "ant-git"; then
+        append_unique_packages "$target_name" default-jdk
+        mark_required_packages default-jdk
+    fi
+}
+
+verify_required_host_tools() {
+    local -a required_tools=(
+        ar awk bison cmake curl flex flock git make meson nasm ninja patch pkgconf
+        python3 ranlib sed tar timeout xz yasm
+    )
+
+    case "$COMPILER_FLAG" in
+        gcc) required_tools+=(gcc g++) ;;
+        clang) required_tools+=(clang clang++) ;;
+    esac
+    require_commands "${required_tools[@]}"
+}
+
+check_avx512() {
+    if [[ -r /proc/cpuinfo ]] && grep -qiw avx512f /proc/cpuinfo; then
+        printf 'ON\n'
+    else
+        printf 'OFF\n'
+    fi
+}
+
+set_java_variables() {
+    local javac_path java_home
+
+    javac_path="$(command -v javac 2>/dev/null || true)"
+    [[ -n "$javac_path" ]] || fail "javac was not installed by the host setup."
+    javac_path="$(readlink -f -- "$javac_path")" ||
+        fail "Unable to resolve javac path."
+    java_home="$(dirname -- "$(dirname -- "$javac_path")")"
+    [[ -d "$java_home/include" ]] ||
+        fail "Java include directory not found under '$java_home'."
+
+    JAVA_HOME="$java_home"
+    JDK_HOME="$java_home"
+    export JAVA_HOME JDK_HOME
+    path_prepend "$java_home/bin"
+}
+
+set_ant_path() {
+    ANT_HOME="$workspace/ant"
+    export ANT_HOME
+    execute mkdir -p "$ANT_HOME/bin" "$ANT_HOME/lib"
+}
+
+initialize_system_setup() {
+    local -a host_packages=()
+
+    require_vars workspace COMPILER_FLAG
+    require_commands apt-cache apt-get dpkg-query readlink
+    detect_operating_system
+    collect_host_packages host_packages
+    install_apt_packages "${host_packages[@]}"
+    verify_required_host_tools
+
+    PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig"
+    PKG_CONFIG_PATH+=":$workspace/lib/x86_64-linux-gnu/pkgconfig:$workspace/share/pkgconfig"
+    PKG_CONFIG_PATH+=":/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig"
+    PKG_CONFIG_PATH+=":/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/share/pkgconfig"
     PKG_CONFIG_PATH+=":/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
     export PKG_CONFIG_PATH
 
-    # Set up paths
     source_path
-
-    # WSL2: ensure WSL library path is on PATH for NVIDIA Video Codec SDK tooling.
-    if [[ "${VARIABLE_OS:-}" == "WSL2" && -d /usr/lib/wsl/lib ]]; then
-        PATH="/usr/lib/wsl/lib:$PATH"
-        export PATH
-        remove_duplicate_paths
+    if [[ "$VARIABLE_OS" == "WSL2" ]]; then
+        path_prepend "/usr/lib/wsl/lib"
+    fi
+    if package_enabled "ant-git"; then
+        set_java_variables
     fi
 
-    # Set up Java environment
-    set_java_variables
-    remove_duplicate_paths
-
-    # Always install required system packages
-    case "$OS" in
-        Ubuntu) ubuntu_os_version ;;
-        Debian) debian_os_version ;;
-        *) fail "Unsupported OS: $OS $VER. Only Debian and Ubuntu (and derivatives mapped to them) are supported. Line: ${LINENO}" ;;
-    esac
-
-    log "System setup initialized: $OS $VER"
+    log "Host setup complete: $OS $VER (${VARIABLE_OS})"
 }

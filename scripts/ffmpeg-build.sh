@@ -1,314 +1,402 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154 source=/dev/null
+# shellcheck disable=SC2154,SC2178 source=/dev/null
 
-####################################################################################
-##
-##  FFmpeg Build Script - Final FFmpeg Build
-##  Build FFmpeg with all compiled dependencies
-##
-####################################################################################
+################################################################################
+# Configure, compile, install, and validate FFmpeg.
+################################################################################
 
-# Source shared utilities
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
-# Build FFmpeg
+append_unique_configure_options() {
+    local target_name="${1:-}"
+    local seen_name="${2:-}"
+    shift 2 || true
+
+    [[ "$target_name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] ||
+        fail "Invalid configure-option array name '$target_name'."
+    [[ "$seen_name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] ||
+        fail "Invalid configure-option index name '$seen_name'."
+    [[ "$target_name" != "$seen_name" ]] ||
+        fail "Configure-option output and index arrays must be distinct."
+    [[ "$(declare -p "$target_name" 2>/dev/null || true)" == "declare -a "* ]] ||
+        fail "Configure-option output must be an indexed array."
+    [[ "$(declare -p "$seen_name" 2>/dev/null || true)" == "declare -A "* ]] ||
+        fail "Configure-option index must be an associative array."
+
+    local -n target_ref="$target_name"
+    local -n seen_ref="$seen_name"
+    local option
+
+    for option in "$@"; do
+        [[ -n "$option" ]] || continue
+        if [[ -z "${seen_ref[$option]+x}" ]]; then
+            seen_ref["$option"]=1
+            target_ref+=("$option")
+        fi
+    done
+}
+
+append_required_configure_options() {
+    local target_name="${1:-}"
+    shift || true
+
+    [[ "$target_name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] ||
+        fail "Invalid configure-option array name '$target_name'."
+    [[ "$(declare -p "$target_name" 2>/dev/null || true)" == "declare -a "* ]] ||
+        fail "Configure-option output must be an indexed array."
+
+    local -n target_ref="$target_name"
+    target_ref+=("$@")
+    record_required_ffmpeg_config_option "$@"
+}
+
+validate_required_ffmpeg_features() {
+    local config_file="${1:-}"
+    local config_symbol option
+    local -a missing_features=()
+
+    [[ -f "$config_file" ]] ||
+        fail "FFmpeg configuration file is missing: '$config_file'."
+    for config_symbol in "${!REQUIRED_FFMPEG_CONFIG_SYMBOLS[@]}"; do
+        grep -q "^${config_symbol}=yes$" "$config_file" && continue
+        option="${REQUIRED_FFMPEG_CONFIG_SYMBOLS[$config_symbol]}"
+        missing_features+=("$option ($config_symbol)")
+    done
+    if ((${#missing_features[@]} > 0)); then
+        fail "FFmpeg configure did not retain requested feature(s): ${missing_features[*]}"
+    fi
+}
+
+ffmpeg_installed_version() {
+    local binary="${1:-/usr/local/bin/ffmpeg}"
+
+    [[ -x "$binary" ]] || return 1
+    "$binary" -hide_banner -version 2>/dev/null |
+        sed -nE '1s/^ffmpeg version n?([0-9]+(\.[0-9]+){1,3}).*/\1/p'
+}
+
+validate_ffmpeg_installation() {
+    local expected_version="${1:-}"
+    local require_ffplay="${2:-false}"
+    local install_prefix="${3:-/usr/local}"
+    local actual_version binary binary_path
+    local -a required_binaries=(ffmpeg ffprobe)
+
+    [[ -n "$expected_version" ]] ||
+        fail "validate_ffmpeg_installation() requires an expected version."
+    [[ "$install_prefix" == /* ]] ||
+        fail "validate_ffmpeg_installation() requires an absolute install prefix."
+    if is_true "$require_ffplay"; then
+        required_binaries+=(ffplay)
+    fi
+    for binary in "${required_binaries[@]}"; do
+        binary_path="$install_prefix/bin/$binary"
+        [[ -x "$binary_path" ]] ||
+            fail "FFmpeg installation is incomplete: $binary_path is missing."
+    done
+
+    execute "$install_prefix/bin/ffmpeg" -hide_banner -version
+    execute "$install_prefix/bin/ffprobe" -hide_banner -version
+    if is_true "$require_ffplay"; then
+        execute "$install_prefix/bin/ffplay" -hide_banner -version
+    fi
+    actual_version="$(ffmpeg_installed_version "$install_prefix/bin/ffmpeg" || true)"
+    [[ "$actual_version" == "$expected_version" ]] ||
+        fail "Installed FFmpeg version '$actual_version' does not match expected '$expected_version'."
+
+    grep -E '^[[:space:]][A-Z.]{6}[[:space:]]' <(
+        "$install_prefix/bin/ffmpeg" -hide_banner -encoders 2>/dev/null
+    ) >/dev/null ||
+        fail "Installed FFmpeg did not report any encoders."
+    grep -E '^[[:space:]][A-Z.]{6}[[:space:]]' <(
+        "$install_prefix/bin/ffmpeg" -hide_banner -decoders 2>/dev/null
+    ) >/dev/null ||
+        fail "Installed FFmpeg did not report any decoders."
+}
+
 build_ffmpeg() {
+    local ffmpeg_version marker_file installed_version recorded_version
+    local source_directory extra_cflags extra_cxxflags extra_ldflags extra_libs
+    local cuda_version cuda_major
+    local staging_root staged_prefix
+    local ffplay_enabled=false
+    local -a base_config=()
+    local -a detected_config=()
+    local -a final_config=()
+    local -A _FFMPEG_CONFIGURE_OPTION_SEEN=()
+
     echo
     box_out_banner "Building FFmpeg"
-    require_vars workspace build_threads CC CXX
+    require_vars workspace packages build_threads CC CXX
 
-    # Get DXVA2 and other essential Windows header files
-    if [[ "$VARIABLE_OS" == "WSL2" ]]; then
-        install_windows_hardware_acceleration
+    if ! package_enabled "ffmpeg"; then
+        log "FFmpeg is disabled by config; dependency build is complete."
+        return 0
     fi
 
-    # Fetch latest release once (avoids duplicate network calls).
-    local ffmpeg_latest_version ffmpeg_installed_version
-    if ffmpeg_repo_version; then
-        ffmpeg_latest_version="$repo_version"
+    fetch_version_if_enabled "ffmpeg" ffmpeg_repo_version ||
+        fail "Unable to determine the latest stable FFmpeg release."
+    ffmpeg_version="$repo_version"
+    [[ "$ffmpeg_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] ||
+        fail "Invalid FFmpeg release version '$ffmpeg_version'."
+
+    installed_version="$(ffmpeg_installed_version /usr/local/bin/ffmpeg || true)"
+    [[ -z "$installed_version" ]] ||
+        log "Installed FFmpeg version: $installed_version"
+    log "Selected FFmpeg release: $ffmpeg_version"
+
+    marker_file="$packages/ffmpeg.done"
+    if package_enabled "sdl2" && library_exists sdl2; then
+        ffplay_enabled=true
+    fi
+    recorded_version="$(read_marker_version "$marker_file" || true)"
+    if [[ "$recorded_version" == "n$ffmpeg_version" ]] &&
+        { [[ "$installed_version" != "$ffmpeg_version" ]] ||
+          [[ ! -x /usr/local/bin/ffprobe ]] ||
+          { is_true "$ffplay_enabled" && [[ ! -x /usr/local/bin/ffplay ]]; }; }; then
+        warn "FFmpeg's build marker exists, but its required installed programs are incomplete; rebuilding."
+        execute rm -f -- "$marker_file"
     fi
 
-    echo
-    if command -v ffmpeg >/dev/null 2>&1; then
-        ffmpeg_installed_version=$(ffmpeg -version 2>/dev/null | grep -oP '\d+\.\d+(?:\.\d+)*' | head -n1)
-        log "The installed FFmpeg version is: n${ffmpeg_installed_version:-Unknown}"
-    else
-        log "FFmpeg is not currently installed"
-    fi
+    if build "ffmpeg" "n$ffmpeg_version"; then
+        download "https://ffmpeg.org/releases/ffmpeg-$ffmpeg_version.tar.xz" \
+            "ffmpeg-$ffmpeg_version.tar.xz"
+        source_directory="$PWD"
+        execute mkdir -p build
+        cd build || fail "Unable to enter FFmpeg build directory."
 
-    if [[ -n "$ffmpeg_latest_version" ]]; then
-        log "The latest FFmpeg release version available: n$ffmpeg_latest_version"
-    else
-        log "The latest FFmpeg release version available is: Unknown"
-    fi
+        extra_cflags="-I$workspace/include ${CPPFLAGS:-} ${CFLAGS:-}"
+        extra_cxxflags="-I$workspace/include ${CPPFLAGS:-} ${CXXFLAGS:-}"
+        extra_ldflags="-L$workspace/lib64 -L$workspace/lib ${LDFLAGS:-}"
+        extra_libs="-ldl -lpthread -lm"
 
-    repo_version="${ffmpeg_latest_version:-8.0.1}"
-    log "Using FFmpeg version n$repo_version"
-
-    if build "ffmpeg" "n${repo_version}"; then
-        sudo chown -R "$BUILD_USER:$BUILD_USER" "$PWD"
-        download "https://ffmpeg.org/releases/ffmpeg-$repo_version.tar.xz" "ffmpeg-n${repo_version}.tar.xz"
-        # Create build directory idempotently (no error if exists)
-        mkdir -p build
-        cd build || fail "Failed to cd into build directory. Line: $LINENO"
-        # Full FFmpeg configure with all built libraries - threading bug fixed in 7.0.2
-        # Prefer system Python config to avoid Conda/toolchain contamination during linking.
-        local python3_cflags python3_libs python3_config
-        python3_config=/usr/bin/python3-config
-        if [[ ! -x "$python3_config" ]]; then
-            python3_config="$(command -v python3-config)" || fail "python3-config not found. Line: $LINENO"
-        fi
-        python3_cflags="$("$python3_config" --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
-        python3_libs="$("$python3_config" --ldflags --embed 2>/dev/null || "$python3_config" --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
-        PYTHON3_CFLAGS="$python3_cflags"
-        PYTHON3_LIBS="$python3_libs"
-        export PYTHON3_CFLAGS PYTHON3_LIBS
-        # Ensure we prefer locally-built pkgconf metadata first.
-        export PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig:$workspace/share/pkgconfig:$PKG_CONFIG_PATH"
-        # Start with basic configuration to ensure ffmpeg builds, then add libraries conditionally
-        BASIC_CONFIG=(
+        base_config=(
             --prefix=/usr/local
-            --arch="$(uname -m)"
+            --arch=x86_64
             --cpu=native
             --cc="$CC"
             --cxx="$CXX"
+            --pkg-config=pkgconf
+            --pkg-config-flags=--static
+            --disable-autodetect
+            --disable-debug
+            --disable-doc
             --disable-shared
             --enable-static
+            --enable-pic
             --enable-pthreads
             --enable-ffmpeg
-            --enable-ffplay
             --enable-ffprobe
             --enable-version3
             --enable-bzlib
             --enable-lzma
-            --enable-vdpau
-            --extra-cflags="-I$workspace/include"
-            --extra-ldflags="-L$workspace/lib64 -L$workspace/lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib"
-            --extra-libs="-ldl -lpthread -lm -lz"
-            --pkg-config-flags="--static"
         )
 
-        package_enabled "libiconv" && BASIC_CONFIG+=(--enable-iconv)
-        package_enabled "sdl2" && BASIC_CONFIG+=(--enable-sdl2)
-        package_enabled "zlib" && BASIC_CONFIG+=(--enable-zlib)
-
-        # Add additional libraries only if they are available and built
-        OPTIONAL_LIBS=()
-
-        # Check if workspace libraries exist before enabling them
-        package_enabled "x264" && [[ -f "$workspace/lib/libx264.a" ]] && OPTIONAL_LIBS+=(--enable-libx264)
-        package_enabled "x265" && [[ -f "$workspace/lib/libx265.a" ]] && OPTIONAL_LIBS+=(--enable-libx265)
-        package_enabled "xvidcore" && [[ -f "$workspace/lib/libxvid.a" ]] && OPTIONAL_LIBS+=(--enable-libxvid)
-        package_enabled "libass" && [[ -f "$workspace/lib/libass.a" ]] && OPTIONAL_LIBS+=(--enable-libass)
-        package_enabled "freetype" && [[ -f "$workspace/lib/libfreetype.a" ]] && OPTIONAL_LIBS+=(--enable-libfreetype)
-        package_enabled "fontconfig" && [[ -f "$workspace/lib/libfontconfig.a" ]] && OPTIONAL_LIBS+=(--enable-libfontconfig)
-        package_enabled "liblame" && [[ -f "$workspace/lib/libmp3lame.a" ]] && OPTIONAL_LIBS+=(--enable-libmp3lame)
-        package_enabled "libopus" && [[ -f "$workspace/lib/libopus.a" ]] && OPTIONAL_LIBS+=(--enable-libopus)
-        package_enabled "vorbis" && [[ -f "$workspace/lib/libvorbis.a" ]] && OPTIONAL_LIBS+=(--enable-libvorbis)
-        package_enabled "libvpx" && ([[ -f "$workspace/lib/libvpx.a" ]] || pkgconf --exists vpx 2>/dev/null) && OPTIONAL_LIBS+=(--enable-libvpx)
-        package_enabled "libwebp-git" && [[ -f "$workspace/lib/libwebp.a" ]] && OPTIONAL_LIBS+=(--enable-libwebp)
-        package_enabled "libxml2" && [[ -f "$workspace/lib/libxml2.a" ]] && OPTIONAL_LIBS+=(--enable-libxml2)
-
-        # Check for system-installed libraries (from APT)
-        package_enabled "libbluray" && pkgconf --exists libbluray 2>/dev/null && OPTIONAL_LIBS+=(--enable-libbluray)
-
-        # ── System libraries whose -dev headers are installed by system-setup.sh ──
-        # Each is enabled by default but skipped if the dev package is absent on this
-        # distro (so a missing lib can never fail FFmpeg's configure). Detection mirrors
-        # FFmpeg 8.0's own configure: pkg-config for libs that ship a .pc, header probe
-        # for the rest. Override any of these with `<key> = false` in a --config TOML.
-        # pkg-config-detected:
-        package_enabled "libdav1d"     && library_exists dav1d        && OPTIONAL_LIBS+=(--enable-libdav1d)
-        [[ "${is_intel_gpu_present:-}" == "Intel GPU detected" ]] && package_enabled "libvpl" && library_exists vpl && OPTIONAL_LIBS+=(--enable-libvpl)
-        package_enabled "libspeex"     && library_exists speex        && OPTIONAL_LIBS+=(--enable-libspeex)
-        package_enabled "libssh"       && library_exists libssh       && OPTIONAL_LIBS+=(--enable-libssh)
-        package_enabled "chromaprint"  && library_exists libchromaprint && OPTIONAL_LIBS+=(--enable-chromaprint)
-        package_enabled "libjxl"       && library_exists libjxl && library_exists libjxl_threads && OPTIONAL_LIBS+=(--enable-libjxl)
-        package_enabled "libtesseract" && library_exists tesseract    && OPTIONAL_LIBS+=(--enable-libtesseract)
-        package_enabled "libzvbi"      && library_exists zvbi-0.2     && OPTIONAL_LIBS+=(--enable-libzvbi)
-        package_enabled "libmodplug"   && library_exists libmodplug   && OPTIONAL_LIBS+=(--enable-libmodplug)
-        package_enabled "libgme"       && library_exists libgme       && OPTIONAL_LIBS+=(--enable-libgme)
-        package_enabled "libshine"     && library_exists shine        && OPTIONAL_LIBS+=(--enable-libshine)
-        package_enabled "libcaca"      && library_exists caca         && OPTIONAL_LIBS+=(--enable-libcaca)
-        package_enabled "libbs2b"      && library_exists libbs2b      && OPTIONAL_LIBS+=(--enable-libbs2b)
-        package_enabled "libjack"      && library_exists jack         && OPTIONAL_LIBS+=(--enable-libjack)
-        package_enabled "libv4l2"      && library_exists libv4l2      && OPTIONAL_LIBS+=(--enable-libv4l2)
-        package_enabled "xlib"         && library_exists x11          && OPTIONAL_LIBS+=(--enable-xlib)
-        # header/static-lib-detected (no pkg-config file shipped):
-        package_enabled "libsnappy"    && header_exists snappy-c.h    && OPTIONAL_LIBS+=(--enable-libsnappy)
-        package_enabled "libtwolame"   && header_exists twolame.h     && OPTIONAL_LIBS+=(--enable-libtwolame)
-        package_enabled "libvo-amrwbenc" && header_exists vo-amrwbenc/enc_if.h && OPTIONAL_LIBS+=(--enable-libvo-amrwbenc)
-        package_enabled "libgsm"       && { header_exists gsm.h || header_exists gsm/gsm.h; } && OPTIONAL_LIBS+=(--enable-libgsm)
-        package_enabled "ladspa"       && header_exists ladspa.h      && OPTIONAL_LIBS+=(--enable-ladspa)
-        package_enabled "opengl"       && header_exists GL/glx.h      && OPTIONAL_LIBS+=(--enable-opengl)
-        # frei0r is GPL: only when GPL/non-free is enabled (and --enable-gpl is set).
-        [[ "${NONFREE_AND_GPL:-false}" == "true" ]] && package_enabled "frei0r" && header_exists frei0r.h && OPTIONAL_LIBS+=(--enable-frei0r)
-        # Additional system libraries (dev packages added to system-setup.sh). Same guard
-        # model; version-pinned where FFmpeg's configure mandates a minimum version.
-        package_enabled "libopenh264" && library_exists "openh264 >= 1.3.0"      && OPTIONAL_LIBS+=(--enable-libopenh264)
-        package_enabled "libopenmpt"  && library_exists "libopenmpt >= 0.2.6557" && OPTIONAL_LIBS+=(--enable-libopenmpt)
-        package_enabled "librtmp"     && library_exists librtmp                  && OPTIONAL_LIBS+=(--enable-librtmp)
-        package_enabled "librsvg"     && library_exists librsvg-2.0              && OPTIONAL_LIBS+=(--enable-librsvg)
-        package_enabled "libflite"    && header_exists flite/flite.h             && OPTIONAL_LIBS+=(--enable-libflite)
-        package_enabled "alsa"        && library_exists alsa                     && OPTIONAL_LIBS+=(--enable-alsa)
-        package_enabled "libpulse"    && library_exists libpulse                 && OPTIONAL_LIBS+=(--enable-libpulse)
-        package_enabled "sndio"       && library_exists sndio                    && OPTIONAL_LIBS+=(--enable-sndio)
-        # Vulkan GPU stack — only on a Vulkan-capable GPU (NVIDIA/AMD/Intel; has_vulkan_gpu).
-        # vulkan_headers_recent checks FFmpeg's >= 1.3.277 header floor; libshaderc supplies
-        # the SPIR-V compiler the vulkan filters need; vf_libplacebo needs vulkan + libplacebo.
-        # libshaderc/libglslang are mutually exclusive in FFmpeg — shaderc is recommended, so
-        # libglslang is left off. libplacebo additionally requires PL_ALPHA_NONE: FFmpeg 8.1's
-        # vf_libplacebo.c uses it unconditionally but configure only enforces >= 5.229.0, so a
-        # too-old distro libplacebo (e.g. 6.x) passes configure yet fails to compile —
-        # libplacebo_has_pl_alpha_none feature-tests the actual symbol.
-        if [[ "${has_vulkan_gpu:-0}" -eq 1 ]]; then
-            package_enabled "vulkan"     && vulkan_headers_recent                                       && OPTIONAL_LIBS+=(--enable-vulkan)
-            package_enabled "libshaderc" && library_exists "shaderc >= 2019.1"                          && OPTIONAL_LIBS+=(--enable-libshaderc)
-            package_enabled "libplacebo" && vulkan_headers_recent && library_exists "libplacebo >= 5.229.0" \
-                && libplacebo_has_pl_alpha_none && OPTIONAL_LIBS+=(--enable-libplacebo)
+        if is_true "$ffplay_enabled"; then
+            append_required_configure_options base_config --enable-sdl2
+            base_config+=(--enable-ffplay)
+        else
+            base_config+=(--disable-ffplay --disable-sdl2)
+            warn "SDL2 is unavailable or disabled; ffplay will not be built."
+        fi
+        if package_enabled "libiconv" && header_exists iconv.h; then
+            append_required_configure_options detected_config --enable-iconv
+        fi
+        if package_enabled "zlib" && library_exists zlib; then
+            append_required_configure_options detected_config --enable-zlib
         fi
 
-        # ═══════════════════════════════════════════════════════════════════════════
-        # CUDA/NVENC Hardware Acceleration Support
-        # ═══════════════════════════════════════════════════════════════════════════
-        # Add CUDA/NVENC support if NVIDIA GPU detected and CUDA installed
-        if [[ "${gpu_flag:-1}" -eq 0 ]] && [[ -d /usr/local/cuda ]]; then
-            if [[ "${NONFREE_AND_GPL:-false}" != "true" ]]; then
-                warn "NVIDIA GPU detected, but CUDA/NVENC requires --enable-nonfree. Skipping CUDA/NVENC. Re-run with --enable-gpl-and-non-free to enable."
-            else
-                log "Enabling CUDA/NVENC hardware acceleration..."
-
-                # Verify nv-codec-headers are installed (required for FFmpeg NVENC)
-                if ! package_enabled "nv-codec-headers"; then
-                    warn "nv-codec-headers is disabled by config, so CUDA/NVENC will be skipped."
-                elif ! pkgconf --exists ffnvcodec 2>/dev/null; then
-                    log "Installing nv-codec-headers (required for NVENC)..."
-                    local ffmpeg_build_dir
-                    ffmpeg_build_dir="$(pwd)"
-                    local nvcodec_dir="$packages/nv-codec-headers"
-                    if [[ ! -d "$nvcodec_dir" ]]; then
-                        git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git "$nvcodec_dir"
-                    fi
-                    cd "$nvcodec_dir" || fail "Failed to cd into nv-codec-headers directory. Line: $LINENO"
-                    execute make PREFIX="$workspace" install
-                    cd "$ffmpeg_build_dir" || fail "Failed to return to FFmpeg build directory. Line: $LINENO"
-                    log "nv-codec-headers installed successfully"
-                else
-                    log "nv-codec-headers already installed"
-                fi
-
-                if package_enabled "nv-codec-headers"; then
-                    # Enable CUDA-related FFmpeg features
-                    OPTIONAL_LIBS+=(
-                        --enable-cuda
-                        --enable-cuda-nvcc
-                        --enable-cuvid
-                        --enable-nvenc
-                        --enable-nvdec
-                        --enable-ffnvcodec
-                    )
-                    if command -v llvm-config >/dev/null 2>&1; then
-                        OPTIONAL_LIBS+=(--enable-cuda-llvm)
-                    else
-                        log "llvm-config not found; skipping --enable-cuda-llvm"
-                    fi
-
-                    # Check for libnpp (NVIDIA Performance Primitives) for scale_npp filter
-                    # Note: CUDA 12+ removed deprecated NPP functions that FFmpeg still uses
-                    # (nppiFilterSharpenBorder_8u_C1R, nppiRotate_8u_C1R, nppiResizeSqrPixel_8u_C1R)
-                    # Only enable libnpp for CUDA 11.x and earlier
-                    if [[ -f /usr/local/cuda/lib64/libnppc.so ]] || [[ -f /usr/local/cuda/lib64/libnppc_static.a ]]; then
-                        local cuda_major_ver
-                        cuda_major_ver=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+' | head -n1)
-                        if [[ -n "$cuda_major_ver" ]] && [[ "$cuda_major_ver" -lt 12 ]]; then
-                            OPTIONAL_LIBS+=(--enable-libnpp)
-                            log "NVIDIA Performance Primitives (libnpp) enabled (CUDA $cuda_major_ver)"
-                        else
-                            log "NVIDIA Performance Primitives (libnpp) disabled - CUDA ${cuda_major_ver:-unknown} has incompatible NPP API"
-                        fi
-                    fi
-
-                    # Add CUDA paths to compiler/linker flags
-                    local cuda_cflags cuda_ldflags
-                    cuda_cflags="-I/usr/local/cuda/include"
-                    cuda_ldflags="-L/usr/local/cuda/lib64"
-
-                    # Update BASIC_CONFIG with CUDA paths (append to existing flags)
-                    for i in "${!BASIC_CONFIG[@]}"; do
-                        if [[ "${BASIC_CONFIG[i]}" == --extra-cflags=* ]]; then
-                            BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_cflags"
-                        elif [[ "${BASIC_CONFIG[i]}" == --extra-ldflags=* ]]; then
-                            BASIC_CONFIG[i]="${BASIC_CONFIG[i]} $cuda_ldflags"
-                        fi
-                    done
-
-                    # Add nvcc flags if GPU architecture was detected
-                    if [[ -n "${nvidia_arch_type:-}" ]]; then
-                        BASIC_CONFIG+=("--nvccflags=$nvidia_arch_type")
-                        log "NVCC architecture flags: $nvidia_arch_type"
-                    fi
-
-                    log "CUDA/NVENC support enabled successfully"
-                fi
+        # Source-built and system-provided optional dependencies. Every option is
+        # gated on both user selection and an actual SDK/header probe; FFmpeg's own
+        # configure then performs the authoritative compile/link check.
+        package_enabled "libbluray" && library_exists libbluray &&
+            append_required_configure_options detected_config --enable-libbluray
+        package_enabled "libdav1d" && library_exists dav1d &&
+            append_required_configure_options detected_config --enable-libdav1d
+        package_enabled "libvpl" && library_exists vpl &&
+            append_required_configure_options detected_config --enable-libvpl
+        package_enabled "libspeex" && library_exists speex &&
+            append_required_configure_options detected_config --enable-libspeex
+        package_enabled "libssh" && library_exists libssh &&
+            append_required_configure_options detected_config --enable-libssh
+        package_enabled "chromaprint" && library_exists libchromaprint &&
+            append_required_configure_options detected_config --enable-chromaprint
+        package_enabled "libjxl" && library_exists libjxl && library_exists libjxl_threads &&
+            append_required_configure_options detected_config --enable-libjxl
+        package_enabled "libtesseract" && library_exists tesseract &&
+            append_required_configure_options detected_config --enable-libtesseract
+        package_enabled "libzvbi" && library_exists zvbi-0.2 &&
+            append_required_configure_options detected_config --enable-libzvbi
+        package_enabled "libmodplug" && library_exists libmodplug &&
+            append_required_configure_options detected_config --enable-libmodplug
+        package_enabled "libgme" && library_exists libgme &&
+            append_required_configure_options detected_config --enable-libgme
+        package_enabled "libshine" && library_exists shine &&
+            append_required_configure_options detected_config --enable-libshine
+        package_enabled "libcaca" && library_exists caca &&
+            append_required_configure_options detected_config --enable-libcaca
+        package_enabled "libbs2b" && library_exists libbs2b &&
+            append_required_configure_options detected_config --enable-libbs2b
+        package_enabled "libjack" && library_exists jack &&
+            append_required_configure_options detected_config --enable-libjack
+        package_enabled "libv4l2" && library_exists libv4l2 &&
+            append_required_configure_options detected_config --enable-libv4l2
+        if package_enabled "xlib"; then
+            if library_exists x11 xext xv; then
+                append_required_configure_options detected_config --enable-xlib
             fi
-        elif [[ "${gpu_flag:-1}" -eq 0 ]] && [[ ! -d "/usr/local/cuda" ]]; then
-            warn "NVIDIA GPU detected but CUDA not found at /usr/local/cuda - NVENC disabled"
+            if library_exists xcb xcb-shm xcb-shape xcb-xfixes; then
+                append_required_configure_options detected_config \
+                    --enable-libxcb \
+                    --enable-libxcb-shm \
+                    --enable-libxcb-shape \
+                    --enable-libxcb-xfixes
+            fi
+        fi
+        package_enabled "libvpx" && library_exists vpx &&
+            append_required_configure_options detected_config --enable-libvpx
+        package_enabled "libopenh264" && library_exists "openh264 >= 1.3.0" &&
+            append_required_configure_options detected_config --enable-libopenh264
+        package_enabled "libopenmpt" && library_exists "libopenmpt >= 0.2.6557" &&
+            append_required_configure_options detected_config --enable-libopenmpt
+        package_enabled "librtmp" && library_exists librtmp &&
+            append_required_configure_options detected_config --enable-librtmp
+        package_enabled "librsvg" && library_exists librsvg-2.0 &&
+            append_required_configure_options detected_config --enable-librsvg
+        package_enabled "alsa" && library_exists alsa &&
+            append_required_configure_options detected_config --enable-alsa
+        package_enabled "libpulse" && library_exists libpulse &&
+            append_required_configure_options detected_config --enable-libpulse
+        package_enabled "sndio" && library_exists sndio &&
+            append_required_configure_options detected_config --enable-sndio
+        package_enabled "vaapi" && library_exists libva &&
+            append_required_configure_options detected_config --enable-vaapi
+        package_enabled "vdpau" && library_exists vdpau &&
+            append_required_configure_options detected_config --enable-vdpau
+        package_enabled "libdrm" && library_exists libdrm &&
+            append_required_configure_options detected_config --enable-libdrm
+
+        package_enabled "libsnappy" && header_exists snappy-c.h &&
+            append_required_configure_options detected_config --enable-libsnappy
+        package_enabled "libtwolame" && header_exists twolame.h &&
+            append_required_configure_options detected_config --enable-libtwolame
+        package_enabled "libvo-amrwbenc" && header_exists vo-amrwbenc/enc_if.h &&
+            append_required_configure_options detected_config --enable-libvo-amrwbenc
+        package_enabled "libgsm" &&
+            { header_exists gsm.h || header_exists gsm/gsm.h; } &&
+            append_required_configure_options detected_config --enable-libgsm
+        package_enabled "ladspa" && header_exists ladspa.h &&
+            append_required_configure_options detected_config --enable-ladspa
+        package_enabled "opengl" && header_exists GL/glx.h &&
+            append_required_configure_options detected_config --enable-opengl
+        package_enabled "libflite" && header_exists flite/flite.h &&
+            append_required_configure_options detected_config --enable-libflite
+        is_true "$NONFREE_AND_GPL" && package_enabled "frei0r" &&
+            header_exists frei0r.h &&
+            append_required_configure_options detected_config --enable-frei0r
+        if is_true "$NONFREE_AND_GPL"; then
+            package_enabled "libsmbclient" && library_exists smbclient &&
+                append_required_configure_options detected_config --enable-libsmbclient
+            package_enabled "libcdio" && library_exists libcdio_paranoia &&
+                append_required_configure_options detected_config --enable-libcdio
         fi
 
-        # FFmpeg's configure script uses a `threads` variable internally (expects "yes"/"no").
-        # Some environments export `threads=<n>` (e.g. `threads=32`), which breaks FFmpeg's
-        # dependency resolution and silently disables building the `ffmpeg` binary
-        # (while `ffprobe`/`ffplay` may still build). Sanitize those env vars for configure.
-        local -a FINAL_CONFIG=()
-        local -A seen_flags=()
-        local dup_count opt
-        dup_count=0
-        for opt in "${BASIC_CONFIG[@]}" "${OPTIONAL_LIBS[@]}" "${CONFIGURE_OPTIONS[@]}"; do
-            if [[ -z "${seen_flags[$opt]+x}" ]]; then
-                FINAL_CONFIG+=("$opt")
-                seen_flags[$opt]=1
-            else
-                ((dup_count++))
-            fi
-        done
-        if ((dup_count > 0)); then
-            log "Removed $dup_count duplicate configure flags"
+        if package_enabled "vulkan" && vulkan_headers_recent; then
+            append_required_configure_options detected_config --enable-vulkan
+            package_enabled "libshaderc" && library_exists "shaderc >= 2019.1" &&
+                append_required_configure_options detected_config --enable-libshaderc
+            package_enabled "libplacebo" &&
+                library_exists "libplacebo >= 5.229.0" &&
+                libplacebo_has_pl_alpha_none &&
+                append_required_configure_options detected_config --enable-libplacebo
         fi
+
+        # FFmpeg's NVENC/NVDEC/CUVID interfaces require ffnvcodec headers, not
+        # nvcc. CUDA-compiled filters are a separate capability and are enabled
+        # only when a validated toolkit and architecture flags are available.
+        if [[ "${gpu_flag:-1}" -eq 0 ]] &&
+            is_true "$NONFREE_AND_GPL" &&
+            package_enabled "nv-codec-headers" &&
+            library_exists ffnvcodec; then
+            append_required_configure_options detected_config \
+                --enable-cuda \
+                --enable-cuvid \
+                --enable-ffnvcodec \
+                --enable-nvdec \
+                --enable-nvenc
+
+            if [[ -n "${CUDA_ROOT:-}" && -x "$CUDA_ROOT/bin/nvcc" &&
+                -n "${nvidia_arch_type:-}" ]]; then
+                append_required_configure_options detected_config --enable-cuda-nvcc
+                detected_config+=(
+                    --nvcc="$CUDA_ROOT/bin/nvcc"
+                    "--nvccflags=-O2 $nvidia_arch_type"
+                )
+                extra_cflags+=" -I$CUDA_ROOT/include"
+                extra_ldflags+=" -L$CUDA_ROOT/lib64"
+
+                cuda_version="$(get_local_cuda_version "$CUDA_ROOT" || true)"
+                cuda_major="${cuda_version%%.*}"
+                if [[ "$cuda_major" =~ ^[0-9]+$ && "$cuda_major" -lt 13 ]] &&
+                    [[ -e "$CUDA_ROOT/lib64/libnppc.so" ||
+                        -e "$CUDA_ROOT/lib64/libnppc_static.a" ]]; then
+                    append_required_configure_options detected_config --enable-libnpp
+                elif [[ "$cuda_major" =~ ^[0-9]+$ && "$cuda_major" -ge 13 ]]; then
+                    log "Skipping deprecated libnpp integration because FFmpeg does not support it with CUDA 13+."
+                fi
+            else
+                log "CUDA toolkit compilation is unavailable; retaining NVENC/NVDEC support from nv-codec-headers."
+            fi
+        elif [[ "${gpu_flag:-1}" -eq 0 ]] &&
+            is_true "$NONFREE_AND_GPL" &&
+            package_enabled "nv-codec-headers"; then
+            warn "nv-codec-headers are unavailable; omitting NVIDIA codec interfaces."
+        fi
+
+        base_config+=(
+            "--extra-cflags=$(trim_whitespace "$extra_cflags")"
+            "--extra-cxxflags=$(trim_whitespace "$extra_cxxflags")"
+            "--extra-ldflags=$(trim_whitespace "$extra_ldflags")"
+            "--extra-libs=$extra_libs"
+        )
+
+        append_unique_configure_options final_config _FFMPEG_CONFIGURE_OPTION_SEEN \
+            "${base_config[@]}" "${detected_config[@]}" "${CONFIGURE_OPTIONS[@]}"
 
         execute env -u threads -u THREADS -u CONDA_PREFIX -u CONDA_DEFAULT_ENV \
-                    -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV \
-                    ../configure "${FINAL_CONFIG[@]}"
+            -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV \
+            "$source_directory/configure" "${final_config[@]}"
 
-        # Fail fast if configure disabled the main `ffmpeg` program.
-        if [[ -f ffbuild/config.mak ]] && ! grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak; then
-            fail "FFmpeg configure disabled the 'ffmpeg' program (CONFIG_FFMPEG!=yes). If you have an env var like 'threads=32', run 'unset threads' and rebuild."
+        [[ -f ffbuild/config.mak ]] ||
+            fail "FFmpeg configure did not produce ffbuild/config.mak."
+        grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak ||
+            fail "FFmpeg configure disabled the ffmpeg program."
+        grep -q '^CONFIG_FFPROBE=yes$' ffbuild/config.mak ||
+            fail "FFmpeg configure disabled ffprobe."
+        if is_true "$ffplay_enabled"; then
+            grep -q '^CONFIG_FFPLAY=yes$' ffbuild/config.mak ||
+                fail "FFmpeg configure disabled ffplay despite SDL2 being selected."
         fi
+        validate_required_ffmpeg_features ffbuild/config.mak
+
         execute make "-j$build_threads"
+        staging_root="$(mktemp -d --tmpdir="$packages" ".ffmpeg-install-${ffmpeg_version}.XXXXXX")" ||
+            fail "Unable to create an FFmpeg staging directory."
+        staged_prefix="$staging_root/usr/local"
+        execute make DESTDIR="$staging_root" install
+        validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled" "$staged_prefix"
+
+        # Only mutate /usr/local after the complete staged install has passed
+        # binary/version/capability checks.
         execute sudo make install
-
-        # Fix x265 library symlink issues
-        if command -v fix_x265_libs >/dev/null 2>&1; then
-            fix_x265_libs
-        fi
-
-        build_done "ffmpeg" "n${repo_version}"
+        validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled"
+        safe_remove_tree "$staging_root" "$packages"
+        build_done "ffmpeg" "n$ffmpeg_version"
+    else
+        validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled"
     fi
 
-    # Add PulseAudio library path if missing to fix libpulsecommon-15.99.so not found error
-    if ! grep -q /usr/lib/x86_64-linux-gnu/pulseaudio /etc/ld.so.conf.d/custom_libs.conf 2>/dev/null; then
-        echo /usr/lib/x86_64-linux-gnu/pulseaudio | sudo tee -a /etc/ld.so.conf.d/custom_libs.conf >/dev/null
-        log "Added PulseAudio library path to ldconfig"
-    fi
-
-    # Execute to ensure that all library changes are detected by ffmpeg
-    sudo ldconfig
-
-    # Display the version of each of the programs
     show_versions
-
-    # Prompt the user to clean up the build files
     cleanup
-
-    # Show exit message (exit_fn calls exit 0 internally)
     exit_fn
 }

@@ -11,17 +11,18 @@
 # Source shared utilities
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
-# Note: Helper functions (fix_libiconv, fix_libstd_libs, fix_x265_libs, find_latest_nasm_version)
-# are now defined in shared-utils.sh to ensure they're available to all scripts
-
 # Install miscellaneous libraries
 install_miscellaneous_libraries() {
+    local serd_version pcre2_version sord_version sratom_version lilv_version
+    local -a extracmds=()
+
     echo
     box_out_banner "Installing Miscellaneous Libraries"
     require_vars workspace packages build_threads NONFREE_AND_GPL
 
-    # Build additional libraries when not using GPL/non-free
-    if ! "$NONFREE_AND_GPL"; then
+    # GnuTLS is the free TLS stack. Keep it available in GPL/non-free builds
+    # whenever the user has not selected the optional OpenSSL build.
+    if ! is_true "$NONFREE_AND_GPL" || ! package_enabled "openssl"; then
         fetch_version_if_enabled "gmp" gnu_repo "$GNU_PRIMARY_MIRROR/gmp/"
         if build "gmp" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/gmp/gmp-$repo_version.tar.xz" "$GNU_FALLBACK_MIRROR/gmp/gmp-$repo_version.tar.xz"
@@ -35,7 +36,8 @@ install_miscellaneous_libraries() {
         if build "nettle" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/nettle/nettle-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/nettle/nettle-$repo_version.tar.gz"
             execute sh configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
-                                --libdir="$workspace/lib" CPPFLAGS="-O2 -fno-lto -fPIC -march=native" LDFLAGS="$LDFLAGS"
+                                --libdir="$workspace/lib" \
+                                CPPFLAGS="${CPPFLAGS:-} -fno-lto" LDFLAGS="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install
             build_done "nettle" "$repo_version"
@@ -60,70 +62,66 @@ install_miscellaneous_libraries() {
     fi
 
     # Build freetype
-    repo_version_1=""
+    freetype_version_source=""
+    fetch_version_if_enabled "freetype" freetype_version ||
+        fail "Failed to detect FreeType version from the official FreeType release archive or FreeDesktop GitLab. Line: ${LINENO}"
+    repo_version_1="$repo_version"
     if package_enabled "freetype"; then
-        freetype_version || fail "Failed to detect FreeType version from the official FreeType release archive or FreeDesktop GitLab. Line: ${LINENO}"
-        [[ "$repo_version" =~ ^[0-9]+(-[0-9]+){2,3}$ ]] ||
-            fail "Invalid FreeType version detected: '$repo_version'. Line: ${LINENO}"
-        repo_version_1="${repo_version//-/.}"
+        [[ "$repo_version_1" =~ ^[0-9]+(\.[0-9]+){2,3}$ ]] ||
+            fail "Invalid FreeType version detected: '$repo_version_1'. Line: ${LINENO}"
     fi
     if build "freetype" "$repo_version_1"; then
-        if [[ "${freetype_version_source:-}" == "release" ]]; then
+        if [[ "${freetype_version_source:-}" == "gitlab" ]]; then
+            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
+                download_with_fallback \
+                    "$(freetype_gitlab_archive_url "${repo_version//./-}")" \
+                    "$(freetype_release_archive_url "$repo_version_1")"
+        else
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
                 download_with_fallback \
                     "$(freetype_release_archive_url "$repo_version_1")" \
                     "$(freetype_sourceforge_archive_url "$repo_version_1")"
-        else
-            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
-                download_with_fallback \
-                    "$(freetype_gitlab_archive_url "$repo_version")" \
-                    "$(freetype_release_archive_url "$repo_version_1")"
         fi
         extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
-        execute sh autogen.sh
         meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         build_done "freetype" "$repo_version_1"
     fi
     append_configure_options_if_enabled "freetype" "--enable-libfreetype"
 
     # Build fontconfig
-    repo_version=""
+    fontconfig_version_source=""
+    fetch_version_if_enabled "fontconfig" fontconfig_version ||
+        fail "Failed to detect Fontconfig version from the official Fontconfig release archive or FreeDesktop GitLab. Line: ${LINENO}"
     if package_enabled "fontconfig"; then
-        fontconfig_version || fail "Failed to detect Fontconfig version from the official Fontconfig release archive or FreeDesktop GitLab. Line: ${LINENO}"
         [[ "$repo_version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] ||
             fail "Invalid Fontconfig version detected: '$repo_version'. Line: ${LINENO}"
     fi
     if build "fontconfig" "$repo_version"; then
-        if [[ "${fontconfig_version_source:-}" == "release" ]]; then
-            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
-                download "$(fontconfig_release_archive_url "$repo_version")" "fontconfig-$repo_version.tar.xz"
-        else
+        if [[ "${fontconfig_version_source:-}" == "gitlab" ]]; then
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
                 download_with_fallback \
                     "$(fontconfig_gitlab_archive_url "$repo_version")" \
                     "$(fontconfig_release_archive_url "$repo_version")"
+        else
+            DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
+                download "$(fontconfig_release_archive_url "$repo_version")" "fontconfig-$repo_version.tar.xz"
         fi
-        # Save flags before modification and restore after
-        save_compiler_flags
-        # -D flags belong in CFLAGS/CPPFLAGS, not LDFLAGS
-        CPPFLAGS+=" -DLIBXML_STATIC"
-        sed -i "s|Cflags:|& -DLIBXML_STATIC|" "fontconfig.pc.in"
+
         meson_ninja_install "build" \
             --buildtype=release \
             --default-library=static \
             --strip -Diconv=enabled \
             -Ddoc=disabled \
             -Dxml-backend=libxml2
-        restore_compiler_flags
         build_done "fontconfig" "$repo_version"
     fi
     append_configure_options_if_enabled "fontconfig" "--enable-libfontconfig"
 
     # Build harfbuzz
-    fetch_version_if_enabled "harfbuzz" find_git_repo "harfbuzz/harfbuzz" "1" "T"
+    fetch_version_if_enabled "harfbuzz" find_git_repo "harfbuzz/harfbuzz" "1"
     if build "harfbuzz" "$repo_version"; then
         download "https://github.com/harfbuzz/harfbuzz/archive/refs/tags/$repo_version.tar.gz" "harfbuzz-$repo_version.tar.gz"
-        extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests}"=disabled")
+        extracmds=("-D"{benchmark,cairo,docs,glib,gobject,icu,introspection,tests,utilities}"=disabled")
         meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
         build_done "harfbuzz" "$repo_version"
     fi
@@ -133,26 +131,30 @@ install_miscellaneous_libraries() {
     # and is not needed since fribidi is built with -Ddocs=false
 
     # Build fribidi
-    fetch_version_if_enabled "fribidi" find_git_repo "fribidi/fribidi" "1" "T"
+    fetch_version_if_enabled "fribidi" find_git_repo "fribidi/fribidi" "1"
     if build "fribidi" "$repo_version"; then
         download "https://github.com/fribidi/fribidi/archive/refs/tags/v$repo_version.tar.gz" "fribidi-$repo_version.tar.gz"
-        extracmds=("-D"{docs,tests}"=false")
+        extracmds=("-D"{bin,docs,tests}"=false")
         meson_ninja_install "build" --buildtype=release --default-library=static "${extracmds[@]}"
         build_done "fribidi" "$repo_version"
     fi
     append_configure_options_if_enabled "fribidi" "--enable-libfribidi"
 
     # Build libass
-    fetch_version_if_enabled "libass" find_git_repo "libass/libass" "1" "T"
+    fetch_version_if_enabled "libass" find_git_repo "libass/libass" "1"
     if build "libass" "$repo_version"; then
         download "https://github.com/libass/libass/archive/refs/tags/$repo_version.tar.gz" "libass-$repo_version.tar.gz"
-        meson_ninja_install "build" --buildtype=release --default-library=static -Dfontconfig=enabled
+        meson_ninja_install "build" \
+            --buildtype=release \
+            --default-library=static \
+            -Dauto_features=disabled \
+            -Dfontconfig=enabled
         build_done "libass" "$repo_version"
     fi
     append_configure_options_if_enabled "libass" "--enable-libass"
 
     # Build freeglut
-    fetch_version_if_enabled "freeglut" find_git_repo "freeglut/freeglut" "1" "T"
+    fetch_version_if_enabled "freeglut" find_git_repo "freeglut/freeglut" "1"
     if build "freeglut" "$repo_version"; then
         download "https://github.com/freeglut/freeglut/releases/download/v$repo_version/freeglut-$repo_version.tar.gz"
         save_compiler_flags
@@ -168,15 +170,16 @@ install_miscellaneous_libraries() {
     if build "$repo_name" "$version"; then
         cd "$packages/libwebp-git" || fail "Failed to cd into libwebp-git. Line: ${LINENO}"
         cmake_ninja_install "build" \
-            -DBUILD_SHARED_LIBS=OFF -DZLIB_INCLUDE_DIR="$workspace/include" \
-            -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,VWEBP}=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,GIF2WEBP,IMG2WEBP,VWEBP,WEBPINFO,WEBPMUX}=OFF \
+            -DWEBP_BUILD_FUZZTEST=OFF -DWEBP_BUILD_LIBWEBPMUX=ON \
             -DWEBP_ENABLE_SWAP_16BIT_CSP=OFF -DWEBP_LINK_STATIC=ON
         build_done "$repo_name" "$version"
     fi
     append_configure_options_if_enabled "libwebp-git" "--enable-libwebp"
 
     # Build libhwy
-    fetch_version_if_enabled "libhwy" find_git_repo "google/highway" "1" "T"
+    fetch_version_if_enabled "libhwy" find_git_repo "google/highway" "1"
     if build "libhwy" "$repo_version"; then
         download "https://github.com/google/highway/archive/refs/tags/$repo_version.tar.gz" "libhwy-$repo_version.tar.gz"
         save_compiler_flags
@@ -189,22 +192,26 @@ install_miscellaneous_libraries() {
     fi
 
     # Build brotli
-    fetch_version_if_enabled "brotli" find_git_repo "google/brotli" "1" "T"
+    fetch_version_if_enabled "brotli" find_git_repo "google/brotli" "1"
     if build "brotli" "$repo_version"; then
         download "https://github.com/google/brotli/archive/refs/tags/v$repo_version.tar.gz" "brotli-$repo_version.tar.gz"
-        cmake_ninja_install "build" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
+        cmake_ninja_install "build" \
+            -DBROTLI_BUILD_TOOLS=OFF \
+            -DBROTLI_DISABLE_TESTS=ON \
+            -DBUILD_SHARED_LIBS=OFF
         build_done "brotli" "$repo_version"
     fi
 
     # Build lcms2
-    fetch_version_if_enabled "lcms2" find_git_repo "mm2/Little-CMS" "1" "T"
+    fetch_version_if_enabled "lcms2" find_git_repo "mm2/Little-CMS" "1"
     if build "lcms2" "$repo_version"; then
         download "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms$repo_version.tar.gz" "lcms2-$repo_version.tar.gz"
         execute sh autogen.sh
-        execute sh configure --prefix="$workspace" --disable-shared --enable-static --with-threaded \
-                        PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$PKG_CONFIG_PATH" \
-                        LDFLAGS="$LDFLAGS" \
-                        LIBS="-lwebp -lsharpyuv"
+        # The threaded plugin is GPL-3-only according to upstream and does not
+        # belong in this always-available library path. FFmpeg needs the core
+        # static lcms2 library, not its JPEG/TIFF utilities or plugin.
+        execute sh configure --prefix="$workspace" --disable-shared --enable-static \
+            --without-jpeg --without-tiff --without-zlib
         execute make "-j$build_threads"
         execute make install
         build_done "lcms2" "$repo_version"
@@ -212,12 +219,16 @@ install_miscellaneous_libraries() {
     append_configure_options_if_enabled "lcms2" "--enable-lcms2"
 
     # Build gflags
-    fetch_version_if_enabled "gflags" find_git_repo "gflags/gflags" "1" "T"
+    fetch_version_if_enabled "gflags" find_git_repo "gflags/gflags" "1"
     if build "gflags" "$repo_version"; then
         download "https://github.com/gflags/gflags/archive/refs/tags/v$repo_version.tar.gz" "gflags-$repo_version.tar.gz"
         cmake_ninja_install "build" \
-            -DBUILD_gflags_LIB=ON -DBUILD_STATIC_LIBS=ON -DINSTALL_HEADERS=ON \
-            -DREGISTER_{BUILD_DIR,INSTALL_PREFIX}=ON
+            -DBUILD_gflags_LIB=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_STATIC_LIBS=ON \
+            -DINSTALL_HEADERS=ON \
+            -DREGISTER_BUILD_DIR=OFF \
+            -DREGISTER_INSTALL_PREFIX=OFF
         build_done "gflags" "$repo_version"
     fi
 
@@ -234,25 +245,22 @@ install_miscellaneous_libraries() {
     fi
     append_configure_options_if_enabled "opencl-sdk-git" "--enable-opencl"
 
-    # Build Vulkan-Headers (header-only). FFmpeg 8.0 needs Vulkan headers >= 1.3.277
-    # for --enable-vulkan — newer than most distros ship — so install current headers
-    # into the workspace. FFmpeg loads the Vulkan loader (libvulkan1) at runtime, so
-    # only headers are required at build time; the --enable-vulkan flag is gated in
-    # ffmpeg-build.sh by vulkan_headers_recent against these workspace headers.
-    # Skipped entirely when no Vulkan-capable GPU (NVIDIA/AMD/Intel) is present.
-    if [[ "${has_vulkan_gpu:-0}" -eq 1 ]]; then
-        git_caller "https://github.com/KhronosGroup/Vulkan-Headers.git" "vulkan-headers-git"
-        if build "$repo_name" "$version"; then
-            cd "$packages/vulkan-headers-git" || fail "Failed to cd into vulkan-headers-git. Line: ${LINENO}"
-            cmake_ninja_install "build" -DVULKAN_HEADERS_ENABLE_MODULE=OFF
-            build_done "$repo_name" "$version"
-        fi
-    else
-        log "No Vulkan-capable GPU detected — skipping Vulkan-Headers build."
+    # Build Vulkan-Headers (header-only). Compile-time SDK support should not
+    # depend on whether this particular host currently exposes a GPU; the
+    # resulting FFmpeg binary discovers Vulkan devices at runtime.
+    git_caller "https://github.com/KhronosGroup/Vulkan-Headers.git" "vulkan-headers-git"
+    if build "$repo_name" "$version"; then
+        cd "$packages/vulkan-headers-git" ||
+            fail "Failed to cd into vulkan-headers-git. Line: ${LINENO}"
+        cmake_ninja_install "build" \
+            -DVULKAN_HEADERS_ENABLE_INSTALL=ON \
+            -DVULKAN_HEADERS_ENABLE_MODULE=OFF \
+            -DVULKAN_HEADERS_ENABLE_TESTS=OFF
+        build_done "$repo_name" "$version"
     fi
 
     # Build libjpeg-turbo
-    fetch_version_if_enabled "libjpeg-turbo" find_git_repo "libjpeg-turbo/libjpeg-turbo" "1" "T"
+    fetch_version_if_enabled "libjpeg-turbo" find_git_repo "libjpeg-turbo/libjpeg-turbo" "1"
     if build "libjpeg-turbo" "$repo_version"; then
         download "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$repo_version.tar.gz" "libjpeg-turbo-$repo_version.tar.gz"
         cmake_ninja_install "build" \
@@ -265,23 +273,31 @@ install_miscellaneous_libraries() {
     fi
 
     # Build rubberband (GPL and non-free only)
-    if "$NONFREE_AND_GPL"; then
-        git_caller "https://github.com/m-ab-s/rubberband.git" "rubberband-git"
+    if is_true "$NONFREE_AND_GPL"; then
+        git_caller "https://github.com/breakfastquay/rubberband.git" "rubberband-git"
         if build "$repo_name" "$version"; then
             cd "$packages/rubberband-git" || fail "Failed to cd into rubberband-git. Line: ${LINENO}"
-            execute make "-j$build_threads" PREFIX="$workspace" install-static
+            meson_ninja_install "build" \
+                --buildtype=release \
+                --default-library=static \
+                -Dauto_features=disabled \
+                -Dfft=builtin \
+                -Dresampler=builtin
+            # Upstream's generated .pc links only -lrubberband even though the
+            # static archive is C++; expose the runtime for C-driver consumers.
+            pkgconfig_add_private_lib "rubberband" "-lstdc++"
             build_done "$repo_name" "$version"
         fi
         append_configure_options_if_enabled "rubberband-git" "--enable-librubberband"
     fi
 
     # Build c-ares
-    fetch_version_if_enabled "c-ares" find_git_repo "c-ares/c-ares" "1" "T"
+    fetch_version_if_enabled "c-ares" find_git_repo "c-ares/c-ares" "1"
     if build "c-ares" "$repo_version"; then
         download "https://github.com/c-ares/c-ares/archive/refs/tags/v$repo_version.tar.gz" "c-ares-$repo_version.tar.gz"
         cmake_ninja_install "build" \
-            -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,SHARED,SYMBOL_HIDING}=OFF \
-            -DCARES_{BUILD_TOOLS,STATIC,STATIC_PIC,THREADS}=ON
+            -DCARES_{BUILD_CONTAINER_TESTS,BUILD_TESTS,BUILD_TOOLS,SHARED,SYMBOL_HIDING}=OFF \
+            -DCARES_{STATIC,STATIC_PIC,THREADS}=ON
         build_done "c-ares" "$repo_version"
     fi
 
@@ -290,34 +306,11 @@ install_miscellaneous_libraries() {
     if build "$repo_name" "$version"; then
         cd "$packages/lv2-git" || fail "Failed to cd into lv2-git. Line: ${LINENO}"
 
-        venv_packages=("lxml" "Markdown" "Pygments" "rdflib")
-        setup_python_venv_and_install_packages "$workspace/python_virtual_environment/lv2-git" "${venv_packages[@]}"
-
-        # Set PYTHONPATH to include the virtual environment's site-packages directory
-        PYTHONPATH="$workspace/python_virtual_environment/lv2-git/lib/python$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')/site-packages"
-        export PYTHONPATH
-
-        PATH="$ccache_dir:$workspace/python_virtual_environment/lv2-git/bin:$PATH"
-        remove_duplicate_paths
-
-        # Build with meson - removed deprecated 'plugins' option
+        # Documentation/tests are the only upstream consumers of the optional
+        # Python modules, so a library/header-only build needs no private venv.
         meson_ninja_install "build" --buildtype=release --default-library=static --strip \
-            -Ddocs=disabled -Dtests=disabled -Donline_docs=false
+            -Ddocs=disabled -Dtests=disabled -Dtools=disabled -Donline_docs=false
         build_done "$repo_name" "$version"
-    else
-        # Set PYTHONPATH to include the virtual environment's site-packages directory
-        PYTHONPATH="$workspace/python_virtual_environment/lv2-git/lib/python$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')/site-packages"
-        export PYTHONPATH
-        PATH="$ccache_dir:$workspace/python_virtual_environment/lv2-git/bin:$PATH"
-        remove_duplicate_paths
-    fi
-
-    # Build waflib (duplicate entries combined)
-    fetch_version_if_enabled "waflib" gitlab_version "https://gitlab.com" "ita1024/waf" "waf-"
-    waf_version="$repo_version"
-    if build "waflib" "$waf_version"; then
-        download "https://gitlab.com/ita1024/waf/-/archive/waf-$waf_version/waf-waf-$waf_version.tar.bz2" "waflib-$waf_version.tar.bz2"
-        build_done "waflib" "$waf_version"
     fi
 
     # Build serd
@@ -343,7 +336,7 @@ install_miscellaneous_libraries() {
     fi
 
     # Build zix
-    fetch_version_if_enabled "zix" find_git_repo "drobilla/zix" "1" "T"
+    fetch_version_if_enabled "zix" find_git_repo "drobilla/zix" "1"
     if build "zix" "$repo_version"; then
         download "https://gitlab.com/drobilla/zix/-/archive/v$repo_version/zix-v$repo_version.tar.bz2" "zix-$repo_version.tar.bz2"
         extracmds=("-D"{benchmarks,docs,singlehtml,tests,tests_cpp}"=disabled")
@@ -374,12 +367,29 @@ install_miscellaneous_libraries() {
         build_done "sratom" "$sratom_version"
     fi
 
-    # lilv: Using system liblilv-dev package (installed via apt)
-    append_configure_options_if_enabled "lv2-git" "--enable-lv2"
+    # Build Lilv against the same LV2/Serd/Zix/Sord/Sratom stack installed in
+    # this workspace. Linking a distro Lilv against newer workspace transitive
+    # libraries can silently mix ABI generations.
+    fetch_version_if_enabled "lilv" gitlab_version "https://gitlab.com" "lv2/lilv" "v"
+    lilv_version="$repo_version"
+    if build "lilv" "$lilv_version"; then
+        download "https://gitlab.com/lv2/lilv/-/archive/v$lilv_version/lilv-v$lilv_version.tar.bz2" \
+            "lilv-$lilv_version.tar.bz2"
+        extracmds=("-D"{bindings_cpp,bindings_py,docs,html,singlehtml,tests,tools}"=disabled")
+        meson_ninja_install "build" \
+            --buildtype=release \
+            --default-library=static \
+            --strip \
+            -Dauto_features=disabled \
+            -Ddynmanifest=disabled \
+            "${extracmds[@]}"
+        build_done "lilv" "$lilv_version"
+    fi
+    append_configure_options_if_enabled "lilv" "--enable-lv2"
 
 
     # Build jemalloc
-    fetch_version_if_enabled "jemalloc" find_git_repo "jemalloc/jemalloc" "1" "T"
+    fetch_version_if_enabled "jemalloc" find_git_repo "jemalloc/jemalloc" "1"
     if build "jemalloc" "$repo_version"; then
         download "https://github.com/jemalloc/jemalloc/archive/refs/tags/$repo_version.tar.gz" "jemalloc-$repo_version.tar.gz"
         ensure_autotools
