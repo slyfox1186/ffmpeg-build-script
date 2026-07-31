@@ -6,11 +6,11 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$repo_root"
 
 command -v shellcheck >/dev/null 2>&1 || {
-    printf 'shellcheck is required (install the shellcheck package).\n' >&2
+    printf "'shellcheck' is required (install the 'shellcheck' package).\n" >&2
     exit 1
 }
 command -v python3 >/dev/null 2>&1 || {
-    printf 'python3 is required.\n' >&2
+    printf "'python3' is required.\n" >&2
     exit 1
 }
 
@@ -43,6 +43,17 @@ python3 -c \
     'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' \
     run_linter.py
 printf 'Python syntax: OK\n'
+
+retired_apt_interfaces=("apt""-get" "apt""-cache")
+for retired_apt_interface in "${retired_apt_interfaces[@]}"; do
+    if grep -nF -- "$retired_apt_interface" "${text_files[@]}" >/dev/null 2>&1; then
+        printf "Retired APT interface '%s' was found in project files.\n" \
+            "$retired_apt_interface" >&2
+        grep -nF -- "$retired_apt_interface" "${text_files[@]}" >&2
+        exit 1
+    fi
+done
+printf 'APT interface policy: OK\n'
 
 if grep -nE '[[:blank:]]+$' "${text_files[@]}" >/dev/null 2>&1; then
     printf 'Trailing whitespace was found in project text files.\n' >&2

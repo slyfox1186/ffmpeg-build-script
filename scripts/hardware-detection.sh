@@ -125,14 +125,14 @@ install_cuda_toolkit() {
     local repository keyring_url temp_directory keyring_file
 
     repository="$(cuda_repository_name)" ||
-        fail "No supported NVIDIA CUDA repository mapping exists for $OS $VER."
+        fail "No supported NVIDIA CUDA repository mapping exists for '$OS $VER'."
     temp_directory="$(mktemp -d)" ||
         fail "Unable to create a temporary CUDA setup directory."
     keyring_file="$temp_directory/cuda-keyring.deb"
     keyring_url="https://developer.download.nvidia.com/compute/cuda/repos"
     keyring_url+="/$repository/x86_64/cuda-keyring_1.1-1_all.deb"
 
-    log "Downloading NVIDIA's CUDA repository keyring for $repository..."
+    log "Downloading NVIDIA's CUDA repository keyring for '$repository'..."
     if ! curl_https --fail --silent --show-error --location \
         --retry 3 --retry-all-errors --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" \
         --max-time 120 --output "$keyring_file" "$keyring_url"; then
@@ -146,7 +146,8 @@ install_cuda_toolkit() {
     # shellcheck disable=SC2034
     APT_INDEX_UPDATED=false
     apt_update_once
-    execute sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    execute sudo env DEBIAN_FRONTEND=noninteractive \
+        apt "${APT_SCRIPT_OPTIONS[@]}" install --assume-yes \
         --no-install-recommends cuda-toolkit
     hash -r
     source_path
@@ -207,12 +208,12 @@ nvidia_architecture() {
 
     [[ -n "$CUDA_ROOT" ]] || CUDA_ROOT="$(find_cuda_root)" || return 1
     read_cuda_architectures ||
-        fail "nvcc did not report any supported GPU code targets."
+        fail "'nvcc' did not report any supported GPU code targets."
 
     case "$mode" in
         native)
             read_installed_gpu_architectures || {
-                warn "nvidia-smi could not report GPU compute capabilities."
+                warn "'nvidia-smi' could not report GPU compute capabilities."
                 return 1
             }
             selected=("${CUDA_INSTALLED_GPU_ARCHITECTURES[@]}")
@@ -224,11 +225,11 @@ nvidia_architecture() {
             custom="${custom//,/ }"
             read -r -a custom_values <<<"$custom"
             ((${#custom_values[@]} > 0)) ||
-                fail "CUDA_ARCH_MODE=custom requires CUDA_ARCHITECTURES (for example: '86 89')."
+                fail "'CUDA_ARCH_MODE=custom' requires 'CUDA_ARCHITECTURES' (for example: '86 89')."
             selected=("${custom_values[@]}")
             ;;
         *)
-            fail "Invalid CUDA_ARCH_MODE '$mode'; expected native, all, or custom."
+            fail "Invalid 'CUDA_ARCH_MODE' value '$mode'; expected 'native', 'all', or 'custom'."
             ;;
     esac
 
@@ -239,10 +240,10 @@ nvidia_architecture() {
         selected_seen["$architecture"]=1
         if ! architecture_is_supported "$architecture"; then
             if [[ "$mode" == "native" ]]; then
-                warn "CUDA toolkit does not support this GPU's sm_$architecture target (available: ${CUDA_AVAILABLE_ARCHITECTURES[*]})."
+                warn "CUDA toolkit does not support this GPU's 'sm_$architecture' target (available: '${CUDA_AVAILABLE_ARCHITECTURES[*]}')."
                 return 1
             fi
-            fail "CUDA toolkit does not support sm_$architecture (available: ${CUDA_AVAILABLE_ARCHITECTURES[*]})."
+            fail "CUDA toolkit does not support 'sm_$architecture' (available: '${CUDA_AVAILABLE_ARCHITECTURES[*]}')."
         fi
         flags+=("-gencode arch=compute_${architecture},code=sm_${architecture}")
         if [[ -z "$highest" || "$architecture" -gt "$highest" ]]; then
@@ -254,7 +255,7 @@ nvidia_architecture() {
 
     nvidia_arch_type="${flags[*]}"
     export CUDA_ROOT nvidia_arch_type
-    log "CUDA targets: ${selected[*]} (PTX fallback: compute_$highest)"
+    log "CUDA targets: '${selected[*]}' (PTX fallback: 'compute_$highest')."
 }
 
 configure_nvidia_architecture_once() {
@@ -273,21 +274,21 @@ install_cuda() {
 
     case "$install_mode" in
         ask|always|never) ;;
-        *) fail "Invalid CUDA_INSTALL '$install_mode'; expected ask, always, or never." ;;
+        *) fail "Invalid 'CUDA_INSTALL' value '$install_mode'; expected 'ask', 'always', or 'never'." ;;
     esac
     [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] || return 0
 
     CUDA_ROOT="$(find_cuda_root || true)"
     if [[ -n "$CUDA_ROOT" ]]; then
         local_version="$(get_local_cuda_version "$CUDA_ROOT" || true)"
-        log "CUDA toolkit detected at $CUDA_ROOT (version ${local_version:-unknown})."
+        log "CUDA toolkit detected at '$CUDA_ROOT' (version '${local_version:-unknown}')."
         configure_nvidia_architecture_once "Installed CUDA toolkit"
         export CUDA_ROOT
         return 0
     fi
 
     if [[ "$install_mode" == "never" ]]; then
-        warn "NVIDIA GPU detected, but CUDA_INSTALL=never and no toolkit is installed."
+        warn "NVIDIA GPU detected, but 'CUDA_INSTALL=never' and no toolkit is installed."
         return 0
     fi
     if [[ "$install_mode" == "ask" ]]; then
@@ -303,7 +304,7 @@ install_cuda() {
     install_cuda_toolkit
     CUDA_ROOT="$(find_cuda_root || true)"
     [[ -n "$CUDA_ROOT" ]] ||
-        fail "CUDA toolkit installation completed, but nvcc could not be located."
+        fail "CUDA toolkit installation completed, but 'nvcc' could not be located."
     configure_nvidia_architecture_once "New CUDA toolkit"
     export CUDA_ROOT
 }

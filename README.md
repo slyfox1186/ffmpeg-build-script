@@ -165,6 +165,12 @@ Cleanup is interactive and removes only the validated build root. In a
 non-interactive context it leaves files in place. For an alternate root, run
 `BUILD_ROOT=/same/path bash build-ffmpeg.sh --cleanup`.
 
+The portable template leaves `libjxl` and `libshaderc` disabled because the
+required `libjxl-dev` and `libshaderc-dev` packages are absent from Ubuntu
+22.04's official repositories. They can be enabled on supported releases where
+APT provides those development packages; an explicit selection fails clearly
+instead of silently omitting an unavailable dependency.
+
 ## CUDA and hardware acceleration
 
 GPU discovery is advisory for compile-time feature selection. The script:

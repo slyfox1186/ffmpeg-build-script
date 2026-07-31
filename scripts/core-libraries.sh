@@ -50,7 +50,7 @@ install_core_libraries() {
         giflib_version="$repo_version"
     else
         giflib_version="5.2.2"
-        warn "Falling back to giflib version $giflib_version because upstream version detection failed."
+        warn "Falling back to giflib version '$giflib_version' because upstream version detection failed."
     fi
     if build "giflib" "$giflib_version"; then
         download "$(giflib_download_url "$giflib_version")" "giflib-$giflib_version.tar.gz"

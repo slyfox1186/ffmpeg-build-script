@@ -21,7 +21,7 @@ install_global_tools() {
     # gpu_flag=1 only means "no NVIDIA GPU" (also true on Intel-only and GPU-less
     # machines), so additionally require that an AMD GPU was actually detected.
     if [[ "${gpu_flag:-0}" -eq 1 && "${is_amd_gpu_present:-}" == "AMD GPU detected" ]]; then
-        printf "\n%s\n" "An AMD GPU was detected without a Nvidia GPU present."
+        printf "\n%s\n" "An AMD GPU was detected without an NVIDIA GPU present."
     fi
 
     # Source the compiler flags
@@ -44,7 +44,7 @@ install_global_tools() {
     local m4_path
     m4_path="$(resolve_tool_path "m4" "$workspace/bin/m4")"
     if [[ "$m4_path" != "$workspace/bin/m4" ]]; then
-        log "Using system m4 fallback: $m4_path"
+        log "Using system 'm4' fallback: '$m4_path'."
     fi
 
     # Build autoconf
@@ -148,7 +148,7 @@ install_global_tools() {
     fetch_version_if_enabled "libzstd" find_git_repo "facebook/zstd" "1"
     if build "libzstd" "$repo_version"; then
         download "https://github.com/facebook/zstd/archive/refs/tags/v$repo_version.tar.gz" "libzstd-$repo_version.tar.gz"
-        cd "build/meson" || fail "Failed to cd into build/meson. Line: $LINENO"
+        cd "build/meson" || fail "Failed to cd into 'build/meson'. Line: $LINENO"
         local meson_dir="meson-build"
         safe_remove_tree "$PWD/$meson_dir" "$PWD"
         meson_ninja_install "$meson_dir" \

@@ -123,17 +123,27 @@ discover_installed_highest() {
 }
 
 highest_repository_major() {
-    local compiler_name="${1:-}" package_regex package
+    local compiler_name="${1:-}" package_glob package_regex package
 
-    command -v apt-cache >/dev/null 2>&1 || return 1
+    command -v apt >/dev/null 2>&1 || return 1
     case "$compiler_name" in
-        gcc) package_regex='^gcc-[0-9]+$' ;;
-        g++) package_regex='^g\+\+-[0-9]+$' ;;
-        clang|clang++) package_regex='^clang-[0-9]+$' ;;
+        gcc)
+            package_glob='gcc-*'
+            package_regex='^gcc-[0-9]+$'
+            ;;
+        g++)
+            package_glob='g++-*'
+            package_regex='^g\+\+-[0-9]+$'
+            ;;
+        clang|clang++)
+            package_glob='clang-*'
+            package_regex='^clang-[0-9]+$'
+            ;;
         *) return 1 ;;
     esac
     package="$(
-        apt-cache pkgnames 2>/dev/null |
+        apt -o APT::Cmd::Disable-Script-Warning=1 list "$package_glob" 2>/dev/null |
+            sed -n 's#/.*##p' |
             grep -E "$package_regex" |
             sort -V |
             tail -n1

@@ -61,7 +61,7 @@ resolve_config_path() {
     local input_path="${1:-}"
     local candidate_path
 
-    [[ -n "$input_path" ]] || fail "Missing config path for --config."
+    [[ -n "$input_path" ]] || fail "Missing config path for '--config'."
     [[ ! "$input_path" =~ [[:cntrl:]] ]] ||
         fail "Config paths may not contain control characters."
     if [[ "$input_path" == /* ]]; then
@@ -100,15 +100,15 @@ prescan_config() {
         case "${arguments[index]}" in
             --config)
                 ((index + 1 < ${#arguments[@]})) ||
-                    fail "Missing value for --config."
+                    fail "Missing value for '--config'."
                 [[ -z "$PACKAGE_CONFIG_FILE" ]] ||
-                    fail "--config may only be specified once."
+                    fail "'--config' may only be specified once."
                 PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index + 1]}")"
                 ((index += 1))
                 ;;
             --config=*)
                 [[ -z "$PACKAGE_CONFIG_FILE" ]] ||
-                    fail "--config may only be specified once."
+                    fail "'--config' may only be specified once."
                 PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index]#*=}")"
                 ;;
         esac
@@ -141,7 +141,7 @@ parse_arguments() {
                 shift
                 ;;
             --compiler)
-                (($# >= 2)) || fail "Missing value for --compiler."
+                (($# >= 2)) || fail "Missing value for '--compiler'."
                 COMPILER_FLAG="$2"
                 shift 2
                 ;;
@@ -150,12 +150,12 @@ parse_arguments() {
                 shift
                 ;;
             -j|--jobs)
-                (($# >= 2)) || fail "Missing value for $1."
+                (($# >= 2)) || fail "Missing value for '$1'."
                 build_threads="$2"
                 shift 2
                 ;;
             --config)
-                (($# >= 2)) || fail "Missing value for --config."
+                (($# >= 2)) || fail "Missing value for '--config'."
                 shift 2
                 ;;
             --config=*)
@@ -167,25 +167,25 @@ parse_arguments() {
                 ;;
             --)
                 shift
-                (($# == 0)) || fail "Unexpected positional arguments: $*"
+                (($# == 0)) || fail "Unexpected positional arguments: '$*'."
                 ;;
             *)
-                fail "Unknown option: $1"
+                fail "Unknown option '$1'."
                 ;;
         esac
     done
 
     [[ "$COMPILER_FLAG" == "gcc" || "$COMPILER_FLAG" == "clang" ]] ||
-        fail "Invalid compiler '$COMPILER_FLAG'; expected gcc or clang."
+        fail "Invalid compiler '$COMPILER_FLAG'; expected 'gcc' or 'clang'."
     if [[ -n "$build_threads" ]]; then
         [[ "$build_threads" =~ ^[1-9][0-9]*$ ]] ||
             fail "Invalid jobs value '$build_threads'; expected a positive integer."
     fi
     if is_true "$DO_BUILD" && is_true "$DO_CLEANUP"; then
-        fail "--build and --cleanup are mutually exclusive."
+        fail "'--build' and '--cleanup' are mutually exclusive."
     fi
     [[ "$debug" == "ON" || "$debug" == "OFF" ]] ||
-        fail "Invalid FFMPEG_BUILD_DEBUG '$debug'; expected ON or OFF."
+        fail "Invalid 'FFMPEG_BUILD_DEBUG' value '$debug'; expected 'ON' or 'OFF'."
 }
 
 resolve_build_root() {
@@ -205,11 +205,11 @@ validate_build_root() {
     local home_resolved parent first_entry
 
     [[ "${HOME:-}" == /* ]] ||
-        fail "HOME must name an absolute user home directory."
+        fail "'HOME' must name an absolute user home directory."
     home_resolved="$(canonicalize_path "${HOME:-}")" ||
-        fail "HOME must name an absolute user home directory."
+        fail "'HOME' must name an absolute user home directory."
     [[ "$cwd" != *[[:space:]]* ]] ||
-        fail "BUILD_ROOT may not contain whitespace because several upstream build systems cannot represent it safely: '$cwd'."
+        fail "'BUILD_ROOT' may not contain whitespace because several upstream build systems cannot represent it safely: '$cwd'."
     case "$cwd" in
         /|/bin|/boot|/dev|/etc|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
             fail "Refusing unsafe build root '$cwd'."
@@ -224,20 +224,20 @@ validate_build_root() {
         fail "Unable to create build-root parent '$parent'."
 
     [[ ! -e "$cwd" || -d "$cwd" ]] ||
-        fail "BUILD_ROOT exists but is not a directory: '$cwd'."
+        fail "'BUILD_ROOT' exists but is not a directory: '$cwd'."
     if [[ -d "$cwd" ]]; then
         [[ -r "$cwd" && -x "$cwd" ]] ||
-            fail "BUILD_ROOT cannot be inspected safely by the current user: '$cwd'."
+            fail "'BUILD_ROOT' cannot be inspected safely by the current user: '$cwd'."
         if ! first_entry="$(find "$cwd" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)"; then
-            fail "Unable to inspect existing BUILD_ROOT '$cwd'."
+            fail "Unable to inspect existing 'BUILD_ROOT' '$cwd'."
         fi
         if [[ -n "$first_entry" ]]; then
             if build_root_marker_matches "$cwd/.ffmpeg-build-root" "$cwd"; then
                 :
             elif legacy_build_root_marker "$cwd/.ffmpeg-build-root"; then
-                warn "BUILD_ROOT '$cwd' uses a legacy empty marker; this build will upgrade it to a path-bound marker."
+                warn "'BUILD_ROOT' '$cwd' uses a legacy empty marker; this build will upgrade it to a path-bound marker."
             else
-                fail "BUILD_ROOT '$cwd' already contains data and lacks a valid path-bound FFmpeg build-root marker."
+                fail "'BUILD_ROOT' '$cwd' already contains data and lacks a valid path-bound FFmpeg build-root marker."
             fi
         fi
     fi
@@ -296,13 +296,13 @@ ensure_build_context() {
             return 0
         fi
         rm -f -- "$temporary_context"
-        fail "Compiler, flags, licensing mode, CUDA targets, or package selections changed for this workspace. Run $CLEANUP_COMMAND before rebuilding."
+        fail "Compiler, flags, licensing mode, CUDA targets, or package selections changed for this workspace. Run '$CLEANUP_COMMAND' before rebuilding."
     fi
 
     prior_marker="$(find "$packages" -maxdepth 1 -type f -name '*.done' -print -quit 2>/dev/null || true)"
     if [[ -n "$prior_marker" ]]; then
         rm -f -- "$temporary_context"
-        fail "This legacy workspace has package markers but no build-context record. Run $CLEANUP_COMMAND before rebuilding."
+        fail "This legacy workspace has package markers but no build-context record. Run '$CLEANUP_COMMAND' before rebuilding."
     fi
     mv -f -- "$temporary_context" "$context_file" ||
         fail "Unable to publish build-context file '$context_file'."
@@ -360,7 +360,7 @@ handle_signal() {
         TERM) exit_code=143 ;;
         *) exit_code=1 ;;
     esac
-    warn "Received $signal_name; stopping after preserving build files in '$cwd'."
+    warn "Received '$signal_name'; stopping after preserving build files in '$cwd'."
     exit "$exit_code"
 }
 
@@ -390,9 +390,9 @@ configure_toolchain() {
 
 run_build() {
     [[ "$EUID" -ne 0 ]] ||
-        fail "Run this script as a normal user; it invokes sudo only for system changes."
+        fail "Run '$SCRIPT_NAME' as a normal user; it invokes 'sudo' only for system changes."
     [[ "$(uname -m)" == "x86_64" ]] ||
-        fail "This build currently supports x86_64 only; detected $(uname -m)."
+        fail "This build currently supports 'x86_64' only; detected '$(uname -m)'."
 
     umask 022
     require_sudo
@@ -402,9 +402,9 @@ run_build() {
 
     printf '\n'
     box_out_banner "FFmpeg Build Script $SCRIPT_VERSION"
-    log "Build root: $cwd"
-    log "Parallel jobs: $build_threads"
-    log "Compiler family: $COMPILER_FLAG"
+    log "Build root: '$cwd'."
+    log "Parallel jobs: '$build_threads'."
+    log "Compiler family: '$COMPILER_FLAG'."
     is_true "$NONFREE_AND_GPL" && warn "GPL and non-free components are enabled."
 
     # shellcheck source=scripts/system-setup.sh
