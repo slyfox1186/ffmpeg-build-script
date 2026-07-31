@@ -28,33 +28,33 @@ log_file=""
 # shellcheck source=scripts/shared-utils.sh
 source "$SCRIPT_DIR/scripts/shared-utils.sh"
 
+print_usage_row() {
+    printf '  %-33s %s\n' "$1" "$2"
+}
+
 usage() {
     printf '\nFFmpeg Build Script %s\n' "$SCRIPT_VERSION"
     printf 'Usage: %s [options]\n\n' "$SCRIPT_NAME"
-    printf '%s\n' \
-        "Actions:" \
-        "  -b, --build                       Build and install FFmpeg" \
-        "  -c, --cleanup                     Remove this project's build root" \
-        "" \
-        "Options:" \
-        "  -h, --help                        Show this help without changing the filesystem" \
-        "  -v, --version                     Show the script version" \
-        "      --compiler <gcc|clang>         Select the C/C++ compiler (default: gcc)" \
-        "      --config <path>                Load build/package choices from TOML" \
-        "  -j, --jobs <count>                 Set parallel build jobs (default: available CPUs)" \
-        "  -l, --latest                      Refresh and rebuild outdated dependencies" \
-        "  -n, --enable-gpl-and-non-free     Enable GPL/non-free components" \
-        "  -g, --google-speech               Announce failures if google_speech is installed" \
-        "" \
-        "Environment:" \
-        "  BUILD_ROOT=/path                  Override the default ./build directory" \
-        "  CUDA_INSTALL=ask|always|never     Control CUDA toolkit installation (default: ask)" \
-        "  CUDA_ARCH_MODE=native|all|custom  Select CUDA code-generation targets" \
-        "  FFMPEG_BUILD_DEBUG=ON             Stream commands while also logging them" \
-        "" \
-        "Example:" \
-        "  bash $SCRIPT_NAME --build --compiler clang --jobs 8 --config ./custom.toml" \
-        ""
+    printf 'Actions:\n'
+    print_usage_row '-b, --build' 'Build and install FFmpeg'
+    print_usage_row '-c, --cleanup' "Remove this project's build root"
+    printf '\nOptions:\n'
+    print_usage_row '-h, --help' 'Show this help without changing the filesystem'
+    print_usage_row '-v, --version' 'Show the script version'
+    print_usage_row '    --compiler <gcc|clang>' 'Select the C/C++ compiler (default: gcc)'
+    print_usage_row '    --config <path>' 'Load build/package choices from TOML'
+    print_usage_row '-j, --jobs <count>' 'Set parallel build jobs (default: available CPUs)'
+    print_usage_row '-l, --latest' 'Refresh and rebuild outdated dependencies'
+    print_usage_row '-n, --enable-gpl-and-non-free' 'Enable GPL/non-free components'
+    print_usage_row '-g, --google-speech' 'Announce failures if google_speech is installed'
+    printf '\nEnvironment:\n'
+    print_usage_row 'BUILD_ROOT=/path' 'Override the default ./build directory'
+    print_usage_row 'CUDA_INSTALL=ask|always|never' 'Control CUDA toolkit installation (default: ask)'
+    print_usage_row 'CUDA_ARCH_MODE=native|all|custom' 'Select CUDA code-generation targets'
+    print_usage_row 'FFMPEG_BUILD_DEBUG=ON' 'Stream commands while also logging them'
+    printf '\nExample:\n'
+    printf '  bash %s --build --compiler clang --jobs 8 --config ./custom.toml\n\n' \
+        "$SCRIPT_NAME"
 }
 
 resolve_config_path() {
