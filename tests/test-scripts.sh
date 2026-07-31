@@ -41,6 +41,24 @@ assert_equal() {
     pass "$description"
 }
 
+assert_contains() {
+    local haystack="${1-}" needle="${2-}" description="${3:-text is present}"
+    [[ "$haystack" == *"$needle"* ]] || {
+        printf 'missing text: %q\noutput:       %q\n' "$needle" "$haystack" >&2
+        fail_test "$description"
+    }
+    pass "$description"
+}
+
+assert_not_contains() {
+    local haystack="${1-}" needle="${2-}" description="${3:-text is absent}"
+    [[ "$haystack" != *"$needle"* ]] || {
+        printf 'unexpected text: %q\noutput:          %q\n' "$needle" "$haystack" >&2
+        fail_test "$description"
+    }
+    pass "$description"
+}
+
 assert_file() {
     local file="${1:-}" description="${2:-file exists}"
     [[ -f "$file" ]] || fail_test "$description"
@@ -66,6 +84,11 @@ assert_command_fails() {
 help_root="$temporary_root/help-root"
 help_output="$(BUILD_ROOT="$help_root" bash "$repo_root/build-ffmpeg.sh" --help)"
 [[ "$help_output" == *"FFmpeg Build Script"* ]] || fail_test "--help prints usage"
+assert_contains "$help_output" "--config ./custom.toml" \
+    "--help uses the custom configuration filename"
+printf -v retired_config_name '%s.%s' local toml
+assert_not_contains "$help_output" "$retired_config_name" \
+    "--help does not reference the retired local configuration filename"
 assert_not_exists "$help_root" "--help has no filesystem side effects"
 
 version_output="$(BUILD_ROOT="$temporary_root/version-root" bash "$repo_root/build-ffmpeg.sh" --version)"
@@ -296,9 +319,68 @@ assert_command_fails \
 
 build_done jemalloc 1.2.3
 assert_equal "1.2.3" "$(read_marker_version "$packages/jemalloc.done")" "build markers are atomic and readable"
-if build jemalloc 1.2.3 >/dev/null; then
+if build_output="$(build jemalloc 1.2.3)"; then
     fail_test "matching build marker skips rebuild"
 fi
 pass "matching build marker skips rebuild"
+assert_contains "$build_output" "Building jemalloc (version 1.2.3)" \
+    "build heading labels the package version clearly"
+assert_contains "$build_output" "Already built: jemalloc 1.2.3" \
+    "matching build marker reports the package status clearly"
+assert_contains "$build_output" \
+    "Rebuild: rm -f -- $packages/jemalloc.done" \
+    "matching build marker prints an actionable rebuild command"
+assert_not_contains "$build_output" "lockfile" \
+    "build markers are not mislabeled as lockfiles"
+
+# shellcheck source=scripts/ffmpeg-build.sh
+source "$repo_root/scripts/ffmpeg-build.sh"
+ffmpeg_test_prefix="$temporary_root/ffmpeg-prefix"
+mkdir -p "$ffmpeg_test_prefix/bin"
+for ffmpeg_test_tool in ffmpeg ffprobe ffplay; do
+    printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        'set -euo pipefail' \
+        'tool_name="${0##*/}"' \
+        'case "${2:-}" in' \
+        '    -version)' \
+        '        printf "%s version 8.1.2 Copyright test fixture\n" "$tool_name"' \
+        '        printf "configuration: --fake-%s\n" "$tool_name"' \
+        '        ;;' \
+        '    -encoders)' \
+        '        printf "Encoders:\n V..... test_encoder\n"' \
+        '        ;;' \
+        '    -decoders)' \
+        '        printf "Decoders:\n V..... test_decoder\n"' \
+        '        ;;' \
+        '    *) exit 64 ;;' \
+        'esac' >"$ffmpeg_test_prefix/bin/$ffmpeg_test_tool"
+    chmod +x "$ffmpeg_test_prefix/bin/$ffmpeg_test_tool"
+done
+
+: >"$log_file"
+ffmpeg_validation_output="$(
+    validate_ffmpeg_installation 8.1.2 true "$ffmpeg_test_prefix"
+)"
+assert_contains "$ffmpeg_validation_output" \
+    "FFmpeg installation verified ($ffmpeg_test_prefix/bin):" \
+    "FFmpeg validation has a readable result heading"
+for ffmpeg_test_tool in ffmpeg ffprobe ffplay; do
+    assert_contains "$ffmpeg_validation_output" \
+        "$ffmpeg_test_tool version 8.1.2 Copyright test fixture" \
+        "$ffmpeg_test_tool validation displays its version result"
+    assert_not_contains "$ffmpeg_validation_output" \
+        "$ $ffmpeg_test_prefix/bin/$ffmpeg_test_tool -hide_banner -version" \
+        "$ffmpeg_test_tool validation does not display a raw command trace"
+    assert_contains "$(<"$log_file")" "configuration: --fake-$ffmpeg_test_tool" \
+        "$ffmpeg_test_tool validation retains full output in the build log"
+done
+
+sed -i 's/version 8\.1\.2/version 8.1.1/' "$ffmpeg_test_prefix/bin/ffprobe"
+assert_command_fails "FFmpeg validation rejects a mismatched companion-tool version" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    source "$1/scripts/ffmpeg-build.sh"
+    validate_ffmpeg_installation 8.1.2 true "$2" false
+' _ "$repo_root" "$ffmpeg_test_prefix"
 
 printf '1..%d\n' "$pass_count"

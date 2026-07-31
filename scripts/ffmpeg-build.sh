@@ -79,13 +79,18 @@ validate_ffmpeg_installation() {
     local expected_version="${1:-}"
     local require_ffplay="${2:-false}"
     local install_prefix="${3:-/usr/local}"
-    local actual_version binary binary_path
+    local display_results="${4:-true}"
+    local binary binary_path command_display exit_code reported_version
+    local version_output version_line
     local -a required_binaries=(ffmpeg ffprobe)
+    local -a version_lines=()
 
     [[ -n "$expected_version" ]] ||
         fail "validate_ffmpeg_installation() requires an expected version."
     [[ "$install_prefix" == /* ]] ||
         fail "validate_ffmpeg_installation() requires an absolute install prefix."
+    [[ "$display_results" == "true" || "$display_results" == "false" ]] ||
+        fail "validate_ffmpeg_installation() requires a true/false display setting."
     if is_true "$require_ffplay"; then
         required_binaries+=(ffplay)
     fi
@@ -95,14 +100,38 @@ validate_ffmpeg_installation() {
             fail "FFmpeg installation is incomplete: $binary_path is missing."
     done
 
-    execute "$install_prefix/bin/ffmpeg" -hide_banner -version
-    execute "$install_prefix/bin/ffprobe" -hide_banner -version
-    if is_true "$require_ffplay"; then
-        execute "$install_prefix/bin/ffplay" -hide_banner -version
-    fi
-    actual_version="$(ffmpeg_installed_version "$install_prefix/bin/ffmpeg" || true)"
-    [[ "$actual_version" == "$expected_version" ]] ||
-        fail "Installed FFmpeg version '$actual_version' does not match expected '$expected_version'."
+    for binary in "${required_binaries[@]}"; do
+        binary_path="$install_prefix/bin/$binary"
+        command_display="$(format_command "$binary_path" -hide_banner -version)"
+        if version_output="$("$binary_path" -hide_banner -version 2>&1)"; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+
+        if [[ -n "${log_file:-}" && -f "$log_file" ]]; then
+            {
+                printf '$ %s\n' "$command_display"
+                [[ -z "$version_output" ]] || printf '%s\n' "$version_output"
+            } >>"$log_file" ||
+                fail "Unable to record the $binary version check in '$log_file'."
+        fi
+        if ((exit_code != 0)); then
+            [[ -z "$version_output" ]] || printf '\n%s\n' "$version_output" >&2
+            fail "$binary version check failed with exit code $exit_code: $command_display"
+        fi
+
+        version_line="${version_output%%$'\n'*}"
+        [[ -n "$version_line" ]] ||
+            fail "$binary version check returned no output: $command_display"
+        reported_version="$(
+            printf '%s\n' "$version_line" |
+                sed -nE "s/^${binary} version n?([0-9]+(\.[0-9]+){1,3}).*/\1/p"
+        )"
+        [[ "$reported_version" == "$expected_version" ]] ||
+            fail "$binary reported version '${reported_version:-unknown}', expected '$expected_version'."
+        version_lines+=("$version_line")
+    done
 
     grep -E '^[[:space:]][A-Z.]{6}[[:space:]]' <(
         "$install_prefix/bin/ffmpeg" -hide_banner -encoders 2>/dev/null
@@ -112,6 +141,14 @@ validate_ffmpeg_installation() {
         "$install_prefix/bin/ffmpeg" -hide_banner -decoders 2>/dev/null
     ) >/dev/null ||
         fail "Installed FFmpeg did not report any decoders."
+
+    if is_true "$display_results"; then
+        printf '\n%sFFmpeg installation verified%s (%s/bin):\n' \
+            "$GREEN" "$NC" "$install_prefix"
+        for version_line in "${version_lines[@]}"; do
+            printf '  %s\n' "$version_line"
+        done
+    fi
 }
 
 build_ffmpeg() {
@@ -384,7 +421,7 @@ build_ffmpeg() {
             fail "Unable to create an FFmpeg staging directory."
         staged_prefix="$staging_root/usr/local"
         execute make DESTDIR="$staging_root" install
-        validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled" "$staged_prefix"
+        validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled" "$staged_prefix" false
 
         # Only mutate /usr/local after the complete staged install has passed
         # binary/version/capability checks.
@@ -396,7 +433,6 @@ build_ffmpeg() {
         validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled"
     fi
 
-    show_versions
     cleanup
     exit_fn
 }

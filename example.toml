@@ -1,5 +1,5 @@
-# Copy this file and pass it with:
-# bash build-ffmpeg.sh --build --config ./example.toml
+# Copy this template to custom.toml, edit it, and then run:
+# bash build-ffmpeg.sh --build --config ./custom.toml
 #
 # Supported TOML shape:
 #   [build]
