@@ -405,6 +405,38 @@ write_archive_checksum "$archive" || fail_test "archive checksum can be refreshe
 extract_archive_transactionally "$archive" "$packages/project"
 assert_file "$packages/project/sub/file.txt" "transactional extraction publishes payload"
 
+curl_invocation="$temporary_root/curl-invocation"
+downloaded_archive="$packages/user-agent-download.tar.gz"
+if ! (
+    curl() {
+        local argument output_file=""
+
+        while (($# > 0)); do
+            argument="$1"
+            printf '%s\n' "$argument" >>"$curl_invocation"
+            shift
+            if [[ "$argument" == "--output" ]]; then
+                output_file="${1:-}"
+            fi
+        done
+
+        [[ -n "$output_file" ]] || return 1
+        cp -- "$archive" "$output_file"
+    }
+
+    download_archive_to_cache \
+        "https://example.test/user-agent-download.tar.gz" \
+        "user-agent-download.tar.gz" \
+        "$downloaded_archive"
+); then
+    fail_test "archive downloads invoke curl successfully"
+fi
+pass "archive downloads invoke curl successfully"
+assert_contains "$(<"$curl_invocation")" \
+    $'--user-agent\nMozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0' \
+    "archive downloads use the configured browser user agent"
+assert_file "$downloaded_archive" "archive downloads publish the validated payload"
+
 multi_root_source="$temporary_root/multi-root-source"
 mkdir -p "$multi_root_source/root-a" "$multi_root_source/root-b"
 printf 'a\n' >"$multi_root_source/root-a/file"
