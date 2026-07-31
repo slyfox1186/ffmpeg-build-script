@@ -314,6 +314,7 @@ initialize_hardware_detection() {
 
     printf '\n'
     box_out_banner "Hardware Detection"
+    printf '\n'
     printf 'NVIDIA: %s\n' "$is_nvidia_gpu_present"
     printf 'AMD:    %s\n' "$is_amd_gpu_present"
     printf 'Intel:  %s\n' "$is_intel_gpu_present"

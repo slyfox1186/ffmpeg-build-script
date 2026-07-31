@@ -402,6 +402,7 @@ run_build() {
 
     printf '\n'
     box_out_banner "FFmpeg Build Script $SCRIPT_VERSION"
+    printf '\n'
     log "Build root: '$cwd'."
     log "Parallel jobs: '$build_threads'."
     log "Compiler family: '$COMPILER_FLAG'."

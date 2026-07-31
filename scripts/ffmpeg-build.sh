@@ -167,6 +167,7 @@ build_ffmpeg() {
     require_vars workspace packages build_threads CC CXX
 
     if ! package_enabled "ffmpeg"; then
+        printf '\n'
         log "FFmpeg is disabled by config; dependency build is complete."
         return 0
     fi

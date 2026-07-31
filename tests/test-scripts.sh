@@ -262,6 +262,22 @@ assert_contains "$changed_context_output" \
 assert_not_contains "$changed_context_output" "Run --cleanup" \
     "changed-context failure does not present an option as a command"
 
+# shellcheck source=scripts/hardware-detection.sh
+source "$repo_root/scripts/hardware-detection.sh"
+detect_gpu_vendors() {
+    is_nvidia_gpu_present="NVIDIA GPU detected"
+    is_amd_gpu_present="AMD GPU detected"
+    is_intel_gpu_present="Intel GPU not detected"
+    has_vulkan_gpu=1
+}
+hardware_summary_output="$(initialize_hardware_detection)"
+assert_contains "$hardware_summary_output" \
+    $' --------------------\n\nNVIDIA: NVIDIA GPU detected' \
+    "hardware banner has one blank line before its summary"
+assert_not_contains "$hardware_summary_output" \
+    $' --------------------\n\n\nNVIDIA: NVIDIA GPU detected' \
+    "hardware banner does not add a second blank line"
+
 apt_fixture_bin="$temporary_root/apt-fixture-bin"
 apt_fixture_log="$temporary_root/apt-fixture.log"
 mkdir -p "$apt_fixture_bin"
