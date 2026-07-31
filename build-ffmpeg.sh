@@ -296,13 +296,13 @@ ensure_build_context() {
             return 0
         fi
         rm -f -- "$temporary_context"
-        fail "Compiler, flags, licensing mode, CUDA targets, or package selections changed for this workspace. Run --cleanup before rebuilding."
+        fail "Compiler, flags, licensing mode, CUDA targets, or package selections changed for this workspace. Run $CLEANUP_COMMAND before rebuilding."
     fi
 
     prior_marker="$(find "$packages" -maxdepth 1 -type f -name '*.done' -print -quit 2>/dev/null || true)"
     if [[ -n "$prior_marker" ]]; then
         rm -f -- "$temporary_context"
-        fail "This legacy workspace has package markers but no build-context record. Run --cleanup before rebuilding."
+        fail "This legacy workspace has package markers but no build-context record. Run $CLEANUP_COMMAND before rebuilding."
     fi
     mv -f -- "$temporary_context" "$context_file" ||
         fail "Unable to publish build-context file '$context_file'."

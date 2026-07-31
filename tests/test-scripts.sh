@@ -154,6 +154,7 @@ assert_command_fails "a build root cannot be acquired by two processes" bash -c 
 exec {held_lock_fd}>&-
 
 selection_file="$temporary_root/selection.toml"
+selection_output_file="$temporary_root/selection.out"
 printf '%s\n' \
     '[build]' \
     'latest = true' \
@@ -162,11 +163,58 @@ printf '%s\n' \
     'ffmpeg = true' \
     'jemalloc = true' \
     'vulkan-headers = false' >"$selection_file"
-load_package_selection_config "$selection_file"
+load_package_selection_config "$selection_file" >"$selection_output_file"
+selection_output="$(<"$selection_output_file")"
+assert_contains "$selection_output" \
+    "run build-ffmpeg.sh --cleanup first" \
+    "config guidance names the cleanup command"
+assert_not_contains "$selection_output" "run --cleanup" \
+    "config guidance does not present an option as a command"
 assert_equal "true" "$LATEST" "config loads build.latest"
 assert_equal "false" "${PACKAGE_SELECTION[vulkan-headers-git]}" "legacy config key maps canonically"
 assert_command_fails "an explicit config disables omitted package keys" \
     package_enabled libopus
+
+fake_bin="$temporary_root/fake-bin"
+mkdir -p "$fake_bin"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    '[[ "${1:-}" != "-n" ]]' >"$fake_bin/sudo"
+chmod +x "$fake_bin/sudo"
+
+changed_context_root="$temporary_root/changed-context-root"
+mkdir -p "$changed_context_root/packages" "$changed_context_root/workspace"
+write_build_root_marker "$changed_context_root"
+printf 'stale build context\n' >"$changed_context_root/.ffmpeg-build-context"
+if changed_context_output="$(
+    env PATH="$fake_bin:$PATH" BUILD_ROOT="$changed_context_root" \
+        bash "$repo_root/build-ffmpeg.sh" -b -n -l --config "$selection_file" 2>&1
+)"; then
+    fail_test "changed build context is rejected"
+fi
+pass "changed build context is rejected"
+assert_contains "$changed_context_output" \
+    "Run build-ffmpeg.sh --cleanup before rebuilding." \
+    "changed-context failure names the cleanup command"
+assert_not_contains "$changed_context_output" "Run --cleanup" \
+    "changed-context failure does not present an option as a command"
+
+legacy_context_root="$temporary_root/legacy-context-root"
+mkdir -p "$legacy_context_root/packages" "$legacy_context_root/workspace"
+write_build_root_marker "$legacy_context_root"
+printf '1.2.3\n' >"$legacy_context_root/packages/jemalloc.done"
+if legacy_context_output="$(
+    env PATH="$fake_bin:$PATH" BUILD_ROOT="$legacy_context_root" \
+        bash "$repo_root/build-ffmpeg.sh" --build --config "$selection_file" 2>&1
+)"; then
+    fail_test "legacy build context is rejected"
+fi
+pass "legacy build context is rejected"
+assert_contains "$legacy_context_output" \
+    "Run build-ffmpeg.sh --cleanup before rebuilding." \
+    "legacy-context failure names the cleanup command"
+assert_not_contains "$legacy_context_output" "Run --cleanup" \
+    "legacy-context failure does not present an option as a command"
 
 duplicate_selection_file="$temporary_root/duplicate-selection.toml"
 printf '%s\n' \
