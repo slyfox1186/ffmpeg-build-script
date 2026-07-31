@@ -8,11 +8,14 @@
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
 APT_INDEX_UPDATED=false
+# The project standardizes on the high-level APT interface. Suppress only its
+# expected script-interface notice; command diagnostics and exit codes remain intact.
+readonly -a APT_SCRIPT_OPTIONS=(-o APT::Cmd::Disable-Script-Warning=1)
 
 apt_update_once() {
     if ! is_true "$APT_INDEX_UPDATED"; then
         log "Refreshing APT package metadata..."
-        execute sudo apt-get update
+        execute sudo apt "${APT_SCRIPT_OPTIONS[@]}" update
         APT_INDEX_UPDATED=true
     fi
 }
@@ -21,7 +24,7 @@ apt_package_available() {
     local package_name="${1:-}"
 
     [[ "$package_name" =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*$ ]] || return 1
-    apt-cache show "$package_name" >/dev/null 2>&1
+    apt "${APT_SCRIPT_OPTIONS[@]}" show "$package_name" >/dev/null 2>&1
 }
 
 apt_package_installed() {
@@ -29,6 +32,14 @@ apt_package_installed() {
 
     dpkg-query -W -f='${Status}' "$package_name" 2>/dev/null |
         grep -q '^install ok installed$'
+}
+
+format_package_list() {
+    local formatted_list
+
+    (($# > 0)) || return 0
+    printf -v formatted_list "'%s', " "$@"
+    printf '%s' "${formatted_list%, }"
 }
 
 append_unique_packages() {
@@ -80,7 +91,7 @@ mark_required_packages() {
 }
 
 install_apt_packages() {
-    local package_name
+    local package_name package_display
     local -a requested_packages=("$@")
     local -a pending_packages=()
     local -a missing_packages=()
@@ -111,18 +122,22 @@ install_apt_packages() {
     done
 
     if ((${#required_unavailable_packages[@]} > 0)); then
-        fail "Required host packages are unavailable on $OS $VER: ${required_unavailable_packages[*]}"
+        package_display="$(format_package_list "${required_unavailable_packages[@]}")"
+        fail "Required host packages are unavailable on '$OS $VER': $package_display."
     fi
     if ((${#unavailable_packages[@]} > 0)); then
-        warn "Optional packages unavailable on $OS $VER: ${unavailable_packages[*]}"
+        package_display="$(format_package_list "${unavailable_packages[@]}")"
+        warn "Optional packages unavailable on '$OS $VER': $package_display."
     fi
     if ((${#missing_packages[@]} == 0)); then
         log "All available host packages are already installed."
         return 0
     fi
 
-    log "Installing ${#missing_packages[@]} host package(s): ${missing_packages[*]}"
-    execute sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    package_display="$(format_package_list "${missing_packages[@]}")"
+    log "Installing ${#missing_packages[@]} host package(s): $package_display."
+    execute sudo env DEBIAN_FRONTEND=noninteractive \
+        apt "${APT_SCRIPT_OPTIONS[@]}" install --assume-yes \
         --no-install-recommends "${missing_packages[@]}"
 }
 
@@ -130,7 +145,7 @@ detect_operating_system() {
     local detected_id detected_version detected_like ubuntu_codename
 
     [[ -r /etc/os-release ]] ||
-        fail "/etc/os-release is required for operating-system detection."
+        fail "'/etc/os-release' is required for operating-system detection."
     # shellcheck source=/dev/null
     source /etc/os-release
 
@@ -139,7 +154,7 @@ detect_operating_system() {
     detected_like="${ID_LIKE:-}"
     ubuntu_codename="${UBUNTU_CODENAME:-}"
     [[ -n "$detected_id" && -n "$detected_version" ]] ||
-        fail "Unable to identify the operating system from /etc/os-release."
+        fail "Unable to identify the operating system from '/etc/os-release'."
 
     VARIABLE_OS="$detected_id"
     case "$detected_id" in
@@ -148,7 +163,7 @@ detect_operating_system() {
             VER="${detected_version%%.*}"
             case "$VER" in
                 12|13) ;;
-                *) fail "Unsupported Debian release '$detected_version'; supported releases are 12 and 13." ;;
+                *) fail "Unsupported Debian release '$detected_version'; supported releases are '12' and '13'." ;;
             esac
             ;;
         ubuntu)
@@ -156,12 +171,12 @@ detect_operating_system() {
             VER="$detected_version"
             case "$VER" in
                 22.04|24.04|26.04) ;;
-                *) fail "Unsupported Ubuntu release '$detected_version'; supported releases are 22.04, 24.04, and 26.04." ;;
+                *) fail "Unsupported Ubuntu release '$detected_version'; supported releases are '22.04', '24.04', and '26.04'." ;;
             esac
             ;;
         linuxmint|zorin)
             [[ "$detected_like" == *ubuntu* ]] ||
-                fail "Unsupported $detected_id base; an Ubuntu-compatible base is required."
+                fail "Unsupported '$detected_id' base; an Ubuntu-compatible base is required."
             OS=Ubuntu
             case "$ubuntu_codename" in
                 jammy) VER=22.04 ;;
@@ -374,9 +389,9 @@ set_java_variables() {
     local javac_path java_home
 
     javac_path="$(command -v javac 2>/dev/null || true)"
-    [[ -n "$javac_path" ]] || fail "javac was not installed by the host setup."
+    [[ -n "$javac_path" ]] || fail "'javac' was not installed by the host setup."
     javac_path="$(readlink -f -- "$javac_path")" ||
-        fail "Unable to resolve javac path."
+        fail "Unable to resolve the 'javac' path."
     java_home="$(dirname -- "$(dirname -- "$javac_path")")"
     [[ -d "$java_home/include" ]] ||
         fail "Java include directory not found under '$java_home'."
@@ -397,7 +412,7 @@ initialize_system_setup() {
     local -a host_packages=()
 
     require_vars workspace COMPILER_FLAG
-    require_commands apt-cache apt-get dpkg-query readlink
+    require_commands apt dpkg-query readlink
     detect_operating_system
     collect_host_packages host_packages
     install_apt_packages "${host_packages[@]}"
@@ -418,5 +433,5 @@ initialize_system_setup() {
         set_java_variables
     fi
 
-    log "Host setup complete: $OS $VER (${VARIABLE_OS})"
+    log "Host setup complete: '$OS $VER' ('$VARIABLE_OS')."
 }

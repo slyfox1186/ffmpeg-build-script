@@ -25,7 +25,7 @@ install_video_libraries() {
     # Build libaom (AV1)
     git_caller "https://aomedia.googlesource.com/aom" "av1-git"
     if build "$repo_name" "$version"; then
-        cd "$packages/av1-git" || fail "Failed to cd into av1-git. Line: ${LINENO}"
+        cd "$packages/av1-git" || fail "Failed to cd into 'av1-git'. Line: ${LINENO}"
         cmake_ninja_install "build" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCONFIG_AV1_{DECODER,ENCODER,HIGHBITDEPTH,TEMPORAL_DENOISING}=1 \
@@ -52,7 +52,7 @@ install_video_libraries() {
     vmaf_version="$repo_version"
     if build "libvmaf" "$vmaf_version"; then
         download "https://github.com/Netflix/vmaf/archive/refs/tags/v$vmaf_version.tar.gz" "libvmaf-$vmaf_version.tar.gz"
-        cd "libvmaf" || fail "Failed to cd into libvmaf. Line: $LINENO"
+        cd "libvmaf" || fail "Failed to cd into 'libvmaf'. Line: $LINENO"
         meson_ninja_install "build" \
             --buildtype=release \
             --default-library=static \
@@ -85,7 +85,7 @@ install_video_libraries() {
     # Build zimg
     git_caller "https://github.com/sekrit-twc/zimg.git" "zimg-git" "recurse"
     if build "$repo_name" "$version"; then
-        cd "$packages/zimg-git" || fail "Failed to cd into zimg-git. Line: ${LINENO}"
+        cd "$packages/zimg-git" || fail "Failed to cd into 'zimg-git'. Line: ${LINENO}"
         ensure_autotools
         execute sh configure --prefix="$workspace" --with-pic --disable-shared --enable-static
         execute make "-j$build_threads"
@@ -160,7 +160,7 @@ install_video_libraries() {
         set_ant_path
         git_caller "https://github.com/apache/ant.git" "ant-git"
         if build "$repo_name" "$version"; then
-            cd "$packages/ant-git" || fail "Failed to cd into ant-git. Line: ${LINENO}"
+            cd "$packages/ant-git" || fail "Failed to cd into 'ant-git'. Line: ${LINENO}"
             execute chmod -R u+rwX,go+rX "$workspace/ant"
             execute sh build.sh install-lite
             build_done "$repo_name" "$version"
@@ -173,7 +173,7 @@ install_video_libraries() {
     fetch_version_if_enabled "zenlib" find_git_repo "MediaArea/ZenLib" "1"
     if build "zenlib" "$repo_version"; then
         download "https://github.com/MediaArea/ZenLib/archive/refs/tags/v$repo_version.tar.gz" "zenlib-$repo_version.tar.gz"
-        cd Project/GNU/Library || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
+        cd Project/GNU/Library || fail "Failed to cd into 'Project/GNU/Library'. Line: $LINENO"
         ensure_autotools
         execute sh configure --prefix="$workspace" --disable-shared
         execute make "-j$build_threads"
@@ -185,7 +185,7 @@ install_video_libraries() {
     fetch_version_if_enabled "mediainfo-lib" find_git_repo "MediaArea/MediaInfoLib" "1"
     if build "mediainfo-lib" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfoLib/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-lib-$repo_version.tar.gz"
-        cd "Project/GNU/Library" || fail "Failed to cd into Project/GNU/Library. Line: $LINENO"
+        cd "Project/GNU/Library" || fail "Failed to cd into 'Project/GNU/Library'. Line: $LINENO"
         ensure_autotools
         execute sh configure --prefix="$workspace" --disable-shared
         execute make "-j$build_threads"
@@ -197,7 +197,7 @@ install_video_libraries() {
     fetch_version_if_enabled "mediainfo-cli" find_git_repo "MediaArea/MediaInfo" "1"
     if build "mediainfo-cli" "$repo_version"; then
         download "https://github.com/MediaArea/MediaInfo/archive/refs/tags/v$repo_version.tar.gz" "mediainfo-cli-$repo_version.tar.gz"
-        cd "Project/GNU/CLI" || fail "Failed to cd into Project/GNU/CLI. Line: $LINENO"
+        cd "Project/GNU/CLI" || fail "Failed to cd into 'Project/GNU/CLI'. Line: $LINENO"
         ensure_autotools
         execute sh configure --prefix="$workspace" --enable-staticlibs --disable-shared
         execute make "-j$build_threads"
@@ -234,18 +234,18 @@ install_video_libraries() {
 
         # Build x265 as a combined 8/10/12-bit static archive.
         fetch_version_if_enabled "x265" x265_version ||
-            fail "Failed to detect the latest stable x265 release. Line: ${LINENO}"
+            fail "Failed to detect the latest stable 'x265' release. Line: ${LINENO}"
         x265_release="$repo_version"
         if build "x265" "$x265_release"; then
             download "https://github.com/Multicorewareinc/x265/archive/refs/tags/$x265_release.tar.gz" \
                 "x265-$x265_release.tar.gz"
 
-            cd build/linux || fail "Failed to cd into build/linux. Line: $LINENO"
+            cd build/linux || fail "Failed to cd into 'build/linux'. Line: $LINENO"
             safe_remove_tree "$PWD/8bit" "$PWD"
             safe_remove_tree "$PWD/10bit" "$PWD"
             safe_remove_tree "$PWD/12bit" "$PWD"
             execute mkdir -p {8,10,12}bit
-            cd 12bit || fail "Failed to cd into 12bit. Line: $LINENO"
+            cd 12bit || fail "Failed to cd into '12bit'. Line: $LINENO"
             log "Building x265 12-bit library"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
@@ -258,7 +258,7 @@ install_video_libraries() {
                           -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             log "Building x265 10-bit library"
-            cd ../10bit || fail "Failed to cd into 10bit. Line: $LINENO"
+            cd ../10bit || fail "Failed to cd into '../10bit'. Line: $LINENO"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
                           -DENABLE_HDR10_PLUS=ON -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON \
@@ -270,7 +270,7 @@ install_video_libraries() {
                           -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             log "Building x265 8-bit library"
-            cd ../8bit || fail "Failed to cd into 8bit. Line: $LINENO"
+            cd ../8bit || fail "Failed to cd into '../8bit'. Line: $LINENO"
             execute ln -sf "../10bit/libx265.a" "libx265_main10.a"
             execute ln -sf "../12bit/libx265.a" "libx265_main12.a"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
@@ -311,7 +311,7 @@ EOF
         if [[ "${gpu_flag:-1}" -eq 0 ]] &&
             package_enabled "nv-codec-headers"; then
             fetch_version_if_enabled "nv-codec-headers" nv_codec_headers_version ||
-                fail "Failed to detect nv-codec-headers version. Line: ${LINENO}"
+                fail "Failed to detect 'nv-codec-headers' version. Line: ${LINENO}"
             selected_version="$repo_version"
             if build "nv-codec-headers" "$selected_version"; then
                 download "https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz" \
@@ -334,7 +334,7 @@ EOF
             fi
             append_configure_options_if_enabled "amf-headers" "--enable-amf"
         else
-            log "No AMD GPU detected — skipping AMF (AMD encoder) headers and --enable-amf."
+            log "No AMD GPU detected — skipping AMF (AMD encoder) headers and '--enable-amf'."
         fi
 
         # Build SRT
@@ -393,11 +393,11 @@ EOF
             xvidcore_release="$repo_version"
         else
             xvidcore_release="1.3.7"
-            warn "Falling back to Xvid $xvidcore_release because its official release index is unavailable."
+            warn "Falling back to Xvid '$xvidcore_release' because its official release index is unavailable."
         fi
         if build "xvidcore" "$xvidcore_release"; then
             download "https://downloads.xvid.com/downloads/xvidcore-$xvidcore_release.tar.bz2"
-            cd "build/generic" || fail "Failed to cd into build/generic. Line: $LINENO"
+            cd "build/generic" || fail "Failed to cd into 'build/generic'. Line: $LINENO"
             execute sh bootstrap.sh
             execute sh configure --prefix="$workspace"
             # Upstream's all/install targets unconditionally build and install
@@ -413,7 +413,7 @@ EOF
     # Build gpac
     git_caller "https://github.com/gpac/gpac.git" "gpac-git"
     if build "$repo_name" "$version"; then
-        cd "$packages/gpac-git" || fail "Failed to cd into gpac-git directory"
+        cd "$packages/gpac-git" || fail "Failed to cd into the 'gpac-git' directory."
         local -a gpac_sdl_cfg=()
         if package_enabled "sdl2" && [[ -x "$workspace/bin/sdl2-config" ]]; then
             gpac_sdl_cfg=(--sdl-cfg="$workspace/bin/sdl2-config")
@@ -464,9 +464,9 @@ EOF
         [[ -n "${ccache_dir:-}" ]] && path_prepend "$ccache_dir"
 
         # Set Python flags for Meson dependency detection
-        PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "python3-config --cflags failed. Line: $LINENO"
+        PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "'python3-config --cflags' failed. Line: $LINENO"
         export PYTHON3_CFLAGS
-        PYTHON3_LIBS="$(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)" || fail "python3-config --ldflags failed. Line: $LINENO"
+        PYTHON3_LIBS="$(python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)" || fail "'python3-config --ldflags' failed. Line: $LINENO"
         export PYTHON3_LIBS
 
         local vapoursynth_meson_options=()
@@ -486,7 +486,7 @@ EOF
     else
         if package_enabled "vapoursynth"; then
             normalize_vapoursynth_sdk_for_ffmpeg ||
-                fail "VapourSynth is enabled but its FFmpeg SDK files are missing. Remove $packages/vapoursynth.done to rebuild it. Line: ${LINENO}"
+                fail "VapourSynth is enabled but its FFmpeg SDK files are missing. Run 'rm -f -- $packages/vapoursynth.done' to rebuild it. Line: ${LINENO}"
         fi
 
         # Explicitly set the PYTHON environment variable to the virtual environment's Python
@@ -500,7 +500,7 @@ EOF
     # Build libgav1
     git_caller "https://chromium.googlesource.com/codecs/libgav1" "libgav1-git"
     if build "$repo_name" "$version"; then
-        cd "$packages/libgav1-git" || fail "Failed to cd into libgav1-git. Line: ${LINENO}"
+        cd "$packages/libgav1-git" || fail "Failed to cd into 'libgav1-git'. Line: ${LINENO}"
         cmake_ninja_install "build" \
             -DBUILD_SHARED_LIBS=OFF \
             -DLIBGAV1_ENABLE_EXAMPLES=OFF \

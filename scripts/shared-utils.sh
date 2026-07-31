@@ -150,7 +150,7 @@ require_vars() {
 }
 
 require_commands() {
-    local command_name
+    local command_name missing_display
     local -a missing_commands=()
 
     for command_name in "$@"; do
@@ -158,7 +158,8 @@ require_commands() {
     done
 
     if ((${#missing_commands[@]} > 0)); then
-        fail "Required command(s) not found: ${missing_commands[*]}"
+        printf -v missing_display "'%s', " "${missing_commands[@]}"
+        fail "Required command(s) not found: ${missing_display%, }."
     fi
 }
 
@@ -461,7 +462,7 @@ resolve_pkgconf_library_file() {
         fi
     done
 
-    fail "Unable to locate lib${library_basename} in '$library_dir' for pkgconf module '$module_name'."
+    fail "Unable to locate 'lib${library_basename}' in '$library_dir' for pkgconf module '$module_name'."
 }
 
 first_existing_path() {
@@ -546,9 +547,9 @@ load_package_selection_config() {
     config_file="${1:-}"
     line_no=0
 
-    [[ -n "$config_file" ]] || fail "Missing config file path for --config. Line: ${LINENO}"
-    [[ -f "$config_file" ]] || fail "Config file not found: $config_file. Line: ${LINENO}"
-    [[ -r "$config_file" ]] || fail "Config file is not readable: $config_file. Line: ${LINENO}"
+    [[ -n "$config_file" ]] || fail "Missing config file path for '--config'. Line: ${LINENO}"
+    [[ -f "$config_file" ]] || fail "Config file not found: '$config_file'. Line: ${LINENO}"
+    [[ -r "$config_file" ]] || fail "Config file is not readable: '$config_file'. Line: ${LINENO}"
 
     PACKAGE_SELECTION_CONFIG_FILE="$(canonicalize_path "$config_file")"
     PACKAGE_SELECTION=()
@@ -564,10 +565,10 @@ load_package_selection_config() {
             current_table="${BASH_REMATCH[1]}"
             case "$current_table" in
                 build|packages) ;;
-                *) fail "Unsupported TOML table '$current_table' in $config_file:$line_no" ;;
+                *) fail "Unsupported TOML table '$current_table' at '$config_file:$line_no'." ;;
             esac
             [[ -z "${seen_tables[$current_table]+x}" ]] ||
-                fail "Duplicate TOML table '$current_table' in $config_file:$line_no"
+                fail "Duplicate TOML table '$current_table' at '$config_file:$line_no'."
             seen_tables["$current_table"]=1
             continue
         fi
@@ -579,7 +580,7 @@ load_package_selection_config() {
                 build)
                     entry_id="build.$key"
                     if [[ -n "${seen_entries[$entry_id]+x}" ]]; then
-                        fail "Duplicate config key '$entry_id' in $config_file:$line_no"
+                        fail "Duplicate config key '$entry_id' at '$config_file:$line_no'."
                     fi
                     seen_entries["$entry_id"]=1
                     case "$key" in
@@ -594,18 +595,18 @@ load_package_selection_config() {
                             fi
                             ;;
                         *)
-                            fail "Unsupported [build] key '$key' in $config_file:$line_no"
+                            fail "Unsupported '[build]' key '$key' at '$config_file:$line_no'."
                             ;;
                     esac
                     ;;
                 packages)
                     canonical_key="${PACKAGE_KEY_ALIASES[$key]:-$key}"
                     if [[ -z "${SUPPORTED_PACKAGES[$canonical_key]+x}" ]]; then
-                        fail "Unsupported [packages] key '$key' in $config_file:$line_no"
+                        fail "Unsupported '[packages]' key '$key' at '$config_file:$line_no'."
                     fi
                     entry_id="packages.$canonical_key"
                     if [[ -n "${seen_entries[$entry_id]+x}" ]]; then
-                        fail "Duplicate config key '$entry_id' in $config_file:$line_no"
+                        fail "Duplicate config key '$entry_id' at '$config_file:$line_no'."
                     fi
                     seen_entries["$entry_id"]=1
                     if [[ "$canonical_key" != "$key" ]]; then
@@ -614,29 +615,29 @@ load_package_selection_config() {
                     PACKAGE_SELECTION["$canonical_key"]="$value"
                     ;;
                 *)
-                    fail "Unsupported TOML table '${current_table:-<root>}' in $config_file:$line_no"
+                    fail "Unsupported TOML table '${current_table:-<root>}' at '$config_file:$line_no'."
                     ;;
             esac
             continue
         fi
 
-        fail "Unsupported config syntax in $config_file:$line_no -> $raw_line"
+        fail "Unsupported config syntax at '$config_file:$line_no': '$raw_line'."
     done < "$config_file"
 
-    log "Loaded package selection config: $config_file"
-    log "If you are changing package selections on an existing workspace, run $CLEANUP_COMMAND first to avoid reusing old build artifacts."
+    log "Loaded package selection config: '$config_file'"
+    log "If you are changing package selections on an existing workspace, run '$CLEANUP_COMMAND' first to avoid reusing old build artifacts."
 }
 
 validate_package_selection() {
     local -a issues=()
 
     if package_enabled "vorbis" && ! package_enabled "libogg" && ! pkgconf --exists ogg 2>/dev/null; then
-        issues+=("packages.vorbis=true requires packages.libogg=true or a system libogg development package")
+        issues+=("'packages.vorbis=true' requires 'packages.libogg=true' or a system libogg development package")
     fi
 
     if package_enabled "libtheora"; then
         if ! package_enabled "libogg" && ! pkgconf --exists ogg 2>/dev/null; then
-            issues+=("packages.libtheora=true requires packages.libogg=true or a system libogg development package")
+            issues+=("'packages.libtheora=true' requires 'packages.libogg=true' or a system libogg development package")
         fi
     fi
 
@@ -644,16 +645,16 @@ validate_package_selection() {
         package_enabled "openssl" &&
         ! package_enabled "zlib" &&
         ! pkgconf --exists zlib 2>/dev/null; then
-        issues+=("packages.openssl=true requires packages.zlib=true or a system zlib development package")
+        issues+=("'packages.openssl=true' requires 'packages.zlib=true' or a system zlib development package")
     fi
 
     if { ! is_true "${NONFREE_AND_GPL:-false}" || ! package_enabled "openssl"; } &&
         package_enabled "gnutls"; then
         if ! package_enabled "gmp" && ! pkgconf --exists gmp 2>/dev/null; then
-            issues+=("packages.gnutls=true requires packages.gmp=true or a system GMP development package")
+            issues+=("'packages.gnutls=true' requires 'packages.gmp=true' or a system GMP development package")
         fi
         if ! package_enabled "nettle" && ! pkgconf --exists nettle 2>/dev/null; then
-            issues+=("packages.gnutls=true requires packages.nettle=true or a system nettle development package")
+            issues+=("'packages.gnutls=true' requires 'packages.nettle=true' or a system nettle development package")
         fi
     fi
 
@@ -661,84 +662,84 @@ validate_package_selection() {
         package_enabled "srt" &&
         ! package_enabled "openssl" &&
         ! pkgconf --exists openssl 2>/dev/null; then
-        issues+=("packages.srt=true requires packages.openssl=true or a system OpenSSL development package")
+        issues+=("'packages.srt=true' requires 'packages.openssl=true' or a system OpenSSL development package")
     fi
 
     if package_enabled "fontconfig" && ! package_enabled "libxml2" && ! pkgconf --exists libxml-2.0 2>/dev/null; then
-        issues+=("packages.fontconfig=true requires packages.libxml2=true or a system libxml2 development package")
+        issues+=("'packages.fontconfig=true' requires 'packages.libxml2=true' or a system libxml2 development package")
     fi
     if package_enabled "fontconfig" && ! package_enabled "freetype" && ! pkgconf --exists freetype2 2>/dev/null; then
-        issues+=("packages.fontconfig=true requires packages.freetype=true or a system FreeType development package")
+        issues+=("'packages.fontconfig=true' requires 'packages.freetype=true' or a system FreeType development package")
     fi
 
     if package_enabled "libass"; then
         if ! package_enabled "fontconfig" && ! pkgconf --exists fontconfig 2>/dev/null; then
-            issues+=("packages.libass=true requires packages.fontconfig=true or a system fontconfig development package")
+            issues+=("'packages.libass=true' requires 'packages.fontconfig=true' or a system fontconfig development package")
         fi
         if ! package_enabled "freetype" && ! pkgconf --exists freetype2 2>/dev/null; then
-            issues+=("packages.libass=true requires packages.freetype=true or a system freetype development package")
+            issues+=("'packages.libass=true' requires 'packages.freetype=true' or a system freetype development package")
         fi
         if ! package_enabled "fribidi" && ! pkgconf --exists fribidi 2>/dev/null; then
-            issues+=("packages.libass=true requires packages.fribidi=true or a system fribidi development package")
+            issues+=("'packages.libass=true' requires 'packages.fribidi=true' or a system fribidi development package")
         fi
         if ! package_enabled "harfbuzz" && ! pkgconf --exists harfbuzz 2>/dev/null; then
-            issues+=("packages.libass=true requires packages.harfbuzz=true or a system harfbuzz development package")
+            issues+=("'packages.libass=true' requires 'packages.harfbuzz=true' or a system harfbuzz development package")
         fi
     fi
 
     if package_enabled "sord"; then
         if ! package_enabled "serd" && ! pkgconf --exists serd-0 2>/dev/null; then
-            issues+=("packages.sord=true requires packages.serd=true or a system Serd development package")
+            issues+=("'packages.sord=true' requires 'packages.serd=true' or a system Serd development package")
         fi
         if ! package_enabled "zix" && ! pkgconf --exists zix-0 2>/dev/null; then
-            issues+=("packages.sord=true requires packages.zix=true or a system Zix development package")
+            issues+=("'packages.sord=true' requires 'packages.zix=true' or a system Zix development package")
         fi
     fi
 
     if package_enabled "sratom"; then
         if ! package_enabled "lv2-git" && ! pkgconf --exists lv2 2>/dev/null; then
-            issues+=("packages.sratom=true requires packages.lv2-git=true or system LV2 headers")
+            issues+=("'packages.sratom=true' requires 'packages.lv2-git=true' or system LV2 headers")
         fi
         if ! package_enabled "serd" && ! pkgconf --exists serd-0 2>/dev/null; then
-            issues+=("packages.sratom=true requires packages.serd=true or a system Serd development package")
+            issues+=("'packages.sratom=true' requires 'packages.serd=true' or a system Serd development package")
         fi
     fi
 
     if package_enabled "lilv"; then
         if ! package_enabled "lv2-git" && ! pkgconf --exists lv2 2>/dev/null; then
-            issues+=("packages.lilv=true requires packages.lv2-git=true or system LV2 headers")
+            issues+=("'packages.lilv=true' requires 'packages.lv2-git=true' or system LV2 headers")
         fi
         if ! package_enabled "serd" && ! pkgconf --exists serd-0 2>/dev/null; then
-            issues+=("packages.lilv=true requires packages.serd=true or a system Serd development package")
+            issues+=("'packages.lilv=true' requires 'packages.serd=true' or a system Serd development package")
         fi
         if ! package_enabled "zix" && ! pkgconf --exists zix-0 2>/dev/null; then
-            issues+=("packages.lilv=true requires packages.zix=true or a system Zix development package")
+            issues+=("'packages.lilv=true' requires 'packages.zix=true' or a system Zix development package")
         fi
         if ! package_enabled "sord" && ! pkgconf --exists sord-0 2>/dev/null; then
-            issues+=("packages.lilv=true requires packages.sord=true or a system Sord development package")
+            issues+=("'packages.lilv=true' requires 'packages.sord=true' or a system Sord development package")
         fi
         if ! package_enabled "sratom" && ! pkgconf --exists sratom-0 2>/dev/null; then
-            issues+=("packages.lilv=true requires packages.sratom=true or a system Sratom development package")
+            issues+=("'packages.lilv=true' requires 'packages.sratom=true' or a system Sratom development package")
         fi
     fi
 
     if package_enabled "avif" && ! package_enabled "av1-git" && ! pkgconf --exists aom 2>/dev/null; then
-        issues+=("packages.avif=true requires packages.av1-git=true or a system libaom development package")
+        issues+=("'packages.avif=true' requires 'packages.av1-git=true' or a system libaom development package")
     fi
 
     if package_enabled "mediainfo-lib" && ! package_enabled "zenlib"; then
-        issues+=("packages.mediainfo-lib=true requires packages.zenlib=true")
+        issues+=("'packages.mediainfo-lib=true' requires 'packages.zenlib=true'")
     fi
 
     if package_enabled "mediainfo-cli" && ! package_enabled "mediainfo-lib"; then
-        issues+=("packages.mediainfo-cli=true requires packages.mediainfo-lib=true")
+        issues+=("'packages.mediainfo-cli=true' requires 'packages.mediainfo-lib=true'")
     fi
 
     if is_true "${NONFREE_AND_GPL:-false}" &&
         package_enabled "x264" &&
         ! command -v yasm >/dev/null 2>&1 &&
         ! command -v nasm >/dev/null 2>&1; then
-        issues+=("packages.x264=true requires yasm or nasm to be available")
+        issues+=("'packages.x264=true' requires 'yasm' or 'nasm' to be available")
     fi
 
     if ((${#issues[@]} > 0)); then
@@ -782,7 +783,7 @@ require_sudo() {
         fail "This script requires 'sudo' (run on a system with sudo configured). Line: ${LINENO}"
     fi
     # Prompt once up front (better UX than failing mid-build).
-    sudo -v || fail "Unable to validate sudo credentials. Line: ${LINENO}"
+    sudo -v || fail "Unable to validate 'sudo' credentials. Line: ${LINENO}"
     # Then keep that credential fresh so the long build never re-prompts.
     sudo_keepalive_start
 }
@@ -799,7 +800,7 @@ fail() {
 }
 
 command_not_found_handle() {
-    fail "Command or function not found: $1"
+    fail "Command or function not found: '$1'."
 }
 
 exit_fn() {
@@ -810,7 +811,7 @@ exit_fn() {
     local tool
 
     [[ -x "$ffmpeg_full_path" ]] ||
-        fail "The build completed, but $ffmpeg_full_path is missing or not executable."
+        fail "The build completed, but '$ffmpeg_full_path' is missing or not executable."
 
     version_line="$("$ffmpeg_full_path" -version 2>/dev/null | sed -n '1p')"
     encoder_count="$("$ffmpeg_full_path" -hide_banner -encoders 2>/dev/null | awk '/^[[:space:]][A-Z.]{6}[[:space:]]/ {count++} END {print count + 0}')"
@@ -901,8 +902,8 @@ execute() {
     fi
 
     if (( exit_code != 0 )); then
-        notify_failure "Command failed: $command_display"
-        fail "Command failed with exit code $exit_code: $command_display"
+        notify_failure "Command failed: '$command_display'."
+        fail "Command failed with exit code $exit_code: '$command_display'."
     fi
 }
 
@@ -1051,7 +1052,12 @@ build() {
     # tripping the empty-version guard below.
     if ! package_enabled "$package_name"; then
         echo
-        echo "$package_name is disabled by config${PACKAGE_SELECTION_CONFIG_FILE:+ ($PACKAGE_SELECTION_CONFIG_FILE)}."
+        if [[ -n "$PACKAGE_SELECTION_CONFIG_FILE" ]]; then
+            printf "Package '%s' is disabled by config '%s'.\n" \
+                "$package_name" "$PACKAGE_SELECTION_CONFIG_FILE"
+        else
+            printf "Package '%s' is disabled by config.\n" "$package_name"
+        fi
         return 1
     fi
 
@@ -1071,14 +1077,14 @@ build() {
     prior_version="$(read_marker_version "$packages/$package_name.done" || true)"
     if [[ -n "$prior_version" ]]; then
         if ! package_artifacts_ready "$package_name"; then
-            warn "$package_name has a build marker but its required workspace artifacts are missing; rebuilding."
+            warn "'$package_name' has a build marker but its required workspace artifacts are missing; rebuilding."
             rm -f -- "$packages/$package_name.done" ||
                 fail "Unable to remove stale marker for '$package_name'. Line: ${LINENO}"
             return 0
         fi
         if [[ "$prior_version" == "$package_version" ]]; then
             printf 'Already built: %s %s\n' "$package_name" "$package_version"
-            printf 'Rebuild: %s\n' \
+            printf "Rebuild: run '%s'.\n" \
                 "$(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         elif is_true "${LATEST:-false}"; then
@@ -1088,7 +1094,7 @@ build() {
         else
             printf 'Outdated: %s %s -> %s; keeping the existing build.\n' \
                 "$package_name" "$prior_version" "$package_version"
-            printf 'Rebuild: pass --latest or run %s\n' \
+            printf "Rebuild: add '--latest' to your 'build-ffmpeg.sh' command or run '%s'.\n" \
                 "$(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         fi
@@ -1171,7 +1177,7 @@ fetch_version_if_enabled() {
                         ;;
                 esac
             else
-                warn "$package_name has a build marker but its required artifacts are missing; refreshing its version and source."
+                warn "'$package_name' has a build marker but its required artifacts are missing; refreshing its version and source."
             fi
             rm -f -- "$packages/$package_name.done" ||
                 fail "Unable to remove stale marker for '$package_name'. Line: ${LINENO}"
@@ -1247,7 +1253,7 @@ pkgconfig_add_private_lib() {
         fi
     done
     if [[ -z "$pc_file" ]]; then
-        warn "pkgconfig_add_private_lib: $pc_name.pc not found in workspace; skipping"
+        warn "pkgconfig_add_private_lib: '$pc_name.pc' not found in workspace; skipping"
         return 0
     fi
     private_line="$(sed -n 's/^Libs\.private:[[:space:]]*//p' "$pc_file" | sed -n '1p')"
@@ -1400,7 +1406,7 @@ download_archive_to_cache() {
                 fail "Unable to open the package cache for locking. Line: ${LINENO}"
             if ! flock -w "$download_lock_timeout" "$lock_fd"; then
                 exec {lock_fd}>&-
-                warn "Timed out waiting for the package-cache download lock: $download_file"
+                warn "Timed out waiting for the package-cache download lock: '$download_file'."
                 return 1
             fi
         else
@@ -1412,24 +1418,24 @@ download_archive_to_cache() {
     if validate_tar_archive "$target_file"; then
         if archive_checksum_matches "$target_file" "$checksum_file"; then
             [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
-            log "$download_file already exists and matches its SHA-256 cache record."
+            log "'$download_file' already exists and matches its SHA-256 cache record."
             return 0
         fi
         if [[ -e "$checksum_file" || -L "$checksum_file" ]]; then
-            warn "Cached archive checksum mismatch; downloading a clean copy: $download_file"
+            warn "Cached archive checksum mismatch; downloading a clean copy: '$download_file'."
         else
-            warn "Cached archive has no trusted local checksum record; downloading a clean copy: $download_file"
+            warn "Cached archive has no trusted local checksum record; downloading a clean copy: '$download_file'."
         fi
     fi
     rm -f -- "$target_file" "$checksum_file" || {
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
-        warn "Unable to remove invalid cached archive state: $target_file"
+        warn "Unable to remove invalid cached archive state: '$target_file'."
         return 1
     }
 
     temp_target_file="$(mktemp --tmpdir="$packages" ".${download_file}.part.XXXXXX")" || {
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
-        warn "Failed to create a temporary download file for $download_file."
+        warn "Failed to create a temporary download file for '$download_file'."
         return 1
     }
 
@@ -1444,12 +1450,12 @@ download_archive_to_cache() {
         --max-filesize "$download_max_bytes"
     )
 
-    log "Downloading \"$download_url\" as \"$download_file\""
+    log "Downloading '$download_url' as '$download_file'."
     if ! curl "${curl_args[@]}" --output "$temp_target_file" "$download_url" \
         2>>"${log_file:-/dev/null}"; then
         rm -f -- "$temp_target_file"
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
-        warn "Failed to download \"$download_file\"."
+        warn "Failed to download '$download_file'."
         return 1
     fi
 
@@ -1458,14 +1464,14 @@ download_archive_to_cache() {
         "$downloaded_size" -gt "$download_max_bytes" ]]; then
         rm -f -- "$temp_target_file"
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
-        warn "Downloaded \"$download_file\" exceeds the configured size limit."
+        warn "Downloaded '$download_file' exceeds the configured size limit."
         return 1
     fi
 
     if ! validate_tar_archive "$temp_target_file"; then
         rm -f -- "$temp_target_file"
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
-        warn "Downloaded \"$download_file\", but it is not a safe, valid single-root tar archive."
+        warn "Downloaded '$download_file', but it is not a safe, valid single-root tar archive."
         return 1
     fi
 
@@ -1583,17 +1589,17 @@ download_try() {
     if ! extract_archive_transactionally "$target_file" "$target_directory"; then
         rm -f -- "$target_file" "$target_file.sha256" ||
             fail "Unable to remove invalid cached archive '$target_file'. Line: ${LINENO}"
-        warn "Failed to extract \"$download_file\" safely; the cached archive was removed."
+        warn "Failed to extract '$download_file' safely; the cached archive was removed."
         return 1
     fi
 
-    log "File extracted: $download_file"
+    log "File extracted: '$download_file'."
     cd "$target_directory" || return 1
 }
 
 download() {
     if ! download_try "$@"; then
-        fail "Failed to download and extract \"$1\". Line: ${LINENO}"
+        fail "Failed to download and extract '$1'. Line: ${LINENO}"
     fi
 }
 
@@ -1613,12 +1619,12 @@ download_with_fallback() {
     archive_file="${archive_file%%\?*}"
 
     # Try primary mirror first. If it fails, retry using the fallback mirror.
-    log "Attempting download from primary mirror: $primary_url"
+    log "Attempting download from primary mirror: '$primary_url'."
     if download_try "$primary_url" "$archive_file"; then
         return 0
     fi
 
-    warn "Primary mirror failed, trying fallback mirror: $fallback_url"
+    warn "Primary mirror failed, trying fallback mirror: '$fallback_url'."
     if download_try "$fallback_url" "$archive_file"; then
         return 0
     fi
@@ -1644,7 +1650,7 @@ git_caller() {
         fail "git_caller() received an invalid repository name: '$repo_name'. Line: ${LINENO}"
     case "$clone_mode" in
         shallow|recurse|full) ;;
-        *) fail "Unsupported git clone mode '$clone_mode' for $repo_name. Line: ${LINENO}" ;;
+        *) fail "Unsupported git clone mode '$clone_mode' for '$repo_name'. Line: ${LINENO}" ;;
     esac
 
     require_vars packages
@@ -1712,7 +1718,7 @@ git_clone() {
             awk 'NR == 1 {print $1}'
     )"
     [[ "$remote_commit" =~ ^[0-9a-fA-F]{40,64}$ ]] ||
-        fail "Failed to resolve the HEAD commit for '$repo_url'. Line: ${LINENO}"
+        fail "Failed to resolve the 'HEAD' commit for '$repo_url'. Line: ${LINENO}"
 
     target_directory="$packages/$repo_name"
     prior_version="$(read_marker_version "$packages/$repo_name.done" || true)"
@@ -1723,11 +1729,11 @@ git_clone() {
             printf '%s\n' "$remote_commit"
             return 0
         fi
-        warn "$repo_name is current remotely, but its source checkout or required artifacts are incomplete; cloning it again."
+        warn "'$repo_name' is current remotely, but its source checkout or required artifacts are incomplete; cloning it again."
     fi
 
     clone_parent="$(mktemp -d --tmpdir="$packages" ".clone-${repo_name}.XXXXXX")" ||
-        fail "Failed to create a temporary clone directory for $repo_name. Line: ${LINENO}"
+        fail "Failed to create a temporary clone directory for '$repo_name'. Line: ${LINENO}"
     clone_directory="$clone_parent/repository"
     diagnostic_sink="${log_file:-/dev/stderr}"
 
@@ -1749,14 +1755,14 @@ git_clone() {
 
     if ! timeout --foreground "$clone_timeout" "${clone_args[@]}" 2>>"$diagnostic_sink"; then
         safe_remove_tree "$clone_parent" "$packages"
-        warn "Failed to clone \"$repo_url\"; retrying once."
+        warn "Failed to clone '$repo_url'; retrying once."
         clone_parent="$(mktemp -d --tmpdir="$packages" ".clone-${repo_name}.XXXXXX")" ||
-            fail "Failed to create a retry directory for $repo_name. Line: ${LINENO}"
+            fail "Failed to create a retry directory for '$repo_name'. Line: ${LINENO}"
         clone_directory="$clone_parent/repository"
         clone_args[${#clone_args[@]} - 1]="$clone_directory"
         if ! timeout --foreground "$clone_timeout" "${clone_args[@]}" 2>>"$diagnostic_sink"; then
             safe_remove_tree "$clone_parent" "$packages"
-            fail "Failed to clone \"$repo_url\" after two attempts. Line: ${LINENO}"
+            fail "Failed to clone '$repo_url' after two attempts. Line: ${LINENO}"
         fi
     fi
 
@@ -1770,13 +1776,13 @@ git_clone() {
     # was actually built so the marker is truthful and the next --latest run can
     # compare it with the then-current remote HEAD.
     if [[ "$actual_commit" != "$remote_commit" ]]; then
-        warn "$repo_name advanced during clone; recording checked-out commit ${actual_commit:0:12}."
+        warn "'$repo_name' advanced during clone; recording checked-out commit '${actual_commit:0:12}'."
     fi
 
     safe_remove_tree "$target_directory" "$packages"
     if ! mv -- "$clone_directory" "$target_directory"; then
         safe_remove_tree "$clone_parent" "$packages"
-        fail "Failed to publish the completed clone for $repo_name. Line: ${LINENO}"
+        fail "Failed to publish the completed clone for '$repo_name'. Line: ${LINENO}"
     fi
     safe_remove_tree "$clone_parent" "$packages"
 
@@ -1799,7 +1805,7 @@ gnu_repo() {
 
     # Validate URL format
     if [[ ! "$repo" =~ ^https://[a-zA-Z0-9._/-]+\.[a-zA-Z0-9._/-]*$ ]]; then
-        fail "Invalid repository URL format: $repo. Line: ${LINENO}"
+        fail "Invalid repository URL format: '$repo'. Line: ${LINENO}"
     fi
 
     # Prefer a mirror (ibiblio), fall back to another mirror (team-cymru).
@@ -1855,7 +1861,7 @@ gnu_repo() {
         fi
     done
 
-    fail "Failed to detect latest version from $repo (tried: ${candidates[*]}). Line: ${LINENO}"
+    fail "Failed to detect latest version from '$repo' (tried: '${candidates[*]}'). Line: ${LINENO}"
 }
 
 github_repo() {
@@ -1872,12 +1878,12 @@ github_repo() {
 
     # Validate repository name format (only allow alphanumeric, dots, hyphens, forward slashes)
     if [[ ! "$repo" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
-        fail "Invalid repository name format: $repo. Line: ${LINENO}"
+        fail "Invalid repository name format: '$repo'. Line: ${LINENO}"
     fi
 
     # Validate URL parameter (only allow alphanumeric, hyphens, forward slashes)
     if [[ ! "$url" =~ ^[a-zA-Z0-9/-]+$ ]]; then
-        fail "Invalid URL parameter: $url. Line: ${LINENO}"
+        fail "Invalid URL parameter: '$url'. Line: ${LINENO}"
     fi
 
     index=1
@@ -1887,7 +1893,7 @@ github_repo() {
 
     case "$url" in
         tags|releases) ;;
-        *) fail "Unsupported GitHub ref source \"$url\". Line: ${LINENO}" ;;
+        *) fail "Unsupported GitHub ref source '$url'. Line: ${LINENO}" ;;
     esac
 
     tag_names="$(git_remote_tag_names "https://github.com/$repo.git")" ||
@@ -1896,7 +1902,7 @@ github_repo() {
                         run_github_version_helper "$repo" "$url" "" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" "$tag_names" ||
                         true)"
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
-        fail "Failed to detect a usable version for GitHub repo \"$repo\" (url=$url). Line: ${LINENO}"
+        fail "Failed to detect a usable version for GitHub repo '$repo' ('url=$url'). Line: ${LINENO}"
     fi
 
     repo_version="$selected_version"
@@ -2137,7 +2143,7 @@ github_version() {
     case "$url_type" in
         tags|releases) ;;
         *)
-            warn "github_version: Unsupported ref source \"$url_type\" for $repo"
+            warn "github_version: unsupported ref source '$url_type' for '$repo'."
             return 1
             ;;
     esac
@@ -2145,7 +2151,7 @@ github_version() {
     version="$(run_github_version_helper "$repo" "$url_type" "$prefix" "$exclude_pattern" "$version_regex" "$index" || true)"
 
     if [[ -z "$version" ]]; then
-        warn "github_version: No version found for $repo (prefix='$prefix')"
+        warn "github_version: no version found for '$repo' ('prefix=$prefix')."
         return 1
     fi
 
@@ -2181,7 +2187,7 @@ gitlab_version() {
 
     [[ "$base_url" == https://* && "$project" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
     tag_names="$(git_remote_tag_names "$base_url/$project.git")" || {
-        warn "gitlab_version: Failed to fetch tags for $project from $base_url"
+        warn "gitlab_version: failed to fetch tags for '$project' from '$base_url'."
         return 1
     }
 
@@ -2191,7 +2197,7 @@ gitlab_version() {
     )"
 
     if [[ -z "$version" ]]; then
-        warn "gitlab_version: No version found for $project (prefix='$prefix', sep='$separator')"
+        warn "gitlab_version: no version found for '$project' ('prefix=$prefix', 'sep=$separator')."
         return 1
     fi
 
@@ -2224,7 +2230,7 @@ x264_version() {
 
     repo_version=""
     [[ "$git_timeout" =~ ^[1-9][0-9]*$ ]] ||
-        fail "GIT_OPERATION_TIMEOUT must be a positive integer. Line: ${LINENO}"
+        fail "'GIT_OPERATION_TIMEOUT' must be a positive integer. Line: ${LINENO}"
     require_commands git timeout
     full_commit="$(
         timeout --foreground "$git_timeout" env GIT_TERMINAL_PROMPT=0 \
@@ -2438,7 +2444,7 @@ sdl2_repo_version() {
 
     release_page=$(curl_https -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
                         "https://www.libsdl.org/release/") || {
-        warn "sdl2_repo_version: Failed to fetch SDL release archive"
+        warn "sdl2_repo_version: failed to fetch the SDL release archive."
         return 1
     }
 
@@ -2451,7 +2457,7 @@ sdl2_repo_version() {
     )
 
     if [[ -z "$version" ]]; then
-        warn "sdl2_repo_version: No SDL2 version found in SDL release archive"
+        warn "sdl2_repo_version: no SDL2 version found in the SDL release archive."
         return 1
     fi
 
@@ -2536,7 +2542,7 @@ giflib_repo_version() {
 
     rss_feed=$(curl_https -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
                     "https://sourceforge.net/projects/giflib/rss?path=/") || {
-        warn "giflib_repo_version: Failed to fetch SourceForge RSS feed"
+        warn "giflib_repo_version: failed to fetch the SourceForge RSS feed."
         return 1
     }
 
@@ -2547,7 +2553,7 @@ giflib_repo_version() {
     )
 
     if [[ -z "$version" ]]; then
-        warn "giflib_repo_version: No version found in SourceForge RSS feed"
+        warn "giflib_repo_version: no version found in the SourceForge RSS feed."
         return 1
     fi
 
@@ -2560,7 +2566,7 @@ giflib_download_url() {
 
     [[ -n "$version" ]] || fail "giflib_download_url() called without a version. Line: ${LINENO}"
     [[ "$version" =~ ^([0-9]+)\.[0-9]+(\.[0-9]+)?$ ]] ||
-        fail "giflib_download_url() received an invalid version: $version. Line: ${LINENO}"
+        fail "giflib_download_url() received an invalid version: '$version'. Line: ${LINENO}"
 
     major_version="${BASH_REMATCH[1]}"
     printf 'https://sourceforge.net/projects/giflib/files/giflib-%s.x/giflib-%s.tar.gz/download\n' "$major_version" "$version"
@@ -2614,8 +2620,8 @@ install_rustup() {
     require_commands cargo rustc rustup
     rustc_report="$(rustc --version 2>/dev/null || true)"
     [[ "$rustc_report" == "rustc $RUST_TOOLCHAIN_VERSION "* ]] ||
-        fail "Expected isolated Rust $RUST_TOOLCHAIN_VERSION, got '${rustc_report:-unavailable}'. Line: ${LINENO}"
-    log "Using isolated $rustc_report."
+        fail "Expected isolated Rust '$RUST_TOOLCHAIN_VERSION', got '${rustc_report:-unavailable}'. Line: ${LINENO}"
+    log "Using isolated '$rustc_report'."
 }
 
 check_and_install_cargo_c() {
@@ -2627,18 +2633,18 @@ check_and_install_cargo_c() {
     cargo_c_report="$(cargo cinstall --version 2>/dev/null || true)"
     installed_version="$(printf '%s\n' "$cargo_c_report" | awk 'NR == 1 {print $2}')"
     if [[ "$installed_version" == "$CARGO_C_VERSION" ]]; then
-        log "Using cargo-c $CARGO_C_VERSION."
+        log "Using cargo-c '$CARGO_C_VERSION'."
         return 0
     fi
 
-    log "Installing cargo-c $CARGO_C_VERSION into the isolated workspace..."
+    log "Installing cargo-c '$CARGO_C_VERSION' into the isolated workspace..."
     execute cargo install --force --locked --root "$cargo_c_root" \
         --version "$CARGO_C_VERSION" cargo-c
     path_prepend "$cargo_c_root/bin"
     cargo_c_report="$(cargo cinstall --version 2>/dev/null || true)"
     installed_version="$(printf '%s\n' "$cargo_c_report" | awk 'NR == 1 {print $2}')"
     [[ "$installed_version" == "$CARGO_C_VERSION" ]] ||
-        fail "cargo-c installation did not produce the requested version $CARGO_C_VERSION. Line: ${LINENO}"
+        fail "cargo-c installation did not produce the requested version '$CARGO_C_VERSION'. Line: ${LINENO}"
 }
 
 find_git_repo() {
@@ -2691,7 +2697,7 @@ find_git_repo() {
     esac
 
     if [[ -z "${repo_version//[[:space:]]/}" ]]; then
-        fail "Failed to detect a version for \"$repo_name\". Line: ${LINENO}"
+        fail "Failed to detect a version for '$repo_name'. Line: ${LINENO}"
     fi
 }
 
@@ -2701,7 +2707,7 @@ cleanup() {
 
     [[ -n "${cwd:-}" ]] || fail "Build root is not defined; cleanup cannot continue."
     [[ -e "$cwd" ]] || {
-        log "Build root does not exist; nothing to clean: $cwd"
+        log "Build root does not exist; nothing to clean: '$cwd'."
         return 0
     }
 
@@ -2713,9 +2719,9 @@ cleanup() {
     script_dir_resolved="$(canonicalize_path "$repo_root")" ||
         fail "Unable to resolve repository root '$repo_root'."
     [[ "${HOME:-}" == /* ]] ||
-        fail "HOME must name an absolute user home directory before cleanup."
+        fail "'HOME' must name an absolute user home directory before cleanup."
     home_resolved="$(canonicalize_path "${HOME:-}")" ||
-        fail "HOME must name an absolute user home directory before cleanup."
+        fail "'HOME' must name an absolute user home directory before cleanup."
 
     [[ "$cwd_resolved" != "/" && "$cwd_resolved" != "$home_resolved" ]] ||
         fail "Refusing to remove unsafe build root: '$cwd_resolved'"
@@ -2738,7 +2744,7 @@ cleanup() {
     fi
 
     if [[ ! -t 0 ]]; then
-        log "Standard input is not interactive; leaving build files in place at $cwd_resolved."
+        log "Standard input is not interactive; leaving build files in place at '$cwd_resolved'."
         return 0
     fi
 
@@ -2755,7 +2761,7 @@ cleanup() {
                 if ! rm -rf --one-file-system -- "$cwd_resolved"; then
                     fail "Failed to remove build root '$cwd_resolved'."
                 fi
-                log "Removed build root: $cwd_resolved"
+                log "Removed build root: '$cwd_resolved'."
                 return 0
                 ;;
             n|N|no|NO|No)
@@ -2937,7 +2943,7 @@ setup_python_venv_and_install_packages() {
     remove_duplicate_paths
 
     if [[ ! -x "$venv_path/bin/python" ]]; then
-        log "Creating a Python virtual environment at $venv_path..."
+        log "Creating a Python virtual environment at '$venv_path'..."
         execute python3 -m venv "$venv_path"
     fi
     venv_python="$venv_path/bin/python"
@@ -2945,7 +2951,7 @@ setup_python_venv_and_install_packages() {
     mkdir -p -- "$pip_cache_dir" ||
         fail "Unable to create the workspace Python package cache. Line: ${LINENO}"
 
-    log "Installing Python packages: ${packages_to_install[*]}"
+    log "Installing Python packages: '${packages_to_install[*]}'."
     execute env \
         -u PIP_EXTRA_INDEX_URL \
         -u PIP_FIND_LINKS \
@@ -2975,7 +2981,7 @@ ensure_user_ownership() {
                     execute sudo chown "$BUILD_UID:$BUILD_GID" "$path"
                 fi
             else
-                fail "Path '$path' is not writable by $BUILD_USER:$BUILD_GROUP and sudo is unavailable."
+                fail "Path '$path' is not writable by '$BUILD_USER:$BUILD_GROUP' and 'sudo' is unavailable."
             fi
         fi
     done

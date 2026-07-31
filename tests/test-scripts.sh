@@ -96,9 +96,28 @@ assert_equal "6.0.0" "$version_output" "--version is exact and side-effect free"
 assert_not_exists "$temporary_root/version-root" "--version does not create BUILD_ROOT"
 
 unknown_option_root="$temporary_root/unknown-option-root"
-assert_command_fails "unknown CLI options fail" \
-    env BUILD_ROOT="$unknown_option_root" bash "$repo_root/build-ffmpeg.sh" --definitely-unknown
+if unknown_option_output="$(
+    env BUILD_ROOT="$unknown_option_root" \
+        bash "$repo_root/build-ffmpeg.sh" --definitely-unknown 2>&1
+)"; then
+    fail_test "unknown CLI options fail"
+fi
+pass "unknown CLI options fail"
+assert_contains "$unknown_option_output" "Unknown option '--definitely-unknown'." \
+    "unknown CLI option is quoted in diagnostics"
 assert_not_exists "$unknown_option_root" "invalid CLI input has no filesystem side effects"
+
+missing_config_root="$temporary_root/missing-config-root"
+if missing_config_output="$(
+    env BUILD_ROOT="$missing_config_root" \
+        bash "$repo_root/build-ffmpeg.sh" --build --config 2>&1
+)"; then
+    fail_test "missing config values fail"
+fi
+pass "missing config values fail"
+assert_contains "$missing_config_output" "Missing value for '--config'." \
+    "CLI option is quoted in missing-value diagnostics"
+assert_not_exists "$missing_config_root" "missing config values have no filesystem side effects"
 
 unmarked_root="$temporary_root/unmarked-root"
 mkdir -p "$unmarked_root"
@@ -125,6 +144,7 @@ NONFREE_AND_GPL=false
 # shellcheck disable=SC2034
 CONFIGURE_OPTIONS=()
 mkdir -p "$packages" "$workspace"
+: >"$log_file"
 
 assert_equal "trimmed value" "$(trim_whitespace '  trimmed value  ')" "trim_whitespace"
 is_true true || fail_test "is_true accepts true"
@@ -166,14 +186,29 @@ printf '%s\n' \
 load_package_selection_config "$selection_file" >"$selection_output_file"
 selection_output="$(<"$selection_output_file")"
 assert_contains "$selection_output" \
-    "run build-ffmpeg.sh --cleanup first" \
-    "config guidance names the cleanup command"
+    "Loaded package selection config: '$selection_file'" \
+    "loaded config paths are quoted"
+assert_contains "$selection_output" \
+    "run 'build-ffmpeg.sh --cleanup' first" \
+    "config guidance quotes the cleanup command"
 assert_not_contains "$selection_output" "run --cleanup" \
     "config guidance does not present an option as a command"
 assert_equal "true" "$LATEST" "config loads build.latest"
 assert_equal "false" "${PACKAGE_SELECTION[vulkan-headers-git]}" "legacy config key maps canonically"
 assert_command_fails "an explicit config disables omitted package keys" \
     package_enabled libopus
+
+if ! bash -c '
+    source "$1/scripts/shared-utils.sh"
+    LATEST=false
+    NONFREE_AND_GPL=false
+    CONFIGURE_OPTIONS=()
+    load_package_selection_config "$1/example.toml" >/dev/null
+    ! package_enabled libjxl && ! package_enabled libshaderc
+' _ "$repo_root"; then
+    fail_test "the portable example disables packages unavailable on Ubuntu 22.04"
+fi
+pass "the portable example disables packages unavailable on Ubuntu 22.04"
 
 fake_bin="$temporary_root/fake-bin"
 mkdir -p "$fake_bin"
@@ -194,10 +229,45 @@ if changed_context_output="$(
 fi
 pass "changed build context is rejected"
 assert_contains "$changed_context_output" \
-    "Run build-ffmpeg.sh --cleanup before rebuilding." \
-    "changed-context failure names the cleanup command"
+    "Run 'build-ffmpeg.sh --cleanup' before rebuilding." \
+    "changed-context failure quotes the cleanup command"
 assert_not_contains "$changed_context_output" "Run --cleanup" \
     "changed-context failure does not present an option as a command"
+
+apt_fixture_bin="$temporary_root/apt-fixture-bin"
+apt_fixture_log="$temporary_root/apt-fixture.log"
+mkdir -p "$apt_fixture_bin"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'printf "%s\n" "$*" >>"$APT_FIXTURE_LOG"' >"$apt_fixture_bin/apt"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'exec "$@"' >"$apt_fixture_bin/sudo"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'exit 1' >"$apt_fixture_bin/dpkg-query"
+chmod +x "$apt_fixture_bin/apt" "$apt_fixture_bin/sudo" \
+    "$apt_fixture_bin/dpkg-query"
+bash -c '
+    PATH="$2:$PATH"
+    export PATH APT_FIXTURE_LOG="$3"
+    source "$1/scripts/system-setup.sh"
+    log_file="$4"
+    OS=Ubuntu
+    VER=24.04
+    APT_INDEX_UPDATED=false
+    install_apt_packages shellcheck
+' _ "$repo_root" "$apt_fixture_bin" "$apt_fixture_log" "$log_file" >/dev/null
+apt_fixture_output="$(<"$apt_fixture_log")"
+assert_contains "$apt_fixture_output" \
+    "-o APT::Cmd::Disable-Script-Warning=1 update" \
+    "host setup refreshes package metadata through apt"
+assert_contains "$apt_fixture_output" \
+    "-o APT::Cmd::Disable-Script-Warning=1 show shellcheck" \
+    "host setup checks package availability through apt"
+assert_contains "$apt_fixture_output" \
+    "-o APT::Cmd::Disable-Script-Warning=1 install --assume-yes --no-install-recommends shellcheck" \
+    "host setup installs packages noninteractively through apt"
 
 legacy_context_root="$temporary_root/legacy-context-root"
 mkdir -p "$legacy_context_root/packages" "$legacy_context_root/workspace"
@@ -211,8 +281,8 @@ if legacy_context_output="$(
 fi
 pass "legacy build context is rejected"
 assert_contains "$legacy_context_output" \
-    "Run build-ffmpeg.sh --cleanup before rebuilding." \
-    "legacy-context failure names the cleanup command"
+    "Run 'build-ffmpeg.sh --cleanup' before rebuilding." \
+    "legacy-context failure quotes the cleanup command"
 assert_not_contains "$legacy_context_output" "Run --cleanup" \
     "legacy-context failure does not present an option as a command"
 
@@ -376,10 +446,23 @@ assert_contains "$build_output" "Building jemalloc (version 1.2.3)" \
 assert_contains "$build_output" "Already built: jemalloc 1.2.3" \
     "matching build marker reports the package status clearly"
 assert_contains "$build_output" \
-    "Rebuild: rm -f -- $packages/jemalloc.done" \
-    "matching build marker prints an actionable rebuild command"
+    "Rebuild: run 'rm -f -- $packages/jemalloc.done'." \
+    "matching build marker quotes its actionable rebuild command"
 assert_not_contains "$build_output" "lockfile" \
     "build markers are not mislabeled as lockfiles"
+
+printf '1.2.2\n' >"$packages/jemalloc.done"
+LATEST=false
+if outdated_build_output="$(build jemalloc 1.2.3)"; then
+    fail_test "outdated build markers preserve pinned versions by default"
+fi
+pass "outdated build markers preserve pinned versions by default"
+assert_contains "$outdated_build_output" \
+    "add '--latest' to your 'build-ffmpeg.sh' command" \
+    "outdated-package guidance quotes the option and script name"
+assert_contains "$outdated_build_output" \
+    "or run 'rm -f -- $packages/jemalloc.done'." \
+    "outdated-package guidance quotes the alternate command"
 
 # shellcheck source=scripts/ffmpeg-build.sh
 source "$repo_root/scripts/ffmpeg-build.sh"

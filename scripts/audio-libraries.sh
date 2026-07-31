@@ -122,7 +122,7 @@ install_audio_libraries() {
         opencore_version="$repo_version"
     else
         opencore_version="0.1.6"
-        warn "Falling back to opencore-amr $opencore_version because its official release index is unavailable."
+        warn "Falling back to opencore-amr '$opencore_version' because its official release index is unavailable."
     fi
     if build "opencore-amr" "$opencore_version"; then
         download \

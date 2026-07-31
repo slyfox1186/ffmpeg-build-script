@@ -22,15 +22,15 @@ latest_stable_version() {
         return 1
     }
     [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || {
-        printf 'GIT_OPERATION_TIMEOUT must be a positive integer.\n' >&2
+        printf "'GIT_OPERATION_TIMEOUT' must be a positive integer.\n" >&2
         return 1
     }
     command -v git >/dev/null 2>&1 || {
-        printf 'git is required.\n' >&2
+        printf "'git' is required.\n" >&2
         return 1
     }
     command -v timeout >/dev/null 2>&1 || {
-        printf 'timeout is required.\n' >&2
+        printf "'timeout' is required.\n" >&2
         return 1
     }
 
@@ -66,7 +66,7 @@ main() {
         return 2
     }
     latest_stable_version "$@" || {
-        printf 'No stable numeric release tag found for %s.\n' "$1" >&2
+        printf "No stable numeric release tag found for '%s'.\n" "$1" >&2
         return 1
     }
 }

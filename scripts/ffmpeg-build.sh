@@ -60,7 +60,7 @@ validate_required_ffmpeg_features() {
     for config_symbol in "${!REQUIRED_FFMPEG_CONFIG_SYMBOLS[@]}"; do
         grep -q "^${config_symbol}=yes$" "$config_file" && continue
         option="${REQUIRED_FFMPEG_CONFIG_SYMBOLS[$config_symbol]}"
-        missing_features+=("$option ($config_symbol)")
+        missing_features+=("'$option' ('$config_symbol')")
     done
     if ((${#missing_features[@]} > 0)); then
         fail "FFmpeg configure did not retain requested feature(s): ${missing_features[*]}"
@@ -90,14 +90,14 @@ validate_ffmpeg_installation() {
     [[ "$install_prefix" == /* ]] ||
         fail "validate_ffmpeg_installation() requires an absolute install prefix."
     [[ "$display_results" == "true" || "$display_results" == "false" ]] ||
-        fail "validate_ffmpeg_installation() requires a true/false display setting."
+        fail "validate_ffmpeg_installation() requires a 'true'/'false' display setting."
     if is_true "$require_ffplay"; then
         required_binaries+=(ffplay)
     fi
     for binary in "${required_binaries[@]}"; do
         binary_path="$install_prefix/bin/$binary"
         [[ -x "$binary_path" ]] ||
-            fail "FFmpeg installation is incomplete: $binary_path is missing."
+            fail "FFmpeg installation is incomplete: '$binary_path' is missing."
     done
 
     for binary in "${required_binaries[@]}"; do
@@ -114,22 +114,22 @@ validate_ffmpeg_installation() {
                 printf '$ %s\n' "$command_display"
                 [[ -z "$version_output" ]] || printf '%s\n' "$version_output"
             } >>"$log_file" ||
-                fail "Unable to record the $binary version check in '$log_file'."
+                fail "Unable to record the '$binary' version check in '$log_file'."
         fi
         if ((exit_code != 0)); then
             [[ -z "$version_output" ]] || printf '\n%s\n' "$version_output" >&2
-            fail "$binary version check failed with exit code $exit_code: $command_display"
+            fail "'$binary' version check failed with exit code $exit_code: '$command_display'."
         fi
 
         version_line="${version_output%%$'\n'*}"
         [[ -n "$version_line" ]] ||
-            fail "$binary version check returned no output: $command_display"
+            fail "'$binary' version check returned no output: '$command_display'."
         reported_version="$(
             printf '%s\n' "$version_line" |
                 sed -nE "s/^${binary} version n?([0-9]+(\.[0-9]+){1,3}).*/\1/p"
         )"
         [[ "$reported_version" == "$expected_version" ]] ||
-            fail "$binary reported version '${reported_version:-unknown}', expected '$expected_version'."
+            fail "'$binary' reported version '${reported_version:-unknown}', expected '$expected_version'."
         version_lines+=("$version_line")
     done
 
@@ -179,8 +179,8 @@ build_ffmpeg() {
 
     installed_version="$(ffmpeg_installed_version /usr/local/bin/ffmpeg || true)"
     [[ -z "$installed_version" ]] ||
-        log "Installed FFmpeg version: $installed_version"
-    log "Selected FFmpeg release: $ffmpeg_version"
+        log "Installed FFmpeg version: '$installed_version'."
+    log "Selected FFmpeg release: '$ffmpeg_version'."
 
     marker_file="$packages/ffmpeg.done"
     if package_enabled "sdl2" && library_exists sdl2; then
@@ -234,7 +234,7 @@ build_ffmpeg() {
             base_config+=(--enable-ffplay)
         else
             base_config+=(--disable-ffplay --disable-sdl2)
-            warn "SDL2 is unavailable or disabled; ffplay will not be built."
+            warn "SDL2 is unavailable or disabled; 'ffplay' will not be built."
         fi
         if package_enabled "libiconv" && header_exists iconv.h; then
             append_required_configure_options detected_config --enable-iconv
@@ -379,15 +379,15 @@ build_ffmpeg() {
                         -e "$CUDA_ROOT/lib64/libnppc_static.a" ]]; then
                     append_required_configure_options detected_config --enable-libnpp
                 elif [[ "$cuda_major" =~ ^[0-9]+$ && "$cuda_major" -ge 13 ]]; then
-                    log "Skipping deprecated libnpp integration because FFmpeg does not support it with CUDA 13+."
+                    log "Skipping deprecated 'libnpp' integration because FFmpeg does not support it with CUDA 13+."
                 fi
             else
-                log "CUDA toolkit compilation is unavailable; retaining NVENC/NVDEC support from nv-codec-headers."
+                log "CUDA toolkit compilation is unavailable; retaining NVENC/NVDEC support from 'nv-codec-headers'."
             fi
         elif [[ "${gpu_flag:-1}" -eq 0 ]] &&
             is_true "$NONFREE_AND_GPL" &&
             package_enabled "nv-codec-headers"; then
-            warn "nv-codec-headers are unavailable; omitting NVIDIA codec interfaces."
+            warn "'nv-codec-headers' are unavailable; omitting NVIDIA codec interfaces."
         fi
 
         base_config+=(
@@ -405,14 +405,14 @@ build_ffmpeg() {
             "$source_directory/configure" "${final_config[@]}"
 
         [[ -f ffbuild/config.mak ]] ||
-            fail "FFmpeg configure did not produce ffbuild/config.mak."
+            fail "FFmpeg configure did not produce 'ffbuild/config.mak'."
         grep -q '^CONFIG_FFMPEG=yes$' ffbuild/config.mak ||
-            fail "FFmpeg configure disabled the ffmpeg program."
+            fail "FFmpeg configure disabled the 'ffmpeg' program."
         grep -q '^CONFIG_FFPROBE=yes$' ffbuild/config.mak ||
-            fail "FFmpeg configure disabled ffprobe."
+            fail "FFmpeg configure disabled 'ffprobe'."
         if is_true "$ffplay_enabled"; then
             grep -q '^CONFIG_FFPLAY=yes$' ffbuild/config.mak ||
-                fail "FFmpeg configure disabled ffplay despite SDL2 being selected."
+                fail "FFmpeg configure disabled 'ffplay' despite SDL2 being selected."
         fi
         validate_required_ffmpeg_features ffbuild/config.mak
 

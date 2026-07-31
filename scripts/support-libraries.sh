@@ -168,7 +168,7 @@ install_miscellaneous_libraries() {
     # Build libwebp
     git_caller "https://chromium.googlesource.com/webm/libwebp" "libwebp-git"
     if build "$repo_name" "$version"; then
-        cd "$packages/libwebp-git" || fail "Failed to cd into libwebp-git. Line: ${LINENO}"
+        cd "$packages/libwebp-git" || fail "Failed to cd into 'libwebp-git'. Line: ${LINENO}"
         cmake_ninja_install "build" \
             -DBUILD_SHARED_LIBS=OFF \
             -DWEBP_BUILD_{ANIM_UTILS,CWEBP,DWEBP,EXTRAS,GIF2WEBP,IMG2WEBP,VWEBP,WEBPINFO,WEBPMUX}=OFF \
@@ -235,7 +235,7 @@ install_miscellaneous_libraries() {
     # Build OpenCL SDK
     git_caller "https://github.com/KhronosGroup/OpenCL-SDK.git" "opencl-sdk-git" "recurse"
     if build "$repo_name" "$version"; then
-        cd "$packages/opencl-sdk-git" || fail "Failed to cd into opencl-sdk-git. Line: ${LINENO}"
+        cd "$packages/opencl-sdk-git" || fail "Failed to cd into 'opencl-sdk-git'. Line: ${LINENO}"
         cmake_ninja_install "build" -S . \
             -DBUILD_{DOCS,EXAMPLES,SHARED_LIBS,TESTING}=OFF -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
             -DCMAKE_C_FLAGS="$CFLAGS" -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF \
@@ -251,7 +251,7 @@ install_miscellaneous_libraries() {
     git_caller "https://github.com/KhronosGroup/Vulkan-Headers.git" "vulkan-headers-git"
     if build "$repo_name" "$version"; then
         cd "$packages/vulkan-headers-git" ||
-            fail "Failed to cd into vulkan-headers-git. Line: ${LINENO}"
+            fail "Failed to cd into 'vulkan-headers-git'. Line: ${LINENO}"
         cmake_ninja_install "build" \
             -DVULKAN_HEADERS_ENABLE_INSTALL=ON \
             -DVULKAN_HEADERS_ENABLE_MODULE=OFF \
@@ -276,7 +276,7 @@ install_miscellaneous_libraries() {
     if is_true "$NONFREE_AND_GPL"; then
         git_caller "https://github.com/breakfastquay/rubberband.git" "rubberband-git"
         if build "$repo_name" "$version"; then
-            cd "$packages/rubberband-git" || fail "Failed to cd into rubberband-git. Line: ${LINENO}"
+            cd "$packages/rubberband-git" || fail "Failed to cd into 'rubberband-git'. Line: ${LINENO}"
             meson_ninja_install "build" \
                 --buildtype=release \
                 --default-library=static \
@@ -304,7 +304,7 @@ install_miscellaneous_libraries() {
     # Build lv2
     git_caller "https://github.com/lv2/lv2.git" "lv2-git"
     if build "$repo_name" "$version"; then
-        cd "$packages/lv2-git" || fail "Failed to cd into lv2-git. Line: ${LINENO}"
+        cd "$packages/lv2-git" || fail "Failed to cd into 'lv2-git'. Line: ${LINENO}"
 
         # Documentation/tests are the only upstream consumers of the optional
         # Python modules, so a library/header-only build needs no private venv.
