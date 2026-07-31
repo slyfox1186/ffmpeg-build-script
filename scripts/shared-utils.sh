@@ -1443,6 +1443,7 @@ download_archive_to_cache() {
         --fail --silent --show-error --location
         --proto "=https" --proto-redir "=https"
         --tlsv1.2
+        --user-agent "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
         --retry "$download_retry" --retry-delay "$download_retry_delay"
         --retry-max-time "$download_max_time"
         --retry-connrefused --retry-all-errors
