@@ -44,6 +44,7 @@ BUILD_USER="$(id -un)"
 BUILD_GROUP="$(id -gn)"
 readonly BUILD_UID BUILD_GID BUILD_USER BUILD_GROUP
 readonly BUILD_ROOT_MARKER_HEADER="ffmpeg-build-root:v1"
+readonly CLEANUP_COMMAND="build-ffmpeg.sh --cleanup"
 _BUILD_ROOT_LOCK_FD=""
 
 # Debug flag
@@ -623,7 +624,7 @@ load_package_selection_config() {
     done < "$config_file"
 
     log "Loaded package selection config: $config_file"
-    log "If you are changing package selections on an existing workspace, run --cleanup first to avoid reusing old build artifacts."
+    log "If you are changing package selections on an existing workspace, run $CLEANUP_COMMAND first to avoid reusing old build artifacts."
 }
 
 validate_package_selection() {
