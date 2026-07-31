@@ -89,6 +89,34 @@ assert_contains "$help_output" "--config ./custom.toml" \
 printf -v retired_config_name '%s.%s' local toml
 assert_not_contains "$help_output" "$retired_config_name" \
     "--help does not reference the retired local configuration filename"
+help_descriptions=(
+    'Build and install FFmpeg'
+    "Remove this project's build root"
+    'Show this help without changing the filesystem'
+    'Show the script version'
+    'Select the C/C++ compiler (default: gcc)'
+    'Load build/package choices from TOML'
+    'Set parallel build jobs (default: available CPUs)'
+    'Refresh and rebuild outdated dependencies'
+    'Enable GPL/non-free components'
+    'Announce failures if google_speech is installed'
+    'Override the default ./build directory'
+    'Control CUDA toolkit installation (default: ask)'
+    'Select CUDA code-generation targets'
+    'Stream commands while also logging them'
+)
+for help_description in "${help_descriptions[@]}"; do
+    help_description_column="$(
+        awk -v needle="$help_description" \
+            'index($0, needle) { print index($0, needle); exit }' <<<"$help_output"
+    )"
+    [[ "$help_description_column" == "37" ]] || {
+        printf 'misaligned help description: %s (column %s)\n' \
+            "$help_description" "${help_description_column:-missing}" >&2
+        fail_test "--help aligns every table description"
+    }
+done
+pass "--help aligns every table description"
 assert_not_exists "$help_root" "--help has no filesystem side effects"
 
 version_output="$(BUILD_ROOT="$temporary_root/version-root" bash "$repo_root/build-ffmpeg.sh" --version)"
