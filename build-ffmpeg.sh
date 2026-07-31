@@ -53,7 +53,7 @@ usage() {
         "  FFMPEG_BUILD_DEBUG=ON             Stream commands while also logging them" \
         "" \
         "Example:" \
-        "  bash $SCRIPT_NAME --build --compiler clang --jobs 8 --config ./example.toml" \
+        "  bash $SCRIPT_NAME --build --compiler clang --jobs 8 --config ./custom.toml" \
         ""
 }
 

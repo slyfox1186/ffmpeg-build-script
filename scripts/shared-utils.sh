@@ -27,13 +27,11 @@ if [[ -t 1 && "${TERM:-dumb}" != "dumb" && -z "${NO_COLOR:-}" ]]; then
     GREEN=$'\033[0;32m'
     RED=$'\033[0;31m'
     YELLOW=$'\033[0;33m'
-    CYAN=$'\033[0;36m'
     NC=$'\033[0m'
 else
     GREEN=""
     RED=""
     YELLOW=""
-    CYAN=""
     NC=""
 fi
 
@@ -1064,7 +1062,7 @@ build() {
         fail "build() called for \"$package_name\" with an invalid version '$package_version'. Line: ${LINENO}"
 
     echo
-    printf '%sBuilding%s %s%s%s - %sversion %s%s%s\n' \
+    printf '%sBuilding%s %s%s%s %s(version %s%s%s)\n' \
         "$GREEN" "$NC" "$YELLOW" "$package_name" "$NC" \
         "$GREEN" "$YELLOW" "$package_version" "$NC"
     echo "========================================================"
@@ -1078,13 +1076,19 @@ build() {
             return 0
         fi
         if [[ "$prior_version" == "$package_version" ]]; then
-            echo "$package_name version $package_version already built. Remove $packages/$package_name.done lockfile to rebuild it."
+            printf 'Already built: %s %s\n' "$package_name" "$package_version"
+            printf 'Rebuild: %s\n' \
+                "$(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         elif is_true "${LATEST:-false}"; then
-            echo "$package_name is outdated and will be rebuilt with latest version $package_version"
+            printf 'Outdated: %s %s -> %s; rebuilding.\n' \
+                "$package_name" "$prior_version" "$package_version"
             return 0
         else
-            echo "$package_name is outdated, but will not be rebuilt. Pass in --latest to rebuild it or remove $packages/$package_name.done lockfile."
+            printf 'Outdated: %s %s -> %s; keeping the existing build.\n' \
+                "$package_name" "$prior_version" "$package_version"
+            printf 'Rebuild: pass --latest or run %s\n' \
+                "$(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         fi
     fi
@@ -2761,31 +2765,6 @@ cleanup() {
                 ;;
         esac
     done
-}
-
-# Version display functions
-display_ffmpeg_versions() {
-    local file files install_path
-    files=(ffmpeg ffprobe ffplay)
-    install_path="/usr/local/bin"
-
-    echo
-    for file in "${files[@]}"; do
-        if [[ -x "$install_path/$file" ]]; then
-            printf '%s%s%s (%s%s%s):\n' "$GREEN" "$file" "$NC" "$CYAN" "$install_path/$file" "$NC"
-            "$install_path/$file" -version | sed -n '1p'
-            echo
-        elif command -v "$file" >/dev/null 2>&1; then
-            printf '%s%s%s (%s):\n' "$YELLOW" "$file" "$NC" "$(command -v -- "$file")"
-            "$file" -version | sed -n '1p'
-            echo
-        fi
-    done
-}
-
-show_versions() {
-    # Always display the installed versions (no prompt).
-    display_ffmpeg_versions
 }
 
 # Saved compiler flags for restoration

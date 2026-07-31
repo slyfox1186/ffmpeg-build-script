@@ -40,7 +40,7 @@
 *.py[cod]
 
 # Local configuration
-/local.toml
+/custom.toml
 
 # Editors and operating systems
 .DS_Store
