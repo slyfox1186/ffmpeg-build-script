@@ -109,12 +109,20 @@ release version or Git commit used. A normal rerun reuses those versions and
 does not contact every upstream service. `--latest` refreshes upstream versions
 and rebuilds components whose recorded version changed.
 
-Use a separate root when desired:
+Use either an absolute or relative path for a separate build root:
 
 ```bash
+# Absolute path
 BUILD_ROOT=/mnt/fast-disk/ffmpeg-build \
   bash build-ffmpeg.sh --build --config ./custom.toml
+
+# Relative to the directory where this command is invoked
+BUILD_ROOT=./path/to/ffmpeg-build \
+  bash build-ffmpeg.sh --build --config ./custom.toml
 ```
+
+A relative `BUILD_ROOT` is resolved from the invocation directory, not from the
+script's directory.
 
 A custom, non-empty directory must already contain this project's
 `.ffmpeg-build-root` marker. This prevents a typo from turning an unrelated
