@@ -11,8 +11,9 @@
 # development package, depending on the integration. Some source-built
 # dependencies can fall back to compatible system libraries when disabled.
 #
-# The groups below are for readability; they do not control build order. The
-# scripts resolve dependencies and build stages independently of TOML ordering.
+# The groups below are for readability, with package keys alphabetized inside
+# each group. They do not control build order; the scripts resolve dependencies
+# and build stages independently of TOML ordering.
 # GPL/non-free authorization does not turn disabled packages on. Conversely,
 # packages that require that authorization remain inactive until
 # enable_gpl_and_non_free is true or --enable-gpl-and-non-free is passed.
@@ -31,159 +32,159 @@ enable_gpl_and_non_free = false
 [packages]
 
 # Build systems, code generators, assemblers, and packaging tools
-m4 = true
+ant-git = true
 autoconf = true
 automake = true
-libtool = true
-pkgconf = true
 cmake = true
+libtool = true
+m4 = true
 meson = true
-ninja = true
-yasm = true
 nasm = true
-ant-git = true
+ninja = true
+pkgconf = true
+yasm = true
 
 # Compression, parsing, allocation, and other foundational libraries
-libzstd = true
-zlib = true
 brotli = true
+gflags = true
+jemalloc = true
 libiconv = true
 libxml2 = true
+libzstd = true
 pcre2 = true
-jemalloc = true
-gflags = true
+zlib = true
 
 # Cryptography, TLS, name resolution, and network protocols
 # GnuTLS uses GMP and Nettle. OpenSSL is an alternative TLS integration.
-gmp = true
-nettle = true
-gnutls = true
-openssl = false
 c-ares = true
+gmp = true
+gnutls = true
 librist = true         # Reliable Internet Stream Transport
-srt = false            # Secure Reliable Transport
-libssh = true          # SFTP protocol (system development package)
 librtmp = true         # RTMP[E] protocol (system development package)
 libsmbclient = true    # SMB/CIFS; effective only in GPL/non-free mode
+libssh = true          # SFTP protocol (system development package)
+nettle = true
+openssl = false
+srt = false            # Secure Reliable Transport
 
 # Fonts, subtitles, captions, teletext, and text recognition
-freetype = true
 fontconfig = true
-harfbuzz = true
+freetype = true
 fribidi = true
-libass = true
+harfbuzz = true
 libaribb24 = false     # ARIB STD-B24 caption decoding
-libzvbi = true         # Teletext (system development package)
+libass = true
 libtesseract = true    # OCR filter (system development package)
+libzvbi = true         # Teletext (system development package)
 
 # Still-image codecs, color management, and image containers
-giflib = true
-libpng = true
-libtiff = true
-libjpeg-turbo = true
-libwebp-git = true
-libhwy = true          # Highway SIMD dependency used by JPEG XL
-lcms2 = true           # Little CMS color management
-libjxl = true          # JPEG XL (system development package)
-librsvg = true         # SVG rasterization (system development package)
-openjpeg = true        # JPEG 2000
 avif = true            # AVIF image container
+giflib = true
+lcms2 = true           # Little CMS color management
 libheif = true         # HEIF/AVIF image container
+libhwy = true          # Highway SIMD dependency used by JPEG XL
+libjpeg-turbo = true
+libjxl = true          # JPEG XL (system development package)
+libpng = true
+librsvg = true         # SVG rasterization (system development package)
+libtiff = true
+libwebp-git = true
+openjpeg = true        # JPEG 2000
 
 # Audio codecs and audio container formats
-libogg = true
 libfdk-aac = false     # Fraunhofer AAC; requires non-free authorization
-vorbis = true
-libopus = true
-opencore-amr = true
+libgsm = true          # GSM audio (system development package)
 liblame = true         # MP3 encoding
-libspeex = true        # Speex (system development package)
+libogg = true
+libopus = true
 libshine = true        # Fixed-point MP3 encoder (system development package)
+libspeex = true        # Speex (system development package)
 libtwolame = true      # MP2 encoding (system development package)
 libvo-amrwbenc = true  # AMR-WB encoding (system development package)
-libgsm = true          # GSM audio (system development package)
+opencore-amr = true
+vorbis = true
 
 # Audio resampling, analysis, effects, and synthesis
-libsoxr = true
-libsndfile = true
-libmysofa = true       # SOFA-based spatial audio
-rubberband-git = false # Time stretching and pitch shifting
 chromaprint = true     # Audio fingerprinting (system development package)
-libmodplug = true      # Tracker modules (system development package)
-libgme = true          # Game-music emulation (system development package)
 libbs2b = true         # Stereo-to-binaural processing (system development package)
-libopenmpt = true      # Tracker modules (system development package)
 libflite = true        # Text-to-speech (system development package)
+libgme = true          # Game-music emulation (system development package)
+libmodplug = true      # Tracker modules (system development package)
+libmysofa = true       # SOFA-based spatial audio
+libopenmpt = true      # Tracker modules (system development package)
+libsndfile = true
+libsoxr = true
+rubberband-git = false # Time stretching and pitch shifting
 
 # Audio plugin standards and the LV2 dependency stack
+ladspa = true          # LADSPA filters (system development package)
+lilv = true
 lv2-git = true
 serd = true
-zix = true
 sord = true
 sratom = true
-lilv = true
-ladspa = true          # LADSPA filters (system development package)
+zix = true
 
 # Audio devices and sound servers
-libjack = true         # JACK (system development package)
 alsa = true            # ALSA (system development package)
+libjack = true         # JACK (system development package)
 libpulse = true        # PulseAudio (system development package)
 sndio = true           # sndio (system development package)
 
 # Video codecs and codec support libraries
-libtheora = true
 av1-git = true         # Alliance for Open Media AV1 (libaom)
-rav1e = true           # Rust AV1 encoder
 kvazaar = true         # HEVC encoder
+libdav1d = true        # AV1 decoder (system development package)
+libgav1-git = true     # AV1 decoder
+libopenh264 = true     # Cisco H.264 encoder (system development package)
+libsnappy = true       # Required for HAP decoding (system development package)
+libtheora = true
+libvpx = true          # VP8/VP9 (system development package)
+rav1e = true           # Rust AV1 encoder
+svt-av1 = true
 x264 = false           # H.264 encoder; requires GPL authorization
 x265 = false           # HEVC encoder; requires GPL authorization
 xvidcore = false       # MPEG-4 Part 2 encoder
-svt-av1 = true
-libgav1-git = true     # AV1 decoder
-libvpx = true          # VP8/VP9 (system development package)
-libdav1d = true        # AV1 decoder (system development package)
-libopenh264 = true     # Cisco H.264 encoder (system development package)
-libsnappy = true       # Required for HAP decoding (system development package)
 
 # Video processing, quality analysis, and scripting frameworks
-zimg-git = true        # Scaling, colorspace conversion, and dithering
-libvmaf = true         # Video quality metrics
-vid-stab = false       # Video stabilization
-frei0r = true          # Video filters; effective only in GPL/non-free mode
 avisynth = false       # AviSynth script input
+frei0r = true          # Video filters; effective only in GPL/non-free mode
+libvmaf = true         # Video quality metrics
 vapoursynth = true     # VapourSynth script input
+vid-stab = false       # Video stabilization
+zimg-git = true        # Scaling, colorspace conversion, and dithering
 
 # Optical media, containers, packaging, and metadata tools
-libdvdread = true
-udfread = true
-zenlib = true
-mediainfo-lib = true
-mediainfo-cli = true
 gpac-git = true        # MP4/ISOBMFF tools
 libbluray = true       # Blu-ray access (system development package)
 libcdio = true         # Audio CD input; effective only in GPL/non-free mode
+libdvdread = true
+mediainfo-cli = true
+mediainfo-lib = true
+udfread = true
+zenlib = true
 
 # Playback, capture, window systems, and visual output
-sdl2 = true            # Enables ffplay when available
 freeglut = true
 libcaca = true         # Text/ASCII video output (system development package)
 libv4l2 = true         # Video4Linux2 capture (system development package)
-xlib = true            # X11/XCB capture (system development packages)
 opengl = true          # OpenGL output (system development package)
+sdl2 = true            # Enables ffplay when available
+xlib = true            # X11/XCB capture (system development packages)
 
 # GPU APIs, codec SDK headers, and hardware acceleration
 # CUDA toolkit installation is controlled separately with CUDA_INSTALL.
-opencl-sdk-git = true
-vulkan-headers-git = true # Source-built Vulkan headers required by Vulkan support
-vulkan = true             # Vulkan hwaccel and filters (system loader)
-libshaderc = true         # SPIR-V compiler for Vulkan filters
-libplacebo = true         # GPU scaling and tone mapping through Vulkan
-nv-codec-headers = false  # NVIDIA NVENC/NVDEC headers; requires GPL/non-free mode
 amf-headers = false       # AMD AMF headers
-vaapi = true              # VA-API (system development package)
-libvpl = true             # Intel oneVPL/Quick Sync (system development package)
 libdrm = true             # Linux DRM contexts (system development package)
+libplacebo = true         # GPU scaling and tone mapping through Vulkan
+libshaderc = true         # SPIR-V compiler for Vulkan filters
+libvpl = true             # Intel oneVPL/Quick Sync (system development package)
+nv-codec-headers = false  # NVIDIA NVENC/NVDEC headers; requires GPL/non-free mode
+opencl-sdk-git = true
+vaapi = true              # VA-API (system development package)
 vdpau = true              # VDPAU (system development package)
+vulkan = true             # Vulkan hwaccel and filters (system loader)
+vulkan-headers-git = true # Source-built Vulkan headers required by Vulkan support
 
 # Final application
 ffmpeg = true
