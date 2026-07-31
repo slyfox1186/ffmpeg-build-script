@@ -32,159 +32,157 @@ enable_gpl_and_non_free = false
 [packages]
 
 # Build systems, code generators, assemblers, and packaging tools
-ant-git = true
-autoconf = true
-automake = true
-cmake = true
-libtool = true
-m4 = true
-meson = true
-nasm = true
-ninja = true
-pkgconf = true
-yasm = true
+ant-git = true  # Apache Ant Java build tool
+autoconf = true  # Generates portable configure scripts
+automake = true  # Generates portable Makefile templates
+cmake = true  # Cross-platform build-system generator
+libtool = true  # Portable library build and linking helper
+m4 = true  # Macro processor used by Autotools
+meson = true  # High-level build-system generator
+nasm = true  # Netwide x86/x86-64 assembler
+ninja = true  # Fast low-level build executor
+pkgconf = true  # pkg-config-compatible dependency resolver
+yasm = true  # Modular x86/x86-64 assembler
 
 # Compression, parsing, allocation, and other foundational libraries
-brotli = true
-gflags = true
-jemalloc = true
-libiconv = true
-libxml2 = true
-libzstd = true
-pcre2 = true
-zlib = true
+brotli = true  # Brotli compression and decompression
+gflags = true  # C++ command-line flag processing
+jemalloc = true  # General-purpose memory allocator
+libiconv = true  # Character-encoding conversion
+libxml2 = true  # XML parsing and processing
+libzstd = true  # Zstandard compression and decompression
+pcre2 = true  # Perl-compatible regular expressions
+zlib = true  # DEFLATE compression and decompression
 
 # Cryptography, TLS, name resolution, and network protocols
-# GnuTLS uses GMP and Nettle. OpenSSL is an alternative TLS integration.
-c-ares = true
-gmp = true
-gnutls = true
-librist = true         # Reliable Internet Stream Transport
-librtmp = true         # RTMP[E] protocol (system development package)
-libsmbclient = true    # SMB/CIFS; effective only in GPL/non-free mode
-libssh = true          # SFTP protocol (system development package)
-nettle = true
-openssl = false
-srt = false            # Secure Reliable Transport
+c-ares = true  # Asynchronous DNS resolution
+gmp = true  # Arbitrary-precision arithmetic used by Nettle and GnuTLS
+gnutls = true  # TLS and cryptographic protocol support
+librist = true  # Reliable Internet Stream Transport
+librtmp = true  # RTMP and RTMPE streaming protocols
+libsmbclient = true  # SMB/CIFS access; enabled only in GPL/non-free mode
+libssh = true  # SSH and SFTP protocol support
+nettle = true  # Low-level cryptographic primitives used by GnuTLS
+openssl = false  # Alternative TLS and cryptography implementation
+srt = false  # Secure Reliable Transport for low-latency streaming
 
 # Fonts, subtitles, captions, teletext, and text recognition
-fontconfig = true
-freetype = true
-fribidi = true
-harfbuzz = true
-libaribb24 = false     # ARIB STD-B24 caption decoding
-libass = true
-libtesseract = true    # OCR filter (system development package)
-libzvbi = true         # Teletext (system development package)
+fontconfig = true  # Font discovery and configuration
+freetype = true  # Font loading and rasterization
+fribidi = true  # Unicode bidirectional-text processing
+harfbuzz = true  # Complex text shaping
+libaribb24 = false  # ARIB STD-B24 caption decoding
+libass = true  # ASS and SSA subtitle rendering
+libtesseract = true  # Optical character recognition for video filters
+libzvbi = true  # Teletext and vertical-blanking-interval decoding
 
 # Still-image codecs, color management, and image containers
-avif = true            # AVIF image container
-giflib = true
-lcms2 = true           # Little CMS color management
-libheif = true         # HEIF/AVIF image container
-libhwy = true          # Highway SIMD dependency used by JPEG XL
-libjpeg-turbo = true
-libjxl = true          # JPEG XL (system development package)
-libpng = true
-librsvg = true         # SVG rasterization (system development package)
-libtiff = true
-libwebp-git = true
-openjpeg = true        # JPEG 2000
+avif = true  # AV1 Image File Format encoding and decoding
+giflib = true  # GIF image encoding and decoding
+lcms2 = true  # ICC color management with Little CMS
+libheif = true  # HEIF and AVIF image container support
+libhwy = true  # Portable SIMD primitives used by JPEG XL
+libjpeg-turbo = true  # SIMD-accelerated JPEG encoding and decoding
+libjxl = true  # JPEG XL image encoding and decoding
+libpng = true  # PNG image encoding and decoding
+librsvg = true  # SVG rasterization
+libtiff = true  # TIFF image encoding and decoding
+libwebp-git = true  # WebP image encoding and decoding
+openjpeg = true  # JPEG 2000 encoding and decoding
 
 # Audio codecs and audio container formats
-libfdk-aac = false     # Fraunhofer AAC; requires non-free authorization
-libgsm = true          # GSM audio (system development package)
-liblame = true         # MP3 encoding
-libogg = true
-libopus = true
-libshine = true        # Fixed-point MP3 encoder (system development package)
-libspeex = true        # Speex (system development package)
-libtwolame = true      # MP2 encoding (system development package)
-libvo-amrwbenc = true  # AMR-WB encoding (system development package)
-opencore-amr = true
-vorbis = true
+libfdk-aac = false  # Fraunhofer AAC codec; requires non-free authorization
+libgsm = true  # GSM 06.10 speech codec
+liblame = true  # MP3 audio encoding
+libogg = true  # Ogg bitstream framing and container support
+libopus = true  # Opus audio encoding and decoding
+libshine = true  # Fixed-point MP3 audio encoding
+libspeex = true  # Speex speech encoding and decoding
+libtwolame = true  # MPEG Layer II audio encoding
+libvo-amrwbenc = true  # AMR-WB speech encoding
+opencore-amr = true  # AMR-NB and AMR-WB speech codecs
+vorbis = true  # Vorbis audio encoding and decoding
 
 # Audio resampling, analysis, effects, and synthesis
-chromaprint = true     # Audio fingerprinting (system development package)
-libbs2b = true         # Stereo-to-binaural processing (system development package)
-libflite = true        # Text-to-speech (system development package)
-libgme = true          # Game-music emulation (system development package)
-libmodplug = true      # Tracker modules (system development package)
-libmysofa = true       # SOFA-based spatial audio
-libopenmpt = true      # Tracker modules (system development package)
-libsndfile = true
-libsoxr = true
-rubberband-git = false # Time stretching and pitch shifting
+chromaprint = true  # Acoustic fingerprint generation
+libbs2b = true  # Bauer stereo-to-binaural audio processing
+libflite = true  # Flite text-to-speech synthesis
+libgme = true  # Video-game music emulation
+libmodplug = true  # Tracker-module audio decoding
+libmysofa = true  # SOFA HRTF data for spatial audio
+libopenmpt = true  # Tracker-module audio decoding and rendering
+libsndfile = true  # Reading and writing sampled-audio file formats
+libsoxr = true  # High-quality audio sample-rate conversion
+rubberband-git = false  # Time stretching and pitch shifting
 
 # Audio plugin standards and the LV2 dependency stack
-ladspa = true          # LADSPA filters (system development package)
-lilv = true
-lv2-git = true
-serd = true
-sord = true
-sratom = true
-zix = true
+ladspa = true  # LADSPA audio plugin API and filters
+lilv = true  # LV2 plugin discovery, loading, and hosting
+lv2-git = true  # LV2 audio plugin specification and headers
+serd = true  # Lightweight RDF syntax library used by LV2
+sord = true  # In-memory RDF store used by LV2
+sratom = true  # LV2 Atom serialization to and from RDF
+zix = true  # Portability and data-structure utilities used by LV2
 
 # Audio devices and sound servers
-alsa = true            # ALSA (system development package)
-libjack = true         # JACK (system development package)
-libpulse = true        # PulseAudio (system development package)
-sndio = true           # sndio (system development package)
+alsa = true  # Linux ALSA audio input and output
+libjack = true  # Low-latency JACK audio input and output
+libpulse = true  # PulseAudio input and output
+sndio = true  # sndio audio input and output
 
 # Video codecs and codec support libraries
-av1-git = true         # Alliance for Open Media AV1 (libaom)
-kvazaar = true         # HEVC encoder
-libdav1d = true        # AV1 decoder (system development package)
-libgav1-git = true     # AV1 decoder
-libopenh264 = true     # Cisco H.264 encoder (system development package)
-libsnappy = true       # Required for HAP decoding (system development package)
-libtheora = true
-libvpx = true          # VP8/VP9 (system development package)
-rav1e = true           # Rust AV1 encoder
-svt-av1 = true
-x264 = false           # H.264 encoder; requires GPL authorization
-x265 = false           # HEVC encoder; requires GPL authorization
-xvidcore = false       # MPEG-4 Part 2 encoder
+av1-git = true  # AOMedia AV1 encoding and decoding with libaom
+kvazaar = true  # HEVC/H.265 video encoding
+libdav1d = true  # High-performance AV1 video decoding
+libgav1-git = true  # Google AV1 video decoding
+libopenh264 = true  # Cisco H.264 encoding and decoding
+libsnappy = true  # Snappy compression required by the HAP decoder
+libtheora = true  # Theora video encoding and decoding
+libvpx = true  # VP8 and VP9 video encoding and decoding
+rav1e = true  # Rust-based AV1 video encoding
+svt-av1 = true  # Scalable Video Technology AV1 encoding
+x264 = false  # GPL H.264 video encoding; requires GPL/non-free mode
+x265 = false  # GPL HEVC/H.265 video encoding; requires GPL/non-free mode
+xvidcore = false  # MPEG-4 Part 2 video encoding and decoding
 
 # Video processing, quality analysis, and scripting frameworks
-avisynth = false       # AviSynth script input
-frei0r = true          # Video filters; effective only in GPL/non-free mode
-libvmaf = true         # Video quality metrics
-vapoursynth = true     # VapourSynth script input
-vid-stab = false       # Video stabilization
-zimg-git = true        # Scaling, colorspace conversion, and dithering
+avisynth = false  # AviSynth script and frame-server input
+frei0r = true  # Video-effects plugin API; enabled only in GPL/non-free mode
+libvmaf = true  # Perceptual video quality measurement
+vapoursynth = true  # VapourSynth script and frame-server input
+vid-stab = false  # Video stabilization and transform filters
+zimg-git = true  # Scaling, colorspace conversion, and dithering
 
 # Optical media, containers, packaging, and metadata tools
-gpac-git = true        # MP4/ISOBMFF tools
-libbluray = true       # Blu-ray access (system development package)
-libcdio = true         # Audio CD input; effective only in GPL/non-free mode
-libdvdread = true
-mediainfo-cli = true
-mediainfo-lib = true
-udfread = true
-zenlib = true
+gpac-git = true  # GPAC and MP4Box multimedia packaging tools
+libbluray = true  # Blu-ray disc navigation and access
+libcdio = true  # Audio CD input; enabled only in GPL/non-free mode
+libdvdread = true  # DVD disc structure and data access
+mediainfo-cli = true  # Command-line technical metadata inspector
+mediainfo-lib = true  # Library for reading technical media metadata
+udfread = true  # Universal Disk Format filesystem reader
+zenlib = true  # Utility library required by MediaInfoLib
 
 # Playback, capture, window systems, and visual output
-freeglut = true
-libcaca = true         # Text/ASCII video output (system development package)
-libv4l2 = true         # Video4Linux2 capture (system development package)
-opengl = true          # OpenGL output (system development package)
-sdl2 = true            # Enables ffplay when available
-xlib = true            # X11/XCB capture (system development packages)
+freeglut = true  # OpenGL utility toolkit for windows and input
+libcaca = true  # Color text and ASCII-art video output
+libv4l2 = true  # Video4Linux2 capture and device access
+opengl = true  # OpenGL video output
+sdl2 = true  # Window, audio, and input support required by ffplay
+xlib = true  # X11 and XCB screen capture
 
 # GPU APIs, codec SDK headers, and hardware acceleration
-# CUDA toolkit installation is controlled separately with CUDA_INSTALL.
-amf-headers = false       # AMD AMF headers
-libdrm = true             # Linux DRM contexts (system development package)
-libplacebo = true         # GPU scaling and tone mapping through Vulkan
-libshaderc = true         # SPIR-V compiler for Vulkan filters
-libvpl = true             # Intel oneVPL/Quick Sync (system development package)
-nv-codec-headers = false  # NVIDIA NVENC/NVDEC headers; requires GPL/non-free mode
-opencl-sdk-git = true
-vaapi = true              # VA-API (system development package)
-vdpau = true              # VDPAU (system development package)
-vulkan = true             # Vulkan hwaccel and filters (system loader)
-vulkan-headers-git = true # Source-built Vulkan headers required by Vulkan support
+amf-headers = false  # AMD Advanced Media Framework SDK headers
+libdrm = true  # Userspace Direct Rendering Manager interface
+libplacebo = true  # Vulkan-based GPU scaling and tone mapping
+libshaderc = true  # GLSL and HLSL compilation to SPIR-V
+libvpl = true  # oneVPL API for Intel Quick Sync acceleration
+nv-codec-headers = false  # NVIDIA codec SDK headers; requires GPL/non-free mode
+opencl-sdk-git = true  # Khronos OpenCL headers, bindings, loader, and utilities
+vaapi = true  # VA-API hardware-accelerated video processing
+vdpau = true  # VDPAU hardware-accelerated video decoding and presentation
+vulkan = true  # Vulkan loader for hardware acceleration and GPU filters
+vulkan-headers-git = true  # Khronos Vulkan API headers
 
 # Final application
-ffmpeg = true
+ffmpeg = true  # FFmpeg command-line tools and multimedia libraries
