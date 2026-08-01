@@ -16,12 +16,16 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 - Ubuntu 22.04, 24.04, and 26.04
 - Ubuntu-based Linux Mint and Zorin releases whose base maps to one of the
   supported Ubuntu versions
-- WSL2 using a supported Ubuntu userspace
+- WSL2 using a supported Debian or Ubuntu userspace (WSL1 is not supported;
+  convert with `wsl.exe --set-version <distro> 2`)
 
 Run the script as a normal user with working `sudo` access. Do not run the
 entire script as root. The build also requires an internet connection and enough
 free disk space for downloaded sources, intermediate objects, and installed
-dependencies. Missing host build packages are installed with APT.
+dependencies. Missing host build packages are installed with APT. On Ubuntu,
+many optional feature packages come from the `universe` component, which is
+enabled by default on standard images but may be absent from minimal ones
+(`sudo add-apt-repository universe`).
 
 ## Quick start
 
@@ -169,7 +173,9 @@ The portable template leaves `libjxl` and `libshaderc` disabled because the
 required `libjxl-dev` and `libshaderc-dev` packages are absent from Ubuntu
 22.04's official repositories. They can be enabled on supported releases where
 APT provides those development packages; an explicit selection fails clearly
-instead of silently omitting an unavailable dependency.
+instead of silently omitting an unavailable dependency. The system `libzix-dev`
+package is similarly absent from Ubuntu 22.04 and Debian 12; keep the `zix`
+source build enabled on those releases.
 
 ## CUDA and hardware acceleration
 

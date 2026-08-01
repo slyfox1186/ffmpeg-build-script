@@ -122,7 +122,7 @@ lv2-git = true  # LV2 audio plugin specification and headers
 serd = true  # Lightweight RDF syntax library used by LV2
 sord = true  # In-memory RDF store used by LV2
 sratom = true  # LV2 Atom serialization to and from RDF
-zix = true  # Portability and data-structure utilities used by LV2
+zix = true  # Portability utilities used by LV2; system libzix-dev is absent on Ubuntu 22.04 and Debian 12
 
 # Audio devices and sound servers
 alsa = true  # Linux ALSA audio input and output

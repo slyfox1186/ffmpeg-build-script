@@ -90,23 +90,59 @@ mark_required_packages() {
     done
 }
 
+release_unavailable_packages() {
+    # Verified against the Debian/Ubuntu package archives (2026-08): these
+    # packages do not exist under any name on the named release, so an
+    # availability probe can never succeed there. Keep this list in sync with
+    # the archives when supported releases change.
+    case "${OS:-}:${OS_CODENAME:-}" in
+        Ubuntu:jammy) printf '%s\n' libjxl-dev libshaderc-dev libzix-dev ;;
+        Debian:bookworm) printf '%s\n' libzix-dev ;;
+    esac
+}
+
+release_absence_guidance() {
+    case "${1:-}" in
+        libzix-dev) printf '%s' "Enable the 'zix' source build instead of the system package." ;;
+        libjxl-dev) printf '%s' "Disable the 'libjxl' selection on this release." ;;
+        libshaderc-dev) printf '%s' "Disable the 'libshaderc' selection on this release." ;;
+    esac
+}
+
 install_apt_packages() {
-    local package_name package_display
+    local package_name package_display absence_guidance component_guidance=""
     local -a requested_packages=("$@")
     local -a pending_packages=()
     local -a missing_packages=()
     local -a required_unavailable_packages=()
     local -a unavailable_packages=()
+    local -A release_absent_packages=()
+
+    while IFS= read -r package_name; do
+        [[ -n "$package_name" ]] && release_absent_packages["$package_name"]=1
+    done < <(release_unavailable_packages)
 
     for package_name in "${requested_packages[@]}"; do
         if apt_package_installed "$package_name"; then
+            continue
+        fi
+        # The archive-verified absence list improves messages only; a package
+        # still visible to APT (for example via a third-party repository)
+        # keeps the normal installation path.
+        if [[ -n "${release_absent_packages[$package_name]+x}" ]] &&
+            ! apt_package_available "$package_name"; then
+            if [[ -n "${_APT_PACKAGE_REQUIRED[$package_name]+x}" ]]; then
+                absence_guidance="$(release_absence_guidance "$package_name")"
+                fail "Required host package '$package_name' is not packaged on '$OS $VER' ('$OS_CODENAME').${absence_guidance:+ $absence_guidance}"
+            fi
+            log "Skipping optional '$package_name'; it is not packaged on '$OS $VER' ('$OS_CODENAME')."
             continue
         fi
         pending_packages+=("$package_name")
     done
 
     if ((${#pending_packages[@]} == 0)); then
-        log "All requested host packages are already installed."
+        log "No host packages require installation."
         return 0
     fi
 
@@ -121,13 +157,16 @@ install_apt_packages() {
         fi
     done
 
+    if [[ "$OS" == "Ubuntu" ]]; then
+        component_guidance=" Ensure APT's 'universe' component is enabled ('sudo add-apt-repository universe')."
+    fi
     if ((${#required_unavailable_packages[@]} > 0)); then
         package_display="$(format_package_list "${required_unavailable_packages[@]}")"
-        fail "Required host packages are unavailable on '$OS $VER': $package_display."
+        fail "Required host packages are unavailable on '$OS $VER': $package_display.$component_guidance"
     fi
     if ((${#unavailable_packages[@]} > 0)); then
         package_display="$(format_package_list "${unavailable_packages[@]}")"
-        warn "Optional packages unavailable on '$OS $VER': $package_display."
+        warn "Optional packages unavailable on '$OS $VER': $package_display.$component_guidance"
     fi
     if ((${#missing_packages[@]} == 0)); then
         log "All available host packages are already installed."
@@ -142,61 +181,80 @@ install_apt_packages() {
 }
 
 detect_operating_system() {
-    local detected_id detected_version detected_like ubuntu_codename
+    local os_release_file="${OS_RELEASE_FILE:-/etc/os-release}"
+    local kernel_release_file="${KERNEL_RELEASE_FILE:-/proc/sys/kernel/osrelease}"
+    local detected_id detected_like detected_version detected_codename
+    local ubuntu_codename kernel_release=""
 
-    [[ -r /etc/os-release ]] ||
-        fail "'/etc/os-release' is required for operating-system detection."
+    [[ -r "$os_release_file" ]] ||
+        fail "'$os_release_file' is required for operating-system detection."
     # shellcheck source=/dev/null
-    source /etc/os-release
+    source "$os_release_file"
 
+    # os-release(5): VERSION_ID and VERSION_CODENAME are both optional (Debian
+    # testing/sid ships only the codename), and ID_LIKE is the documented
+    # fallback for identifying derivatives.
     detected_id="${ID:-}"
-    detected_version="${VERSION_ID:-}"
     detected_like="${ID_LIKE:-}"
+    detected_version="${VERSION_ID:-}"
+    detected_codename="${VERSION_CODENAME:-}"
     ubuntu_codename="${UBUNTU_CODENAME:-}"
-    [[ -n "$detected_id" && -n "$detected_version" ]] ||
-        fail "Unable to identify the operating system from '/etc/os-release'."
+    [[ -n "$detected_id" ]] ||
+        fail "Unable to identify the operating system from '$os_release_file'."
 
     VARIABLE_OS="$detected_id"
     case "$detected_id" in
         debian)
             OS=Debian
-            VER="${detected_version%%.*}"
-            case "$VER" in
-                12|13) ;;
-                *) fail "Unsupported Debian release '$detected_version'; supported releases are '12' and '13'." ;;
+            case "${detected_codename:-${detected_version%%.*}}" in
+                bookworm|12) VER=12 OS_CODENAME=bookworm ;;
+                trixie|13) VER=13 OS_CODENAME=trixie ;;
+                forky|sid)
+                    fail "Debian testing/unstable ('${detected_codename:-$detected_version}') is unsupported; use Debian 12 'bookworm' or 13 'trixie'."
+                    ;;
+                *)
+                    fail "Unsupported Debian release '${detected_codename:-${detected_version:-unknown}}'; supported releases are 12 'bookworm' and 13 'trixie'."
+                    ;;
             esac
             ;;
         ubuntu)
             OS=Ubuntu
-            VER="$detected_version"
-            case "$VER" in
-                22.04|24.04|26.04) ;;
-                *) fail "Unsupported Ubuntu release '$detected_version'; supported releases are '22.04', '24.04', and '26.04'." ;;
+            case "$detected_version" in
+                22.04) VER=22.04 OS_CODENAME=jammy ;;
+                24.04) VER=24.04 OS_CODENAME=noble ;;
+                26.04) VER=26.04 OS_CODENAME=resolute ;;
+                *)
+                    fail "Unsupported Ubuntu release '${detected_version:-unknown}'; supported LTS releases are 22.04 'jammy', 24.04 'noble', and 26.04 'resolute'."
+                    ;;
             esac
-            ;;
-        linuxmint|zorin)
-            [[ "$detected_like" == *ubuntu* ]] ||
-                fail "Unsupported '$detected_id' base; an Ubuntu-compatible base is required."
-            OS=Ubuntu
-            case "$ubuntu_codename" in
-                jammy) VER=22.04 ;;
-                noble) VER=24.04 ;;
-                resolute) VER=26.04 ;;
-                *) fail "Unsupported Ubuntu derivative base '${ubuntu_codename:-unknown}'." ;;
-            esac
+            [[ -z "$detected_codename" || "$detected_codename" == "$OS_CODENAME" ]] ||
+                fail "Inconsistent Ubuntu metadata: VERSION_ID '$detected_version' does not match VERSION_CODENAME '$detected_codename'."
             ;;
         *)
-            fail "Unsupported operating system '$detected_id $detected_version'; use Debian or Ubuntu."
+            [[ " $detected_like " == *" ubuntu "* ]] ||
+                fail "Unsupported operating system '$detected_id${detected_version:+ $detected_version}'; use Debian 12/13 or Ubuntu 22.04/24.04/26.04."
+            OS=Ubuntu
+            case "$ubuntu_codename" in
+                jammy) VER=22.04 OS_CODENAME=jammy ;;
+                noble) VER=24.04 OS_CODENAME=noble ;;
+                resolute) VER=26.04 OS_CODENAME=resolute ;;
+                *)
+                    fail "Unsupported Ubuntu derivative base '${ubuntu_codename:-unknown}'; a 22.04 'jammy', 24.04 'noble', or 26.04 'resolute' base is required."
+                    ;;
+            esac
             ;;
     esac
 
-    if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
-        [[ "$OS" == "Ubuntu" ]] ||
-            fail "WSL builds require a supported Ubuntu userspace."
+    [[ -r "$kernel_release_file" ]] && kernel_release="$(<"$kernel_release_file")"
+    if [[ "${kernel_release,,}" == *microsoft* ]]; then
+        # WSL2 kernels carry a 'microsoft-standard-WSL2' release string; WSL1
+        # reports a plain 'Microsoft' suffix because it has no real kernel.
+        [[ "${kernel_release,,}" == *wsl2* ]] ||
+            fail "WSL1 detected ('$kernel_release'); convert the distribution with 'wsl.exe --set-version <distro> 2' and update WSL with 'wsl.exe --update'."
         VARIABLE_OS=WSL2
     fi
     STATIC_VER="$VER"
-    export OS VER STATIC_VER VARIABLE_OS
+    export OS VER STATIC_VER VARIABLE_OS OS_CODENAME
 }
 
 collect_host_packages() {
