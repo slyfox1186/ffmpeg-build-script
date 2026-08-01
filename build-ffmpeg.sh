@@ -24,6 +24,7 @@ cwd=""
 packages=""
 workspace=""
 log_file=""
+SYSTEM_PKG_CONFIG_PATH=""
 
 # shellcheck source=scripts/shared-utils.sh
 source "$SCRIPT_DIR/scripts/shared-utils.sh"

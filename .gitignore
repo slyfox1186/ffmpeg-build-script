@@ -41,6 +41,8 @@
 
 # Local configuration
 /custom.toml
+/AGENTS.md
+/CLAUDE.md
 
 # Editors and operating systems
 .DS_Store

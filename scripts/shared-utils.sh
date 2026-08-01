@@ -932,6 +932,18 @@ workspace_pkgconf_modules_ready() {
     done
 }
 
+pkgconf_uses_system_default_path() {
+    local pkgconf_binary="${1:-}"
+    local compiled_default_path
+
+    [[ -x "$pkgconf_binary" && -n "${SYSTEM_PKG_CONFIG_PATH:-}" ]] || return 1
+    compiled_default_path="$(
+        env -u PKG_CONFIG_PATH -u PKG_CONFIG_LIBDIR -u PKG_CONFIG_SYSROOT_DIR \
+            "$pkgconf_binary" --variable=pc_path pkgconf 2>/dev/null
+    )" || return 1
+    [[ "$compiled_default_path" == "$SYSTEM_PKG_CONFIG_PATH" ]]
+}
+
 package_artifacts_ready() {
     local package_name="${1:-}"
     local module_name
@@ -942,7 +954,7 @@ package_artifacts_ready() {
         autoconf) [[ -x "$workspace/bin/autoconf" ]] ;;
         automake) [[ -x "$workspace/bin/automake" ]] ;;
         libtool) [[ -x "$workspace/bin/libtoolize" ]] ;;
-        pkgconf) [[ -x "$workspace/bin/pkgconf" ]] ;;
+        pkgconf) pkgconf_uses_system_default_path "$workspace/bin/pkgconf" ;;
         cmake) [[ -x "$workspace/bin/cmake" ]] ;;
         meson) [[ -x "$workspace/python_virtual_environment/build-tools/bin/meson" ]] ;;
         ninja) [[ -x "$workspace/bin/ninja" ]] ;;
