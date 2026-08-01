@@ -126,6 +126,11 @@ install_cuda_toolkit() {
 
     repository="$(cuda_repository_name)" ||
         fail "No supported NVIDIA CUDA repository mapping exists for '$OS $VER'."
+    if [[ "$repository" == "wsl-ubuntu" && "$OS" == "Debian" ]]; then
+        # NVIDIA publishes exactly one WSL2 CUDA repository; its .deb packages
+        # are driver-free and install on Debian userspaces as well.
+        log "Using NVIDIA's 'wsl-ubuntu' repository for this Debian WSL2 userspace."
+    fi
     temp_directory="$(mktemp -d)" ||
         fail "Unable to create a temporary CUDA setup directory."
     keyring_file="$temp_directory/cuda-keyring.deb"

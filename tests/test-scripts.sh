@@ -313,6 +313,196 @@ assert_contains "$apt_fixture_output" \
     "-o APT::Cmd::Disable-Script-Warning=1 install --assume-yes --no-install-recommends shellcheck" \
     "host setup installs packages noninteractively through apt"
 
+os_detect_dir="$temporary_root/os-detect"
+mkdir -p "$os_detect_dir"
+printf '6.8.0-52-generic\n' >"$os_detect_dir/kernel-osrelease"
+
+run_os_detection() {
+    bash -c '
+        source "$1/scripts/system-setup.sh"
+        OS_RELEASE_FILE="$2/os-release"
+        KERNEL_RELEASE_FILE="$2/kernel-osrelease"
+        detect_operating_system
+        printf "%s|%s|%s|%s\n" "$OS" "$VER" "$OS_CODENAME" "$VARIABLE_OS"
+    ' _ "$repo_root" "$os_detect_dir"
+}
+
+expect_os_detection() {
+    local expected="$1" description="$2" detection_output
+
+    detection_output="$(run_os_detection 2>&1)" || {
+        printf 'detection failed: %q\n' "$detection_output" >&2
+        fail_test "$description"
+    }
+    assert_equal "$expected" "$detection_output" "$description"
+}
+
+expect_os_detection_failure() {
+    local needle="$1" description="$2" detection_output
+
+    if detection_output="$(run_os_detection 2>&1)"; then
+        printf 'unexpected success: %q\n' "$detection_output" >&2
+        fail_test "$description"
+    fi
+    assert_contains "$detection_output" "$needle" "$description"
+}
+
+printf '%s\n' 'ID=debian' 'VERSION_ID="12"' 'VERSION_CODENAME=bookworm' \
+    >"$os_detect_dir/os-release"
+expect_os_detection "Debian|12|bookworm|debian" "detection accepts Debian 12"
+
+printf '%s\n' 'ID=debian' 'VERSION_CODENAME=trixie' >"$os_detect_dir/os-release"
+expect_os_detection "Debian|13|trixie|debian" \
+    "detection accepts Debian 13 without VERSION_ID"
+
+printf '%s\n' 'PRETTY_NAME="Debian GNU/Linux forky/sid"' 'ID=debian' \
+    'VERSION_CODENAME=forky' >"$os_detect_dir/os-release"
+expect_os_detection_failure "testing/unstable" "detection rejects Debian testing"
+
+printf '%s\n' 'ID=ubuntu' 'ID_LIKE=debian' 'VERSION_ID="22.04"' \
+    'VERSION_CODENAME=jammy' 'UBUNTU_CODENAME=jammy' >"$os_detect_dir/os-release"
+expect_os_detection "Ubuntu|22.04|jammy|ubuntu" "detection accepts Ubuntu 22.04"
+
+printf '%s\n' 'ID=ubuntu' 'ID_LIKE=debian' 'VERSION_ID="24.04"' \
+    'VERSION_CODENAME=noble' 'UBUNTU_CODENAME=noble' >"$os_detect_dir/os-release"
+expect_os_detection "Ubuntu|24.04|noble|ubuntu" "detection accepts Ubuntu 24.04"
+
+printf '%s\n' 'ID=ubuntu' 'ID_LIKE=debian' 'VERSION_ID="26.04"' \
+    'VERSION_CODENAME=resolute' 'UBUNTU_CODENAME=resolute' \
+    >"$os_detect_dir/os-release"
+expect_os_detection "Ubuntu|26.04|resolute|ubuntu" \
+    "detection accepts Ubuntu 26.04"
+
+printf '%s\n' 'ID=ubuntu' 'VERSION_ID="25.10"' 'VERSION_CODENAME=questing' \
+    >"$os_detect_dir/os-release"
+expect_os_detection_failure "Unsupported Ubuntu release '25.10'" \
+    "detection rejects EOL interim Ubuntu releases"
+
+printf '%s\n' 'ID=ubuntu' 'VERSION_ID="24.04"' 'VERSION_CODENAME=jammy' \
+    >"$os_detect_dir/os-release"
+expect_os_detection_failure "Inconsistent Ubuntu metadata" \
+    "detection rejects mismatched Ubuntu version metadata"
+
+printf '%s\n' 'ID=linuxmint' 'ID_LIKE="ubuntu debian"' 'VERSION_ID="22.3"' \
+    'VERSION_CODENAME=zena' 'UBUNTU_CODENAME=noble' >"$os_detect_dir/os-release"
+expect_os_detection "Ubuntu|24.04|noble|linuxmint" \
+    "detection maps Mint through its Ubuntu base codename"
+
+printf '%s\n' 'ID=zorin' 'ID_LIKE="ubuntu debian"' 'VERSION_ID="17"' \
+    'UBUNTU_CODENAME=jammy' >"$os_detect_dir/os-release"
+expect_os_detection "Ubuntu|22.04|jammy|zorin" \
+    "detection maps ID_LIKE=ubuntu derivatives generically"
+
+printf '%s\n' 'ID=arch' >"$os_detect_dir/os-release"
+expect_os_detection_failure "Unsupported operating system 'arch'" \
+    "detection rejects unsupported distros"
+
+printf '%s\n' 'ID=ubuntu' 'VERSION_ID="24.04"' 'VERSION_CODENAME=noble' \
+    'UBUNTU_CODENAME=noble' >"$os_detect_dir/os-release"
+printf '5.15.167.4-microsoft-standard-WSL2\n' >"$os_detect_dir/kernel-osrelease"
+expect_os_detection "Ubuntu|24.04|noble|WSL2" \
+    "detection accepts WSL2 with an Ubuntu userspace"
+
+printf '%s\n' 'ID=debian' 'VERSION_ID="13"' 'VERSION_CODENAME=trixie' \
+    >"$os_detect_dir/os-release"
+expect_os_detection "Debian|13|trixie|WSL2" \
+    "detection accepts WSL2 with a Debian userspace"
+
+printf '4.4.0-19041-Microsoft\n' >"$os_detect_dir/kernel-osrelease"
+expect_os_detection_failure "wsl.exe --set-version" \
+    "detection rejects WSL1 with upgrade guidance"
+
+release_gap_output="$(
+    bash -c '
+        source "$1/scripts/system-setup.sh"
+        OS=Ubuntu OS_CODENAME=jammy release_unavailable_packages
+    ' _ "$repo_root"
+)"
+assert_equal $'libjxl-dev\nlibshaderc-dev\nlibzix-dev' "$release_gap_output" \
+    "jammy reports its known-absent packages"
+
+release_gap_output="$(
+    bash -c '
+        source "$1/scripts/system-setup.sh"
+        OS=Debian OS_CODENAME=bookworm release_unavailable_packages
+    ' _ "$repo_root"
+)"
+assert_equal "libzix-dev" "$release_gap_output" \
+    "bookworm reports its known-absent package"
+
+release_gap_output="$(
+    bash -c '
+        source "$1/scripts/system-setup.sh"
+        OS=Ubuntu OS_CODENAME=noble release_unavailable_packages
+    ' _ "$repo_root"
+)"
+assert_equal "" "$release_gap_output" "noble has no known-absent packages"
+
+unavailable_fixture_bin="$temporary_root/unavailable-fixture-bin"
+mkdir -p "$unavailable_fixture_bin"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'printf "%s\n" "$*" >>"$APT_FIXTURE_LOG"' \
+    '[[ "$*" != *" show "* ]]' >"$unavailable_fixture_bin/apt"
+chmod +x "$unavailable_fixture_bin/apt"
+cp -- "$apt_fixture_bin/sudo" "$apt_fixture_bin/dpkg-query" \
+    "$unavailable_fixture_bin/"
+
+absent_fixture_log="$temporary_root/absent-fixture.log"
+: >"$absent_fixture_log"
+if absent_output="$(
+    env PATH="$unavailable_fixture_bin:$PATH" APT_FIXTURE_LOG="$absent_fixture_log" \
+        bash -c '
+            source "$1/scripts/system-setup.sh"
+            log_file=""
+            OS=Ubuntu VER=22.04 OS_CODENAME=jammy
+            declare -A _APT_PACKAGE_REQUIRED=([libzix-dev]=1)
+            install_apt_packages libzix-dev
+        ' _ "$repo_root" 2>&1
+)"; then
+    fail_test "required release-absent package fails fast"
+fi
+pass "required release-absent package fails fast"
+assert_contains "$absent_output" "Enable the 'zix' source build" \
+    "release-absent failure names the source-build alternative"
+assert_not_contains "$(<"$absent_fixture_log")" "update" \
+    "release-absent failure precedes the APT metadata refresh"
+
+if release_absent_ppa_output="$(
+    env PATH="$apt_fixture_bin:$PATH" APT_FIXTURE_LOG="$absent_fixture_log" \
+        bash -c '
+            source "$1/scripts/system-setup.sh"
+            log_file=""
+            OS=Ubuntu VER=22.04 OS_CODENAME=jammy
+            declare -A _APT_PACKAGE_REQUIRED=([libzix-dev]=1)
+            install_apt_packages libzix-dev
+        ' _ "$repo_root" 2>&1
+)"; then
+    pass "release-absent package visible to APT installs normally"
+else
+    printf 'unexpected failure: %q\n' "$release_absent_ppa_output" >&2
+    fail_test "release-absent package visible to APT installs normally"
+fi
+assert_contains "$release_absent_ppa_output" \
+    "install --assume-yes --no-install-recommends libzix-dev" \
+    "APT visibility overrides the archive-verified absence list"
+
+universe_fixture_log="$temporary_root/universe-fixture.log"
+: >"$universe_fixture_log"
+universe_output="$(
+    env PATH="$unavailable_fixture_bin:$PATH" APT_FIXTURE_LOG="$universe_fixture_log" \
+        bash -c '
+            source "$1/scripts/system-setup.sh"
+            log_file=""
+            OS=Ubuntu VER=24.04 OS_CODENAME=noble
+            APT_INDEX_UPDATED=false
+            install_apt_packages not-a-real-package 2>&1
+        ' _ "$repo_root"
+)"
+assert_contains "$universe_output" \
+    "Ensure APT's 'universe' component is enabled" \
+    "Ubuntu unavailability guidance mentions the universe component"
+
 legacy_context_root="$temporary_root/legacy-context-root"
 mkdir -p "$legacy_context_root/packages" "$legacy_context_root/workspace"
 write_build_root_marker "$legacy_context_root"
