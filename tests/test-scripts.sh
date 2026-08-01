@@ -313,6 +313,49 @@ assert_contains "$apt_fixture_output" \
     "-o APT::Cmd::Disable-Script-Warning=1 install --assume-yes --no-install-recommends shellcheck" \
     "host setup installs packages noninteractively through apt"
 
+expected_system_pkg_config_path="$(
+    env -u PKG_CONFIG_PATH -u PKG_CONFIG_LIBDIR -u PKG_CONFIG_SYSROOT_DIR \
+        /usr/bin/pkgconf --variable=pc_path pkgconf
+)"
+expected_workspace_pkg_config_path="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig"
+expected_workspace_pkg_config_path+=":$workspace/lib/x86_64-linux-gnu/pkgconfig:$workspace/share/pkgconfig"
+configured_pkg_config_paths="$(
+    env PKG_CONFIG_PATH=/untrusted/high-priority \
+        PKG_CONFIG_LIBDIR=/untrusted/low-priority \
+        PKG_CONFIG_SYSROOT_DIR=/untrusted/sysroot \
+        bash -c '
+            source "$1/scripts/system-setup.sh"
+            workspace="$2"
+            configure_pkgconf_search_paths
+            printf "%s|%s|%s|%s\n" \
+                "$PKG_CONFIG_PATH" \
+                "$SYSTEM_PKG_CONFIG_PATH" \
+                "${PKG_CONFIG_LIBDIR+set}" \
+                "${PKG_CONFIG_SYSROOT_DIR+set}"
+        ' _ "$repo_root" "$workspace"
+)"
+assert_equal \
+    "$expected_workspace_pkg_config_path|$expected_system_pkg_config_path||" \
+    "$configured_pkg_config_paths" \
+    "pkgconf keeps workspace overrides separate from sanitized host defaults"
+
+mkdir -p "$workspace/bin"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    '[[ "$*" == "--variable=pc_path pkgconf" ]] || exit 64' \
+    'printf "%s\n" "$PKGCONF_FIXTURE_DEFAULT_PATH"' \
+    >"$workspace/bin/pkgconf"
+chmod +x "$workspace/bin/pkgconf"
+SYSTEM_PKG_CONFIG_PATH="/system/one/pkgconfig:/system/two/pkgconfig"
+export PKGCONF_FIXTURE_DEFAULT_PATH="$SYSTEM_PKG_CONFIG_PATH"
+package_artifacts_ready pkgconf ||
+    fail_test "pkgconf artifacts with the host default path are reusable"
+pass "pkgconf artifacts with the host default path are reusable"
+PKGCONF_FIXTURE_DEFAULT_PATH="$workspace/lib/pkgconfig:$SYSTEM_PKG_CONFIG_PATH"
+export PKGCONF_FIXTURE_DEFAULT_PATH
+assert_command_fails "pkgconf artifacts polluted with workspace defaults are rebuilt" \
+    package_artifacts_ready pkgconf
+
 os_detect_dir="$temporary_root/os-detect"
 mkdir -p "$os_detect_dir"
 printf '6.8.0-52-generic\n' >"$os_detect_dir/kernel-osrelease"

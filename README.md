@@ -296,6 +296,7 @@ The implementation follows the interfaces and safety controls documented by
 the projects it invokes:
 
 - [FFmpeg 8.1.2 configure options and dependency checks](https://github.com/FFmpeg/FFmpeg/blob/n8.1.2/configure)
+- [pkgconf 3.0.4 package search path semantics](https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.4/man/pkgconf.1)
 - [CMake package-registry controls](https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-registry)
 - [Meson subproject and wrap-mode controls](https://mesonbuild.com/Subprojects.html#command-line-options)
 - [GNU tar security guidance](https://www.gnu.org/software/tar/manual/html_node/Security.html)

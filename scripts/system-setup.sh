@@ -466,6 +466,41 @@ set_ant_path() {
     execute mkdir -p "$ANT_HOME/bin" "$ANT_HOME/lib"
 }
 
+configure_pkgconf_search_paths() {
+    local system_pkgconf="/usr/bin/pkgconf"
+    local path_entry
+    local -a system_path_entries=()
+
+    require_vars workspace
+    [[ -x "$system_pkgconf" ]] ||
+        fail "The host 'pkgconf' executable was not installed at '$system_pkgconf'."
+
+    SYSTEM_PKG_CONFIG_PATH="$(
+        env -u PKG_CONFIG_PATH -u PKG_CONFIG_LIBDIR -u PKG_CONFIG_SYSROOT_DIR \
+            "$system_pkgconf" --variable=pc_path pkgconf 2>/dev/null
+    )" || fail "Unable to query the host pkgconf default search path."
+    [[ -n "$SYSTEM_PKG_CONFIG_PATH" &&
+        "$SYSTEM_PKG_CONFIG_PATH" != :* &&
+        "$SYSTEM_PKG_CONFIG_PATH" != *: &&
+        "$SYSTEM_PKG_CONFIG_PATH" != *::* &&
+        "$SYSTEM_PKG_CONFIG_PATH" != *[[:cntrl:]]* ]] ||
+        fail "The host pkgconf returned an invalid default search path."
+    IFS=: read -ra system_path_entries <<<"$SYSTEM_PKG_CONFIG_PATH"
+    for path_entry in "${system_path_entries[@]}"; do
+        [[ "$path_entry" == /* ]] ||
+            fail "The host pkgconf returned a non-absolute default search path: '$path_entry'."
+    done
+
+    # PKG_CONFIG_PATH is the high-priority overlay. System directories remain in
+    # pkgconf's lower-priority compiled defaults instead of being duplicated here.
+    # This is a native build, so inherited cross-build overrides must not replace
+    # those defaults or rewrite paths returned from package metadata.
+    PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig"
+    PKG_CONFIG_PATH+=":$workspace/lib/x86_64-linux-gnu/pkgconfig:$workspace/share/pkgconfig"
+    unset PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+    export PKG_CONFIG_PATH
+}
+
 initialize_system_setup() {
     local -a host_packages=()
 
@@ -476,12 +511,7 @@ initialize_system_setup() {
     install_apt_packages "${host_packages[@]}"
     verify_required_host_tools
 
-    PKG_CONFIG_PATH="$workspace/lib/pkgconfig:$workspace/lib64/pkgconfig"
-    PKG_CONFIG_PATH+=":$workspace/lib/x86_64-linux-gnu/pkgconfig:$workspace/share/pkgconfig"
-    PKG_CONFIG_PATH+=":/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig"
-    PKG_CONFIG_PATH+=":/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/share/pkgconfig"
-    PKG_CONFIG_PATH+=":/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
-    export PKG_CONFIG_PATH
+    configure_pkgconf_search_paths
 
     source_path
     if [[ "$VARIABLE_OS" == "WSL2" ]]; then

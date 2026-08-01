@@ -15,7 +15,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 install_global_tools() {
     echo
     box_out_banner "Installing Global Tools"
-    require_vars workspace packages build_threads
+    require_vars workspace packages build_threads SYSTEM_PKG_CONFIG_PATH
 
     # Alert the user that an AMD GPU was found without a Geforce GPU present.
     # gpu_flag=1 only means "no NVIDIA GPU" (also true on Intel-only and GPU-less
@@ -88,7 +88,7 @@ install_global_tools() {
         # Release tarballs from GitHub need autoreconf
         execute autoreconf -fi
         execute sh configure --prefix="$workspace" --enable-silent-rules \
-            --with-pkg-config-dir="$PKG_CONFIG_PATH" \
+            --with-pkg-config-dir="$SYSTEM_PKG_CONFIG_PATH" \
             --with-system-libdir="/lib:/lib64:/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu" \
             --with-system-includedir="/usr/include:/usr/include/x86_64-linux-gnu"
         execute make "-j$build_threads"
