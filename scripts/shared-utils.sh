@@ -2175,8 +2175,8 @@ github_repo() {
 }
 
 ###################################################################################
-# Unified Version Extraction Functions
-# These replace repetitive per-repo functions with parameterized, robust versions
+# Version extraction
+# Parameterized helpers shared by every package's version fetcher.
 ###################################################################################
 
 git_remote_tag_names() {
