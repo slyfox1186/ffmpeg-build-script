@@ -401,6 +401,10 @@ run_build() {
         fail "This build currently supports 'x86_64' only; detected '$(uname -m)'."
 
     umask 022
+    # Everything checkable from the request alone is checked before the first
+    # host mutation, so an unsatisfiable build fails without having installed
+    # packages or prompted for sudo first.
+    validate_build_settings
     require_sudo
     initialize_build_root
     configure_toolchain

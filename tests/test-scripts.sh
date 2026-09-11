@@ -700,6 +700,24 @@ assert_command_fails "unknown config tables are rejected even when empty" bash -
 
 # Nothing cleaned temporary trees on an abort, so a fail() or Ctrl-C stranded
 # them -- partial clones reach gigabytes and were never pruned by anything.
+# CUDA_INSTALL and CUDA_ARCH_MODE were only validated inside install_cuda(),
+# which runs after initialize_system_setup() has installed dozens of APT
+# packages -- so a typo mutated the host and then aborted.
+for invalid_setting in "CUDA_INSTALL=maybe" "CUDA_ARCH_MODE=bogus" "CUDA_ARCH_MODE=custom"; do
+    assert_command_fails "'$invalid_setting' is rejected before any host mutation" bash -c '
+        source "$1/scripts/shared-utils.sh"
+        export "${2?}"
+        validate_build_settings
+    ' _ "$repo_root" "$invalid_setting"
+done
+if ! bash -c '
+    source "$1/scripts/shared-utils.sh"
+    CUDA_ARCH_MODE=custom CUDA_ARCHITECTURES="86 89" validate_build_settings
+' _ "$repo_root" >/dev/null 2>&1; then
+    fail_test "a valid custom CUDA architecture list is accepted"
+fi
+pass "a valid custom CUDA architecture list is accepted"
+
 temp_registry_root="$temporary_root/temp-registry"
 mkdir -p "$temp_registry_root/packages" "$temp_registry_root/outside"
 bash -c '

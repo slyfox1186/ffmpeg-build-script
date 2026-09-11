@@ -761,6 +761,51 @@ load_package_selection_config() {
     log "If you are changing package selections on an existing workspace, run '$CLEANUP_COMMAND' first to avoid reusing old build artifacts."
 }
 
+# Checks that depend only on CLI, config and environment input -- no host
+# probing -- so they can run before anything mutates the system. These used to
+# be evaluated deep inside install_cuda(), i.e. after initialize_system_setup()
+# had already installed dozens of APT packages, so a typo in CUDA_ARCH_MODE
+# changed the host and then aborted.
+validate_build_settings() {
+    local mode architecture
+    local -a issues=()
+    local -a custom_values=()
+
+    case "${CUDA_INSTALL:-ask}" in
+        ask | always | never) ;;
+        *) issues+=("'CUDA_INSTALL' must be 'ask', 'always', or 'never'; got '${CUDA_INSTALL}'") ;;
+    esac
+
+    mode="${CUDA_ARCH_MODE:-native}"
+    case "$mode" in
+        native | all) ;;
+        custom)
+            read -r -a custom_values <<<"${CUDA_ARCHITECTURES:-}"
+            if ((${#custom_values[@]} == 0)); then
+                issues+=("'CUDA_ARCH_MODE=custom' requires 'CUDA_ARCHITECTURES' (for example: '86 89')")
+            else
+                for architecture in "${custom_values[@]}"; do
+                    [[ "$architecture" =~ ^[0-9]+$ ]] ||
+                        issues+=("'CUDA_ARCHITECTURES' entry '$architecture' is not a number")
+                done
+            fi
+            ;;
+        *) issues+=("'CUDA_ARCH_MODE' must be 'native', 'all', or 'custom'; got '$mode'") ;;
+    esac
+
+    if package_enabled "mediainfo-lib" && ! package_enabled "zenlib"; then
+        issues+=("'packages.mediainfo-lib=true' requires 'packages.zenlib=true'")
+    fi
+    if package_enabled "mediainfo-cli" && ! package_enabled "mediainfo-lib"; then
+        issues+=("'packages.mediainfo-cli=true' requires 'packages.mediainfo-lib=true'")
+    fi
+
+    ((${#issues[@]} == 0)) ||
+        fail "$(printf 'Build settings have unresolved problems:\n - %s\n' "${issues[@]}")"
+}
+
+# Cross-package requirements that need to probe the host (pkgconf, command -v),
+# so they can only run after initialize_system_setup() has installed packages.
 validate_package_selection() {
     local -a issues=()
 
@@ -858,14 +903,6 @@ validate_package_selection() {
 
     if package_enabled "avif" && ! package_enabled "av1-git" && ! pkgconf --exists aom 2>/dev/null; then
         issues+=("'packages.avif=true' requires 'packages.av1-git=true' or a system libaom development package")
-    fi
-
-    if package_enabled "mediainfo-lib" && ! package_enabled "zenlib"; then
-        issues+=("'packages.mediainfo-lib=true' requires 'packages.zenlib=true'")
-    fi
-
-    if package_enabled "mediainfo-cli" && ! package_enabled "mediainfo-lib"; then
-        issues+=("'packages.mediainfo-cli=true' requires 'packages.mediainfo-lib=true'")
     fi
 
     if is_true "${NONFREE_AND_GPL:-false}" &&
