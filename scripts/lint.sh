@@ -44,6 +44,41 @@ python3 -c \
     run_linter.py
 printf 'Python syntax: OK\n'
 
+# README reproduces usage() verbatim as the CLI contract. Nothing enforced that,
+# so the two drifted (column widths and one option description). Neither awk
+# program may call exit: lint.sh runs under `pipefail`, and quitting early would
+# hand the producer SIGPIPE and fail the whole gate.
+readme_help_block="$(
+    awk '
+        /^## Command-line interface$/ { in_section = 1; next }
+        in_section && /^```/ {
+            if (seen_fence) { in_section = 0; in_block = 0; next }
+            seen_fence = 1
+            in_block = 1
+            next
+        }
+        in_block { print }
+    ' README.md
+)"
+actual_help_block="$(
+    bash build-ffmpeg.sh --help |
+        awk '
+            /^Example:/ { capture = 0 }
+            /^Actions:/ { capture = 1 }
+            capture { print }
+        '
+)"
+[[ -n "$readme_help_block" ]] ||
+    { printf "No '## Command-line interface' code block was found in README.md.\n" >&2; exit 1; }
+if [[ "$readme_help_block" != "$actual_help_block" ]]; then
+    printf "README.md's command-line interface block no longer matches 'build-ffmpeg.sh --help'.\n" >&2
+    diff -u \
+        <(printf '%s\n' "$readme_help_block") \
+        <(printf '%s\n' "$actual_help_block") >&2 || true
+    exit 1
+fi
+printf 'README help text: OK\n'
+
 retired_apt_interfaces=("apt""-get" "apt""-cache")
 for retired_apt_interface in "${retired_apt_interfaces[@]}"; do
     if grep -nF -- "$retired_apt_interface" "${text_files[@]}" >/dev/null 2>&1; then

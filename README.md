@@ -66,9 +66,9 @@ Actions:
 Options:
   -h, --help                        Show this help without changing the filesystem
   -v, --version                     Show the script version
-      --compiler <gcc|clang>         Select the C/C++ compiler (default: gcc)
-      --config <path>                Load build/package choices from TOML
-  -j, --jobs <count>                 Set parallel jobs (default: available CPUs)
+      --compiler <gcc|clang>        Select the C/C++ compiler (default: gcc)
+      --config <path>               Load build/package choices from TOML
+  -j, --jobs <count>                Set parallel build jobs (default: available CPUs)
   -l, --latest                      Refresh and rebuild outdated dependencies
   -n, --enable-gpl-and-non-free     Enable GPL/non-free components
   -g, --google-speech               Announce failures if google_speech is installed
