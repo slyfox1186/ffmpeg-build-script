@@ -48,6 +48,7 @@ usage() {
     print_usage_row '-l, --latest' 'Refresh and rebuild outdated dependencies'
     print_usage_row '-n, --enable-gpl-and-non-free' 'Enable GPL/non-free components'
     print_usage_row '-g, --google-speech' 'Announce failures if google_speech is installed'
+    printf '\nLong options also accept --option=value (for example: --jobs=8).\n'
     printf '\nEnvironment:\n'
     print_usage_row 'BUILD_ROOT=/path' 'Override the default ./build directory'
     print_usage_row 'CUDA_INSTALL=ask|always|never' 'Control CUDA toolkit installation (default: ask)'
@@ -128,6 +129,17 @@ prescan_config() {
     [[ -z "$PACKAGE_CONFIG_FILE" ]] || load_package_selection_config "$PACKAGE_CONFIG_FILE"
 }
 
+# Validated where it is assigned rather than after the loop: an empty value is
+# indistinguishable from "the option was never given" once parsing ends, so
+# `--jobs=` used to fall through to CPU auto-detection instead of being rejected.
+set_build_threads() {
+    local requested="${1-}"
+
+    [[ "$requested" =~ ^[1-9][0-9]*$ ]] ||
+        fail "Invalid jobs value '$requested'; expected a positive integer."
+    build_threads="$requested"
+}
+
 parse_arguments() {
     while (($# > 0)); do
         case "$1" in
@@ -162,8 +174,12 @@ parse_arguments() {
                 ;;
             -j|--jobs)
                 (($# >= 2)) || fail "Missing value for '$1'."
-                build_threads="$2"
+                set_build_threads "$2"
                 shift 2
+                ;;
+            --jobs=*)
+                set_build_threads "${1#*=}"
+                shift
                 ;;
             --config)
                 (($# >= 2)) || fail "Missing value for '--config'."
@@ -188,10 +204,6 @@ parse_arguments() {
 
     [[ "$COMPILER_FLAG" == "gcc" || "$COMPILER_FLAG" == "clang" ]] ||
         fail "Invalid compiler '$COMPILER_FLAG'; expected 'gcc' or 'clang'."
-    if [[ -n "$build_threads" ]]; then
-        [[ "$build_threads" =~ ^[1-9][0-9]*$ ]] ||
-            fail "Invalid jobs value '$build_threads'; expected a positive integer."
-    fi
     if is_true "$DO_BUILD" && is_true "$DO_CLEANUP"; then
         fail "'--build' and '--cleanup' are mutually exclusive."
     fi

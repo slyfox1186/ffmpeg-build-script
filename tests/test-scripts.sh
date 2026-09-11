@@ -163,6 +163,67 @@ assert_contains "$debug_build_output" \
 assert_not_exists "$debug_build_root" \
     "a rejected FFMPEG_BUILD_DEBUG value aborts before the build root is created"
 
+# --compiler and --config have always accepted an "=" form; --jobs did not.
+# --cleanup on a build root that was never created is the only action that
+# exercises a full parse without sudo or network.
+for accepted_jobs_form in "--jobs=8" "-j 8" "--jobs 8"; do
+    jobs_form_root="$temporary_root/jobs-form-root"
+    # shellcheck disable=SC2086 # the forms under test are two separate words.
+    jobs_form_output="$(
+        env BUILD_ROOT="$jobs_form_root" \
+            bash "$repo_root/build-ffmpeg.sh" --cleanup $accepted_jobs_form 2>&1
+    )" || fail_test "the '$accepted_jobs_form' jobs form is accepted"
+    pass "the '$accepted_jobs_form' jobs form is accepted"
+    assert_contains "$jobs_form_output" "nothing to clean" \
+        "the '$accepted_jobs_form' jobs form reaches the requested action"
+done
+
+for rejected_jobs_value in "0" "-1" "abc" "8x" ""; do
+    jobs_value_root="$temporary_root/jobs-value-root"
+    if jobs_value_output="$(
+        env BUILD_ROOT="$jobs_value_root" \
+            bash "$repo_root/build-ffmpeg.sh" --cleanup "--jobs=$rejected_jobs_value" 2>&1
+    )"; then
+        fail_test "'--jobs=$rejected_jobs_value' is rejected"
+    fi
+    pass "'--jobs=$rejected_jobs_value' is rejected"
+    assert_contains "$jobs_value_output" \
+        "Invalid jobs value '$rejected_jobs_value'; expected a positive integer." \
+        "'--jobs=$rejected_jobs_value' quotes the offending value"
+    assert_not_exists "$jobs_value_root" \
+        "'--jobs=$rejected_jobs_value' has no filesystem side effects"
+done
+
+for rejected_compiler_form in "--compiler=bogus" "--compiler bogus"; do
+    compiler_root="$temporary_root/compiler-root"
+    # shellcheck disable=SC2086 # the forms under test are two separate words.
+    if compiler_output="$(
+        env BUILD_ROOT="$compiler_root" \
+            bash "$repo_root/build-ffmpeg.sh" --cleanup $rejected_compiler_form 2>&1
+    )"; then
+        fail_test "'$rejected_compiler_form' is rejected"
+    fi
+    pass "'$rejected_compiler_form' is rejected"
+    assert_contains "$compiler_output" \
+        "Invalid compiler 'bogus'; expected 'gcc' or 'clang'." \
+        "'$rejected_compiler_form' quotes the offending value"
+    assert_not_exists "$compiler_root" \
+        "'$rejected_compiler_form' has no filesystem side effects"
+done
+
+exclusive_root="$temporary_root/exclusive-root"
+if exclusive_output="$(
+    env BUILD_ROOT="$exclusive_root" \
+        bash "$repo_root/build-ffmpeg.sh" --build --cleanup 2>&1
+)"; then
+    fail_test "'--build' and '--cleanup' are mutually exclusive"
+fi
+pass "'--build' and '--cleanup' are mutually exclusive"
+assert_contains "$exclusive_output" "'--build' and '--cleanup' are mutually exclusive." \
+    "the mutual-exclusion diagnostic names both actions"
+assert_not_exists "$exclusive_root" \
+    "requesting both actions has no filesystem side effects"
+
 missing_config_root="$temporary_root/missing-config-root"
 if missing_config_output="$(
     env BUILD_ROOT="$missing_config_root" \

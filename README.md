@@ -73,6 +73,8 @@ Options:
   -n, --enable-gpl-and-non-free     Enable GPL/non-free components
   -g, --google-speech               Announce failures if google_speech is installed
 
+Long options also accept --option=value (for example: --jobs=8).
+
 Environment:
   BUILD_ROOT=/path                  Override the default ./build directory
   CUDA_INSTALL=ask|always|never     Control CUDA toolkit installation (default: ask)
