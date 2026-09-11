@@ -184,6 +184,30 @@ pass "a failing resolve_* capture aborts its caller"
 assert_not_contains "$captured_helper_output" "UNREACHABLE" \
     "a failing resolve_* capture does not fall through with an empty value"
 
+# The root refusal used to live in run_build(), which --cleanup never reaches,
+# leaving the only destructive action in the project runnable as root.
+if root_refusal_output="$(
+    bash -c '
+        source "$1/scripts/shared-utils.sh"
+        require_non_root 0
+        printf "UNREACHABLE\n"
+    ' _ "$repo_root" 2>&1
+)"; then
+    fail_test "running as root is refused"
+fi
+pass "running as root is refused"
+assert_contains "$root_refusal_output" "as a normal user" \
+    "root refusal explains the requirement"
+assert_not_contains "$root_refusal_output" "UNREACHABLE" \
+    "root refusal stops execution"
+if ! bash -c '
+    source "$1/scripts/shared-utils.sh"
+    require_non_root 1000
+' _ "$repo_root" >/dev/null 2>&1; then
+    fail_test "an unprivileged UID is accepted"
+fi
+pass "an unprivileged UID is accepted"
+
 unmarked_root="$temporary_root/unmarked-root"
 mkdir -p "$unmarked_root"
 printf 'not build data\n' >"$unmarked_root/user-file"

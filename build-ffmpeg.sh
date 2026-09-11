@@ -400,8 +400,6 @@ configure_toolchain() {
 }
 
 run_build() {
-    [[ "$EUID" -ne 0 ]] ||
-        fail "Run '$SCRIPT_NAME' as a normal user; it invokes 'sudo' only for system changes."
     [[ "$(uname -m)" == "x86_64" ]] ||
         fail "This build currently supports 'x86_64' only; detected '$(uname -m)'."
 
@@ -460,6 +458,11 @@ run_build() {
 
 main() {
     show_requested_metadata_and_exit "$@"
+    # Checked here, not in run_build(): --cleanup is dispatched below without
+    # ever reaching run_build, so guarding only the build path left the one
+    # destructive action in the project runnable as root. --help and --version
+    # have already exited above and stay usable for any user.
+    require_non_root "$EUID"
     prescan_config "$@"
     parse_arguments "$@"
     resolve_build_root

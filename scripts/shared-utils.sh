@@ -794,6 +794,20 @@ sudo_keepalive_stop() {
     _SUDO_KEEPALIVE_PID=""
 }
 
+# The effective UID is a parameter so the guard itself is testable without
+# needing a root shell or a user namespace. Callers pass "$EUID" explicitly.
+require_non_root() {
+    local effective_uid="${1:-}"
+
+    [[ -n "$effective_uid" ]] ||
+        fail "require_non_root() requires an effective UID. Line: ${LINENO}"
+
+    [[ "$effective_uid" =~ ^[0-9]+$ ]] ||
+        fail "require_non_root() received a non-numeric effective UID: '$effective_uid'. Line: ${LINENO}"
+    ((effective_uid != 0)) ||
+        fail "Run '${SCRIPT_NAME:-build-ffmpeg.sh}' as a normal user; it invokes 'sudo' only for system changes."
+}
+
 require_sudo() {
     if ! command -v sudo >/dev/null 2>&1; then
         fail "This script requires 'sudo' (run on a system with sudo configured). Line: ${LINENO}"
