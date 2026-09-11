@@ -42,7 +42,8 @@ install_global_tools() {
     fi
 
     local m4_path
-    m4_path="$(resolve_tool_path "m4" "$workspace/bin/m4")"
+    m4_path="$(resolve_tool_path "m4" "$workspace/bin/m4")" ||
+        fail "'m4' is required to configure autoconf and libtool. Line: ${LINENO}"
     if [[ "$m4_path" != "$workspace/bin/m4" ]]; then
         log "Using system 'm4' fallback: '$m4_path'."
     fi
@@ -195,8 +196,10 @@ install_global_tools() {
         local openssl_version="$repo_version"
         if build "openssl" "$openssl_version"; then
             local zlib_include_dir zlib_library_dir
-            zlib_include_dir="$(resolve_workspace_or_pkgconf_include_dir "zlib" "zlib" "$workspace/lib/libz.a" "$workspace/lib/libz.so")"
-            zlib_library_dir="$(resolve_workspace_or_pkgconf_library_dir "zlib" "zlib" "$workspace/lib/libz.a" "$workspace/lib/libz.so")"
+            zlib_include_dir="$(resolve_workspace_or_pkgconf_include_dir "zlib" "zlib" "$workspace/lib/libz.a" "$workspace/lib/libz.so")" ||
+                fail "OpenSSL needs zlib headers; enable 'packages.zlib' or install a system zlib development package. Line: ${LINENO}"
+            zlib_library_dir="$(resolve_workspace_or_pkgconf_library_dir "zlib" "zlib" "$workspace/lib/libz.a" "$workspace/lib/libz.so")" ||
+                fail "OpenSSL needs the zlib library; enable 'packages.zlib' or install a system zlib development package. Line: ${LINENO}"
             download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
             execute ./Configure --prefix="$workspace" \
                                         --openssldir="$workspace/ssl" \

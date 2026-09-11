@@ -79,6 +79,27 @@ if [[ "$readme_help_block" != "$actual_help_block" ]]; then
 fi
 printf 'README help text: OK\n'
 
+# fail() ends in `exit 1`, which inside $(...) ends only the subshell: the
+# caller keeps running with an empty string. The resolve_*/git_clone helpers
+# therefore report with warn() and return non-zero, and every capture of one
+# must check that status. Without this rule the next such call site would
+# silently reintroduce the bug.
+# Matched anywhere on the line, not just at the start of an assignment, so a
+# nested capture like x="$(outer "$(resolve_foo)")" is caught too: there the
+# outer command succeeds and the inner status is lost entirely.
+unchecked_captures="$(
+    grep -nE '\$\((resolve_[a-z_]+|git_clone|canonicalize_path)[[:space:]]' \
+        "${shell_files[@]}" |
+        grep -vE '\|\|' || true
+)"
+if [[ -n "$unchecked_captures" ]]; then
+    printf 'Captured a status-returning helper without checking it:\n' >&2
+    printf '%s\n' "$unchecked_captures" >&2
+    printf "Append '|| fail \"...\"' (or '|| return 1') to each line above.\n" >&2
+    exit 1
+fi
+printf 'Checked helper captures: OK\n'
+
 retired_apt_interfaces=("apt""-get" "apt""-cache")
 for retired_apt_interface in "${retired_apt_interfaces[@]}"; do
     if grep -nF -- "$retired_apt_interface" "${text_files[@]}" >/dev/null 2>&1; then

@@ -147,6 +147,43 @@ assert_contains "$missing_config_output" "Missing value for '--config'." \
     "CLI option is quoted in missing-value diagnostics"
 assert_not_exists "$missing_config_root" "missing config values have no filesystem side effects"
 
+# fail() ends in `exit 1`, which inside $(...) ends only the subshell. An empty
+# or malformed --config value used to print [ERROR], leave PACKAGE_CONFIG_FILE
+# empty so the allowlist was never loaded (enabling every package), and then
+# exit 0. Each rejected value must abort with a non-zero status.
+for rejected_config_value in "" "$(printf 'bad\tpath.toml')"; do
+    rejected_config_root="$temporary_root/rejected-config-root"
+    if rejected_config_output="$(
+        env BUILD_ROOT="$rejected_config_root" \
+            bash "$repo_root/build-ffmpeg.sh" --build --config "$rejected_config_value" 2>&1
+    )"; then
+        fail_test "rejected --config value fails instead of building everything"
+    fi
+    pass "rejected --config value fails instead of building everything"
+    assert_contains "$rejected_config_output" "Invalid value for '--config'." \
+        "rejected --config value reports the offending option"
+    assert_not_contains "$rejected_config_output" "Loaded package selection config" \
+        "rejected --config value never loads a package selection"
+    assert_not_exists "$rejected_config_root" \
+        "rejected --config value has no filesystem side effects"
+done
+
+# The resolve_*/git_clone helpers report with warn() and return non-zero rather
+# than calling fail(), so a caller that checks the status actually aborts.
+if captured_helper_output="$(
+    bash -c '
+        source "$1/scripts/shared-utils.sh"
+        workspace="$2"
+        resolved="$(resolve_tool_path definitely-absent-tool)" || exit 3
+        printf "UNREACHABLE:%s\n" "$resolved"
+    ' _ "$repo_root" "$temporary_root" 2>&1
+)"; then
+    fail_test "a failing resolve_* capture aborts its caller"
+fi
+pass "a failing resolve_* capture aborts its caller"
+assert_not_contains "$captured_helper_output" "UNREACHABLE" \
+    "a failing resolve_* capture does not fall through with an empty value"
+
 unmarked_root="$temporary_root/unmarked-root"
 mkdir -p "$unmarked_root"
 printf 'not build data\n' >"$unmarked_root/user-file"

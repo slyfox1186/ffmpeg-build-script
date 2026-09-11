@@ -86,8 +86,10 @@ install_audio_libraries() {
     if build "vorbis" "$repo_version"; then
         local ogg_include_dir ogg_library
         download "https://github.com/xiph/vorbis/archive/refs/tags/v$repo_version.tar.gz" "vorbis-$repo_version.tar.gz"
-        ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
-        ogg_library="$(resolve_workspace_or_pkgconf_library_file "libogg" "ogg" "ogg" "$workspace/lib/libogg.a")"
+        ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")" ||
+            fail "Vorbis needs Ogg headers; enable 'packages.libogg' or install a system libogg development package. Line: ${LINENO}"
+        ogg_library="$(resolve_workspace_or_pkgconf_library_file "libogg" "ogg" "ogg" "$workspace/lib/libogg.a")" ||
+            fail "Vorbis needs the Ogg library; enable 'packages.libogg' or install a system libogg development package. Line: ${LINENO}"
         cmake_ninja_install "build" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF \
             -DOGG_INCLUDE_DIR="$ogg_include_dir" -DOGG_LIBRARY="$ogg_library"
@@ -160,8 +162,10 @@ install_audio_libraries() {
         download "https://github.com/xiph/theora/archive/refs/tags/v$theora_version.tar.gz" \
             "libtheora-$theora_version.tar.gz"
         ensure_autotools
-        ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
-        ogg_library_dir="$(resolve_workspace_or_pkgconf_library_dir "libogg" "ogg" "$workspace/lib/libogg.a")"
+        ogg_include_dir="$(resolve_workspace_or_pkgconf_include_dir "libogg" "ogg" "$workspace/lib/libogg.a")" ||
+            fail "Theora needs Ogg headers; enable 'packages.libogg' or install a system libogg development package. Line: ${LINENO}"
+        ogg_library_dir="$(resolve_workspace_or_pkgconf_library_dir "libogg" "ogg" "$workspace/lib/libogg.a")" ||
+            fail "Theora needs the Ogg library; enable 'packages.libogg' or install a system libogg development package. Line: ${LINENO}"
 
         # Vorbis and SDL are requirements of upstream's example programs, not
         # of the core Theora/Ogg library consumed by FFmpeg.

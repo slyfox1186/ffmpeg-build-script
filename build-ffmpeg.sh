@@ -62,9 +62,17 @@ resolve_config_path() {
     local input_path="${1:-}"
     local candidate_path
 
-    [[ -n "$input_path" ]] || fail "Missing config path for '--config'."
-    [[ ! "$input_path" =~ [[:cntrl:]] ]] ||
-        fail "Config paths may not contain control characters."
+    # Callers capture this in $(...), where fail()'s exit would end only the
+    # subshell and hand back an empty path. Report and return instead; the
+    # caller turns a non-zero status into a real abort.
+    [[ -n "$input_path" ]] || {
+        warn "Missing config path for '--config'."
+        return 1
+    }
+    [[ ! "$input_path" =~ [[:cntrl:]] ]] || {
+        warn "Config paths may not contain control characters."
+        return 1
+    }
     if [[ "$input_path" == /* ]]; then
         candidate_path="$input_path"
     elif [[ -f "$INVOCATION_DIR/$input_path" ]]; then
@@ -104,13 +112,15 @@ prescan_config() {
                     fail "Missing value for '--config'."
                 [[ -z "$PACKAGE_CONFIG_FILE" ]] ||
                     fail "'--config' may only be specified once."
-                PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index + 1]}")"
+                PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index + 1]}")" ||
+                    fail "Invalid value for '--config'."
                 ((index += 1))
                 ;;
             --config=*)
                 [[ -z "$PACKAGE_CONFIG_FILE" ]] ||
                     fail "'--config' may only be specified once."
-                PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index]#*=}")"
+                PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index]#*=}")" ||
+                    fail "Invalid value for '--config'."
                 ;;
         esac
     done

@@ -391,7 +391,8 @@ resolve_tool_path() {
         return 0
     fi
 
-    fail "Required tool '$tool_name' was not found. Enable its package in config or install it with your system package manager."
+    warn "Required tool '$tool_name' was not found. Enable its package in config or install it with your system package manager."
+    return 1
 }
 
 resolve_pkgconf_prefix() {
@@ -401,7 +402,10 @@ resolve_pkgconf_prefix() {
     [[ -n "$module_name" ]] || fail "resolve_pkgconf_prefix() called without a module name. Line: ${LINENO}"
 
     prefix="$(pkgconf --variable=prefix "$module_name" 2>/dev/null || true)"
-    [[ -n "$prefix" ]] || fail "Unable to resolve pkgconf prefix for '$module_name'. Install the matching development package or enable the local build dependency."
+    [[ -n "$prefix" ]] || {
+        warn "Unable to resolve pkgconf prefix for '$module_name'. Install the matching development package or enable the local build dependency."
+        return 1
+    }
     printf '%s\n' "$prefix"
 }
 
@@ -420,7 +424,10 @@ resolve_pkgconf_include_dir() {
     done
 
     include_dir="$(pkgconf --variable=includedir "$module_name" 2>/dev/null || true)"
-    [[ -n "$include_dir" ]] || fail "Unable to resolve include dir for pkgconf module '$module_name'."
+    [[ -n "$include_dir" ]] || {
+        warn "Unable to resolve include dir for pkgconf module '$module_name'."
+        return 1
+    }
     printf '%s\n' "$include_dir"
 }
 
@@ -439,7 +446,10 @@ resolve_pkgconf_library_dir() {
     done
 
     lib_dir="$(pkgconf --variable=libdir "$module_name" 2>/dev/null || true)"
-    [[ -n "$lib_dir" ]] || fail "Unable to resolve library dir for pkgconf module '$module_name'."
+    [[ -n "$lib_dir" ]] || {
+        warn "Unable to resolve library dir for pkgconf module '$module_name'."
+        return 1
+    }
     printf '%s\n' "$lib_dir"
 }
 
@@ -451,7 +461,7 @@ resolve_pkgconf_library_file() {
     [[ -n "$module_name" ]] || fail "resolve_pkgconf_library_file() called without a module name. Line: ${LINENO}"
     [[ -n "$library_basename" ]] || fail "resolve_pkgconf_library_file() called without a library basename. Line: ${LINENO}"
 
-    library_dir="$(resolve_pkgconf_library_dir "$module_name")"
+    library_dir="$(resolve_pkgconf_library_dir "$module_name")" || return 1
     for candidate in \
         "$library_dir/lib${library_basename}.a" \
         "$library_dir/lib${library_basename}.so" \
@@ -462,7 +472,8 @@ resolve_pkgconf_library_file() {
         fi
     done
 
-    fail "Unable to locate 'lib${library_basename}' in '$library_dir' for pkgconf module '$module_name'."
+    warn "Unable to locate 'lib${library_basename}' in '$library_dir' for pkgconf module '$module_name'."
+    return 1
 }
 
 first_existing_path() {
@@ -551,7 +562,12 @@ load_package_selection_config() {
     [[ -f "$config_file" ]] || fail "Config file not found: '$config_file'. Line: ${LINENO}"
     [[ -r "$config_file" ]] || fail "Config file is not readable: '$config_file'. Line: ${LINENO}"
 
-    PACKAGE_SELECTION_CONFIG_FILE="$(canonicalize_path "$config_file")"
+    # package_enabled() treats a non-empty PACKAGE_SELECTION_CONFIG_FILE as "a
+    # config was supplied, so unlisted packages default to false". An unchecked
+    # failure here would leave it empty and silently invert the documented
+    # allowlist semantics back to "build everything".
+    PACKAGE_SELECTION_CONFIG_FILE="$(canonicalize_path "$config_file")" ||
+        fail "Unable to resolve the config file path '$config_file'. Line: ${LINENO}"
     PACKAGE_SELECTION=()
 
     while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
@@ -799,8 +815,14 @@ fail() {
     exit 1
 }
 
+# Returning 127 reproduces bash's own "command not found" status, which keeps
+# optional probes recoverable: `maybe_missing || fallback` and `if optional_cmd`
+# both behave normally. Calling fail() here aborted probes the caller had
+# deliberately made recoverable, and inside $(...) it aborted only the subshell
+# and handed the caller an empty string.
 command_not_found_handle() {
-    fail "Command or function not found: '$1'."
+    warn "Command or function not found: '$1'."
+    return 127
 }
 
 exit_fn() {
@@ -1696,7 +1718,8 @@ git_caller() {
             fail "Unable to remove legacy marker for '$repo_name'. Line: ${LINENO}"
     fi
 
-    version="$(git_clone "$git_url" "$repo_name" "$clone_mode")"
+    version="$(git_clone "$git_url" "$repo_name" "$clone_mode")" ||
+        fail "Unable to obtain a Git snapshot for '$repo_name' from '$git_url'."
 }
 
 git_clone() {
@@ -1715,14 +1738,20 @@ git_clone() {
 
     require_vars packages
     require_commands git timeout
-    [[ "$repo_url" == https://* && ! "$repo_url" =~ [[:cntrl:]] ]] ||
-        fail "git_clone() requires a valid HTTPS repository URL. Line: ${LINENO}"
-    [[ "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] ||
-        fail "git_clone() received an invalid repository name. Line: ${LINENO}"
+    [[ "$repo_url" == https://* && ! "$repo_url" =~ [[:cntrl:]] ]] || {
+        warn "git_clone() requires a valid HTTPS repository URL. Line: ${LINENO}"
+        return 1
+    }
+    [[ "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || {
+        warn "git_clone() received an invalid repository name. Line: ${LINENO}"
+        return 1
+    }
     git_timeout="${GIT_OPERATION_TIMEOUT:-120}"
     clone_timeout="${GIT_CLONE_TIMEOUT:-1800}"
-    [[ "$git_timeout" =~ ^[1-9][0-9]*$ && "$clone_timeout" =~ ^[1-9][0-9]*$ ]] ||
-        fail "Git timeout values must be positive integers. Line: ${LINENO}"
+    [[ "$git_timeout" =~ ^[1-9][0-9]*$ && "$clone_timeout" =~ ^[1-9][0-9]*$ ]] || {
+        warn "Git timeout values must be positive integers. Line: ${LINENO}"
+        return 1
+    }
 
     remote_commit="$(
         timeout --foreground "$git_timeout" env GIT_TERMINAL_PROMPT=0 \
@@ -1730,8 +1759,10 @@ git_clone() {
             ls-remote "$repo_url" HEAD 2>/dev/null |
             awk 'NR == 1 {print $1}'
     )"
-    [[ "$remote_commit" =~ ^[0-9a-fA-F]{40,64}$ ]] ||
-        fail "Failed to resolve the 'HEAD' commit for '$repo_url'. Line: ${LINENO}"
+    [[ "$remote_commit" =~ ^[0-9a-fA-F]{40,64}$ ]] || {
+        warn "Failed to resolve the 'HEAD' commit for '$repo_url'. Line: ${LINENO}"
+        return 1
+    }
 
     target_directory="$packages/$repo_name"
     prior_version="$(read_marker_version "$packages/$repo_name.done" || true)"
@@ -1745,8 +1776,10 @@ git_clone() {
         warn "'$repo_name' is current remotely, but its source checkout or required artifacts are incomplete; cloning it again."
     fi
 
-    clone_parent="$(mktemp -d --tmpdir="$packages" ".clone-${repo_name}.XXXXXX")" ||
-        fail "Failed to create a temporary clone directory for '$repo_name'. Line: ${LINENO}"
+    clone_parent="$(mktemp -d --tmpdir="$packages" ".clone-${repo_name}.XXXXXX")" || {
+        warn "Failed to create a temporary clone directory for '$repo_name'. Line: ${LINENO}"
+        return 1
+    }
     clone_directory="$clone_parent/repository"
     diagnostic_sink="${log_file:-/dev/stderr}"
 
@@ -1761,7 +1794,8 @@ git_clone() {
             ;;
         *)
             safe_remove_tree "$clone_parent" "$packages"
-            fail "Unsupported git clone mode '$clone_mode'. Line: ${LINENO}"
+            warn "Unsupported git clone mode '$clone_mode'. Line: ${LINENO}"
+            return 1
             ;;
     esac
     clone_args+=(-- "$repo_url" "$clone_directory")
@@ -1769,20 +1803,24 @@ git_clone() {
     if ! timeout --foreground "$clone_timeout" "${clone_args[@]}" 2>>"$diagnostic_sink"; then
         safe_remove_tree "$clone_parent" "$packages"
         warn "Failed to clone '$repo_url'; retrying once."
-        clone_parent="$(mktemp -d --tmpdir="$packages" ".clone-${repo_name}.XXXXXX")" ||
-            fail "Failed to create a retry directory for '$repo_name'. Line: ${LINENO}"
+        clone_parent="$(mktemp -d --tmpdir="$packages" ".clone-${repo_name}.XXXXXX")" || {
+            warn "Failed to create a retry directory for '$repo_name'. Line: ${LINENO}"
+            return 1
+        }
         clone_directory="$clone_parent/repository"
         clone_args[${#clone_args[@]} - 1]="$clone_directory"
         if ! timeout --foreground "$clone_timeout" "${clone_args[@]}" 2>>"$diagnostic_sink"; then
             safe_remove_tree "$clone_parent" "$packages"
-            fail "Failed to clone '$repo_url' after two attempts. Line: ${LINENO}"
+            warn "Failed to clone '$repo_url' after two attempts. Line: ${LINENO}"
+            return 1
         fi
     fi
 
     actual_commit="$(git -C "$clone_directory" rev-parse HEAD 2>/dev/null || true)"
     [[ "$actual_commit" =~ ^[0-9a-fA-F]{40,64}$ ]] || {
         safe_remove_tree "$clone_parent" "$packages"
-        fail "Cloned '$repo_url', but its checked-out commit could not be verified. Line: ${LINENO}"
+        warn "Cloned '$repo_url', but its checked-out commit could not be verified. Line: ${LINENO}"
+        return 1
     }
 
     # The branch can advance between ls-remote and clone. Record the commit that
@@ -1795,7 +1833,8 @@ git_clone() {
     safe_remove_tree "$target_directory" "$packages"
     if ! mv -- "$clone_directory" "$target_directory"; then
         safe_remove_tree "$clone_parent" "$packages"
-        fail "Failed to publish the completed clone for '$repo_name'. Line: ${LINENO}"
+        warn "Failed to publish the completed clone for '$repo_name'. Line: ${LINENO}"
+        return 1
     fi
     safe_remove_tree "$clone_parent" "$packages"
 
