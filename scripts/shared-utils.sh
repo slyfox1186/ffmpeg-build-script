@@ -237,6 +237,71 @@ write_build_root_marker() {
     fi
 }
 
+# One refusal list for both the build and the cleanup path. These were two
+# hand-maintained copies that had already drifted: cleanup was missing the
+# whitespace rule README states unconditionally, neither listed /home or
+# /usr/local, and both compared the repository root by equality only -- so a
+# build root that *contains* the repository was accepted, and a later cleanup
+# would have taken the repository with it.
+# A run interrupted between creating the build root and writing its marker left
+# a non-empty, unmarked directory that neither --build nor --cleanup would ever
+# touch again, with a manual `rm -rf` as the only way out. The marker is now
+# written before any content, but roots already wedged by an older version are
+# still adopted here when they contain nothing but this project's own empty
+# scaffolding.
+build_root_is_adoptable() {
+    local root="${1:-}"
+    local entry
+
+    [[ -n "$root" && -d "$root" ]] || return 1
+    while IFS= read -r -d '' entry; do
+        case "${entry##*/}" in
+            packages|workspace)
+                [[ -d "$entry" && ! -L "$entry" ]] || return 1
+                [[ -z "$(find "$entry" -mindepth 1 -print -quit 2>/dev/null)" ]] || return 1
+                ;;
+            *) return 1 ;;
+        esac
+    done < <(find "$root" -mindepth 1 -maxdepth 1 -print0 2>/dev/null)
+    return 0
+}
+
+assert_safe_build_root() {
+    local candidate="${1:-}"
+    local repo="${2:-}"
+    local candidate_resolved repo_resolved home_resolved
+
+    [[ -n "$candidate" ]] ||
+        fail "assert_safe_build_root() requires a build root. Line: ${LINENO}"
+    [[ -n "$repo" ]] ||
+        fail "assert_safe_build_root() requires a repository root. Line: ${LINENO}"
+    candidate_resolved="$(canonicalize_path "$candidate")" ||
+        fail "Unable to resolve build root '$candidate'."
+    repo_resolved="$(canonicalize_path "$repo")" ||
+        fail "Unable to resolve repository root '$repo'."
+    [[ "${HOME:-}" == /* ]] ||
+        fail "'HOME' must name an absolute user home directory."
+    home_resolved="$(canonicalize_path "${HOME:-}")" ||
+        fail "'HOME' must name an absolute user home directory."
+
+    # Named generically: with BUILD_ROOT unset this is the repository's own
+    # ./build, and blaming BUILD_ROOT sent people looking for a variable they
+    # never set.
+    [[ "$candidate_resolved" != *[[:space:]]* ]] ||
+        fail "The build root may not contain whitespace because several upstream build systems cannot represent it safely: '$candidate_resolved'."
+    case "$candidate_resolved" in
+        /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/usr/local|/var)
+            fail "Refusing unsafe build root '$candidate_resolved'."
+            ;;
+    esac
+    [[ "$candidate_resolved" != "$home_resolved" ]] ||
+        fail "Refusing unsafe build root '$candidate_resolved'."
+    [[ "$candidate_resolved" != "$repo_resolved" ]] ||
+        fail "Refusing to use the repository root as a build root: '$candidate_resolved'."
+    ! path_is_within "$repo_resolved" "$candidate_resolved" ||
+        fail "Refusing a build root that contains this repository: '$candidate_resolved'."
+}
+
 acquire_build_root_lock() {
     local root="${1:-}"
 
@@ -2777,7 +2842,7 @@ find_git_repo() {
 
 # Cleanup function
 cleanup() {
-    local choice cwd_resolved script_dir_resolved home_resolved repo_root
+    local choice cwd_resolved script_dir_resolved repo_root
 
     [[ -n "${cwd:-}" ]] || fail "Build root is not defined; cleanup cannot continue."
     [[ -e "$cwd" ]] || {
@@ -2792,30 +2857,22 @@ cleanup() {
         fail "Repository root is not defined; cleanup cannot verify its deletion boundary."
     script_dir_resolved="$(canonicalize_path "$repo_root")" ||
         fail "Unable to resolve repository root '$repo_root'."
-    [[ "${HOME:-}" == /* ]] ||
-        fail "'HOME' must name an absolute user home directory before cleanup."
-    home_resolved="$(canonicalize_path "${HOME:-}")" ||
-        fail "'HOME' must name an absolute user home directory before cleanup."
 
-    [[ "$cwd_resolved" != "/" && "$cwd_resolved" != "$home_resolved" ]] ||
-        fail "Refusing to remove unsafe build root: '$cwd_resolved'"
-    case "$cwd_resolved" in
-        /bin|/boot|/dev|/etc|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
-            fail "Refusing to remove unsafe build root: '$cwd_resolved'"
-            ;;
-    esac
-    [[ "$cwd_resolved" != "$script_dir_resolved" ]] ||
-        fail "Refusing to remove the repository root: '$cwd_resolved'"
-    acquire_build_root_lock "$cwd_resolved"
+    assert_safe_build_root "$cwd_resolved" "$script_dir_resolved"
+
+    # Establish that this directory is ours before taking a lock on it.
     if build_root_marker_matches "$cwd_resolved/.ffmpeg-build-root" "$cwd_resolved"; then
         :
     elif [[ "$cwd_resolved" == "$script_dir_resolved/build" ]] &&
         legacy_build_root_marker "$cwd_resolved/.ffmpeg-build-root"; then
         warn "Upgrading the legacy marker in the repository's default build directory before cleanup."
         write_build_root_marker "$cwd_resolved"
+    elif build_root_is_adoptable "$cwd_resolved"; then
+        warn "'$cwd_resolved' holds only this project's empty scaffolding from an interrupted run; cleaning it up."
     else
         fail "Refusing to clean a build root without a valid path-bound marker: '$cwd_resolved'"
     fi
+    acquire_build_root_lock "$cwd_resolved"
 
     if [[ ! -t 0 ]]; then
         log "Standard input is not interactive; leaving build files in place at '$cwd_resolved'."

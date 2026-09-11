@@ -213,26 +213,9 @@ resolve_build_root() {
 }
 
 validate_build_root() {
-    local home_resolved parent first_entry
+    local first_entry
 
-    [[ "${HOME:-}" == /* ]] ||
-        fail "'HOME' must name an absolute user home directory."
-    home_resolved="$(canonicalize_path "${HOME:-}")" ||
-        fail "'HOME' must name an absolute user home directory."
-    [[ "$cwd" != *[[:space:]]* ]] ||
-        fail "'BUILD_ROOT' may not contain whitespace because several upstream build systems cannot represent it safely: '$cwd'."
-    case "$cwd" in
-        /|/bin|/boot|/dev|/etc|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
-            fail "Refusing unsafe build root '$cwd'."
-            ;;
-    esac
-    [[ "$cwd" != "$home_resolved" && "$cwd" != "$REPO_ROOT" ]] ||
-        fail "Refusing unsafe build root '$cwd'."
-
-    parent="$(dirname -- "$cwd")"
-    [[ -d "$parent" ]] ||
-        mkdir -p -- "$parent" ||
-        fail "Unable to create build-root parent '$parent'."
+    assert_safe_build_root "$cwd" "$REPO_ROOT"
 
     [[ ! -e "$cwd" || -d "$cwd" ]] ||
         fail "'BUILD_ROOT' exists but is not a directory: '$cwd'."
@@ -247,6 +230,8 @@ validate_build_root() {
                 :
             elif legacy_build_root_marker "$cwd/.ffmpeg-build-root"; then
                 warn "'BUILD_ROOT' '$cwd' uses a legacy empty marker; this build will upgrade it to a path-bound marker."
+            elif build_root_is_adoptable "$cwd"; then
+                warn "'$cwd' holds only this project's empty scaffolding from an interrupted run; adopting it."
             else
                 fail "'BUILD_ROOT' '$cwd' already contains data and lacks a valid path-bound FFmpeg build-root marker."
             fi
@@ -320,7 +305,7 @@ ensure_build_context() {
 }
 
 initialize_build_root() {
-    local managed_file managed_path
+    local managed_file managed_path parent
 
     validate_build_root
     for managed_path in \
@@ -332,13 +317,23 @@ initialize_build_root() {
         [[ ! -L "$managed_path" ]] ||
             fail "Refusing symlink at managed build path '$managed_path'."
     done
-    if ! mkdir -p -- "$packages" "$workspace"; then
-        execute sudo mkdir -p -- "$packages" "$workspace"
+    # The build root is created empty first, and nothing is put inside it until
+    # its marker exists: an interrupt here leaves an empty directory that the
+    # next run accepts, rather than a populated unmarked one that neither
+    # --build nor --cleanup would touch again.
+    if [[ ! -d "$cwd" ]]; then
+        parent="$(dirname -- "$cwd")"
+        [[ -d "$parent" ]] || mkdir -p -- "$parent" ||
+            fail "Unable to create build-root parent '$parent'."
+        mkdir -p -- "$cwd" ||
+            fail "Unable to create the build root '$cwd'."
     fi
-    if [[ "$(stat -c '%u' "$cwd" 2>/dev/null || true)" != "$BUILD_UID" ||
-        ! -w "$cwd" ]]; then
-        execute sudo chown "$BUILD_UID:$BUILD_GID" "$cwd"
-    fi
+    # Deliberately no `sudo mkdir`/`sudo chown` fallback. Escalating here let a
+    # build root the invoking user does not own be taken over, marked as ours,
+    # and become a legitimate --cleanup target -- the marker is supposed to mean
+    # "this project created it", not "this project annexed it".
+    [[ -w "$cwd" && -r "$cwd" && -x "$cwd" ]] ||
+        fail "Build root '$cwd' is not writable by '$BUILD_USER:$BUILD_GROUP'. Choose a different 'BUILD_ROOT' or grant ownership yourself; this script will not take it with 'sudo'."
     acquire_build_root_lock "$cwd"
     [[ ! -e "$log_file" || -f "$log_file" ]] ||
         fail "Build log path is not a regular file: '$log_file'."
@@ -351,6 +346,8 @@ initialize_build_root() {
         fi
     done
     write_build_root_marker "$cwd"
+    mkdir -p -- "$packages" "$workspace" ||
+        fail "Unable to create the build-root scaffolding under '$cwd'."
     ensure_user_ownership \
         "$packages" \
         "$workspace" \

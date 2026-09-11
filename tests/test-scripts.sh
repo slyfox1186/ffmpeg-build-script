@@ -215,6 +215,42 @@ assert_command_fails "cleanup refuses an unmarked build root" \
     env BUILD_ROOT="$unmarked_root" bash "$repo_root/build-ffmpeg.sh" --cleanup
 assert_file "$unmarked_root/user-file" "refused cleanup preserves unrelated data"
 
+# An interrupt between creating the build root and writing its marker left a
+# populated unmarked directory that neither --build nor --cleanup would touch
+# again. A root holding only this project's own empty scaffolding is adopted;
+# one holding anything else is still refused.
+wedged_root="$temporary_root/wedged-root"
+mkdir -p "$wedged_root/packages" "$wedged_root/workspace"
+wedged_output="$(
+    env BUILD_ROOT="$wedged_root" bash "$repo_root/build-ffmpeg.sh" --cleanup 2>&1
+)" || fail_test "cleanup adopts a root holding only empty scaffolding"
+pass "cleanup adopts a root holding only empty scaffolding"
+assert_contains "$wedged_output" "empty scaffolding from an interrupted run" \
+    "adopted scaffolding is reported"
+printf 'not build data\n' >"$wedged_root/packages/user-file"
+assert_command_fails "cleanup still refuses scaffolding holding foreign data" \
+    env BUILD_ROOT="$wedged_root" bash "$repo_root/build-ffmpeg.sh" --cleanup
+assert_file "$wedged_root/packages/user-file" \
+    "refused scaffolding cleanup preserves unrelated data"
+
+# Both guards compared the repository root by equality only, so a build root
+# that CONTAINS the repository was accepted and a later cleanup would have
+# taken the repository with it.
+assert_command_fails "a build root containing the repository is refused" \
+    env BUILD_ROOT="$repo_root/.." bash "$repo_root/build-ffmpeg.sh" --cleanup
+for unsafe_build_root in /home /usr/local; do
+    assert_command_fails "'$unsafe_build_root' is refused as a build root" \
+        env BUILD_ROOT="$unsafe_build_root" bash "$repo_root/build-ffmpeg.sh" --cleanup
+done
+whitespace_root="$temporary_root/build root with spaces"
+mkdir -p "$whitespace_root"
+whitespace_output="$(
+    env BUILD_ROOT="$whitespace_root" bash "$repo_root/build-ffmpeg.sh" --cleanup 2>&1
+)" && fail_test "a build root containing whitespace is refused on the cleanup path"
+pass "a build root containing whitespace is refused on the cleanup path"
+assert_contains "$whitespace_output" "may not contain whitespace" \
+    "whitespace refusal explains the constraint"
+
 # shellcheck source=scripts/shared-utils.sh
 source "$repo_root/scripts/shared-utils.sh"
 # Consumed by sourced shared utility functions.
