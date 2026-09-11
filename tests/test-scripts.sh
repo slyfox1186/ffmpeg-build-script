@@ -691,6 +691,33 @@ printf '4.4.0-19041-Microsoft\n' >"$os_detect_dir/kernel-osrelease"
 expect_os_detection_failure "wsl.exe --set-version" \
     "detection rejects WSL1 with upgrade guidance"
 
+# os-release used to be `source`d, so anything in it ran as code in a shell
+# that afterwards executes sudo-authorized steps. It is now read as data.
+printf '6.8.0-52-generic\n' >"$os_detect_dir/kernel-osrelease"
+printf '%s\n' \
+    'ID=ubuntu' \
+    'VERSION_ID="24.04"' \
+    'VERSION_CODENAME=noble' \
+    'UBUNTU_CODENAME=noble' \
+    "touch '$os_detect_dir/executed'" \
+    'HOME=/nowhere' \
+    >"$os_detect_dir/os-release"
+expect_os_detection "Ubuntu|24.04|noble|ubuntu" \
+    "detection ignores non-assignment lines in os-release"
+assert_not_exists "$os_detect_dir/executed" \
+    "os-release contents are never executed"
+unrelated_key_output="$(
+    bash -c '
+        source "$1/scripts/system-setup.sh"
+        OS_RELEASE_FILE="$2/os-release"
+        KERNEL_RELEASE_FILE="$2/kernel-osrelease"
+        detect_operating_system
+        printf "%s\n" "$HOME"
+    ' _ "$repo_root" "$os_detect_dir"
+)"
+assert_not_contains "$unrelated_key_output" "/nowhere" \
+    "os-release assignments never leak into the calling shell"
+
 release_gap_output="$(
     bash -c '
         source "$1/scripts/system-setup.sh"

@@ -180,25 +180,53 @@ install_apt_packages() {
         --no-install-recommends "${missing_packages[@]}"
 }
 
+# os-release(5) is shell-compatible syntax, but `source`ing it executed the file
+# as code in a shell that goes on to run sudo-authorized steps, and the path is
+# overridable by OS_RELEASE_FILE (the test suite's hook). Reading it as data
+# removes that entirely and confines the result to the five keys below, instead
+# of importing every assignment the file happens to contain.
+#
+# Quotes are stripped but the four backslash escapes os-release(5) permits are
+# not unescaped: the spec restricts ID, ID_LIKE, VERSION_ID, VERSION_CODENAME
+# and UBUNTU_CODENAME to lowercase letters, digits, '.', '_' and '-', so none of
+# them can contain an escape in the first place.
+read_os_release_fields() {
+    local file="$1" line key value
+
+    OS_RELEASE_FIELDS=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        key="${line%%=*}"
+        [[ "$line" == *=* && "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        value="${line#*=}"
+        if [[ ${#value} -ge 2 &&
+            ( "$value" == \"*\" || "$value" == \'*\' ) ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+        OS_RELEASE_FIELDS["$key"]="$value"
+    done <"$file"
+}
+
 detect_operating_system() {
     local os_release_file="${OS_RELEASE_FILE:-/etc/os-release}"
     local kernel_release_file="${KERNEL_RELEASE_FILE:-/proc/sys/kernel/osrelease}"
     local detected_id detected_like detected_version detected_codename
     local ubuntu_codename kernel_release=""
+    local -A OS_RELEASE_FIELDS=()
 
     [[ -r "$os_release_file" ]] ||
         fail "'$os_release_file' is required for operating-system detection."
-    # shellcheck source=/dev/null
-    source "$os_release_file"
+    read_os_release_fields "$os_release_file"
 
     # os-release(5): VERSION_ID and VERSION_CODENAME are both optional (Debian
     # testing/sid ships only the codename), and ID_LIKE is the documented
     # fallback for identifying derivatives.
-    detected_id="${ID:-}"
-    detected_like="${ID_LIKE:-}"
-    detected_version="${VERSION_ID:-}"
-    detected_codename="${VERSION_CODENAME:-}"
-    ubuntu_codename="${UBUNTU_CODENAME:-}"
+    detected_id="${OS_RELEASE_FIELDS[ID]:-}"
+    detected_like="${OS_RELEASE_FIELDS[ID_LIKE]:-}"
+    detected_version="${OS_RELEASE_FIELDS[VERSION_ID]:-}"
+    detected_codename="${OS_RELEASE_FIELDS[VERSION_CODENAME]:-}"
+    ubuntu_codename="${OS_RELEASE_FIELDS[UBUNTU_CODENAME]:-}"
     [[ -n "$detected_id" ]] ||
         fail "Unable to identify the operating system from '$os_release_file'."
 
