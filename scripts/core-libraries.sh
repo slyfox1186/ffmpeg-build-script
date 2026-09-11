@@ -116,7 +116,4 @@ install_core_libraries() {
         build_done "libtiff" "$repo_version"
     fi
 
-    # aribb24 is a version-3 dependency, not a GPL-only dependency. FFmpeg is
-    # already configured with --enable-version3 in both licensing modes.
-    append_configure_options_if_enabled "libaribb24" "--enable-libaribb24"
 }

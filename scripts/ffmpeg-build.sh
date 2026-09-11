@@ -288,6 +288,20 @@ build_ffmpeg() {
         # Source-built and system-provided optional dependencies. Every option is
         # gated on both user selection and an actual SDK/header probe; FFmpeg's own
         # configure then performs the authoritative compile/link check.
+        # FFmpeg accepts "aribb24 > 1.0.3" outright, otherwise falls back to
+        # requiring --enable-gpl, otherwise dies. Every supported release ships
+        # exactly 1.0.3, so appending --enable-libaribb24 on selection alone --
+        # which is what core-libraries.sh did, the only system-package
+        # integration with no probe -- killed configure on all of them, and
+        # append_configure_options_if_enabled made it a hard requirement too.
+        if package_enabled "libaribb24"; then
+            if library_exists "aribb24 > 1.0.3" ||
+                { is_true "$NONFREE_AND_GPL" && library_exists aribb24; }; then
+                append_required_configure_options detected_config --enable-libaribb24
+            elif library_exists aribb24; then
+                warn "'libaribb24' is only usable with '--enable-gpl-and-non-free' at the version this release ships; omitting it."
+            fi
+        fi
         package_enabled "libbluray" && library_exists libbluray &&
             append_required_configure_options detected_config --enable-libbluray
         package_enabled "libdav1d" && library_exists dav1d &&
