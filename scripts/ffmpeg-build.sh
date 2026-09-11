@@ -151,11 +151,52 @@ validate_ffmpeg_installation() {
     fi
 }
 
+# `sudo make install` overwrites /usr/local/bin/ffmpeg in place. If it fails
+# part-way -- ENOSPC is the classic -- the previously working programs are
+# already gone and there is nothing to fall back to. The whole staged-DESTDIR
+# design exists to avoid touching /usr/local until the result is proven good,
+# and then the promotion itself was unrecoverable.
+#
+# Copy the existing programs aside first so a failed promotion can put them
+# back. Only the three programs are preserved: restoring a working ffmpeg is
+# the property that matters, and a half-written library tree is repaired by
+# re-running the build.
+backup_installed_ffmpeg_programs() {
+    local backup_dir="${1:-}"
+    local install_prefix="${2:-/usr/local}"
+    local program source_path
+
+    [[ -n "$backup_dir" ]] ||
+        fail "backup_installed_ffmpeg_programs() requires a backup directory."
+    for program in ffmpeg ffprobe ffplay; do
+        source_path="$install_prefix/bin/$program"
+        [[ -f "$source_path" && ! -L "$source_path" ]] || continue
+        execute cp -p -- "$source_path" "$backup_dir/$program"
+    done
+}
+
+restore_installed_ffmpeg_programs() {
+    local backup_dir="${1:-}"
+    local install_prefix="${2:-/usr/local}"
+    local program backup_path
+
+    [[ -n "$backup_dir" && -d "$backup_dir" ]] || return 0
+    for program in ffmpeg ffprobe ffplay; do
+        backup_path="$backup_dir/$program"
+        [[ -f "$backup_path" ]] || continue
+        if run_logged sudo cp -p -- "$backup_path" "$install_prefix/bin/$program"; then
+            warn "Restored the previous '$install_prefix/bin/$program'."
+        else
+            warn "Could not restore '$install_prefix/bin/$program'; a copy is kept at '$backup_path'."
+        fi
+    done
+}
+
 build_ffmpeg() {
     local ffmpeg_version marker_file installed_version recorded_version
     local source_directory extra_cflags extra_cxxflags extra_ldflags extra_libs
     local cuda_version cuda_major
-    local staging_root staged_prefix
+    local staging_root staged_prefix install_backup_dir install_status
     local ffplay_enabled=false
     local -a base_config=()
     local -a detected_config=()
@@ -425,8 +466,17 @@ build_ffmpeg() {
         validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled" "$staged_prefix" false
 
         # Only mutate /usr/local after the complete staged install has passed
-        # binary/version/capability checks.
-        execute sudo make install
+        # binary/version/capability checks, and keep the previous programs
+        # recoverable until the installed result has passed them too.
+        install_backup_dir="$staging_root/previous-install"
+        execute mkdir -p -- "$install_backup_dir"
+        backup_installed_ffmpeg_programs "$install_backup_dir"
+        run_logged sudo make install
+        install_status=$?
+        if ((install_status != 0)); then
+            restore_installed_ffmpeg_programs "$install_backup_dir"
+            fail "Installing FFmpeg into '/usr/local' failed with exit code $install_status; the previously installed programs were restored."
+        fi
         validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled"
         safe_remove_tree "$staging_root" "$packages"
         build_done "ffmpeg" "n$ffmpeg_version"

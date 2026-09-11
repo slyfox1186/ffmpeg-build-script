@@ -960,19 +960,22 @@ notify_failure() {
     fi
 }
 
-# Execution function with error handling
+# Run a command with the project's logging behavior and RETURN its status
+# instead of aborting. execute() is this plus fail-on-nonzero; callers that must
+# recover from a failure rather than exit on it (promoting a staged install,
+# which has to restore its backup first) use this directly.
+#
 # NOTE on exit-code capture: bash sets `$?` to the result of `! cmd` (the
 # negation), not `cmd` itself. So `if ! "$@"; then exit_code=$?` always
 # captures 0. We run the command first, save `$?` immediately, and only
 # then test/branch. The debug pipeline snapshots both `PIPESTATUS` entries
 # immediately and reports the command failure first, or a `tee`/log failure
 # when the command itself succeeded.
-execute() {
-    (($# > 0)) || fail "execute() called without a command. Line: ${LINENO}"
+run_logged() {
+    (($# > 0)) || fail "run_logged() called without a command. Line: ${LINENO}"
 
-    local command_display exit_code start_pos
+    local exit_code start_pos
     local -a pipeline_status=()
-    command_display="$(format_command "$@")"
     printf '$'
     printf ' %q' "$@"
     printf '\n'
@@ -1010,7 +1013,17 @@ execute() {
         exit_code=$?
     fi
 
-    if (( exit_code != 0 )); then
+    return "$exit_code"
+}
+
+execute() {
+    (($# > 0)) || fail "execute() called without a command. Line: ${LINENO}"
+
+    local command_display exit_code
+    command_display="$(format_command "$@")"
+    run_logged "$@"
+    exit_code=$?
+    if ((exit_code != 0)); then
         notify_failure "Command failed: '$command_display'."
         fail "Command failed with exit code $exit_code: '$command_display'."
     fi
