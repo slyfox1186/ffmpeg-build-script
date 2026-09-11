@@ -698,6 +698,32 @@ assert_command_fails "unknown config tables are rejected even when empty" bash -
     load_package_selection_config "$2"
 ' _ "$repo_root" "$unknown_table_file"
 
+# Nothing cleaned temporary trees on an abort, so a fail() or Ctrl-C stranded
+# them -- partial clones reach gigabytes and were never pruned by anything.
+temp_registry_root="$temporary_root/temp-registry"
+mkdir -p "$temp_registry_root/packages" "$temp_registry_root/outside"
+bash -c '
+    source "$1/scripts/shared-utils.sh"
+    packages="$2/packages"
+    workspace="$2/workspace"
+    trap "remove_registered_temporary_paths" EXIT
+    stranded="$(mktemp -d --tmpdir="$packages" ".clone-demo.XXXXXX")"
+    register_temporary_path "$stranded"
+    mkdir -p "$stranded/partial"
+    mkdir -p "$packages/real-source-tree"
+    register_temporary_path "$3"
+    exit 1
+' _ "$repo_root" "$temp_registry_root" "$temp_registry_root/outside" >/dev/null 2>&1 || true
+assert_equal "0" \
+    "$(find "$temp_registry_root/packages" -mindepth 1 -maxdepth 1 -name '.clone-demo.*' | wc -l)" \
+    "registered temporary trees are removed when the shell exits"
+[[ -d "$temp_registry_root/packages/real-source-tree" ]] ||
+    fail_test "unregistered build output survives the cleanup trap"
+pass "unregistered build output survives the cleanup trap"
+[[ -d "$temp_registry_root/outside" ]] ||
+    fail_test "the cleanup trap refuses paths outside the build root"
+pass "the cleanup trap refuses paths outside the build root"
+
 removal_root="$temporary_root/removal-root"
 mkdir -p "$removal_root/child"
 safe_remove_tree "$removal_root/child" "$removal_root"

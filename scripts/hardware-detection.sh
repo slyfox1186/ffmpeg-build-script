@@ -137,6 +137,7 @@ install_cuda_toolkit() {
     require_vars packages
     temp_directory="$(mktemp -d --tmpdir="$packages" ".cuda-keyring.XXXXXX")" ||
         fail "Unable to create a temporary CUDA setup directory."
+    register_temporary_path "$temp_directory"
     keyring_file="$temp_directory/cuda-keyring.deb"
     keyring_url="https://developer.download.nvidia.com/compute/cuda/repos"
     keyring_url+="/$repository/x86_64/cuda-keyring_1.1-1_all.deb"
@@ -151,6 +152,7 @@ install_cuda_toolkit() {
 
     execute sudo dpkg -i "$keyring_file"
     safe_remove_tree "$temp_directory" "$packages"
+    unregister_temporary_path "$temp_directory"
     # This state is owned by the previously sourced system-setup.sh.
     # shellcheck disable=SC2034
     APT_INDEX_UPDATED=false

@@ -461,6 +461,7 @@ build_ffmpeg() {
         execute make "-j$build_threads"
         staging_root="$(mktemp -d --tmpdir="$packages" ".ffmpeg-install-${ffmpeg_version}.XXXXXX")" ||
             fail "Unable to create an FFmpeg staging directory."
+        register_temporary_path "$staging_root"
         staged_prefix="$staging_root/usr/local"
         execute make DESTDIR="$staging_root" install
         validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled" "$staged_prefix" false
@@ -479,6 +480,7 @@ build_ffmpeg() {
         fi
         validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled"
         safe_remove_tree "$staging_root" "$packages"
+        unregister_temporary_path "$staging_root"
         build_done "ffmpeg" "n$ffmpeg_version"
     else
         validate_ffmpeg_installation "$ffmpeg_version" "$ffplay_enabled"

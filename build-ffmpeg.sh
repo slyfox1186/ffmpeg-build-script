@@ -464,7 +464,10 @@ main() {
     parse_arguments "$@"
     resolve_build_root
 
-    trap sudo_keepalive_stop EXIT
+    # Composed rather than replaced: handle_signal exits, so the EXIT trap runs
+    # for Ctrl-C and SIGTERM too, and every registered temporary tree is removed
+    # on any exit path instead of only the hand-written success branches.
+    trap 'sudo_keepalive_stop; remove_registered_temporary_paths' EXIT
     trap 'handle_signal INT' INT
     trap 'handle_signal TERM' TERM
     trap 'handle_signal HUP' HUP

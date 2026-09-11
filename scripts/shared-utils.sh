@@ -319,6 +319,50 @@ acquire_build_root_lock() {
     fi
 }
 
+# Temporary trees were cleaned only by hand-written success/failure branches, so
+# any fail() or Ctrl-C stranded them -- including partial clones, which reach
+# gigabytes for av1-git and gpac-git and were never pruned by anything. Paths
+# registered here are removed by the EXIT trap installed in build-ffmpeg.sh.
+_TEMPORARY_PATHS=()
+
+register_temporary_path() {
+    local path="${1:-}"
+
+    [[ -n "$path" ]] || return 0
+    _TEMPORARY_PATHS+=("$path")
+}
+
+# Called once a path has been published or removed deliberately, so the trap
+# does not try to remove something that is now real build output.
+unregister_temporary_path() {
+    local path="${1:-}"
+    local entry
+    local -a retained=()
+
+    [[ -n "$path" ]] || return 0
+    for entry in "${_TEMPORARY_PATHS[@]}"; do
+        [[ "$entry" == "$path" ]] || retained+=("$entry")
+    done
+    _TEMPORARY_PATHS=("${retained[@]}")
+}
+
+# Runs from an EXIT trap, so it never calls fail(): aborting here would mask
+# whatever failure triggered the exit. Containment is still enforced -- only
+# paths inside the package cache or the workspace are removed.
+remove_registered_temporary_paths() {
+    local entry
+
+    ((${#_TEMPORARY_PATHS[@]} > 0)) || return 0
+    for entry in "${_TEMPORARY_PATHS[@]}"; do
+        [[ -e "$entry" || -L "$entry" ]] || continue
+        if { [[ -n "${packages:-}" ]] && path_is_within "$entry" "$packages"; } ||
+            { [[ -n "${workspace:-}" ]] && path_is_within "$entry" "$workspace"; }; then
+            rm -rf --one-file-system -- "$entry" 2>/dev/null || true
+        fi
+    done
+    _TEMPORARY_PATHS=()
+}
+
 # Remove one directory only when its canonical path is a strict descendant of
 # the explicitly supplied root. This avoids vulnerable string-prefix checks
 # such as /tmp/packages* also matching /tmp/packages-elsewhere.
@@ -1572,6 +1616,7 @@ download_archive_to_cache() {
         warn "Failed to create a temporary download file for '$download_file'."
         return 1
     }
+    register_temporary_path "$temp_target_file"
 
     curl_args=(
         --fail --silent --show-error --location
@@ -1612,9 +1657,11 @@ download_archive_to_cache() {
 
     if ! mv -f -- "$temp_target_file" "$target_file"; then
         rm -f -- "$temp_target_file"
+        unregister_temporary_path "$temp_target_file"
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         return 1
     fi
+    unregister_temporary_path "$temp_target_file"
     if ! write_archive_checksum "$target_file" "$checksum_file"; then
         rm -f -- "$target_file" "$checksum_file"
         [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
@@ -1635,6 +1682,7 @@ extract_archive_transactionally() {
 
     extraction_directory="$(mktemp -d --tmpdir="$packages" ".extract.XXXXXX")" ||
         return 1
+    register_temporary_path "$extraction_directory"
 
     if ! tar -xf "$archive" -C "$extraction_directory" --strip-components=1 \
         --no-same-owner --no-same-permissions --delay-directory-restore \
@@ -1693,14 +1741,16 @@ extract_archive_transactionally() {
     safe_remove_tree "$target_directory" "$packages"
     if ! mv -- "$extraction_directory" "$target_directory"; then
         safe_remove_tree "$extraction_directory" "$packages"
+        unregister_temporary_path "$extraction_directory"
         return 1
     fi
+    unregister_temporary_path "$extraction_directory"
 }
 
 download_try() {
     local download_url="${1:-}"
     local download_file="${2:-}"
-    local output_directory target_file target_directory
+    local output_directory target_file target_directory checksum_file
 
     require_vars packages
     [[ -n "$download_url" ]] || fail "Download URL is required. Line: ${LINENO}"
@@ -1716,15 +1766,25 @@ download_try() {
         fail "Unable to derive extraction directory from '$download_file'. Line: ${LINENO}"
     target_file="$packages/$download_file"
     target_directory="$packages/$output_directory"
+    checksum_file="$target_file.sha256"
     mkdir -p "$packages" ||
         fail "Unable to create package cache '$packages'. Line: ${LINENO}"
 
     download_archive_to_cache "$download_url" "$download_file" "$target_file" || return 1
 
     if ! extract_archive_transactionally "$target_file" "$target_directory"; then
-        rm -f -- "$target_file" "$target_file.sha256" ||
-            fail "Unable to remove invalid cached archive '$target_file'. Line: ${LINENO}"
-        warn "Failed to extract '$download_file' safely; the cached archive was removed."
+        # The archive was listed and checksum-verified moments ago, so an
+        # extraction failure is usually local (no space, permissions) and says
+        # nothing about the download. Purging a still-valid archive forced a
+        # full re-fetch of every affected package for a transient condition.
+        if validate_tar_archive "$target_file" &&
+            archive_checksum_matches "$target_file" "$checksum_file"; then
+            warn "Failed to extract '$download_file'; its cached archive is still valid and was kept."
+        else
+            rm -f -- "$target_file" "$checksum_file" ||
+                fail "Unable to remove invalid cached archive '$target_file'. Line: ${LINENO}"
+            warn "Failed to extract '$download_file' safely; the cached archive was removed."
+        fi
         return 1
     fi
 
@@ -1880,6 +1940,7 @@ git_clone() {
         warn "Failed to create a temporary clone directory for '$repo_name'. Line: ${LINENO}"
         return 1
     }
+    register_temporary_path "$clone_parent"
     clone_directory="$clone_parent/repository"
     diagnostic_sink="${log_file:-/dev/stderr}"
 
@@ -1907,6 +1968,7 @@ git_clone() {
             warn "Failed to create a retry directory for '$repo_name'. Line: ${LINENO}"
             return 1
         }
+        register_temporary_path "$clone_parent"
         clone_directory="$clone_parent/repository"
         clone_args[${#clone_args[@]} - 1]="$clone_directory"
         if ! timeout --foreground "$clone_timeout" "${clone_args[@]}" 2>>"$diagnostic_sink"; then
@@ -1937,6 +1999,7 @@ git_clone() {
         return 1
     fi
     safe_remove_tree "$clone_parent" "$packages"
+    unregister_temporary_path "$clone_parent"
 
     printf '%s\n' "$actual_commit"
 }
@@ -2751,8 +2814,11 @@ install_rustup() {
     path_prepend "$CARGO_HOME/bin"
 
     if [[ ! -x "$CARGO_HOME/bin/rustup" ]]; then
-        installer="$(mktemp)" ||
+        # Staged in the workspace rather than $TMPDIR: it is the only mktemp in
+        # the project that escaped the build root, so nothing could clean it up.
+        installer="$(mktemp --tmpdir="$workspace" '.rustup-init.XXXXXX')" ||
             fail "Failed to create a temporary rustup installer file. Line: ${LINENO}"
+        register_temporary_path "$installer"
         log "Downloading the official rustup installer into the isolated workspace..."
         if ! curl_https \
             --fail --silent --show-error --location \
@@ -2764,6 +2830,7 @@ install_rustup() {
         fi
         execute sh "$installer" -y --no-modify-path --default-toolchain none --profile minimal
         rm -f -- "$installer"
+        unregister_temporary_path "$installer"
     fi
 
     execute "$CARGO_HOME/bin/rustup" toolchain install "$RUST_TOOLCHAIN_VERSION" \
