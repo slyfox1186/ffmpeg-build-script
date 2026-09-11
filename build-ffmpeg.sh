@@ -78,9 +78,9 @@ resolve_config_path() {
         candidate_path="$input_path"
     else
         # Invocation directory only. Retrying a missing relative path under the
-        # script's own directory let a stale custom.toml sitting beside the
-        # script supply a different package selection, with nothing in the
-        # output saying which file had won.
+        # script's own directory would let a stale custom.toml sitting next to
+        # build-ffmpeg.sh supply a different package selection, with nothing in
+        # the output naming the file that won.
         candidate_path="$INVOCATION_DIR/$input_path"
     fi
 
@@ -89,9 +89,9 @@ resolve_config_path() {
 
 # Both walks below skip the value of every option that takes a separate
 # argument, and stop at `--`, so an option's value is never mistaken for an
-# option: `--build --compiler -h` used to print help and exit 0 instead of
-# rejecting '-h' as a compiler name. The metadata walk runs before
-# parse_arguments, so it is the only guard against `-- -h` on that path.
+# option (`--compiler -h` means a compiler named '-h', not a request for help).
+# The metadata walk runs before parse_arguments, so on that path it is the only
+# thing standing between `-- -h` and a help screen.
 metadata_or_config_walk_skips_value() {
     case "${1-}" in
         --compiler | --config | -j | --jobs) return 0 ;;
@@ -160,9 +160,9 @@ load_requested_config() {
     [[ -z "$PACKAGE_CONFIG_FILE" ]] || load_package_selection_config "$PACKAGE_CONFIG_FILE"
 }
 
-# Validated where it is assigned rather than after the loop: an empty value is
-# indistinguishable from "the option was never given" once parsing ends, so
-# `--jobs=` used to fall through to CPU auto-detection instead of being rejected.
+# Validated at the point of assignment. Once parsing ends, an empty value is
+# indistinguishable from an omitted option, and `--jobs=` would quietly mean
+# "auto-detect" rather than being rejected.
 set_build_threads() {
     local requested="${1-}"
 
@@ -369,10 +369,10 @@ initialize_build_root() {
         mkdir -p -- "$cwd" ||
             fail "Unable to create the build root '$cwd'."
     fi
-    # Deliberately no `sudo mkdir`/`sudo chown` fallback. Escalating here let a
-    # build root the invoking user does not own be taken over, marked as ours,
-    # and become a legitimate --cleanup target -- the marker is supposed to mean
-    # "this project created it", not "this project annexed it".
+    # Deliberately no `sudo mkdir`/`sudo chown` fallback. Escalating here would
+    # let a build root the invoking user does not own be taken over, marked as
+    # ours, and so become a legitimate --cleanup target. The marker means "this
+    # project created it", not "this project annexed it".
     [[ -w "$cwd" && -r "$cwd" && -x "$cwd" ]] ||
         fail "Build root '$cwd' is not writable by '$BUILD_USER:$BUILD_GROUP'. Choose a different 'BUILD_ROOT' or grant ownership yourself; this script will not take it with 'sudo'."
     acquire_build_root_lock "$cwd"
@@ -501,20 +501,19 @@ run_build() {
 main() {
     show_requested_metadata_and_exit "$@"
     # Checked here, not in run_build(): --cleanup is dispatched below without
-    # ever reaching run_build, so guarding only the build path left the one
-    # destructive action in the project runnable as root. --help and --version
-    # have already exited above and stay usable for any user.
+    # ever reaching run_build, and it is the one destructive action in the
+    # project. --help and --version have already exited above and stay usable
+    # for any user.
     require_non_root "$EUID"
-    # Arguments are validated before the config is read: loading first meant an
-    # invalid request still opened, parsed, and applied a TOML file before
-    # reporting the error.
+    # Arguments are validated before the config is read, so an invalid request
+    # never opens, parses and applies a TOML file on its way to the error.
     parse_arguments "$@"
     load_requested_config "$@"
     resolve_build_root
 
     # Composed rather than replaced: handle_signal exits, so the EXIT trap runs
-    # for Ctrl-C and SIGTERM too, and every registered temporary tree is removed
-    # on any exit path instead of only the hand-written success branches.
+    # for Ctrl-C and SIGTERM too and every registered temporary tree is removed
+    # on any exit path.
     trap 'sudo_keepalive_stop; remove_registered_temporary_paths' EXIT
     trap 'handle_signal INT' INT
     trap 'handle_signal TERM' TERM

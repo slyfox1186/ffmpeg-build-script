@@ -237,18 +237,15 @@ write_build_root_marker() {
     fi
 }
 
-# One refusal list for both the build and the cleanup path. These were two
-# hand-maintained copies that had already drifted: cleanup was missing the
-# whitespace rule README states unconditionally, neither listed /home or
-# /usr/local, and both compared the repository root by equality only -- so a
-# build root that *contains* the repository was accepted, and a later cleanup
-# would have taken the repository with it.
-# A run interrupted between creating the build root and writing its marker left
-# a non-empty, unmarked directory that neither --build nor --cleanup would ever
-# touch again, with a manual `rm -rf` as the only way out. The marker is now
-# written before any content, but roots already wedged by an older version are
-# still adopted here when they contain nothing but this project's own empty
-# scaffolding.
+# One refusal list shared by the build and the cleanup path, so the two cannot
+# drift apart. The repository root is compared by containment rather than by
+# equality: a build root that is an ancestor of the repository must be refused
+# too, or a later cleanup takes the repository with it.
+
+# A build root holding nothing but this project's own empty scaffolding is safe
+# to adopt. Without this, a run interrupted before its marker was written leaves
+# a non-empty unmarked directory that neither --build nor --cleanup will touch,
+# and a manual `rm -rf` is the only way out.
 build_root_is_adoptable() {
     local root="${1:-}"
     local entry
@@ -319,10 +316,9 @@ acquire_build_root_lock() {
     fi
 }
 
-# Temporary trees were cleaned only by hand-written success/failure branches, so
-# any fail() or Ctrl-C stranded them -- including partial clones, which reach
-# gigabytes for av1-git and gpac-git and were never pruned by anything. Paths
-# registered here are removed by the EXIT trap installed in build-ffmpeg.sh.
+# Paths registered here are removed by the EXIT trap installed in
+# build-ffmpeg.sh, so a fail() or a Ctrl-C cannot strand them. Partial clones
+# are the expensive case: av1-git and gpac-git reach gigabytes.
 _TEMPORARY_PATHS=()
 
 register_temporary_path() {
@@ -347,7 +343,7 @@ unregister_temporary_path() {
 }
 
 # Runs from an EXIT trap, so it never calls fail(): aborting here would mask
-# whatever failure triggered the exit. Containment is still enforced -- only
+# whatever failure triggered the exit. Containment is still enforced, and only
 # paths inside the package cache or the workspace are removed.
 remove_registered_temporary_paths() {
     local entry
@@ -769,19 +765,18 @@ load_package_selection_config() {
     log "If you are changing package selections on an existing workspace, run '$CLEANUP_COMMAND' first to avoid reusing old build artifacts."
 }
 
-# Checks that depend only on CLI, config and environment input -- no host
-# probing -- so they can run before anything mutates the system. These used to
-# be evaluated deep inside install_cuda(), i.e. after initialize_system_setup()
-# had already installed dozens of APT packages, so a typo in CUDA_ARCH_MODE
-# changed the host and then aborted.
+# Checks that depend only on CLI, config and environment input, with no host
+# probing, so they can all run before anything mutates the system. A typo in
+# CUDA_ARCH_MODE has to be caught here rather than inside install_cuda(), which
+# runs after initialize_system_setup() has installed dozens of APT packages.
 validate_build_settings() {
     local mode architecture
     local -a issues=()
     local -a custom_values=()
 
-    # Checked here rather than in parse_arguments(): that runs on every
-    # invocation, so a bad log-verbosity value aborted runs that never log
-    # anything -- including the documented "with no action, print help".
+    # Checked here rather than in parse_arguments(), which runs on every
+    # invocation. A log-verbosity setting must not abort a run that logs
+    # nothing, such as the documented "with no action, print help".
     [[ "$debug" == "ON" || "$debug" == "OFF" ]] ||
         issues+=("'FFMPEG_BUILD_DEBUG' must be 'ON' or 'OFF'; got '$debug'")
 
@@ -997,11 +992,11 @@ fail() {
     exit 1
 }
 
-# Returning 127 reproduces bash's own "command not found" status, which keeps
-# optional probes recoverable: `maybe_missing || fallback` and `if optional_cmd`
-# both behave normally. Calling fail() here aborted probes the caller had
-# deliberately made recoverable, and inside $(...) it aborted only the subshell
-# and handed the caller an empty string.
+# Returning 127 reproduces bash's own "command not found" status, so optional
+# probes stay recoverable: `maybe_missing || fallback` and `if optional_cmd`
+# both behave normally. Calling fail() here would abort probes the caller
+# deliberately wrote to recover, and inside $(...) it would abort only the
+# subshell and hand the caller an empty string.
 command_not_found_handle() {
     warn "Command or function not found: '$1'."
     return 127
@@ -1448,7 +1443,7 @@ vulkan_headers_recent() {
 
 # True if the installed libplacebo provides PL_ALPHA_NONE. FFmpeg 8.1+'s
 # vf_libplacebo.c uses this enum unconditionally, yet FFmpeg's configure only
-# requires libplacebo >= 5.229.0 — too low: distro libplacebo 6.x (e.g. Ubuntu
+# requires libplacebo >= 5.229.0, which is too low: distro libplacebo 6.x (Ubuntu
 # 24.04's 6.338.2) passes configure but fails to compile ("PL_ALPHA_NONE
 # undeclared"); the enum arrived in libplacebo 7.x. Feature-test the actual symbol
 # (a compile check, not a version guess) so --enable-libplacebo is gated precisely.
@@ -1831,8 +1826,8 @@ download_try() {
     if ! extract_archive_transactionally "$target_file" "$target_directory"; then
         # The archive was listed and checksum-verified moments ago, so an
         # extraction failure is usually local (no space, permissions) and says
-        # nothing about the download. Purging a still-valid archive forced a
-        # full re-fetch of every affected package for a transient condition.
+        # nothing about the download. Purging a still-valid archive would force
+        # a full re-fetch of every affected package over a transient condition.
         if validate_tar_archive "$target_file" &&
             archive_checksum_matches "$target_file" "$checksum_file"; then
             warn "Failed to extract '$download_file'; its cached archive is still valid and was kept."

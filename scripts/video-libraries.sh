@@ -44,7 +44,7 @@ install_video_libraries() {
     fi
     append_configure_options_if_enabled "av1-git" "--enable-libaom"
 
-    # Build libvmaf (VMAF perceptual quality metric → FFmpeg vmaf/libvmaf filter).
+    # Build libvmaf (VMAF perceptual quality metric, used by FFmpeg's libvmaf filter).
     # Not packaged for Debian/Ubuntu, so build from source. built_in_models embeds the
     # default models so the filter works without external model files; enable_float adds
     # the float feature extractors the standard VMAF model needs.
@@ -322,7 +322,7 @@ EOF
             fi
         fi
 
-        # Build AMF headers (AMD's Media Framework encoder) — only on AMD GPUs.
+        # Build AMF headers (AMD's Media Framework encoder), only on AMD GPUs.
         if [[ "${is_amd_gpu_present:-}" == "AMD GPU detected" ]]; then
             fetch_version_if_enabled "amf-headers" find_git_repo "GPUOpen-LibrariesAndSDKs/AMF" "1"
             if build "amf-headers" "$repo_version"; then
@@ -334,7 +334,7 @@ EOF
             fi
             append_configure_options_if_enabled "amf-headers" "--enable-amf"
         else
-            log "No AMD GPU detected — skipping AMF (AMD encoder) headers and '--enable-amf'."
+            log "No AMD GPU detected; skipping AMF (AMD encoder) headers and '--enable-amf'."
         fi
 
         # Build SRT

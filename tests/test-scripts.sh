@@ -137,7 +137,7 @@ assert_not_exists "$unknown_option_root" "invalid CLI input has no filesystem si
 
 # FFMPEG_BUILD_DEBUG only selects log verbosity, so an invalid value must not
 # abort a run that logs nothing. "With no action, the script prints help" is a
-# documented contract and used to exit 1 whenever this variable was malformed.
+# documented contract and has to hold whatever this variable is set to.
 debug_help_root="$temporary_root/debug-help-root"
 debug_help_output="$(
     env BUILD_ROOT="$debug_help_root" FFMPEG_BUILD_DEBUG=on \
@@ -163,9 +163,9 @@ assert_contains "$debug_build_output" \
 assert_not_exists "$debug_build_root" \
     "a rejected FFMPEG_BUILD_DEBUG value aborts before the build root is created"
 
-# --compiler and --config have always accepted an "=" form; --jobs did not.
-# --cleanup on a build root that was never created is the only action that
-# exercises a full parse without sudo or network.
+# Every long option accepts both the separated and the "=" form. --cleanup on a
+# build root that does not exist is the only action that exercises a full parse
+# without needing sudo or the network.
 for accepted_jobs_form in "--jobs=8" "-j 8" "--jobs 8"; do
     jobs_form_root="$temporary_root/jobs-form-root"
     # shellcheck disable=SC2086 # the forms under test are two separate words.
@@ -236,10 +236,10 @@ assert_contains "$missing_config_output" "Missing value for '--config'." \
     "CLI option is quoted in missing-value diagnostics"
 assert_not_exists "$missing_config_root" "missing config values have no filesystem side effects"
 
-# fail() ends in `exit 1`, which inside $(...) ends only the subshell. An empty
-# or malformed --config value used to print [ERROR], leave PACKAGE_CONFIG_FILE
-# empty so the allowlist was never loaded (enabling every package), and then
-# exit 0. Each rejected value must abort with a non-zero status.
+# fail() ends in `exit 1`, which inside $(...) ends only the subshell: the
+# caller keeps going with an empty PACKAGE_CONFIG_FILE, which package_enabled()
+# reads as "no allowlist supplied" and so builds every package. Each rejected
+# value must abort with a non-zero status instead.
 for rejected_config_value in "" "$(printf 'bad\tpath.toml')"; do
     rejected_config_root="$temporary_root/rejected-config-root"
     if rejected_config_output="$(
@@ -273,9 +273,8 @@ assert_contains "$late_error_output" "Unknown option '--definitely-unknown'." \
 assert_not_contains "$late_error_output" "Loaded package selection config" \
     "no package selection is loaded when the request is invalid"
 
-# -h/-v used to be recognized anywhere, including as another option's value and
-# after `--`, so `--compiler -h` printed help and exited 0 rather than rejecting
-# '-h' as a compiler name.
+# -h and -v are recognized as actions, never as another option's value and never
+# after `--`. `--compiler -h` asks for a compiler named '-h', which is invalid.
 for misplaced_help_form in "--build --compiler -h" "-- -h" "-- --version"; do
     misplaced_help_root="$temporary_root/misplaced-help-root"
     # shellcheck disable=SC2086 # the forms under test are separate words.
@@ -293,8 +292,8 @@ for misplaced_help_form in "--build --compiler -h" "-- -h" "-- --version"; do
 done
 
 # A relative --config resolves against the invocation directory only. Retrying
-# under the script's own directory silently substituted a stale custom.toml
-# living next to build-ffmpeg.sh.
+# under the script's own directory would pick up a stale custom.toml living
+# next to build-ffmpeg.sh without saying so.
 script_dir_config_root="$temporary_root/script-dir-config-root"
 if script_dir_config_output="$(
     cd -- "$temporary_root" &&
@@ -323,8 +322,8 @@ pass "a failing resolve_* capture aborts its caller"
 assert_not_contains "$captured_helper_output" "UNREACHABLE" \
     "a failing resolve_* capture does not fall through with an empty value"
 
-# The root refusal used to live in run_build(), which --cleanup never reaches,
-# leaving the only destructive action in the project runnable as root.
+# The root refusal has to sit in main(), not run_build(): --cleanup is the one
+# destructive action in the project and it never reaches run_build().
 if root_refusal_output="$(
     bash -c '
         source "$1/scripts/shared-utils.sh"
@@ -593,9 +592,9 @@ assert_command_fails "pkgconf artifacts polluted with workspace defaults are reb
     package_artifacts_ready pkgconf
 
 # A .pc file comes from a downloaded tarball. Splitting pkgconf's output with an
-# unquoted expansion also glob-expanded it, so a '*' in Cflags/Libs was replaced
-# by whatever happened to be in the current directory -- and a file named
-# '-Ibogus' then looked exactly like an include flag.
+# unquoted expansion would also glob it, replacing a '*' in Cflags or Libs with
+# whatever sits in the current directory, and a file named '-Ibogus' looks
+# exactly like an include flag.
 glob_fixture_dir="$temporary_root/pkgconf-glob"
 mkdir -p "$glob_fixture_dir/bin" "$glob_fixture_dir/work"
 printf '%s\n' \
@@ -719,8 +718,8 @@ printf '4.4.0-19041-Microsoft\n' >"$os_detect_dir/kernel-osrelease"
 expect_os_detection_failure "wsl.exe --set-version" \
     "detection rejects WSL1 with upgrade guidance"
 
-# os-release used to be `source`d, so anything in it ran as code in a shell
-# that afterwards executes sudo-authorized steps. It is now read as data.
+# os-release is read as data. Sourcing it would run its contents as code in a
+# shell that goes on to execute sudo-authorized steps.
 printf '6.8.0-52-generic\n' >"$os_detect_dir/kernel-osrelease"
 printf '%s\n' \
     'ID=ubuntu' \
@@ -892,11 +891,9 @@ assert_command_fails "unknown config tables are rejected even when empty" bash -
     load_package_selection_config "$2"
 ' _ "$repo_root" "$unknown_table_file"
 
-# Nothing cleaned temporary trees on an abort, so a fail() or Ctrl-C stranded
-# them -- partial clones reach gigabytes and were never pruned by anything.
-# CUDA_INSTALL and CUDA_ARCH_MODE were only validated inside install_cuda(),
-# which runs after initialize_system_setup() has installed dozens of APT
-# packages -- so a typo mutated the host and then aborted.
+# CUDA_INSTALL and CUDA_ARCH_MODE are pure checks on the request, so they have
+# to be rejected before initialize_system_setup() installs dozens of APT
+# packages. Validating them inside install_cuda() is too late.
 for invalid_setting in "CUDA_INSTALL=maybe" "CUDA_ARCH_MODE=bogus" "CUDA_ARCH_MODE=custom"; do
     assert_command_fails "'$invalid_setting' is rejected before any host mutation" bash -c '
         source "$1/scripts/shared-utils.sh"

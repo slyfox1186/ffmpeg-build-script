@@ -132,8 +132,8 @@ install_cuda_toolkit() {
         log "Using NVIDIA's 'wsl-ubuntu' repository for this Debian WSL2 userspace."
     fi
     # Staged inside the package cache, not /tmp, so safe_remove_tree() gets a
-    # real containment boundary. Passing "$(dirname -- "$temp_directory")" as
-    # the allowed root made the check true by construction.
+    # real containment boundary. Deriving the allowed root from the temporary
+    # directory itself would make that check true by construction.
     require_vars packages
     temp_directory="$(mktemp -d --tmpdir="$packages" ".cuda-keyring.XXXXXX")" ||
         fail "Unable to create a temporary CUDA setup directory."

@@ -151,15 +151,14 @@ validate_ffmpeg_installation() {
     fi
 }
 
-# `sudo make install` overwrites /usr/local/bin/ffmpeg in place. If it fails
-# part-way -- ENOSPC is the classic -- the previously working programs are
-# already gone and there is nothing to fall back to. The whole staged-DESTDIR
-# design exists to avoid touching /usr/local until the result is proven good,
-# and then the promotion itself was unrecoverable.
+# `sudo make install` overwrites /usr/local/bin/ffmpeg in place, so a failure
+# part-way through (ENOSPC being the classic one) destroys the previously
+# working programs. The staged-DESTDIR design exists to keep /usr/local
+# untouched until the result is proven good; this keeps the promotion itself
+# recoverable.
 #
-# Copy the existing programs aside first so a failed promotion can put them
-# back. Only the three programs are preserved: restoring a working ffmpeg is
-# the property that matters, and a half-written library tree is repaired by
+# Only the three programs are copied aside. Restoring a working ffmpeg is the
+# property that matters, and a half-written library tree is repaired by
 # re-running the build.
 backup_installed_ffmpeg_programs() {
     local backup_dir="${1:-}"
@@ -288,12 +287,11 @@ build_ffmpeg() {
         # Source-built and system-provided optional dependencies. Every option is
         # gated on both user selection and an actual SDK/header probe; FFmpeg's own
         # configure then performs the authoritative compile/link check.
-        # FFmpeg accepts "aribb24 > 1.0.3" outright, otherwise falls back to
-        # requiring --enable-gpl, otherwise dies. Every supported release ships
-        # exactly 1.0.3, so appending --enable-libaribb24 on selection alone --
-        # which is what core-libraries.sh did, the only system-package
-        # integration with no probe -- killed configure on all of them, and
-        # append_configure_options_if_enabled made it a hard requirement too.
+        # FFmpeg's configure accepts "aribb24 > 1.0.3" outright, otherwise
+        # requires --enable-gpl, otherwise dies. Every supported release ships
+        # exactly 1.0.3, so this needs the licence gate as well as the probe:
+        # appending --enable-libaribb24 on user selection alone kills configure
+        # on all five of them.
         if package_enabled "libaribb24"; then
             if library_exists "aribb24 > 1.0.3" ||
                 { is_true "$NONFREE_AND_GPL" && library_exists aribb24; }; then
