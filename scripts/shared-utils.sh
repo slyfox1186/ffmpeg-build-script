@@ -771,6 +771,12 @@ validate_build_settings() {
     local -a issues=()
     local -a custom_values=()
 
+    # Checked here rather than in parse_arguments(): that runs on every
+    # invocation, so a bad log-verbosity value aborted runs that never log
+    # anything -- including the documented "with no action, print help".
+    [[ "$debug" == "ON" || "$debug" == "OFF" ]] ||
+        issues+=("'FFMPEG_BUILD_DEBUG' must be 'ON' or 'OFF'; got '$debug'")
+
     case "${CUDA_INSTALL:-ask}" in
         ask | always | never) ;;
         *) issues+=("'CUDA_INSTALL' must be 'ask', 'always', or 'never'; got '${CUDA_INSTALL}'") ;;

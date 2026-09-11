@@ -195,8 +195,6 @@ parse_arguments() {
     if is_true "$DO_BUILD" && is_true "$DO_CLEANUP"; then
         fail "'--build' and '--cleanup' are mutually exclusive."
     fi
-    [[ "$debug" == "ON" || "$debug" == "OFF" ]] ||
-        fail "Invalid 'FFMPEG_BUILD_DEBUG' value '$debug'; expected 'ON' or 'OFF'."
 }
 
 resolve_build_root() {

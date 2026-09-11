@@ -135,6 +135,34 @@ assert_contains "$unknown_option_output" "Unknown option '--definitely-unknown'.
     "unknown CLI option is quoted in diagnostics"
 assert_not_exists "$unknown_option_root" "invalid CLI input has no filesystem side effects"
 
+# FFMPEG_BUILD_DEBUG only selects log verbosity, so an invalid value must not
+# abort a run that logs nothing. "With no action, the script prints help" is a
+# documented contract and used to exit 1 whenever this variable was malformed.
+debug_help_root="$temporary_root/debug-help-root"
+debug_help_output="$(
+    env BUILD_ROOT="$debug_help_root" FFMPEG_BUILD_DEBUG=on \
+        bash "$repo_root/build-ffmpeg.sh" 2>&1
+)" || fail_test "an invalid FFMPEG_BUILD_DEBUG value still prints help"
+pass "an invalid FFMPEG_BUILD_DEBUG value still prints help"
+assert_contains "$debug_help_output" "Usage: build-ffmpeg.sh [options]" \
+    "the no-action help text is the usage table"
+assert_not_exists "$debug_help_root" \
+    "an invalid FFMPEG_BUILD_DEBUG value has no filesystem side effects"
+
+debug_build_root="$temporary_root/debug-build-root"
+if debug_build_output="$(
+    env BUILD_ROOT="$debug_build_root" FFMPEG_BUILD_DEBUG=on \
+        bash "$repo_root/build-ffmpeg.sh" --build 2>&1
+)"; then
+    fail_test "an invalid FFMPEG_BUILD_DEBUG value fails the build"
+fi
+pass "an invalid FFMPEG_BUILD_DEBUG value fails the build"
+assert_contains "$debug_build_output" \
+    "'FFMPEG_BUILD_DEBUG' must be 'ON' or 'OFF'; got 'on'" \
+    "the rejected FFMPEG_BUILD_DEBUG value is quoted in diagnostics"
+assert_not_exists "$debug_build_root" \
+    "a rejected FFMPEG_BUILD_DEBUG value aborts before the build root is created"
+
 missing_config_root="$temporary_root/missing-config-root"
 if missing_config_output="$(
     env BUILD_ROOT="$missing_config_root" \
