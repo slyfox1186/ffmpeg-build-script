@@ -131,7 +131,11 @@ install_cuda_toolkit() {
         # are driver-free and install on Debian userspaces as well.
         log "Using NVIDIA's 'wsl-ubuntu' repository for this Debian WSL2 userspace."
     fi
-    temp_directory="$(mktemp -d)" ||
+    # Staged inside the package cache, not /tmp, so safe_remove_tree() gets a
+    # real containment boundary. Passing "$(dirname -- "$temp_directory")" as
+    # the allowed root made the check true by construction.
+    require_vars packages
+    temp_directory="$(mktemp -d --tmpdir="$packages" ".cuda-keyring.XXXXXX")" ||
         fail "Unable to create a temporary CUDA setup directory."
     keyring_file="$temp_directory/cuda-keyring.deb"
     keyring_url="https://developer.download.nvidia.com/compute/cuda/repos"
@@ -141,12 +145,12 @@ install_cuda_toolkit() {
     if ! curl_https --fail --silent --show-error --location \
         --retry 3 --retry-all-errors --connect-timeout "${DOWNLOAD_CONNECT_TIMEOUT:-5}" \
         --max-time 120 --output "$keyring_file" "$keyring_url"; then
-        safe_remove_tree "$temp_directory" "$(dirname -- "$temp_directory")"
+        safe_remove_tree "$temp_directory" "$packages"
         fail "Unable to download NVIDIA's CUDA repository keyring."
     fi
 
     execute sudo dpkg -i "$keyring_file"
-    safe_remove_tree "$temp_directory" "$(dirname -- "$temp_directory")"
+    safe_remove_tree "$temp_directory" "$packages"
     # This state is owned by the previously sourced system-setup.sh.
     # shellcheck disable=SC2034
     APT_INDEX_UPDATED=false

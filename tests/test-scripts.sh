@@ -679,6 +679,20 @@ assert_command_fails "safe_remove_tree refuses a sibling path" bash -c '
     fail_test "refused removals preserve both trees"
 pass "refused removals preserve both trees"
 
+# The containment check ran against the resolved path while rm removed the raw
+# one, so a symlinked target passed validation and then deleted only the link,
+# leaving the real tree in place right before a publishing mv.
+mkdir -p "$removal_root/real"
+printf 'payload\n' >"$removal_root/real/payload.txt"
+ln -sfn "$removal_root/real" "$removal_root/link"
+assert_command_fails "safe_remove_tree refuses a symlinked target" bash -c '
+    source "$1/scripts/shared-utils.sh"
+    safe_remove_tree "$2" "$3"
+' _ "$repo_root" "$removal_root/link" "$removal_root"
+[[ -f "$removal_root/real/payload.txt" ]] ||
+    fail_test "refused symlink removal preserves the real tree"
+pass "refused symlink removal preserves the real tree"
+
 archive_source="$temporary_root/archive-source"
 mkdir -p "$archive_source/project/sub"
 printf 'payload\n' >"$archive_source/project/sub/file.txt"

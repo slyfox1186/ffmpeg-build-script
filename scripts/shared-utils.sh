@@ -265,6 +265,11 @@ safe_remove_tree() {
     [[ -n "$target" ]] || fail "Refusing to remove an empty path. Line: ${LINENO}"
     [[ -n "$allowed_root" ]] || fail "safe_remove_tree() requires an allowed root. Line: ${LINENO}"
     [[ -e "$target" || -L "$target" ]] || return 0
+    # Every caller passes a directory this project created and manages. A
+    # symlink there means something unexpected replaced it, and following one
+    # would delete a tree the containment check never examined.
+    [[ ! -L "$target" ]] ||
+        fail "Refusing to remove a symlinked path: '$target'. Line: ${LINENO}"
 
     target_resolved="$(canonicalize_path "$target")" ||
         fail "Unable to canonicalize removal target '$target'. Line: ${LINENO}"
@@ -278,8 +283,11 @@ safe_remove_tree() {
     path_is_within "$target_resolved" "$root_resolved" ||
         fail "Refusing to remove path outside '$root_resolved': '$target_resolved'. Line: ${LINENO}"
 
-    rm -rf --one-file-system -- "$target" ||
-        fail "Failed to remove bounded path '$target'. Line: ${LINENO}"
+    # Remove the path that was actually validated. Passing "$target" here let
+    # the kernel re-resolve it after the containment check, so the check and
+    # the deletion could disagree about which tree was being removed.
+    rm -rf --one-file-system -- "$target_resolved" ||
+        fail "Failed to remove bounded path '$target_resolved'. Line: ${LINENO}"
 }
 
 format_command() {
