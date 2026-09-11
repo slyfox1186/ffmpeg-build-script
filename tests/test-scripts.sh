@@ -257,6 +257,56 @@ for rejected_config_value in "" "$(printf 'bad\tpath.toml')"; do
         "rejected --config value has no filesystem side effects"
 done
 
+# Arguments are validated before the config is read, so an invalid request
+# never gets as far as opening and applying a TOML file.
+late_error_root="$temporary_root/late-error-root"
+if late_error_output="$(
+    env BUILD_ROOT="$late_error_root" \
+        bash "$repo_root/build-ffmpeg.sh" \
+        --config "$repo_root/example.toml" --definitely-unknown 2>&1
+)"; then
+    fail_test "an invalid argument is reported before any config is loaded"
+fi
+pass "an invalid argument is reported before any config is loaded"
+assert_contains "$late_error_output" "Unknown option '--definitely-unknown'." \
+    "the invalid argument is what gets reported"
+assert_not_contains "$late_error_output" "Loaded package selection config" \
+    "no package selection is loaded when the request is invalid"
+
+# -h/-v used to be recognized anywhere, including as another option's value and
+# after `--`, so `--compiler -h` printed help and exited 0 rather than rejecting
+# '-h' as a compiler name.
+for misplaced_help_form in "--build --compiler -h" "-- -h" "-- --version"; do
+    misplaced_help_root="$temporary_root/misplaced-help-root"
+    # shellcheck disable=SC2086 # the forms under test are separate words.
+    if misplaced_help_output="$(
+        env BUILD_ROOT="$misplaced_help_root" \
+            bash "$repo_root/build-ffmpeg.sh" $misplaced_help_form 2>&1
+    )"; then
+        fail_test "'$misplaced_help_form' is not treated as a metadata request"
+    fi
+    pass "'$misplaced_help_form' is not treated as a metadata request"
+    assert_not_contains "$misplaced_help_output" "Usage: build-ffmpeg.sh [options]" \
+        "'$misplaced_help_form' does not print the usage table"
+    assert_not_exists "$misplaced_help_root" \
+        "'$misplaced_help_form' has no filesystem side effects"
+done
+
+# A relative --config resolves against the invocation directory only. Retrying
+# under the script's own directory silently substituted a stale custom.toml
+# living next to build-ffmpeg.sh.
+script_dir_config_root="$temporary_root/script-dir-config-root"
+if script_dir_config_output="$(
+    cd -- "$temporary_root" &&
+        env BUILD_ROOT="$script_dir_config_root" \
+            bash "$repo_root/build-ffmpeg.sh" --cleanup --config example.toml 2>&1
+)"; then
+    fail_test "a relative --config is not retried beside the script"
+fi
+pass "a relative --config is not retried beside the script"
+assert_not_contains "$script_dir_config_output" "Loaded package selection config" \
+    "a relative --config never loads the copy beside the script"
+
 # The resolve_*/git_clone helpers report with warn() and return non-zero rather
 # than calling fail(), so a caller that checks the status actually aborts.
 if captured_helper_output="$(

@@ -76,20 +76,38 @@ resolve_config_path() {
     }
     if [[ "$input_path" == /* ]]; then
         candidate_path="$input_path"
-    elif [[ -f "$INVOCATION_DIR/$input_path" ]]; then
-        candidate_path="$INVOCATION_DIR/$input_path"
     else
-        candidate_path="$SCRIPT_DIR/$input_path"
+        # Invocation directory only. Retrying a missing relative path under the
+        # script's own directory let a stale custom.toml sitting beside the
+        # script supply a different package selection, with nothing in the
+        # output saying which file had won.
+        candidate_path="$INVOCATION_DIR/$input_path"
     fi
 
     canonicalize_path "$candidate_path"
 }
 
-show_requested_metadata_and_exit() {
-    local arg
+# Both walks below skip the value of every option that takes a separate
+# argument, and stop at `--`, so an option's value is never mistaken for an
+# option: `--build --compiler -h` used to print help and exit 0 instead of
+# rejecting '-h' as a compiler name. The metadata walk runs before
+# parse_arguments, so it is the only guard against `-- -h` on that path.
+metadata_or_config_walk_skips_value() {
+    case "${1-}" in
+        --compiler | --config | -j | --jobs) return 0 ;;
+    esac
+    return 1
+}
 
-    for arg in "$@"; do
-        case "$arg" in
+show_requested_metadata_and_exit() {
+    local -a arguments=("$@")
+    local index
+
+    for ((index = 0; index < ${#arguments[@]}; index++)); do
+        case "${arguments[index]}" in
+            --)
+                break
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -98,16 +116,24 @@ show_requested_metadata_and_exit() {
                 printf '%s\n' "$SCRIPT_VERSION"
                 exit 0
                 ;;
+            *)
+                if metadata_or_config_walk_skips_value "${arguments[index]}"; then
+                    ((index += 1))
+                fi
+                ;;
         esac
     done
 }
 
-prescan_config() {
+load_requested_config() {
     local -a arguments=("$@")
     local index
 
     for ((index = 0; index < ${#arguments[@]}; index++)); do
         case "${arguments[index]}" in
+            --)
+                break
+                ;;
             --config)
                 ((index + 1 < ${#arguments[@]})) ||
                     fail "Missing value for '--config'."
@@ -122,6 +148,11 @@ prescan_config() {
                     fail "'--config' may only be specified once."
                 PACKAGE_CONFIG_FILE="$(resolve_config_path "${arguments[index]#*=}")" ||
                     fail "Invalid value for '--config'."
+                ;;
+            *)
+                if metadata_or_config_walk_skips_value "${arguments[index]}"; then
+                    ((index += 1))
+                fi
                 ;;
         esac
     done
@@ -474,8 +505,11 @@ main() {
     # destructive action in the project runnable as root. --help and --version
     # have already exited above and stay usable for any user.
     require_non_root "$EUID"
-    prescan_config "$@"
+    # Arguments are validated before the config is read: loading first meant an
+    # invalid request still opened, parsed, and applied a TOML file before
+    # reporting the error.
     parse_arguments "$@"
+    load_requested_config "$@"
     resolve_build_root
 
     # Composed rather than replaced: handle_signal exits, so the EXIT trap runs

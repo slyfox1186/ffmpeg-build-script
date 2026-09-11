@@ -89,6 +89,11 @@ With no action, the script prints help. `--build` and `--cleanup` are mutually
 exclusive. Without `--config`, every registered package is selected; using the
 reviewed `custom.toml` allowlist is the recommended path.
 
+Arguments are validated before any config file is read, so an invalid request
+never applies a package selection. A relative `--config` path resolves against
+the directory you ran the script from, never against the script's own
+directory.
+
 ## Build state and version policy
 
 The default build root is `./build`:
