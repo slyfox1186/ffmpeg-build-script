@@ -592,6 +592,34 @@ export PKGCONF_FIXTURE_DEFAULT_PATH
 assert_command_fails "pkgconf artifacts polluted with workspace defaults are rebuilt" \
     package_artifacts_ready pkgconf
 
+# A .pc file comes from a downloaded tarball. Splitting pkgconf's output with an
+# unquoted expansion also glob-expanded it, so a '*' in Cflags/Libs was replaced
+# by whatever happened to be in the current directory -- and a file named
+# '-Ibogus' then looked exactly like an include flag.
+glob_fixture_dir="$temporary_root/pkgconf-glob"
+mkdir -p "$glob_fixture_dir/bin" "$glob_fixture_dir/work"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'case "${1:-}" in' \
+    '    --cflags-only-I) printf -- "* -I/opt/real/include\n" ;;' \
+    '    --libs-only-L) printf -- "* -L/opt/real/lib\n" ;;' \
+    '    *) exit 1 ;;' \
+    'esac' \
+    >"$glob_fixture_dir/bin/pkgconf"
+chmod +x "$glob_fixture_dir/bin/pkgconf"
+touch -- "$glob_fixture_dir/work/-Ibogus" "$glob_fixture_dir/work/-Lbogus"
+glob_resolution_output="$(
+    cd -- "$glob_fixture_dir/work" &&
+        PATH="$glob_fixture_dir/bin:$PATH" bash -c '
+            source "$1/scripts/shared-utils.sh"
+            include_dir="$(resolve_pkgconf_include_dir fixture)" || exit 3
+            library_dir="$(resolve_pkgconf_library_dir fixture)" || exit 4
+            printf "%s|%s\n" "$include_dir" "$library_dir"
+        ' _ "$repo_root" 2>&1
+)"
+assert_equal "/opt/real/include|/opt/real/lib" "$glob_resolution_output" \
+    "pkgconf flag splitting never expands globs against the current directory"
+
 os_detect_dir="$temporary_root/os-detect"
 mkdir -p "$os_detect_dir"
 printf '6.8.0-52-generic\n' >"$os_detect_dir/kernel-osrelease"

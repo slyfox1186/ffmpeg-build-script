@@ -528,12 +528,17 @@ resolve_pkgconf_prefix() {
 
 resolve_pkgconf_include_dir() {
     local module_name include_flags token include_dir
+    local -a include_tokens=()
     module_name="${1:-}"
 
     [[ -n "$module_name" ]] || fail "resolve_pkgconf_include_dir() called without a module name. Line: ${LINENO}"
 
     include_flags="$(pkgconf --cflags-only-I "$module_name" 2>/dev/null || true)"
-    for token in $include_flags; do
+    # read -a splits on IFS without pathname expansion. The .pc file behind this
+    # comes from a downloaded tarball, so a '*', '?' or '[...]' in Cflags would
+    # otherwise be globbed against the current directory.
+    read -r -a include_tokens <<<"${include_flags//$'\n'/ }"
+    for token in "${include_tokens[@]}"; do
         if [[ "$token" == -I* ]]; then
             printf '%s\n' "${token#-I}"
             return 0
@@ -550,12 +555,15 @@ resolve_pkgconf_include_dir() {
 
 resolve_pkgconf_library_dir() {
     local module_name lib_flags token lib_dir
+    local -a lib_tokens=()
     module_name="${1:-}"
 
     [[ -n "$module_name" ]] || fail "resolve_pkgconf_library_dir() called without a module name. Line: ${LINENO}"
 
     lib_flags="$(pkgconf --libs-only-L "$module_name" 2>/dev/null || true)"
-    for token in $lib_flags; do
+    # Split without globbing; see resolve_pkgconf_include_dir().
+    read -r -a lib_tokens <<<"${lib_flags//$'\n'/ }"
+    for token in "${lib_tokens[@]}"; do
         if [[ "$token" == -L* ]]; then
             printf '%s\n' "${token#-L}"
             return 0
@@ -1446,10 +1454,12 @@ vulkan_headers_recent() {
 # (a compile check, not a version guess) so --enable-libplacebo is gated precisely.
 libplacebo_has_pl_alpha_none() {
     local cflags
+    local -a cflag_tokens=()
     cflags="$(pkgconf --cflags libplacebo 2>/dev/null)" || return 1
-    # shellcheck disable=SC2086
+    # Split without globbing; see resolve_pkgconf_include_dir().
+    read -r -a cflag_tokens <<<"${cflags//$'\n'/ }"
     printf '#include <libplacebo/colorspace.h>\nint chk(void){ return (int) PL_ALPHA_NONE; }\n' \
-        | "${CC:-cc}" $cflags -fsyntax-only -x c - >/dev/null 2>&1
+        | "${CC:-cc}" "${cflag_tokens[@]}" -fsyntax-only -x c - >/dev/null 2>&1
 }
 
 # Append $2 (e.g. "-lstdc++") to the Libs.private of the workspace pkg-config file
@@ -1459,6 +1469,7 @@ libplacebo_has_pl_alpha_none() {
 # dependency the way x265/zimg/rubberband already do so `pkg-config --static` emits it.
 pkgconfig_add_private_lib() {
     local pc_name="${1:-}" extra_lib="${2:-}" pc_file="" dir private_line token
+    local -a private_tokens=()
 
     [[ "$pc_name" =~ ^[A-Za-z0-9_.+-]+$ ]] ||
         fail "pkgconfig_add_private_lib() received an invalid module name. Line: ${LINENO}"
@@ -1478,7 +1489,9 @@ pkgconfig_add_private_lib() {
         return 0
     fi
     private_line="$(sed -n 's/^Libs\.private:[[:space:]]*//p' "$pc_file" | sed -n '1p')"
-    for token in $private_line; do
+    # Split without globbing; see resolve_pkgconf_include_dir().
+    read -r -a private_tokens <<<"$private_line"
+    for token in "${private_tokens[@]}"; do
         [[ "$token" == "$extra_lib" ]] && return 0
     done
     if grep -q '^Libs.private:' "$pc_file"; then
