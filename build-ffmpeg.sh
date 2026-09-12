@@ -53,6 +53,7 @@ usage() {
     print_usage_row 'BUILD_ROOT=/path' 'Override the default ./build directory'
     print_usage_row 'CUDA_INSTALL=ask|always|never' 'Control CUDA toolkit installation (default: ask)'
     print_usage_row 'CUDA_ARCH_MODE=native|all|custom' 'Select CUDA code-generation targets'
+    print_usage_row 'CUDA_ARCHITECTURES="86 89"' 'Targets for CUDA_ARCH_MODE=custom'
     print_usage_row 'FFMPEG_BUILD_DEBUG=ON' 'Stream commands while also logging them'
     printf '\nExample:\n'
     printf '  bash %s --build --compiler clang --jobs 8 --config ./custom.toml\n\n' \

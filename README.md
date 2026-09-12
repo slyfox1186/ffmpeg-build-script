@@ -14,8 +14,8 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 - x86_64
 - Debian 12 and 13
 - Ubuntu 22.04, 24.04, and 26.04
-- Ubuntu-based Linux Mint and Zorin releases whose base maps to one of the
-  supported Ubuntu versions
+- Any Ubuntu derivative declaring `ID_LIKE=ubuntu` whose `UBUNTU_CODENAME`
+  is `jammy`, `noble`, or `resolute` (Linux Mint and Zorin among them)
 - WSL2 using a supported Debian or Ubuntu userspace (WSL1 is not supported;
   convert with `wsl.exe --set-version <distro> 2`)
 
@@ -79,11 +79,17 @@ Environment:
   BUILD_ROOT=/path                  Override the default ./build directory
   CUDA_INSTALL=ask|always|never     Control CUDA toolkit installation (default: ask)
   CUDA_ARCH_MODE=native|all|custom  Select CUDA code-generation targets
+  CUDA_ARCHITECTURES="86 89"        Targets for CUDA_ARCH_MODE=custom
   FFMPEG_BUILD_DEBUG=ON             Stream commands while also logging them
 ```
 
 `--help` and `--version` are side-effect free: they do not create a build
 directory, truncate a log, request sudo, or load a config file.
+
+The result is tuned for the machine that built it (`-march=native`,
+`--cpu=native`, and AVX-512 detection), so the installed binaries may fault with
+an illegal instruction on a different CPU. Build on the machine that will run
+it, or remove those flags before building for distribution.
 
 With no action, the script prints help. `--build` and `--cleanup` are mutually
 exclusive. Without `--config`, every registered package is selected; using the
@@ -96,7 +102,9 @@ directory.
 
 ## Build state and version policy
 
-The default build root is `./build`:
+The default build root is the repository's own `build/` directory, regardless of
+where you run the script from. A `BUILD_ROOT` you set yourself is resolved
+against the invocation directory instead:
 
 ```text
 build/
@@ -134,6 +142,10 @@ BUILD_ROOT=./path/to/ffmpeg-build \
 
 A relative `BUILD_ROOT` is resolved from the invocation directory, not from the
 script's directory.
+
+A successful build ends by calling cleanup, which interactively offers to
+delete the build root. Answer no to keep the sources and workspace for a later
+incremental build.
 
 A custom, non-empty directory must already contain this project's
 `.ffmpeg-build-root` marker. This prevents a typo from turning an unrelated
@@ -302,7 +314,8 @@ Useful manual checks:
 The implementation follows the interfaces and safety controls documented by
 the projects it invokes:
 
-- [FFmpeg 8.1.2 configure options and dependency checks](https://github.com/FFmpeg/FFmpeg/blob/n8.1.2/configure)
+- [FFmpeg configure options and dependency checks](https://github.com/FFmpeg/FFmpeg/blob/master/configure)
+  (the build resolves its FFmpeg version at runtime rather than pinning one)
 - [pkgconf 3.0.4 package search path semantics](https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.4/man/pkgconf.1)
 - [CMake package-registry controls](https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-registry)
 - [Meson subproject and wrap-mode controls](https://mesonbuild.com/Subprojects.html#command-line-options)
