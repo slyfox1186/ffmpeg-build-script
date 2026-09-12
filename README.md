@@ -118,6 +118,7 @@ Environment:
 
 Example:
   python3 build-ffmpeg.py --build --compiler clang --jobs 8 --config ./custom.toml
+  python3 build-ffmpeg.py --build --latest --enable-gpl-and-non-free
 
 
 ```

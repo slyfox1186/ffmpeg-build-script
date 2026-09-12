@@ -72,6 +72,7 @@ def usage_text() -> str:
         "",
         "Example:",
         "  python3 " + SCRIPT_NAME + " --build --compiler clang --jobs 8 --config ./custom.toml",
+        "  python3 " + SCRIPT_NAME + " --build --latest --enable-gpl-and-non-free",
         "",
     ]
     return "\n".join(lines) + "\n"
