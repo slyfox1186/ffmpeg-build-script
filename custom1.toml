@@ -40,7 +40,7 @@ enable_gpl_and_non_free = false
 [packages]
 
 # Build systems, code generators, assemblers, and packaging tools
-ant-git = false  # Apache Ant Java build tool
+ant-git = true  # Apache Ant Java build tool
 autoconf = true  # Generates portable configure scripts
 automake = true  # Generates portable Makefile templates
 cmake = true  # Cross-platform build-system generator
