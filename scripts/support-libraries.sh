@@ -43,6 +43,10 @@ install_miscellaneous_libraries() {
             build_done "nettle" "$repo_version"
         fi
 
+        # The upstream archive splits releases into per-series directories, so the
+        # v3.8 path pins the series and only the patch level tracks upstream. When
+        # GnuTLS opens a v3.9 directory this keeps building the last 3.8 release
+        # and reports nothing, so bump the two paths below by hand at that point.
         fetch_version_if_enabled "gnutls" gnu_repo "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
         if build "gnutls" "$repo_version"; then
             download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
