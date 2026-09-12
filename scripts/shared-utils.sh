@@ -771,7 +771,7 @@ load_package_selection_config() {
 # CUDA_ARCH_MODE has to be caught here rather than inside install_cuda(), which
 # runs after initialize_system_setup() has installed dozens of APT packages.
 validate_build_settings() {
-    local mode architecture
+    local mode architecture numeric_name numeric_value
     local -a issues=()
     local -a custom_values=()
 
@@ -802,6 +802,23 @@ validate_build_settings() {
             ;;
         *) issues+=("'CUDA_ARCH_MODE' must be 'native', 'all', or 'custom'; got '$mode'") ;;
     esac
+
+    # download_archive_to_cache() validated its own three; every other timeout
+    # reached curl unchecked, where garbage becomes a curl usage error that the
+    # fetchers report as "failed to detect version", naming the wrong subsystem.
+    for numeric_name in DOWNLOAD_CONNECT_TIMEOUT DOWNLOAD_MAX_TIME DOWNLOAD_MAX_BYTES \
+        DOWNLOAD_LOCK_TIMEOUT HOST_MUTATION_LOCK_TIMEOUT VERSION_CHECK_MAX_TIME \
+        GIT_OPERATION_TIMEOUT FREEDESKTOP_RELEASE_CONNECT_TIMEOUT \
+        FREEDESKTOP_RELEASE_INDEX_MAX_TIME; do
+        numeric_value="${!numeric_name:-}"
+        [[ -z "$numeric_value" || "$numeric_value" =~ ^[1-9][0-9]*$ ]] ||
+            issues+=("'$numeric_name' must be a positive integer; got '$numeric_value'")
+    done
+    for numeric_name in DOWNLOAD_RETRY DOWNLOAD_RETRY_DELAY; do
+        numeric_value="${!numeric_name:-}"
+        [[ -z "$numeric_value" || "$numeric_value" =~ ^[0-9]+$ ]] ||
+            issues+=("'$numeric_name' must be a non-negative integer; got '$numeric_value'")
+    done
 
     if package_enabled "mediainfo-lib" && ! package_enabled "zenlib"; then
         issues+=("'packages.mediainfo-lib=true' requires 'packages.zenlib=true'")
@@ -1908,8 +1925,13 @@ download_with_fallback() {
         return 0
     fi
 
+    # The fallback names its own cache entry. Mirrors do not always agree on
+    # compression (support-libraries.sh pairs a GitLab .tar.bz2 with a savannah
+    # .tar.xz), and forcing the primary's filename onto the fallback stored
+    # those bytes, and their .sha256 record, under a name and extension that
+    # describe a different archive.
     warn "Primary mirror failed, trying fallback mirror: '$fallback_url'."
-    if download_try "$fallback_url" "$archive_file"; then
+    if download_try "$fallback_url"; then
         return 0
     fi
 
@@ -2877,16 +2899,23 @@ giflib_download_url() {
 }
 
 # NASM version fetching
-find_latest_nasm_version() {
-    local connect_timeout
-    connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
-    latest_nasm_version=$(
+# Sets repo_version like every other fetcher so nasm can go through
+# fetch_version_if_enabled(), which reuses a recorded marker instead of
+# contacting nasm.us on every run. Substituting a hardcoded version on failure
+# turned a network problem into a download error naming the wrong subsystem, so
+# report it here instead.
+nasm_version() {
+    local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
+
+    repo_version=$(
         curl_https -fsS --max-time 10 --connect-timeout "$connect_timeout" "https://www.nasm.us/pub/nasm/stable/" 2>/dev/null |
-        grep -oP 'nasm-\K[0-9]+\.[0-9]+(?:\.[0-9]+)?(?=\.tar\.xz)' |
-        sort -ruV | sed -n '1p'
+            grep -oP 'nasm-\K[0-9]+\.[0-9]+(?:\.[0-9]+)?(?=\.tar\.xz)' |
+            sort -ruV | sed -n '1p'
     )
-    # Fallback to known stable version if fetch fails
-    latest_nasm_version="${latest_nasm_version:-3.02}"
+    [[ -n "$repo_version" ]] || {
+        warn "Unable to detect the latest nasm release from nasm.us."
+        return 1
+    }
 }
 
 # Rust/Cargo installation functions

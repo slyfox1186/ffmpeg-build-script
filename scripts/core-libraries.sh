@@ -28,20 +28,16 @@ install_core_libraries() {
     fi
 
     # Build nasm
-    local nasm_version=""
-    if package_enabled "nasm"; then
-        find_latest_nasm_version
-        nasm_version="$latest_nasm_version"
-    fi
-    if build "nasm" "$nasm_version"; then
-        download "https://www.nasm.us/pub/nasm/releasebuilds/$nasm_version/nasm-$nasm_version.tar.xz"
+    fetch_version_if_enabled "nasm" nasm_version
+    if build "nasm" "$repo_version"; then
+        download "https://www.nasm.us/pub/nasm/releasebuilds/$repo_version/nasm-$repo_version.tar.xz"
         ensure_autotools
         # NASM has no --enable-ccache configure option. The compiler wrappers
         # already placed on PATH provide caching without passing an unknown flag.
         execute sh configure --prefix="$workspace" --disable-pedantic
         execute make "-j$build_threads"
         execute make install
-        build_done "nasm" "$nasm_version"
+        build_done "nasm" "$repo_version"
     fi
 
     # Build giflib
