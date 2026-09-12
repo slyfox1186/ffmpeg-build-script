@@ -1,171 +1,254 @@
+"""Real PTY input, terminal restoration, and menu-to-build integration."""
+
 from __future__ import annotations
 
 import fcntl
+import importlib
 import json
 import os
 import pty
 import select
+import signal
 import struct
 import subprocess
 import sys
 import termios
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from ffmpeg_build.config import default_states, load_config
+from ffmpeg_build.runtime.logging import Logger
 from tests.conftest import REPO
 
+CHILD = r"""
+import json, os, pathlib, shutil, signal, sys, termios
+from textual.binding import Binding
+from ffmpeg_build.main import Orchestrator, _install_signal_handlers
+from ffmpeg_build.runtime.errors import SignalStop
+from ffmpeg_build.menu import app as module
+root = pathlib.Path(sys.argv[1])
+actual_clear = shutil.which('clear')
+assert actual_clear
+binary_dir = root / 'bin'; binary_dir.mkdir()
+clear = binary_dir / 'clear'
+clear.write_text('#!' + sys.executable + '\n' +
+    'import json, pathlib, subprocess, sys, termios\n' +
+    'flags = termios.tcgetattr(sys.stdout.fileno())[3]\n' +
+    f'pathlib.Path({str(root / "clear.json")!r}).write_text(json.dumps({{"canonical": bool(flags & termios.ICANON), "echo": bool(flags & termios.ECHO)}}))\n' +
+    f'subprocess.run([{actual_clear!r}], check=True)\n')
+clear.chmod(0o755)
+os.environ['PATH'] = str(binary_dir) + os.pathsep + os.environ['PATH']
+class ObservedMenu(module.MenuApp):
+    BINDINGS = [*module.MenuApp.BINDINGS, Binding('exclamation_mark', 'fixture_error', show=False)]
+    def record(self):
+        if self.focused is None: return
+        state = {'focus':self.focused.id, 'compiler':self.model.settings.compiler,
+                 'screen':type(self.screen).__name__, 'selected':sum(self.model.states.values())}
+        target = root / 'state.json'
+        pending = root / 'state.tmp'
+        pending.write_text(json.dumps(state)); pending.replace(target)
+    def on_mount(self):
+        self.call_after_refresh(self.record)
+    def on_descendant_focus(self,event):
+        self.call_after_refresh(self.record)
+    def _refresh_state(self):
+        super()._refresh_state(); self.call_after_refresh(self.record)
+    def action_fixture_error(self):
+        raise ValueError('fixture UI failure')
+module.MenuApp = ObservedMenu
+class FixtureBuild(Orchestrator):
+    def run_build(self,context):
+        (root/'build-result.json').write_text(json.dumps({'compiler':context.compiler,
+            'jobs':context.build_threads,'config':str(context.selection.config_file),
+            'states':context.selection.states()}))
+_install_signal_handlers()
+try:
+    result = FixtureBuild(pathlib.Path(sys.argv[2]), ['--menu','--gcc']).run()
+except SignalStop as stop:
+    result = stop.exit_code
+except Exception as error:
+    (root/'error.txt').write_text(str(error))
+    result = 1
+(root/'exit.json').write_text(json.dumps({'code':result}))
+sys.exit(result)
+"""
 
-def terminal_script(code: str, tmp_path: Path, height: int, width: int) -> dict[str, object]:
-    master, slave = pty.openpty()
-    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", height, width, 0, 0))
-    process = subprocess.Popen(
-        [sys.executable, "-c", code, str(tmp_path)],
-        cwd=tmp_path,
-        env={**os.environ, "TERM": "xterm-256color", "PYTHONPATH": str(REPO)},
-        stdin=slave,
-        stdout=slave,
-        stderr=slave,
-    )
-    os.close(slave)
-    transcript = bytearray()
-    deadline = time.monotonic() + 20
-    try:
-        while process.poll() is None:
-            assert time.monotonic() < deadline, transcript.decode(errors="replace")
-            ready, _, _ = select.select([master], [], [], 0.1)
-            if ready:
-                try:
-                    transcript.extend(os.read(master, 65536))
-                except OSError:
-                    break
-        assert process.wait(timeout=2) == 0, transcript.decode(errors="replace")
-    finally:
-        if process.poll() is None:
-            process.kill()
-            process.wait()
-        os.close(master)
-    result: dict[str, object] = json.loads((tmp_path / "result.json").read_text())
-    return result
+
+class Terminal:
+    def __init__(self, root: Path, size: tuple[int, int]) -> None:
+        self.root = root
+        self.master, slave = pty.openpty()
+        width, height = size
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", height, width, 0, 0))
+        environment = {
+            **os.environ,
+            "TERM": "xterm-256color",
+            "COLORTERM": "truecolor",
+            "PYTHONPATH": str(REPO),
+            "BUILD_ROOT": str(root / "build"),
+        }
+        environment.pop("NO_COLOR", None)
+        self.process = subprocess.Popen(
+            [sys.executable, "-c", CHILD, str(root), str(REPO)],
+            cwd=root,
+            env=environment,
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+        )
+        os.close(slave)
+        self.transcript = bytearray()
+
+    def drain(self, delay: float = 0.02) -> None:
+        if select.select([self.master], [], [], delay)[0]:
+            try:
+                self.transcript.extend(os.read(self.master, 65536))
+            except OSError:
+                pass  # PTYs report EIO once their final slave closes.
+
+    def send(self, keys: bytes) -> None:
+        os.write(self.master, keys)
+
+    def expect(self, **expected: object) -> dict[str, Any]:
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            self.drain()
+            path = self.root / "state.json"
+            if path.exists():
+                state: dict[str, Any] = json.loads(path.read_text())
+                if all(state.get(key) == value for key, value in expected.items()):
+                    return state
+            assert self.process.poll() is None, self.transcript.decode(errors="replace")[-5000:]
+        pytest.fail(f"No state {expected}: {self.transcript.decode(errors='replace')[-5000:]}")
+
+    def finish(self, expected_code: int = 0) -> None:
+        deadline = time.monotonic() + 8
+        while self.process.poll() is None and time.monotonic() < deadline:
+            self.drain()
+        assert self.process.wait(timeout=1) == expected_code, self.transcript.decode(
+            errors="replace"
+        )[-5000:]
+        self.drain(0)
+        assert json.loads((self.root / "clear.json").read_text()) == {
+            "canonical": True,
+            "echo": True,
+        }
+        assert b"\x1b[<u" in self.transcript, "Keyboard protocol must be restored before leaving"
+        (self.root / "terminal-output.txt").write_bytes(self.transcript)
+
+    def close(self) -> None:
+        if self.process.poll() is None:
+            self.process.kill()
+            self.process.wait(timeout=2)
+        os.close(self.master)
 
 
-@pytest.mark.parametrize(("height", "width"), [(36, 120), (24, 80), (10, 40)])
-def test_real_menu_all_packages_search_categories_save_and_build(
-    tmp_path: Path, height: int, width: int
+@pytest.mark.parametrize("modern", [False, True], ids=["legacy", "kitty-protocol"])
+def test_physical_keys_single_escape_autosave_and_build_handoff(
+    tmp_path: Path, modern: bool
 ) -> None:
-    code = r"""
-import curses, json, pathlib, sys
-from ffmpeg_build import registry
-from ffmpeg_build.config import BuildSettings, load_config
-from ffmpeg_build.menu.app import MenuApp
-from ffmpeg_build.menu.model import MenuModel
-from ffmpeg_build.runtime.logging import Logger
-root = pathlib.Path(sys.argv[1])
-model = MenuModel({}, BuildSettings())
-app = MenuApp(model, root / 'custom.toml')
-snapshots = {}
-def text(screen):
-    return [screen.instr(y, 0).decode(errors='replace').rstrip() for y in range(screen.getmaxyx()[0])]
-def keys(value):
-    for character in reversed(value): curses.unget_wch(character)
-def check(screen):
-    screen.keypad(True)
-    assert len(app.rows()) == len(registry.GROUPS) == 15
-    app.draw(screen); snapshots['overview'] = text(screen)
-    if screen.getmaxyx()[1] >= 80:
-        app.handle(screen, 10)
-        assert app.current(app.rows()).package is not None
-        app.handle(screen, 9)
-        assert app.current(app.rows()).group == registry.GROUPS[1].name
-        app.handle(screen, curses.KEY_UP)
-        assert app.current(app.rows()).is_group and app.cursor == 0
-        app.handle(screen, 10)
-        assert app.current(app.rows()).package is not None
-        app.handle(screen, curses.KEY_LEFT)
-    app.handle(screen, 9)
-    assert app.current(app.rows()).group == registry.GROUPS[1].name
-    app.handle(screen, curses.KEY_BTAB)
-    assert app.cursor == 0
-    app.handle(screen, ord(']'))
-    assert sum(row.package is not None for row in app.rows()) == 127
-    app.draw(screen); snapshots['expanded'] = text(screen)
-    for key in registry.PACKAGE_NAMES:
-        app.cursor = next(i for i, row in enumerate(app.rows()) if row.package and row.package.key == key)
-        before = sum(model.enabled(name) for name in registry.PACKAGE_NAMES)
-        app.handle(screen, ord(' ')); assert model.enabled(key)
-        assert sum(model.enabled(name) for name in registry.PACKAGE_NAMES) == before + 1
-        app.handle(screen, ord(' ')); assert not model.enabled(key)
-        assert not app.dirty
-    app.handle(screen, ord('a')); before_preset = dict(model.states)
-    keys('n'); app.handle(screen, ord('p'))
-    assert not any(model.states.values())
-    app.handle(screen, ord('u')); assert model.states == before_preset
-    app.handle(screen, ord('u')); assert not any(model.states.values())
-    folds = set(model.collapsed); model.search = 'm4'; app.cursor = 0
-    for key in [' ', '[', ']', curses.KEY_LEFT, curses.KEY_RIGHT]:
-        app.handle(screen, ord(key) if isinstance(key, str) else key)
-    assert model.collapsed == folds
-    model.search = ''
-    keys('cbogus\nq'); app.handle(screen, ord('e'))
-    assert app.result.launch.compiler == 'gcc' and 'Compiler must' in app.message
-    app.result.launch.build_root = '/etc'
-    assert app.handle(screen, ord('b')) and 'unsafe build root' in app.message
-    assert not (root / 'custom.toml').exists()
-    app.result.launch.build_root = str(root / 'build')
-    model.search = 'opus'
-    app.cursor = 0
-    keys('\x1b'); app.handle(screen, ord('/'))
-    assert model.search == 'opus'
-    keys('\n'); app.handle(screen, ord('/'))
-    assert model.search == ''
-    model.search = 'a name with no matches'
-    app.handle(screen, curses.KEY_DOWN); app.draw(screen)
-    assert app.cursor == 0
-    snapshots['empty'] = text(screen)
-    model.search = 'Audio devices'
-    assert len(app.rows()) == 1 + len(registry.GROUPS[8].packages)
-    app.handle(screen, ord('a'))
-    assert 'entire category' in app.message
-    assert model.enabled_count(registry.GROUPS[8]) == len(registry.GROUPS[8].packages)
-    model.apply_preset('minimal')
-    assert not model.issues() and not model.enabled('mediainfo-cli')
-    model.apply_preset('none'); model.search = ''; app.handle(screen, ord(']'))
-    for key in registry.PACKAGE_NAMES:
-        app.cursor = next(i for i, row in enumerate(app.rows()) if row.package and row.package.key == key)
-        app.handle(screen, ord(' '))
-    keys('~ffmpeg_audit_nonexistent_user/config.toml\n')
-    assert not app.save(screen) and 'Save failed' in app.message and app.dirty
-    app.draw(screen); snapshots['save_error'] = text(screen)
-    keys('selection.toml\n')
-    assert app.save(screen) and not app.dirty
-    assert app.result.saved_path == root / 'selection.toml'
-    assert all(load_config(app.result.saved_path, Logger()).selection.states().values())
-    keys('\n'); assert not app.handle(screen, ord('b'))
-    assert app.result.start_build
-curses.wrapper(check)
-(root / 'result.json').write_text(json.dumps({'packages':127, 'build':app.result.start_build, 'snapshots':snapshots}))
-"""
-    result = terminal_script(code, tmp_path, height, width)
-    assert result["packages"] == 127 and result["build"] is True
-    (tmp_path / "screen-evidence.json").write_text(json.dumps(result, indent=2))
+    terminal = Terminal(tmp_path, (120, 36))
+    try:
+        terminal.expect(focus="compiler-category")
+        assert b"\x1b[>25u" in terminal.transcript
+        # Decode the actual rendered terminal output, including the persistent
+        # Compilers entry and both exclusive options.
+        pyte = importlib.import_module("pyte")
+        screen = pyte.Screen(120, 36)
+        pyte.Stream(screen).feed(terminal.transcript.decode(errors="replace"))
+        rendered = "\n".join(screen.display)
+        assert all(text in rendered for text in ("GCC", "Clang", "PACKAGES", "CONFIGURATION"))
+        (tmp_path / "rendered.txt").write_text(rendered)
+        # A split arrow sequence must not become an Escape followed by text.
+        terminal.send(b"\x1b")
+        terminal.drain(0.02)
+        terminal.send(b"[C")
+        terminal.expect(focus="compiler-options")
+        for back in (b"\x1b[D", b"\x7f", b"\x08"):
+            terminal.send(back)
+            terminal.expect(focus="compiler-category")
+            terminal.send(b"\x1b[C")
+            terminal.expect(focus="compiler-options")
+        started = time.monotonic()
+        terminal.send(b"\x1b[27u" if modern else b"\x1b")
+        terminal.expect(focus="compiler-category")
+        elapsed = time.monotonic() - started
+        assert elapsed < 0.5, f"One Escape took {elapsed:.3f}s"
+        (tmp_path / "escape-timing.json").write_text(
+            json.dumps({"modern": modern, "elapsed_ms": elapsed * 1000})
+        )
+        terminal.send(b"\x1b[C\x1b[B ")
+        terminal.expect(focus="compiler-category", compiler="clang")
+        config = tmp_path / "custom.toml"
+        assert load_config(config, Logger()).settings.compiler == "clang"
+        terminal.send(b"e")
+        terminal.expect(focus="jobs", screen="SettingsScreen")
+        terminal.send(b"3\r")
+        terminal.expect(screen="Screen")
+        terminal.send(b"b")
+        terminal.finish()
+        result = json.loads((tmp_path / "build-result.json").read_text())
+        assert result == {
+            "compiler": "clang",
+            "jobs": 3,
+            "config": str(config),
+            "states": default_states(),
+        }
+    finally:
+        terminal.close()
 
 
-def test_too_small_terminal_ignores_edits_and_can_quit(tmp_path: Path) -> None:
-    code = r"""
-import curses, json, pathlib, sys
-from ffmpeg_build.config import BuildSettings
-from ffmpeg_build.menu.app import MenuApp
-from ffmpeg_build.menu.model import MenuModel
-root = pathlib.Path(sys.argv[1])
-app = MenuApp(MenuModel({}, BuildSettings()), root / 'custom.toml')
-def check(screen):
-    app.draw(screen)
-    for key in '/sebgla ': assert app.handle(screen, ord(key))
-    assert not app.dirty
-    assert not app.handle(screen, ord('q'))
-    assert app.prompt(screen, 'Too small: ') is None
-curses.wrapper(check)
-(root / 'result.json').write_text(json.dumps({'small': 'PASS'}))
-"""
-    assert terminal_script(code, tmp_path, 6, 24) == {"small": "PASS"}
+@pytest.mark.parametrize(
+    "action",
+    [
+        "quit",
+        "toggle_quit",
+        "ctrl_d",
+        "ctrl_c",
+        "settings_ctrl_q",
+        "save_quit",
+        "sigterm",
+        "sighup",
+        "sigint",
+        "error",
+    ],
+)
+def test_exit_paths_restore_terminal_and_run_clear(tmp_path: Path, action: str) -> None:
+    terminal = Terminal(tmp_path, (80, 24))
+    try:
+        terminal.expect(focus="compiler-category")
+        code = 0
+        if action == "toggle_quit":
+            terminal.send(b"gq")
+        elif action == "settings_ctrl_q":
+            terminal.send(b"e")
+            terminal.expect(focus="jobs")
+            terminal.send(b"\x11")
+        elif action == "save_quit":
+            terminal.send(b"s")
+            terminal.expect(focus="save-path")
+            terminal.send(b"\r")
+            terminal.expect(screen="Screen")
+            terminal.send(b"q")
+        elif action in ("sigterm", "sighup", "sigint"):
+            number = {"sigterm": signal.SIGTERM, "sighup": signal.SIGHUP, "sigint": signal.SIGINT}[
+                action
+            ]
+            os.kill(terminal.process.pid, number)
+            code = 128 + number
+        else:
+            terminal.send(
+                {"quit": b"q", "ctrl_d": b"\x04", "ctrl_c": b"\x03", "error": b"!"}[action]
+            )
+            if action == "error":
+                code = 1
+        terminal.finish(code)
+        if action == "error":
+            assert "fixture UI failure" in (tmp_path / "error.txt").read_text()
+        assert not (tmp_path / "build-result.json").exists()
+        assert (tmp_path / "custom.toml").exists() == (action in ("toggle_quit", "save_quit"))
+    finally:
+        terminal.close()

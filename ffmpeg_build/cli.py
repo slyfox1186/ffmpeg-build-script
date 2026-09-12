@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .config import COMPILERS
 from .runtime.errors import UsageError
 from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 from .usage import SCRIPT_NAME, SCRIPT_VERSION, metadata_response, usage_text
@@ -38,7 +39,7 @@ class Arguments:
         self.build = False
         self.cleanup = False
         self.menu = False
-        self.compiler = "gcc"
+        self.compiler: str | None = None
         self.jobs: int | None = None
         self.latest = False
         self.nonfree_and_gpl = False
@@ -65,6 +66,8 @@ def parse_arguments(argv: list[str]) -> Arguments:
             arguments.latest = True
         elif argument in ("-n", "--enable-gpl-and-non-free"):
             arguments.nonfree_and_gpl = True
+        elif argument in ("--gcc", "--clang"):
+            arguments.compiler = argument.removeprefix("--")
         elif argument == "--compiler":
             if index + 1 >= len(argv):
                 raise UsageError("Missing value for '--compiler'.")
@@ -103,7 +106,7 @@ def parse_arguments(argv: list[str]) -> Arguments:
             raise UsageError(f"Unknown option '{argument}'.")
         index += 1
 
-    if arguments.compiler not in ("gcc", "clang"):
+    if arguments.compiler is not None and arguments.compiler not in COMPILERS:
         raise UsageError(f"Invalid compiler '{arguments.compiler}'; expected 'gcc' or 'clang'.")
     chosen = [
         name

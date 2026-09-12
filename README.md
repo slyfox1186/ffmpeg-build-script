@@ -14,10 +14,10 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 - The builder and diagnostic tools are now Python. The entry point is
   `build-ffmpeg.py`; the Bash scripts have been removed.
 - `--menu` edits all 127 package choices, checks dependencies, saves a TOML
-  configuration, and launches the build. Compiler, jobs, CUDA options, and the
-  build root can be edited for the current session.
-- Python 3.12 or newer is required. The build and menu use only the standard
-  library; pytest, Ruff, and mypy are optional development tools.
+  configuration, and launches the build. Its Textual interface saves compiler
+  and package choices immediately, with mouse and keyboard navigation.
+- Python 3.12 or newer is required. Command-line builds use the standard
+  library. The interactive menu uses Textual; development tools are optional.
 - Compatible 6.0.0 and 7.0.0 workspaces retain their built dependencies and
   reconfigure FFmpeg. Changed compiler flags or package selections still
   require cleanup. The build-context format remains v2.
@@ -46,10 +46,13 @@ launch with an installed Python 3.12 or newer interpreter.
 
 When `~/miniconda3` exists, the launcher prefers its `install-ffmpeg`
 environment. If that environment is missing, it asks before creating it with
-Python 3.12 and installing the optional development tools. Declining, or running
+Python 3.12, Textual and the optional development tools. Declining, or running
 without an interactive terminal, uses an available compatible Python instead.
-No environment is created without consent. The menu needs a terminal with
-curses support; the CLI build does not need curses.
+No environment is created without consent. The menu needs an interactive
+terminal and Textual 8.2.8 or newer. Existing environments can install the menu
+dependency with `~/miniconda3/envs/install-ffmpeg/bin/python -m pip install '.[menu]'`
+from this checkout. A missing dependency produces an installation command for
+the selected interpreter; ordinary builds do not import or require Textual.
 
 Run the script as a normal user with working `sudo` access. Do not run the
 entire script as root. The build also requires an internet connection and enough
@@ -103,7 +106,8 @@ Actions:
 Options:
   -h, --help                        Show this help without changing the filesystem
   -v, --version                     Show the script version
-      --compiler <gcc|clang>        Select the C/C++ compiler (default: gcc)
+      --compiler <gcc|clang>        Override the config compiler (default: gcc)
+      --gcc / --clang               Aliases for --compiler gcc / --compiler clang
       --config <path>               Load build/package choices from TOML
   -j, --jobs <count>                Set parallel build jobs (default: available CPUs)
   -l, --latest                      Refresh and rebuild outdated dependencies
@@ -134,8 +138,8 @@ an illegal instruction on a different CPU. Build on the machine that will run
 it, or remove those flags before building for distribution.
 
 With no action, the script prints help. `--build`, `--cleanup`, and `--menu`
-are mutually exclusive. Without `--config`, every registered package is selected; using the
-reviewed `custom.toml` allowlist is the recommended path.
+are mutually exclusive. A build without `--config` selects every registered
+package; using the reviewed `custom.toml` allowlist is the recommended path.
 
 Bare invocation, help and version reporting do not resolve or create an
 interpreter environment. An incompatible existing Conda interpreter falls back
@@ -151,58 +155,97 @@ directory.
 
 ## Interactive menu
 
+![Textual menu showing separate compiler choices and package categories](docs/menu.svg)
+
 ```bash
 python3 build-ffmpeg.py --menu
 python3 build-ffmpeg.py --menu --config ./custom.toml
 ```
 
-Without a config, the menu starts from the portable template. With a config,
-it loads that file's allowlist. The opening overview groups all 127 packages
-into 15 types: build tools, foundational libraries, networking, text, images,
-audio codecs, audio processing, audio plugins, audio devices, video codecs,
-video processing, media metadata, playback/capture, GPU support, and FFmpeg.
-At 80×24 or larger, a category sidebar sits beside the package list. Short type
-names, aligned counts, explicit On/Off states, licensing notices, and a separate
-description area make selections easier to scan. Enter opens a category; Space
-toggles the highlighted package; Left returns to its category. Wider terminals
-also show descriptions beside package names. Smaller terminals use a compact
-tree. Checkboxes, focus highlighting and text labels work without color too.
+The menu reopens `custom.toml` in the invocation directory when it exists;
+otherwise it starts from the portable template. `--config` selects a specific
+file instead. Existing compiler, GPL/latest and package choices are preserved,
+and invalid existing configs fail explicitly before editing. The menu opens on
+**Compilers**, with **GCC** and **Clang** as visible choices. Select one with
+Space or Enter; radio markers show the active compiler. A horizontal divider
+separates Compilers from the package categories. In the wide view, Compilers
+stays visible while the package categories scroll below it.
+
+All 127 packages are grouped into 15 types. The Textual interface provides
+scrolling lists, compiler radio buttons, GPL/latest switches, mouse selection,
+search, and visible keyboard focus. Large terminals show categories and options
+side by side. Narrow or short terminals show one pane at a time, with the same
+navigation keys. The compiler category stays above a divider while packages
+scroll beneath it. Counts include packages only.
 
 | Key | Action |
 | --- | --- |
-| Up/down or `k`/`j` | Navigate categories or packages; compact view moves through the tree |
-| Space or Enter | Toggle a package or enter a category; compact view folds categories |
-| Left/right | Collapse or expand a group |
-| Tab / Shift-Tab | Jump to the next or previous category |
-| `[` / `]` | Collapse or expand every category |
-| `a` / `d` | Enable or disable the entire current category, including filtered-out packages |
-| `/` | Search package names, descriptions and categories; empty Enter clears, Escape cancels |
-| `i` / `?` | Read full package/category details or keyboard help; scroll with arrows |
-| `p` | Choose template, all, minimal, or none preset |
-| `u` | Undo up to 50 package, category, preset, GPL or latest changes |
+| Up/down | Navigate the focused list; `k`/`j` also navigate the category list |
+| Space or Enter | Select a compiler or toggle a package, then return to categories; Enter opens a category |
+| Right | Focus the current category's options |
+| Left / Escape / Backspace | Return to categories without changing a selection; stay there if already focused on a category |
+| Tab / Shift-Tab | Move between controls |
+| `a` / `d` | Enable or disable the entire package category, including hidden search matches |
+| `/` | Focus live search by package name, description or category |
+| `i` / `?` | Open full details or keyboard help |
+| `p` | Choose template, all, minimal or none preset |
+| `u` | Undo up to 50 package, category, preset, compiler, GPL or latest changes |
+| `c` | Open the Compilers category |
 | `g` / `l` | Toggle GPL/non-free authorization or latest mode |
-| `f` / `F` | Enable required dependencies for the current package or all packages |
-| `e` | Edit compiler, jobs, CUDA installation/targets, and build root |
-| `s` | Save the config; Enter accepts the displayed path |
-| `b` | Save and build; mandatory selection problems must be resolved first |
-| `q` | Quit; unsaved package changes require confirmation |
+| `f` / `F` | Enable requirements for the current package or all packages |
+| `e` | Edit jobs, CUDA installation/targets and build root for this session |
+| `s` | Save as; subsequent edits auto-save to the chosen file |
+| `b` | Validate, save and build using the current configuration |
+| `q` | Quit immediately; changes are already saved |
+| Ctrl+C / Ctrl+D / Ctrl+Q | Exit from any screen |
 
-Search reveals matching packages even inside collapsed categories; fold commands
-leave the saved folds unchanged while searching. Clearing search restores those
-folds. The minimal preset selects the build-tools category and
-FFmpeg, without unrelated application tools. Text fields support arrows,
-Backspace/Delete, Home/End and Ctrl-U; typing replaces the initial value and
-Escape cancels immediately. Relative save paths resolve from the invocation
-directory. Invalid launch edits retain the previous valid value, and unsafe
-build roots or invalid numeric targets block Build before it saves. `~` expands
-in both save paths and build roots. Save failures retain the selection and show
-an error. Below 40×10,
-resize before editing; unchanged menus can still quit with `q`.
+Package toggles, compiler and GPL/latest choices, category changes, presets,
+dependency fixes and undo **save immediately** to the active TOML file. Each
+write is atomic. If it fails, the attempted change is reverted and an error is
+displayed, preserving the saved configuration and undo history. Saving allows
+unfinished package selections; Build checks requirements before starting.
+Browsing and searching do not rewrite the configuration.
 
-Compiler, jobs, CUDA settings, and build root are **session-only launcher
-options**, not new TOML keys. The saved `[build]` table still contains only
-`latest` and `enable_gpl_and_non_free`. CLI opt-ins initialize the menu;
-subsequent edits determine what its Build action launches.
+Search updates while typing. Enter or Escape returns focus to categories and
+keeps the filter; clear the text to show all packages. Arrow and Backspace keys
+edit text normally inside input fields. Dialogs close with Escape, and launch
+settings are validated before Apply accepts them. Invalid jobs, CUDA targets or
+unsafe build roots retain the last accepted launch settings. Relative save paths
+resolve from the invocation directory, and `~` expands in save and build paths.
+The minimal preset includes build tools and FFmpeg.
+
+Textual handles terminal input and restores keyboard modes on exit. On terminals
+supporting the Kitty keyboard protocol, Escape has an unambiguous encoding; older
+terminals use Textual's legacy input handling. Ghostty and Kitty support the
+extended protocol, but neither is required. The menu does not install its own
+Escape timeout or require a second press. It runs `clear` after the terminal is
+restored, including when a build starts or the menu exits through an error.
+
+The saved `[build]` table contains `compiler`, `latest` and
+`enable_gpl_and_non_free`. For example:
+
+```toml
+[build]
+compiler = "clang"
+latest = false
+enable_gpl_and_non_free = true
+```
+
+Compiler precedence is an explicit CLI `--compiler gcc|clang` (or `--gcc` /
+`--clang`), then the config, then GCC. Older configs without `compiler` retain
+the GCC default; selecting a compiler in the menu saves it immediately. CLI
+options initialize the menu; subsequent edits determine what is saved and
+launched. The build reloads that saved file, so compiler, licensing and
+package choices match a later `--build --config ./custom.toml` invocation.
+Jobs, CUDA settings and build root remain **session-only launcher options**;
+the settings screen labels which values are saved.
+
+Every menu exit runs `clear` after restoring the terminal, including save and
+build, quit, Ctrl+C, Ctrl+D, terminal input loss and handled termination signals.
+If `clear` is unavailable or fails, a warning is printed without losing the
+saved configuration or masking the original error. Changing settings in a
+previously built workspace still requires matching its recorded choices or
+running `--cleanup` first; the editor never deletes build artifacts automatically.
 
 The menu distinguishes packages waiting for GPL authorization, libraries that
 build but whose FFmpeg integration needs GPL, and the GnuTLS stack suppressed
@@ -279,6 +322,7 @@ The config parser intentionally supports a small TOML subset:
 
 ```toml
 [build]
+compiler = "gcc"
 latest = false
 enable_gpl_and_non_free = false
 
@@ -288,8 +332,9 @@ x264 = false
 ffmpeg = true
 ```
 
-Only `[build]` and `[packages]` are accepted, values must be literal `true` or
-`false`, duplicate keys are rejected, and unknown package names are fatal.
+Only `[build]` and `[packages]` are accepted. `compiler` must be the quoted
+string `"gcc"` or `"clang"`; all other values must be literal `true` or `false`.
+Duplicate keys are rejected, and unknown package names are fatal.
 With a config file, omitted package keys are disabled; the file is an explicit
 allowlist. CLI opt-ins such as `--latest` and `--enable-gpl-and-non-free` take
 precedence over a corresponding `false` build setting.
@@ -502,6 +547,26 @@ the projects it invokes:
 - [GNU tar security guidance](https://www.gnu.org/software/tar/manual/html_node/Security.html)
 - [NVIDIA's FFmpeg/CUDA integration guidance](https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/ffmpeg-with-nvidia-gpu/index.html)
 - [pip repeatable-install guidance](https://pip.pypa.io/en/stable/topics/repeatable-installs/)
+
+## HTTP retrieval
+
+Archive and release-index downloads, CUDA/Rust installer downloads, and Git
+HTTPS retrieval use the same user-agent from `ffmpeg_build/runtime/http.py`:
+
+```text
+Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
+```
+
+The child environment preserves `http_proxy`, `https_proxy`, `all_proxy`,
+`no_proxy`, `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY`. Uppercase `HTTP_PROXY`
+remains excluded, consistent with [curl's proxy environment rules](https://everything.curl.dev/usingcurl/proxies/env.html).
+Conda compiler flags and paths remain excluded from native builds.
+
+Archive checks reject unsafe links and special filesystem objects before caching.
+An extraction-time safety rejection removes the invalid cache entry; a local
+disk or permission failure keeps a valid archive available for retry. Extraction
+still uses Python's [data filter](https://docs.python.org/3/library/tarfile.html#tarfile.data_filter)
+and validates the extracted source tree before publishing it.
 
 ## Troubleshooting
 

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .errors import BuildError
 from .exec import Runner
+from .http import HTTP_USER_AGENT
 from .logging import Logger
 from .paths import safe_remove_tree
 
@@ -81,6 +82,8 @@ class GitCloner:
             "--foreground",
             str(self.clone_timeout),
             "git",
+            "-c",
+            f"http.userAgent={HTTP_USER_AGENT}",
             "-c",
             "protocol.allow=never",
             "-c",

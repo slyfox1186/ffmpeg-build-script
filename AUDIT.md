@@ -357,3 +357,129 @@ the MCP client's 600-second deadline and was not counted as a verified review;
 the narrower successful consultation retained complete related source files and
 persisted its answer. The earlier completed two-model core/integration reviews
 and their accepted/rejected claims remain the basis for the audit above.
+
+## Textual menu, compiler persistence and terminal cleanup (2026-09-12)
+
+Compiler was session-only, so saved configs lost Clang and later builds defaulted
+to GCC. Bare `--menu` also opened the template even when `custom.toml` existed.
+Compiler now persists in `[build]`; explicit CLI flags override the config and
+final menu edits override those initial values. The editor reopens the invocation
+directory's saved config and rejects malformed files before editing.
+
+Textual replaces the curses implementation and its custom key handling. The
+Compilers category displays GCC and Clang as exclusive choices, with a divider
+above the package categories. It stays pinned while packages scroll. The UI
+provides mouse support, live search, radio buttons, switches, dialogs, visible
+focus and a single-pane layout for small terminals. Short category titles now
+live beside their groups in the registry, eliminating a positional UI mapping. Search matches these displayed titles too.
+`docs/menu.svg` is exported from the actual application with template defaults.
+
+`MenuSession` owns persistence separately from widgets. Persistent edits and undo
+save atomically; failed writes revert the model and preserve undo history. Quit
+exits immediately, Build uses the active path, and Save as changes the destination
+only after success. Jobs, CUDA options and build root remain explicitly labeled
+session-only settings. Opening a saved Clang config and confirming its existing
+choice leaves both file bytes and modification time unchanged.
+
+Right enters options; Left, one Escape, or Backspace returns to categories.
+Textual negotiates the Kitty keyboard protocol when supported and handles legacy
+terminal sequences itself. This project no longer sets an Escape timeout. Real
+PTY tests send bare Escape, the extended Escape encoding, both Backspace bytes,
+and an arrow sequence split across writes. They assert the first Escape returns
+focus within 500 ms, including event/render overhead, and exercise batched keys.
+The final run measured 156.7 ms for legacy Escape and 27.1 ms for Kitty encoding;
+these are local observations, not cross-machine latency guarantees.
+
+The wrapper requests Textual's normal shutdown for SIGINT, SIGTERM and SIGHUP,
+then propagates the signal status after teardown. Raising straight through its
+async event loop had stranded input/writer threads in a real PTY; that failure
+is covered. Every active-menu exit runs the actual `clear` command after normal
+terminal modes and the keyboard protocol are restored. Clear failures warn
+without losing results; UI exceptions retain their cause after the screen clears.
+
+Local verification passes all 382 pytest tests with install-ffmpeg Python
+3.12.14 and Textual 8.2.8. Ruff, formatting, strict mypy for 61 source files and
+the 127-package generated-contract checks also pass. Headless UI
+tests cover 210x44, 120x36, 80x24, 60x20 and 40x10 and exercise every package through
+the actual widgets. Rendered SVG/PNG and decoded real-terminal output were
+inspected; this caught the narrow toolbar clipping and compact footer ordering.
+Real PTYs cover immediate quit, Save as, build handoff, Ctrl keys, signals and
+injected errors, and assert canonical/echo modes before `clear` executes.
+Config/context fixtures confirm saved Clang/GPL/package settings reuse the same
+workspace while a genuine compiler change still rejects existing artifacts.
+The project menu/dev extras resolve successfully through pip's dry-run install.
+A config-to-build CLI handoff also passes with both Textual and Rich imports
+explicitly blocked; it creates no build artifacts.
+No native compilation, host installation or cleanup was performed for this change.
+
+The requested OpenRouter consultations include the coding-category models Kimi K3
+and GLM 5.3, plus explicitly requested Google Gemini 3.8 Flash. The broad snapshot
+contains the entrypoint, all ffmpeg_build modules and the relevant tests. Its first panel did
+not complete: GLM and Flash exhausted 40,000 output tokens; Kimi returned a provider
+error without a final answer. Narrow retries retain complete files for each
+reviewed subsystem, with 60,000 or 65,000 tokens including hidden reasoning.
+Incomplete responses are not counted as completed reviews.
+
+Flash's completed transaction review and partial broader findings were checked
+against the code and regressions. Confirmed improvements include the conditional
+SRT -> OpenSSL -> zlib dependency closure, clearing a stale error after a no-op,
+and defensive resetting of a prior build-ready result before revalidation.
+The latter is defensive: the current UI exits immediately after successful build
+preparation. Its claim that UsageError escapes the save handler was rejected:
+UsageError inherits from the already-caught BuildError. A regression confirms it.
+The compiler cursor claim led to a targeted test that caught mount-handler order:
+cursor alignment now runs after RadioSet initialization; merely opening Clang
+never changed its stored value. Enter already toggles package SelectionList
+entries, and category counts already refresh for bulk edits. Package search is
+intended to reveal matching package categories and never changes the compiler.
+Empty search results now explain how to recover even in the compact layout.
+
+GLM's compiler/configuration review completed at high effort with no verified
+defects in parsing, precedence, menu reload or TOML round-tripping. Its remaining
+question about the UI save path is covered by MenuSession's canonical renderer,
+the saved-Clang UI test and the real PTY compiler-to-build handoff. The preceding
+65,000-token GLM review was entirely reasoning and produced no final answer.
+The final retry isolated compiler/configuration behavior, allowed 100,000 output
+tokens and used justified medium effort (mapped by the provider to high); it
+completed in 17.29 seconds using 3,823 output tokens, including 3,105 reasoning.
+
+Kimi's narrowed runtime review completed at max effort in 1,199.28 seconds,
+using 40,428 output tokens (38,239 reasoning). Its verified findings produced
+these additional fixes:
+
+- Canonicalize the host-lock parent so a symlinked ~/.cache works, while the
+  lock directory itself still rejects symlinks. DirectoryLock reports open/lock
+  failures as BuildError and closes descriptors on failed acquisition.
+- Clean atomic-write temporaries on handled interrupts and other exceptions.
+  Context and checksum writers now reuse that same implementation. Tests inject
+  SignalStop during publication and verify the next fresh-root attempt works.
+  Unknown files in unmarked roots still prevent automatic adoption or cleanup;
+  a filename prefix alone never authorizes deletion after SIGKILL/power loss.
+- Validate archive link targets and special-file types before caching. Distinguish
+  extraction safety failures from local disk failures so a rejected archive is
+  removed, while a verified download survives a recoverable local failure.
+- Remove paired workspace include/library options with their path operands,
+  preserving following compiler flags. Existing production flags use joined
+  forms; this also corrects the reusable helper's separate-token behavior.
+- Preserve standard proxy variables in curated child environments without
+  admitting Conda state or CGI-derived uppercase HTTP_PROXY.
+
+Kimi's version-prefix, assembler-order, pkgconf-path and zero-timeout hypotheses
+were rejected after inspecting their omitted callers: VapourSynth/FFmpeg restore
+R/n marker prefixes, SystemSetup installs assemblers before selection checks,
+SystemSetup validates and assigns pkgconf's path, and parse_integer defaults to
+a minimum of one. These were code-review conclusions, not new native-build proof.
+
+The user's final project-only user-agent instruction supersedes the earlier
+transport preference. A shared exact Chrome user-agent now reaches all four
+curl call sites and Git HTTPS tag/HEAD lookup and clone/retry. A temporary local
+HTTPS server observed the exact header on five real curl/Git requests. The Git
+endpoints intentionally fail; this verifies headers and retry propagation, not
+a successful repository clone. Fixture tests also inspect emitted arguments.
+Global instruction and memory files were not modified.
+
+All three models completed their final scoped consultations. Earlier truncated
+or errored calls remain failed reviews. Returned usage records total $2.088989,
+including the failed calls with reported charges. The first Kimi provider error
+reported zero cost but also warned billing could still occur; that missing charge
+is not proof the failed call was free.

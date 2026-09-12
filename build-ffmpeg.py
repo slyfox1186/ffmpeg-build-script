@@ -25,10 +25,9 @@ CONDA_ROOT = os.path.expanduser("~/miniconda3")
 CONDA_ENVIRONMENT = "install-ffmpeg"
 CONDA_PYTHON_VERSION = "3.12"
 
-# Optional development tooling. Nothing here is needed to build FFmpeg: the
-# build and the menu run on the standard library alone, which is what keeps the
-# system-interpreter fallback fully functional.
-PIP_PACKAGES = ("pytest", "ruff", "mypy")
+# The environment includes the interactive UI and optional development tools.
+# Command-line builds themselves still use only the standard library.
+PIP_PACKAGES = ("textual>=8.2.8", "pytest", "ruff", "mypy", "pyte>=0.8")
 
 # Set across the re-exec so a resolved interpreter cannot resolve again.
 RESOLVED_GUARD = "FFMPEG_BUILD_INTERPRETER_RESOLVED"
@@ -105,9 +104,11 @@ def create_conda_environment(conda_executable: str, environment_python: str) -> 
         [environment_python, "-m", "pip", "install"] + list(PIP_PACKAGES), check=False
     )
     if installed.returncode != 0:
-        # The tools are optional, so a failure here is reported and ignored
-        # rather than discarding an otherwise usable interpreter.
-        sys.stderr.write("Optional development tools could not be installed; continuing.\n")
+        # A failed UI/tool install does not invalidate the standard-library
+        # builder. Menu entry reports the missing dependency with a remedy.
+        sys.stderr.write(
+            "Menu/development packages could not be installed; CLI builds remain available.\n"
+        )
     return True
 
 

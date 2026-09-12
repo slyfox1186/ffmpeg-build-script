@@ -13,6 +13,7 @@ import pytest
 from ffmpeg_build.runtime.context import BuildContext
 from ffmpeg_build.runtime.download import archive_checksum_matches, write_archive_checksum
 from ffmpeg_build.runtime.errors import BuildError
+from ffmpeg_build.runtime.http import HTTP_USER_AGENT
 
 
 def archive_at(path: Path, entries: list[tuple[str, bytes | str, bytes]]) -> Path:
@@ -53,6 +54,7 @@ def test_valid_download_cache_extract(context: BuildContext, root: str) -> None:
     [
         ("project/escape", "../../outside", tarfile.SYMTYPE),
         ("project/escape", "/etc/passwd", tarfile.SYMTYPE),
+        ("project/empty-link", "", tarfile.SYMTYPE),
         ("project/escape", "../../outside", tarfile.LNKTYPE),
         ("project/fifo", b"", tarfile.FIFOTYPE),
         ("project/device", b"", tarfile.CHRTYPE),
@@ -65,6 +67,7 @@ def test_unsafe_archives_not_published(
     context: BuildContext, name: str, payload: bytes | str, kind: bytes
 ) -> None:
     archive = archive_at(context.packages / "unsafe.tar.gz", [(name, payload, kind)])
+    assert not context.downloader.validate_tar_archive(archive)
     target = context.packages / "target"
     target.mkdir()
     (target / "old").write_text("preserve")
@@ -134,7 +137,7 @@ else:
     )
     assert success == (mode == "valid")
     arguments = json.loads(invocation.read_text())
-    assert "--user-agent" not in arguments
+    assert arguments[arguments.index("--user-agent") + 1] == HTTP_USER_AGENT
     assert arguments[arguments.index("--proto") + 1] == "=https"
     assert arguments[arguments.index("--proto-redir") + 1] == "=https"
     assert "--max-filesize" in arguments

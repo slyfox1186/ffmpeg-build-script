@@ -1,15 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
-import pty
-import select
-import struct
-import subprocess
-import sys
-import termios
-import time
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
@@ -18,13 +10,12 @@ import pytest
 
 from ffmpeg_build import registry
 from ffmpeg_build.cli import Arguments
-from ffmpeg_build.config import BuildSettings, Selection, default_states, load_config
+from ffmpeg_build.config import BuildSettings, Selection, default_states
 from ffmpeg_build.main import Orchestrator
-from ffmpeg_build.menu.app import MenuResult
 from ffmpeg_build.menu.model import LaunchSettings, MenuModel
+from ffmpeg_build.menu.session import MenuResult
 from ffmpeg_build.runtime.context import BuildContext
 from ffmpeg_build.runtime.errors import BuildError, UsageError
-from ffmpeg_build.runtime.logging import Logger
 from tests.conftest import REPO
 from tools import compiler_versions, git_repo_version
 
@@ -54,6 +45,9 @@ def test_menu_selection_presets_and_search() -> None:
     assert model.enabled_count(group) == len(group.packages)
     model.set_group(group.name, False)
     assert model.enabled_count(group) == 0
+    network = registry.GROUPS[2]
+    model.search = network.title
+    assert all(model.matches_search(package) for package in network.packages)
 
 
 def test_menu_transitive_and_conditional_requirements() -> None:
@@ -77,10 +71,16 @@ def test_menu_transitive_and_conditional_requirements() -> None:
     assert "builds, FFmpeg option needs GPL" in model.status_note(registry.PACKAGES["libdvdread"])
 
 
+@pytest.mark.parametrize("gpl", [False, True])
+def test_fix_srt_requirements_includes_newly_enabled_tls_dependencies(gpl: bool) -> None:
+    model = MenuModel({"srt": True}, BuildSettings(enable_gpl_and_non_free=gpl))
+    assert set(model.auto_fix("srt")) == ({"openssl", "zlib"} if gpl else set())
+    assert not model.issues()
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("compiler", "bad"),
         ("jobs", "0"),
         ("cuda_install", "yes"),
         ("cuda_arch_mode", "bad"),
@@ -109,24 +109,24 @@ def test_menu_build_uses_edited_settings(
     orchestrator.build_root = context.cwd
     path = tmp_path / "custom.toml"
     path.write_text(
-        "[build]\nlatest=false\nenable_gpl_and_non_free=false\n[packages]\nffmpeg=true\n"
+        '[build]\ncompiler="clang"\nlatest=false\nenable_gpl_and_non_free=false\n[packages]\nffmpeg=true\n'
     )
     root = str(tmp_path / "edited-build")
     if tilde:
         monkeypatch.setenv("HOME", str(tmp_path))
     launch = LaunchSettings(
-        compiler="clang",
         jobs="3",
         cuda_install="never",
         build_root="~/edited-build" if tilde else root,
     )
     monkeypatch.setattr(
-        "ffmpeg_build.menu.app.run_menu",
+        "ffmpeg_build.menu.run_menu",
         lambda *args: MenuResult(saved_path=path, start_build=True, launch=launch),
     )
     seen: list[BuildContext] = []
     monkeypatch.setattr(orchestrator, "run_build", seen.append)
     args = Arguments()
+    args.compiler = "gcc"
     args.latest = True
     args.nonfree_and_gpl = True
     orchestrator.run_menu(args, BuildSettings(), Selection())
@@ -146,71 +146,9 @@ def test_invalid_environment_is_rejected_before_menu_can_save(
     def forbidden(*args: object) -> MenuResult:
         pytest.fail("Invalid environment opened an editor that can overwrite configuration")
 
-    monkeypatch.setattr("ffmpeg_build.menu.app.run_menu", forbidden)
+    monkeypatch.setattr("ffmpeg_build.menu.run_menu", forbidden)
     with pytest.raises(UsageError, match="DOWNLOAD_MAX_TIME"):
         Orchestrator(REPO, []).run_menu(Arguments(), BuildSettings(), Selection())
-
-
-def test_real_terminal_menu_save_and_launch(tmp_path: Path) -> None:
-    import fcntl
-
-    output = tmp_path / "result.json"
-    config = tmp_path / "custom.toml"
-    code = """import json, pathlib, sys
-from ffmpeg_build.config import BuildSettings
-from ffmpeg_build.menu.app import run_menu
-result=run_menu(None, BuildSettings(), pathlib.Path(sys.argv[1]))
-pathlib.Path(sys.argv[2]).write_text(json.dumps({'build':result.start_build, 'path':str(result.saved_path), 'compiler':result.launch.compiler, 'jobs':result.launch.jobs}))
-"""
-    master, slave = pty.openpty()
-    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 140, 0, 0))
-    process = subprocess.Popen(
-        [sys.executable, "-c", code, str(config), str(output)],
-        cwd=REPO,
-        env={**os.environ, "TERM": "xterm-256color"},
-        stdin=slave,
-        stdout=slave,
-        stderr=slave,
-    )
-    os.close(slave)
-    transcript = bytearray()
-
-    def expect(needle: bytes) -> None:
-        deadline = time.monotonic() + 10
-        while needle not in transcript:
-            assert process.poll() is None, transcript.decode(errors="replace")
-            assert time.monotonic() < deadline, transcript.decode(errors="replace")
-            ready, _, _ = select.select([master], [], [], 0.2)
-            if ready:
-                transcript.extend(os.read(master, 65536))
-        transcript.clear()
-
-    try:
-        expect(b"BUILD CONFIGURATION")
-        os.write(master, b"e")
-        expect(b"Launch settings")
-        os.write(master, b"c")
-        expect(b"Compiler (gcc/clang)")
-        os.write(master, b"clang\n")
-        expect(b"updated")
-        os.write(master, b"j")
-        expect(b"Jobs (auto")
-        os.write(master, b"3\n")
-        os.write(master, b"q")
-        expect(b"BUILD CONFIGURATION")
-        os.write(master, b"b")
-        expect(b"Save to:")
-        os.write(master, b"\n")
-        assert process.wait(timeout=10) == 0
-    finally:
-        if process.poll() is None:
-            process.kill()
-            process.wait()
-        os.close(master)
-    result = json.loads(output.read_text())
-    assert result == {"build": True, "path": str(config), "compiler": "clang", "jobs": "3"}
-    loaded = load_config(config, Logger())
-    assert loaded.selection.states() == default_states()
 
 
 def launcher_module() -> ModuleType:

@@ -109,6 +109,7 @@ def test_config_allowlist_and_alias(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert "run 'build-ffmpeg.py --cleanup' first" in output
     assert "run --cleanup" not in output
     assert loaded.settings.latest
+    assert loaded.settings.compiler == "gcc"
     assert not loaded.settings.enable_gpl_and_non_free
     assert not loaded.selection.enabled("vulkan-headers-git")
     assert not loaded.selection.enabled("libopus")
@@ -135,6 +136,7 @@ def test_config_allowlist_and_alias(tmp_path: Path, capsys: pytest.CaptureFixtur
         ("[packages]\n[packages]\n", 2, "Duplicate TOML table 'packages'"),
         ("ffmpeg = true\n", 1, "Unsupported TOML table '<root>'"),
         ("[build]\nlatest=true\nlatest=false\n", 3, "Duplicate config key 'build.latest'"),
+        ('[build]\ncompiler="gcc"\ncompiler="clang"\n', 3, "Duplicate config key 'build.compiler'"),
     ],
 )
 def test_config_errors_name_exact_line(tmp_path: Path, text: str, line: int, message: str) -> None:
@@ -155,6 +157,43 @@ def test_generated_template_roundtrip(tmp_path: Path) -> None:
     assert loaded.selection.states() == default_states()
     assert not loaded.selection.enabled("libjxl")
     assert not loaded.selection.enabled("libshaderc")
+
+
+@pytest.mark.parametrize(
+    "value", ['"bogus"', '"CLANG"', "clang", "true", "false", "42", "[]", "\"gcc'"]
+)
+def test_invalid_config_compiler(tmp_path: Path, value: str) -> None:
+    path = tmp_path / "bad.toml"
+    path.write_text(f"[build]\ncompiler = {value}\n")
+    with pytest.raises(UsageError, match=f"Invalid compiler at '{path}:2'"):
+        load_config(path, Logger())
+
+
+@pytest.mark.parametrize("compiler", ["gcc", "clang"])
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_config_compiler_roundtrip(tmp_path: Path, compiler: str, quote: str) -> None:
+    path = tmp_path / "custom.toml"
+    path.write_text(f"[build]\ncompiler = {quote}{compiler}{quote} # selected toolchain\n")
+    loaded = load_config(path, Logger())
+    assert loaded.settings.compiler == compiler
+    path.write_text(render_config(loaded.settings, loaded.selection.states()))
+    assert load_config(path, Logger()).settings.compiler == compiler
+
+
+@pytest.mark.parametrize("compiler", [None, "gcc", "clang"])
+@pytest.mark.parametrize(
+    "flags", [[], ["--compiler", "gcc"], ["--compiler=clang"], ["--gcc"], ["--clang"]]
+)
+def test_compiler_precedence(tmp_path: Path, compiler: str | None, flags: list[str]) -> None:
+    path = tmp_path / "custom.toml"
+    path.write_text(f'[build]\ncompiler="{compiler}"\n' if compiler else "[build]\n")
+    loaded = load_config(path, Logger())
+    arguments = parse_arguments(["--build", "--config", str(path), *flags])
+    orchestrator = Orchestrator(REPO, [])
+    context = orchestrator.build_context(arguments, loaded.settings, loaded.selection)
+    expected = "gcc" if "gcc" in " ".join(flags) else "clang" if flags else compiler or "gcc"
+    assert context.compiler == expected
+    assert parse_arguments([]).compiler is None
 
 
 @pytest.mark.parametrize(

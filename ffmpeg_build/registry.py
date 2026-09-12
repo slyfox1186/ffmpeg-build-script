@@ -82,6 +82,7 @@ class Group:
 
     name: str
     packages: tuple[Package, ...]
+    title: str = ""
 
 
 GROUPS: tuple[Group, ...] = (
@@ -100,6 +101,7 @@ GROUPS: tuple[Group, ...] = (
             Package("pkgconf", "pkg-config-compatible dependency resolver", kind=TOOL),
             Package("yasm", "Modular x86/x86-64 assembler", kind=TOOL),
         ),
+        title="Build tools",
     ),
     Group(
         "Compression, parsing, allocation, and other foundational libraries",
@@ -133,6 +135,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-zlib",),
             ),
         ),
+        title="Core libraries",
     ),
     Group(
         "Cryptography, TLS, name resolution, and network protocols",
@@ -201,6 +204,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-libsrt",),
             ),
         ),
+        title="Networking & TLS",
     ),
     Group(
         "Fonts, subtitles, captions, teletext, and text recognition",
@@ -245,6 +249,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-libzvbi",),
             ),
         ),
+        title="Fonts & subtitles",
     ),
     Group(
         "Still-image codecs, color management, and image containers",
@@ -299,6 +304,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-libopenjpeg",),
             ),
         ),
+        title="Image formats",
     ),
     Group(
         "Audio codecs and audio container formats",
@@ -363,6 +369,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-libvorbis",),
             ),
         ),
+        title="Audio codecs",
     ),
     Group(
         "Audio resampling, analysis, effects, and synthesis",
@@ -432,6 +439,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-librubberband",),
             ),
         ),
+        title="Audio processing",
     ),
     Group(
         "Audio plugin standards and the LV2 dependency stack",
@@ -457,6 +465,7 @@ GROUPS: tuple[Group, ...] = (
                 "Portability utilities used by LV2; system libzix-dev is absent on Ubuntu 22.04 and Debian 12",
             ),
         ),
+        title="Audio plugins",
     ),
     Group(
         "Audio devices and sound servers",
@@ -490,6 +499,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-sndio",),
             ),
         ),
+        title="Audio devices",
     ),
     Group(
         "Video codecs and codec support libraries",
@@ -566,6 +576,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-libxvid",),
             ),
         ),
+        title="Video codecs",
     ),
     Group(
         "Video processing, quality analysis, and scripting frameworks",
@@ -608,6 +619,7 @@ GROUPS: tuple[Group, ...] = (
                 ffmpeg_flags=("--enable-libzimg",),
             ),
         ),
+        title="Video processing",
     ),
     Group(
         "Optical media, containers, packaging, and metadata tools",
@@ -645,6 +657,7 @@ GROUPS: tuple[Group, ...] = (
             Package("udfread", "Universal Disk Format filesystem reader"),
             Package("zenlib", "Utility library required by MediaInfoLib"),
         ),
+        title="Media & metadata",
     ),
     Group(
         "Playback, capture, window systems, and visual output",
@@ -694,6 +707,7 @@ GROUPS: tuple[Group, ...] = (
                 ),
             ),
         ),
+        title="Playback & capture",
     ),
     Group(
         "GPU APIs, codec SDK headers, and hardware acceleration",
@@ -774,10 +788,12 @@ GROUPS: tuple[Group, ...] = (
             ),
             Package("vulkan-headers-git", "Khronos Vulkan API headers"),
         ),
+        title="GPU acceleration",
     ),
     Group(
         "Final application",
         (Package("ffmpeg", "FFmpeg command-line tools and multimedia libraries"),),
+        title="FFmpeg",
     ),
 )
 

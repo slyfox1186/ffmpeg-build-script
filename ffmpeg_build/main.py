@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import signal
 import sys
-import tempfile
 from pathlib import Path
 from types import FrameType
 
@@ -36,6 +35,7 @@ from .runtime.state import (
     legacy_build_root_marker,
     migratable_added_packages,
     parse_build_context,
+    publish_atomically,
     render_build_context,
     summarize_build_context_changes,
     write_build_root_marker,
@@ -373,18 +373,7 @@ class Orchestrator:
         self._adopt_context(context, context_file, current, previous, added_packages)
 
     def _publish_context(self, context_file: Path, payload: str) -> None:
-        handle, temporary_name = tempfile.mkstemp(
-            prefix=f".{BUILD_CONTEXT_NAME}.", dir=context_file.parent
-        )
-        temporary = Path(temporary_name)
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                stream.write(payload)
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, context_file)
-        except OSError as error:
-            temporary.unlink(missing_ok=True)
-            raise BuildError(f"Unable to publish build-context file '{context_file}'.") from error
+        publish_atomically(context_file, payload)
 
     def _adopt_context(
         self,
@@ -574,7 +563,11 @@ class Orchestrator:
         and would let anyone pre-create the path.
         """
         lock_dir = (
-            Path(os.environ.get("XDG_RUNTIME_DIR") or f"{os.environ.get('HOME', '/tmp')}/.cache")
+            canonicalize(
+                Path(
+                    os.environ.get("XDG_RUNTIME_DIR") or f"{os.environ.get('HOME', '/tmp')}/.cache"
+                )
+            )
             / "ffmpeg-build-script"
         )
         try:
@@ -602,7 +595,7 @@ class Orchestrator:
             logger=self.logger,
             runner=self.runner,
             selection=selection,
-            compiler=arguments.compiler,
+            compiler=arguments.compiler or settings.compiler,
             build_threads=threads,
             latest=arguments.latest or settings.latest,
             nonfree_and_gpl=arguments.nonfree_and_gpl or settings.enable_gpl_and_non_free,
@@ -630,6 +623,12 @@ class Orchestrator:
         arguments = parse_arguments(self.argv)
         settings = BuildSettings()
         selection = Selection()
+        # Reopening the editor resumes its saved choices. Normal builds still
+        # require --config, preserving their existing all-packages default.
+        if arguments.menu and arguments.config_path is None:
+            menu_config = self.invocation_dir / "custom.toml"
+            if menu_config.exists() or menu_config.is_symlink():
+                arguments.config_path = str(menu_config)
         if arguments.config_path is not None:
             config_file = resolve_config_path(arguments.config_path, self.invocation_dir)
             loaded = load_config(config_file, self.logger)
@@ -658,7 +657,7 @@ class Orchestrator:
         path rather than using the in-memory state, so the run that happens is
         the one the file on disk describes.
         """
-        from .menu.app import run_menu
+        from .menu import run_menu
         from .menu.model import LaunchSettings
 
         # Validate immutable environment inputs before an editing session can
@@ -672,12 +671,12 @@ class Orchestrator:
             else self.invocation_dir / "custom.toml"
         )
         try:
+            settings.compiler = arguments.compiler or settings.compiler
             settings.latest = settings.latest or arguments.latest
             settings.enable_gpl_and_non_free = (
                 settings.enable_gpl_and_non_free or arguments.nonfree_and_gpl
             )
             launch = LaunchSettings(
-                compiler=arguments.compiler,
                 jobs=str(arguments.jobs) if arguments.jobs else "",
                 build_root=str(self.build_root),
                 cuda_install=os.environ.get("CUDA_INSTALL", "ask"),
@@ -692,7 +691,7 @@ class Orchestrator:
 
         loaded = load_config(result.saved_path, self.logger)
         result.launch.validate()
-        arguments.compiler = result.launch.compiler
+        arguments.compiler = None
         arguments.jobs = int(result.launch.jobs) if result.launch.jobs else None
         # The editor's final choices supersede the CLI values it was seeded with.
         arguments.latest = False

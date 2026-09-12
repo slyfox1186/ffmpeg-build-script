@@ -10,6 +10,7 @@ from pathlib import Path
 from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS
 from ..runtime.context import CARGO_C_VERSION, RUST_TOOLCHAIN_VERSION, BuildContext
 from ..runtime.errors import BuildError
+from ..runtime.http import HTTP_USER_AGENT
 
 _PC_NAME = re.compile(r"^[A-Za-z0-9_.+-]+$")
 _LINKER_FLAG = re.compile(r"^-l[A-Za-z0-9_+.-]+$")
@@ -269,6 +270,8 @@ def install_rustup(context: BuildContext) -> None:
         exit_code = context.runner.run_logged(
             [
                 "curl",
+                "--user-agent",
+                HTTP_USER_AGENT,
                 "--proto",
                 "=https",
                 "--proto-redir",

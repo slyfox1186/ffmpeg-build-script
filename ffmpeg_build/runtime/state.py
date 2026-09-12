@@ -63,9 +63,14 @@ def publish_atomically(target: Path, content: str, *, mode: int = 0o600) -> None
             stream.write(content)
         os.chmod(temporary, mode)
         os.replace(temporary, target)
-    except OSError as error:
-        temporary.unlink(missing_ok=True)
-        raise BuildError(f"Unable to publish '{target}': {error}") from error
+    except BaseException as error:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            error.add_note(f"Unable to remove temporary file '{temporary}': {cleanup_error}")
+        if isinstance(error, OSError):
+            raise BuildError(f"Unable to publish '{target}': {error}") from error
+        raise
 
 
 def read_marker_version(marker_file: Path) -> str | None:

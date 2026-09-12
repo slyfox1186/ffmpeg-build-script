@@ -44,6 +44,13 @@ _INHERITED_EXACT = (
     "NO_COLOR",
     "SOURCE_DATE_EPOCH",
     "GIT_TERMINAL_PROMPT",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
 )
 _INHERITED_PREFIXES = ("LC_", "LANG", "XDG_", "SUDO_")
 
@@ -76,21 +83,33 @@ def path_prepend(environment: dict[str, str], directory: str | os.PathLike[str])
 
 
 def strip_workspace_entries(value: str, workspace: Path, separator: str = " ") -> str:
-    """Drop every entry pointing inside the workspace.
+    """Drop workspace paths and their include/library search options together.
 
     Used to build a host tool against system libraries while a half-built
     dependency tree is already installed in the workspace.
     """
     workspace_text = str(workspace)
+
+    def inside(path: str) -> bool:
+        return path == workspace_text or path.startswith(workspace_text + "/")
+
+    if separator != " ":
+        return separator.join(part for part in value.split(separator) if part and not inside(part))
+    parts = value.split()
     kept: list[str] = []
-    for part in value.split(separator):
-        if not part:
+    index = 0
+    path_options = ("-I", "-L", "-isystem", "-iquote", "--sysroot")
+    prefixes = ("", "-I", "-L", "-isystem", "-iquote", "--sysroot=")
+    while index < len(parts):
+        part = parts[index]
+        if part in path_options and index + 1 < len(parts):
+            if not inside(parts[index + 1]):
+                kept.extend(parts[index : index + 2])
+            index += 2
             continue
-        for prefix in ("", "-I", "-L"):
-            if part == f"{prefix}{workspace_text}" or part.startswith(f"{prefix}{workspace_text}/"):
-                break
-        else:
+        if not any(part.startswith(prefix) and inside(part[len(prefix) :]) for prefix in prefixes):
             kept.append(part)
+        index += 1
     return separator.join(kept)
 
 

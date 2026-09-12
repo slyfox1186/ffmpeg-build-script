@@ -206,6 +206,14 @@ class DirectoryLock:
     def held(self) -> bool:
         return self._fd is not None
 
+    def _open(self) -> int:
+        try:
+            return _open_directory(self.directory)
+        except OSError as error:
+            raise BuildError(
+                f"Unable to open lock directory '{self.directory}': {error}"
+            ) from error
+
     def acquire(self, *, timeout: float | None = None) -> bool:
         """Take the lock, returning False on contention rather than raising.
 
@@ -216,7 +224,7 @@ class DirectoryLock:
             return True
         # PEP 446 makes this descriptor non-inheritable, so no child and no
         # background helper can keep the lock alive past this process.
-        fd = _open_directory(self.directory)
+        fd = self._open()
         deadline = None if timeout is None else time.monotonic() + timeout
         try:
             while True:
@@ -234,6 +242,8 @@ class DirectoryLock:
                     continue
                 self._fd = fd
                 return True
+        except OSError as error:
+            raise BuildError(f"Unable to lock directory '{self.directory}': {error}") from error
         finally:
             if self._fd is None:
                 os.close(fd)
@@ -248,7 +258,7 @@ class DirectoryLock:
         """Reject a replaced path even though its original inode stays locked."""
         if self._fd is None:
             raise BuildError(f"Directory lock is not held: '{self.directory}'.")
-        current_fd = _open_directory(self.directory)
+        current_fd = self._open()
         try:
             if not _same_inode(os.fstat(self._fd), os.fstat(current_fd)):
                 raise BuildError(f"Locked directory was replaced: '{self.directory}'.")

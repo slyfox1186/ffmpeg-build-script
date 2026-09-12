@@ -13,6 +13,7 @@ from collections.abc import Sequence
 
 from .errors import BuildError
 from .exec import Runner
+from .http import HTTP_USER_AGENT
 from .logging import Logger
 from .versioncmp import version_sort
 
@@ -48,6 +49,8 @@ class VersionResolver:
         completed = self.runner.capture(
             [
                 "curl",
+                "--user-agent",
+                HTTP_USER_AGENT,
                 "--proto",
                 "=https",
                 "--proto-redir",
@@ -75,6 +78,8 @@ class VersionResolver:
             [
                 "git",
                 "-c",
+                f"http.userAgent={HTTP_USER_AGENT}",
+                "-c",
                 "protocol.allow=never",
                 "-c",
                 "protocol.https.allow=always",
@@ -99,6 +104,8 @@ class VersionResolver:
         completed = self.runner.capture(
             [
                 "git",
+                "-c",
+                f"http.userAgent={HTTP_USER_AGENT}",
                 "-c",
                 "protocol.allow=never",
                 "-c",

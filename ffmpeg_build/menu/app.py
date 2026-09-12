@@ -1,957 +1,601 @@
-"""The interactive package menu.
-
-Editing 127 boolean keys by hand gives no feedback until the build runs, and
-the cross-package requirements are invisible until they fail. This screen makes
-the selection direct, shows what the licence mode does to each package, and
-validates the whole selection as it is edited.
-
-It writes the same file format the build reads, through the same generator that
-produces the tracked template, so what the menu saves and what the project
-ships cannot drift apart.
-"""
+"""Textual configuration editor; persistence and build decisions live in MenuSession."""
 
 from __future__ import annotations
 
-import curses
-import os
-import sys
-import unicodedata
-from dataclasses import dataclass, field, replace
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from _curses import window as _CursesWindow
+from rich.text import Text
+from textual import events, on
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
+from textual.message import Message
+from textual.widgets import (
+    Button,
+    Footer,
+    Input,
+    Label,
+    OptionList,
+    RadioButton,
+    RadioSet,
+    SelectionList,
+    Static,
+    Switch,
+)
+from textual.widgets.option_list import Option
 
 from .. import registry
-from ..config import BuildSettings, default_states, render_config
-from ..registry import Gate, Package
-from ..runtime.errors import BuildError, UsageError
-from ..runtime.state import publish_atomically
+from ..config import COMPILERS
+from ..registry import Package
+from .dialogs import HelpScreen, PresetScreen, SaveScreen, SettingsScreen, plain
 from .model import LaunchSettings, MenuModel
-
-_PRESETS = (
-    ("t", "template", "what example.toml ships"),
-    ("a", "all", "every package"),
-    ("m", "minimal", "build tools and FFmpeg only"),
-    ("n", "none", "nothing"),
-)
-
-_KEY_HELP = (
-    "Space toggle/fold  Tab category  / search  i info  ? help",
-    "a/d category on/off  s save  b build  q quit",
-)
-
-_CATEGORY_TITLES = (
-    "Build tools",
-    "Core libraries",
-    "Networking & TLS",
-    "Fonts & subtitles",
-    "Image formats",
-    "Audio codecs",
-    "Audio processing",
-    "Audio plugins",
-    "Audio devices",
-    "Video codecs",
-    "Video processing",
-    "Media & metadata",
-    "Playback & capture",
-    "GPU acceleration",
-    "FFmpeg",
-)
-_HELP = (
-    "Package selection help",
-    "Up/Down or j/k: move; PgUp/PgDn: page; Home/End: first/last.",
-    "Tab / Shift-Tab: next / previous package category.",
-    "Space or Enter: toggle a package or enter a category (fold in compact view).",
-    "Left/Right: collapse/expand current category; [ / ]: collapse/expand all.",
-    "a / d: enable/disable the ENTIRE current category, including hidden matches.",
-    "/: search names, descriptions and categories; empty Enter clears; Esc cancels.",
-    "p: choose template, all, minimal or none preset.",
-    "u: undo the last package, preset, category or licensing change (up to 50).",
-    "g / l: toggle GPL/non-free authorization / latest-version checks.",
-    "f: enable current package's requirements; F: fix all requirements.",
-    "!: unmet requirement. GPL marks a licensing restriction; see package detail.",
-    "i: read the full current package/category description and requirements.",
-    "e: edit session launch settings (compiler, jobs, CUDA, build root).",
-    "s: save TOML; b: validate, save and build; q: quit (confirm unsaved edits).",
-    "Text fields: type to replace, arrows to edit, Ctrl-U to clear, Enter accept, Esc cancel.",
-)
+from .session import MenuResult, MenuSession
 
 
-def _cursor(visible: bool) -> None:
-    try:
-        curses.curs_set(int(visible))
-    except curses.error:
-        # Some terminals cannot change cursor visibility; editing still works.
+class CompilerChoices(RadioSet):
+    def action_toggle_button(self) -> None:
+        super().action_toggle_button()
+        # A confirmed existing choice also returns to categories.
+        self.call_after_refresh(self.post_message, self.Confirmed())
+
+    class Confirmed(Message):
         pass
 
+    def on_mount(self) -> None:
+        # RadioSet initializes its cursor after subclass mount handlers.
+        self.call_after_refresh(self._align_cursor)
 
-def _cell_width(text: str) -> int:
-    return sum(
-        0
-        if unicodedata.combining(char)
-        else (2 if unicodedata.east_asian_width(char) in ("W", "F") else 1)
-        for char in text
-    )
+    def _align_cursor(self) -> None:
+        if self.pressed_index == 1:
+            self.action_next_button()
 
 
-def _put(
-    screen: "_CursesWindow", y: int, x: int, text: str, width: int, attribute: int = 0
-) -> None:
-    """Clip by display cells, keeping terminal controls out of UI text."""
-    if width <= 0:
-        return
-    rendered: list[str] = []
-    used = 0
-    for character in text:
-        if unicodedata.category(character).startswith("C"):
-            character = "?"
-        cells = (
-            0
-            if unicodedata.combining(character)
-            else (2 if unicodedata.east_asian_width(character) in ("W", "F") else 1)
+class CompilerPane(Vertical):
+    """Recompose from committed state after undo or a failed write.
+
+    RadioSet change events suppress nested radio events; reconstructing the
+    view avoids feeding rollback changes through its in-progress toggle event.
+    """
+
+    def __init__(self, compiler: str, *, id: str) -> None:
+        super().__init__(id=id)
+        self.compiler = compiler
+
+    def compose(self) -> ComposeResult:
+        yield CompilerChoices(
+            RadioButton(
+                "GCC   GNU C and C++ toolchain",
+                value=self.compiler == "gcc",
+                id="gcc",
+            ),
+            RadioButton(
+                "Clang   LLVM C and C++ toolchain",
+                value=self.compiler == "clang",
+                id="clang",
+            ),
+            id="compiler-options",
         )
-        if used + cells > width:
-            break
-        rendered.append(character)
-        used += cells
-    try:
-        screen.addstr(y, x, "".join(rendered), attribute)
-    except curses.error:
-        # A resize can invalidate the dimensions between layout and drawing.
-        # KEY_RESIZE causes the next loop to lay out the complete screen again.
-        pass
 
 
-def _frame(
-    screen: "_CursesWindow",
-    y: int,
-    x: int,
-    height: int,
-    width: int,
-    title: str,
-    style: int,
-) -> None:
-    _put(screen, y, x, "╭" + "─" * (width - 2) + "╮", width, style)
-    _put(screen, y, x + 2, title, width - 4, style)
-    for line in range(y + 1, y + height - 1):
-        _put(screen, line, x, "│", 1, style)
-        _put(screen, line, x + width - 1, "│", 1, style)
-    _put(screen, y + height - 1, x, "╰" + "─" * (width - 2) + "╯", width, style)
+class MenuApp(App[MenuResult]):
+    TITLE = "FFmpeg Build Configuration"
+    ENABLE_COMMAND_PALETTE = False
+    CSS = """
+    Screen { background: $background; color: $text; }
+    #masthead { height: 3; padding: 1 2 0 2; }
+    #brand { text-style: bold; color: $accent; width: 1fr; }
+    #count { width: auto; color: $text-muted; }
+    #toolbar { height: 3; padding: 0 2; align-vertical: middle; }
+    #toolbar Label { width: auto; margin-right: 1; }
+    #toolbar Switch { margin-right: 1; }
+    #toolbar Button { margin-left: 1; min-width: 9; width: auto; padding: 0 1; }
+    #launch-summary { width: 1fr; color: $text-muted; }
+    #search { margin: 0 2; height: 3; }
+    #workspace { height: 1fr; margin: 0 2; }
+    #sidebar { width: 32; border: round $primary-lighten-1; padding: 0 1; }
+    #sidebar:focus-within { border: round $accent; }
+    #compiler-category { width: 1fr; height: 1; min-height: 1; border: none; text-align: left; padding: 0 1; }
+    #compiler-category.active { background: $primary; color: $text; text-style: bold; }
+    #package-heading { height: 2; border-top: solid $primary-lighten-1; color: $text-muted; margin-top: 1; }
+    #categories { height: 1fr; padding: 0; border: none; background: $surface; }
+    #no-categories { height: auto; color: $text-muted; }
+    #options { width: 1fr; margin-left: 1; border: round $primary-lighten-1; padding: 0 1; }
+    #options:focus-within { border: round $accent; }
+    #compiler-pane { height: auto; }
+    #compiler-options { border: none; height: auto; margin-top: 1; }
+    #compiler-options RadioButton { height: 3; padding: 1; }
+    #compiler-note { margin-top: 1; color: $text-muted; height: auto; }
+    #packages { height: 1fr; border: none; padding: 0; background: $surface; }
+    #empty { padding: 1; color: $text-muted; height: auto; }
+    #details { height: 3; margin: 0 2; padding: 0 1; color: $text-muted; }
+    #status { height: 1; margin: 0 2; color: $success; }
+    #status.error { color: $error; text-style: bold; }
+    #navigation { height: 1; margin: 0 2; color: $text-muted; }
+    .narrow #launch-summary { display: none; }
+    .short #masthead { height: 1; padding: 0 2; }
+    .short #search { height: 1; border: none; padding: 0; margin: 1 2 0 2; }
+    .short #details { height: 2; }
+    .short #compiler-note { display: none; }
+    .compact #masthead { height: 1; padding: 0 1; }
+    .compact #brand { width: 1fr; }
+    .compact #count { display: none; }
+    .compact #toolbar, .compact #details { display: none; }
+    .compact #search { height: 1; border: none; margin: 0 1; padding: 0; }
+    .compact #workspace { margin: 0; }
+    .compact #sidebar { width: 1fr; }
+    .compact #options { display: none; margin-left: 0; }
+    .compact.options-focused #sidebar { display: none; }
+    .compact.options-focused #options { display: block; }
+    .compact #package-heading { height: 1; margin-top: 0; }
+    .compact #compiler-options { margin-top: 0; }
+    .compact #compiler-options RadioButton { height: 1; padding: 0; }
+    .compact #compiler-note { display: none; }
+    .compact #status, .compact #navigation { margin: 0 1; }
+    """
+    BINDINGS = [
+        Binding("b", "build", "Build"),
+        Binding("q", "quit_menu", "Quit"),
+        Binding("e", "settings", "Settings"),
+        Binding("p", "presets", "Presets"),
+        Binding("s", "save_as", "Save as"),
+        Binding("u", "undo", "Undo"),
+        Binding("ctrl+c,ctrl+d,ctrl+q", "quit_menu", "Quit", show=False, priority=True),
+        Binding("escape,left,backspace,ctrl+h", "categories", "Back", show=False, priority=True),
+        Binding("right", "options", "Browse", show=False, priority=True),
+        Binding("up,k", "previous_category", "Previous", show=False, priority=True),
+        Binding("down,j", "next_category", "Next", show=False, priority=True),
+        Binding("slash", "search", "Search", show=False),
+        Binding("c", "compilers", "Compilers", show=False),
+        Binding("g", "toggle_gpl", "GPL/non-free", show=False),
+        Binding("l", "toggle_latest", "Latest", show=False),
+        Binding("a", "enable_category", "Enable category", show=False),
+        Binding("d", "disable_category", "Disable category", show=False),
+        Binding("f", "fix_current", "Fix package", show=False),
+        Binding("F", "fix_all", "Fix requirements", show=False),
+        Binding("question_mark", "help", "Help", show=False),
+        Binding("i", "details", "Details", show=False),
+    ]
 
-
-@dataclass
-class MenuResult:
-    """What the user asked for on the way out."""
-
-    saved_path: Path | None = None
-    start_build: bool = False
-    settings: BuildSettings = field(default_factory=BuildSettings)
-    launch: LaunchSettings = field(default_factory=LaunchSettings)
-
-
-@dataclass
-class Row:
-    """One visible line: either a group heading or a package."""
-
-    group: str
-    package: Package | None = None
-
-    @property
-    def is_group(self) -> bool:
-        return self.package is None
-
-
-class MenuApp:
     def __init__(
         self, model: MenuModel, default_path: Path, launch: LaunchSettings | None = None
     ) -> None:
+        super().__init__()
+        self.session = MenuSession(model, default_path, launch)
         self.model = model
-        self.default_path = default_path.absolute()
-        self.result = MenuResult(settings=model.settings, launch=launch or LaunchSettings())
-        self.cursor = 0
-        self.top = 0
-        self.message = ""
-        self._saved_config = render_config(model.settings, model.states)
-        self.category_style = 0
-        self.enabled_style = 0
-        self.warning_style = 0
-        self.history: list[tuple[dict[str, bool], bool, bool]] = []
+        self.group_index: int | None = None
+        self.visible_groups: list[int] = list(range(len(registry.GROUPS)))
+        self.visible_packages: list[Package] = []
+        self.theme = "textual-dark"
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="masthead"):
+            yield Static("FFMPEG / BUILD CONFIGURATION", id="brand")
+            yield Static(id="count")
+        with Horizontal(id="toolbar"):
+            yield Label("GPL/non-free")
+            yield Switch(self.model.gpl, id="gpl", animate=False)
+            yield Label("Latest")
+            yield Switch(self.model.settings.latest, id="latest", animate=False)
+            yield Static(id="launch-summary")
+            yield Button("Settings", id="settings-button")
+            yield Button("Presets", id="presets-button")
+            yield Button("Build", variant="primary", id="build-button")
+        yield Input(placeholder="Search packages by name, description or category  /", id="search")
+        with Horizontal(id="workspace"):
+            with Vertical(id="sidebar"):
+                yield Button("Compilers", id="compiler-category", classes="active")
+                yield Static("PACKAGES", id="package-heading")
+                yield OptionList(id="categories")
+                yield Static(
+                    "No packages match.\n/ change search · c compilers", id="no-categories"
+                )
+            with Vertical(id="options"):
+                yield CompilerPane(self.model.settings.compiler, id="compiler-pane")
+                yield Static(
+                    "Select one compiler. Your choice is saved in the TOML configuration and used by the build.",
+                    id="compiler-note",
+                )
+                yield SelectionList[str](id="packages")
+                yield Static("No packages match this search. Press / to change it.", id="empty")
+        yield Static(id="details", markup=False)
+        yield Static(id="status", markup=False)
+        yield Static(id="navigation")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#sidebar").border_title = "CONFIGURATION"
+        self._refresh_categories()
+        self._show_category()
+        self._refresh_state()
+        self.action_categories()
+        self.on_resize()
+
+    def on_resize(self) -> None:
+        self.screen.set_class(self.size.width < 76 or self.size.height < 18, "compact")
+        self.screen.set_class(self.size.width < 110, "narrow")
+        self.screen.set_class(self.size.height < 28, "short")
 
     @property
-    def dirty(self) -> bool:
-        return render_config(self.model.settings, self.model.states) != self._saved_config
+    def failure(self) -> Exception | None:
+        # Textual retains its fatal exception but run() only returns an exit code.
+        # Expose it here so the caller can report it after the required clear.
+        return self._exception
 
-    # -- layout ----------------------------------------------------------
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "quit_menu":
+            return True
+        if len(self.screen_stack) > 1:
+            return False
+        if isinstance(self.focused, Input):
+            return False
+        if action in ("previous_category", "next_category"):
+            return self.focused is not None and self.focused.id in (
+                "compiler-category",
+                "categories",
+            )
+        return True
 
-    def rows(self) -> list[Row]:
-        rows: list[Row] = []
-        for group in registry.GROUPS:
-            visible = [package for package in group.packages if self.model.matches_search(package)]
-            if not visible:
-                continue
-            rows.append(Row(group.name))
-            if self.model.search or group.name not in self.model.collapsed:
-                rows.extend(Row(group.name, package) for package in visible)
-        return rows
-
-    def current(self, rows: list[Row]) -> Row | None:
-        if not rows:
-            return None
-        self.cursor = max(0, min(self.cursor, len(rows) - 1))
-        return rows[self.cursor]
-
-    # -- rendering -------------------------------------------------------
-
-    def _status_glyph(self, package: Package) -> str:
-        return "[x]" if self.model.enabled(package.key) else "[ ]"
-
-    def _gate_label(self, package: Package) -> str:
-        if package.gate is Gate.REQUIRES_GPL:
-            return "GPL"
-        if package.gate is Gate.FLAG_REQUIRES_GPL:
-            return "gpl-flag"
-        if package.gate is Gate.SUPPRESSED_BY_GPL:
-            return "non-GPL"
-        return ""
-
-    def draw(self, screen: "_CursesWindow") -> None:
-        screen.erase()
-        height, width = screen.getmaxyx()
-        if height < 10 or width < 40:
-            _put(screen, 0, 0, "Resize terminal to at least 40 x 10; q quits.", max(0, width - 1))
-            screen.refresh()
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        if len(self.screen_stack) > 1:
             return
-        if width >= 80 and height >= 24:
-            self._draw_wide(screen)
-            return
-        rows = self.rows()
-        self.current(rows)
-        issues = self.model.issues()
-        selected = sum(1 for key in registry.PACKAGE_NAMES if self.model.enabled(key))
+        if event.widget.id in ("packages", "compiler-options"):
+            self.screen.add_class("options-focused")
+        elif event.widget.id in ("compiler-category", "categories"):
+            self.screen.remove_class("options-focused")
+        if event.widget.id == "compiler-category" and self.group_index is not None:
+            self.group_index = None
+            self._show_category()
+        self._refresh_navigation()
 
-        header = f" FFmpeg package selection  {selected}/{len(registry.PACKAGE_NAMES)} enabled"
-        if width < 50:
-            header = f" FFmpeg package selection {selected}/{len(registry.PACKAGE_NAMES)}"
-        _put(screen, 0, 0, header.ljust(width - 1), width - 1, curses.A_REVERSE)
-        options = f" Categories by type | GPL: {'on' if self.model.gpl else 'off'} | latest: {'on' if self.model.settings.latest else 'off'}"
-        if width < 60:
-            options = f" Types | GPL {'on' if self.model.gpl else 'off'} | latest {'on' if self.model.settings.latest else 'off'}"
-        if self.model.search:
-            options = f" Filter: {self.model.search} (empty search clears)"
-        _put(screen, 1, 0, options, width - 1)
-
-        body_height = max(1, height - 7)
-        if self.cursor < self.top:
-            self.top = self.cursor
-        if self.cursor >= self.top + body_height:
-            self.top = self.cursor - body_height + 1
-        self.top = max(0, min(self.top, max(0, len(rows) - body_height)))
-
-        blocked = {issue.package for issue in issues}
-        for offset in range(body_height):
-            index = self.top + offset
-            if index >= len(rows):
-                break
-            row = rows[index]
-            line = 2 + offset
-            attribute = curses.A_REVERSE if index == self.cursor else curses.A_NORMAL
-            if row.is_group:
-                group = self.model.group(row.group)
-                marker = "+" if row.group in self.model.collapsed and not self.model.search else "-"
-                name = row.group if width >= 70 else row.group.split(",", 1)[0]
-                text = f" {marker} [{self.model.enabled_count(group):2}/{len(group.packages):2}] {name}"
-                _put(
-                    screen,
-                    line,
-                    0,
-                    text.ljust(width - 1),
-                    width - 1,
-                    attribute | curses.A_BOLD | self.category_style,
-                )
-                continue
-            package = row.package
-            assert package is not None
-            gate = self._gate_label(package)
-            flag = "!" if package.key in blocked else " "
-            text = f"   {self._status_glyph(package)} {flag} {package.key:<22} {gate:<8} {package.summary}"
-            _put(screen, line, 0, text.ljust(width - 1), width - 1, attribute)
-            if self.model.enabled(package.key):
-                _put(screen, line, 3, "[x]", 3, attribute | self.enabled_style | curses.A_BOLD)
-
-        if not rows:
-            _put(screen, 3, 0, " No matches. / then Enter clears search.", width - 1)
-        detail_line = height - 5
-        current_row = self.current(rows)
-        detail = ""
-        if current_row is not None and current_row.is_group:
-            detail = " Category: " + current_row.group
-        if current_row is not None and current_row.package is not None:
-            package = current_row.package
-            note = self.model.status_note(package)
-            detail = f" {package.key}: {package.summary}"
-            if note:
-                detail += f"  [{note}]"
-            package_issues = self.model.issues_for(package.key)
-            if package_issues:
-                detail += "  " + "; ".join(issue.summary() for issue in package_issues)
-        _put(screen, detail_line, 0, detail.ljust(width - 1), width - 1, curses.A_DIM)
-
-        summary = f" {len(issues)} unmet requirement(s)" if issues else " selection is consistent"
-        if width < 60:
-            summary = f" {len(issues)} requirement(s)" if issues else " Ready"
-        summary += f" | {self.cursor + 1 if rows else 0}/{len(rows)}"
-        if self.dirty:
-            summary += " | unsaved changes"
-        _put(screen, height - 4, 0, summary.ljust(width - 1), width - 1)
-        _put(screen, height - 3, 0, self.message.ljust(width - 1), width - 1)
-        help_lines = (
-            _KEY_HELP
-            if width >= 70
-            else ("Space toggle  / search  ? help", "s save  b build  q quit")
+    def _refresh_navigation(self) -> None:
+        right = self.focused is not None and self.focused.id in ("packages", "compiler-options")
+        text = (
+            "Enter/Space select · Left/Esc/Backspace back"
+            if right
+            else "Right/Enter browse · / search · ? help"
         )
-        for offset, chunk in enumerate(help_lines):
-            _put(
-                screen, height - 2 + offset, 0, chunk.ljust(width - 1), width - 1, curses.A_REVERSE
+        if self.screen.has_class("compact"):
+            text = (
+                "Left/Esc/Backspace back · Enter select"
+                if right
+                else "Right/Enter browse · / search · ? help"
             )
-        screen.refresh()
+        self.query_one("#navigation", Static).update(text)
 
-    def _draw_wide(self, screen: "_CursesWindow") -> None:
-        """Keep category navigation, package choices and explanations distinct."""
-        height, width = screen.getmaxyx()
-        rows = self.rows()
-        current = self.current(rows)
-        issues = self.model.issues()
-        enabled = sum(self.model.states.values())
-        accent = self.category_style | curses.A_BOLD
-        _put(screen, 0, 2, "FFMPEG  /  BUILD CONFIGURATION", width - 4, accent)
-        badge = f"{enabled} / {len(registry.PACKAGE_NAMES)} selected"
-        _put(
-            screen, 0, width - len(badge) - 2, badge, len(badge), self.enabled_style | curses.A_BOLD
-        )
-        launch = self.result.launch
-        settings = f"Compiler {launch.compiler.upper()}   Jobs {launch.jobs or 'Auto'}   GPL/non-free {'ON' if self.model.gpl else 'OFF'}   Latest {'ON' if self.model.settings.latest else 'OFF'}"
-        _put(screen, 1, 2, settings, width - 4)
-        subtitle = (
-            f"Search: {self.model.search}"
-            if self.model.search
-            else "Choose a category, then turn individual packages on or off."
-        )
-        _put(screen, 2, 2, subtitle, width - 4, curses.A_DIM)
-
-        left = 32 if width >= 100 else 29
-        top, panel_height = 4, height - 12
-        body_height = panel_height - 2
-        right, right_width = left + 2, width - left - 4
-        browsing = current is not None and current.package is not None
-        _frame(
-            screen,
-            top,
-            1,
-            panel_height,
-            left,
-            " CATEGORIES ",
-            accent if not browsing else self.category_style,
-        )
-        title = " PACKAGES " if browsing else " PACKAGES / Enter to browse "
-        _frame(
-            screen,
-            top,
-            right,
-            panel_height,
-            right_width,
-            title,
-            accent if browsing else self.category_style,
-        )
-        groups = [self.model.group(row.group) for row in rows if row.is_group]
-        index = next(
-            (i for i, group in enumerate(groups) if current and group.name == current.group), 0
-        )
-        first = max(0, min(index - body_height // 2, len(groups) - body_height))
-        for offset, group in enumerate(groups[first : first + body_height]):
-            selected = current is not None and group.name == current.group
-            style = curses.A_REVERSE | curses.A_BOLD if selected else curses.A_NORMAL
-            number = next(i for i, value in enumerate(registry.GROUPS) if value.name == group.name)
-            name = _CATEGORY_TITLES[number] if number < len(_CATEGORY_TITLES) else group.name
-            count = f"{self.model.enabled_count(group)}/{len(group.packages)}"
-            _put(screen, top + 1 + offset, 2, " " * (left - 2), left - 2, style)
-            _put(screen, top + 1 + offset, 3, name, left - len(count) - 5, style)
-            _put(screen, top + 1 + offset, left - len(count), count, len(count), style)
-        if len(groups) > body_height:
-            _put(
-                screen,
-                top + panel_height - 1,
-                3,
-                f" {first + 1}-{min(first + body_height, len(groups))} of {len(groups)} ",
-                left - 4,
-                self.category_style,
-            )
-
-        if current is not None:
-            group = self.model.group(current.group)
-            packages = [p for p in group.packages if self.model.matches_search(p)]
-            selected_index = next(
-                (
-                    i
-                    for i, p in enumerate(packages)
-                    if current.package and p.key == current.package.key
-                ),
-                0,
-            )
-            start = max(0, min(selected_index - body_height // 2, len(packages) - body_height))
-            blocked = {issue.package for issue in issues}
-            for offset, package in enumerate(packages[start : start + body_height]):
-                active = current.package is not None and current.package.key == package.key
-                style = curses.A_REVERSE if active else curses.A_NORMAL
-                on = self.model.enabled(package.key)
-                note = self.model.status_note(package)
-                state = "Off" if not on else "On"
-                if on and note:
-                    state = (
-                        "GPL opt-in"
-                        if package.gate is Gate.REQUIRES_GPL
-                        else "GPL flags"
-                        if package.gate is Gate.FLAG_REQUIRES_GPL
-                        else "Inactive"
-                    )
-                if package.key in blocked:
-                    state = "Needs deps"
-                color = (
-                    self.warning_style
-                    if note or package.key in blocked
-                    else self.enabled_style
-                    if on
-                    else 0
-                )
-                line = top + 1 + offset
-                _put(screen, line, right + 1, " " * (right_width - 2), right_width - 2, style)
-                _put(
-                    screen,
-                    line,
-                    right + 2,
-                    self._status_glyph(package),
-                    3,
-                    style | color | curses.A_BOLD,
-                )
-                _put(
-                    screen,
-                    line,
-                    right + 6,
-                    package.key,
-                    min(24, right_width - len(state) - 9),
-                    style | (curses.A_BOLD if active else 0),
-                )
-                if right_width >= 72:
-                    _put(
-                        screen,
-                        line,
-                        right + 31,
-                        package.summary,
-                        right_width - len(state) - 35,
-                        style,
-                    )
-                _put(
-                    screen,
-                    line,
-                    right + right_width - len(state) - 2,
-                    state,
-                    len(state),
-                    style | color,
-                )
-            if len(packages) > body_height:
-                _put(
-                    screen,
-                    top + panel_height - 1,
-                    right + 2,
-                    f" {start + 1}-{min(start + body_height, len(packages))} of {len(packages)} ",
-                    right_width - 4,
-                    self.category_style,
-                )
-            if current.package:
-                package = current.package
-                heading, detail = package.key, package.summary
-                notes = [self.model.status_note(package)] + [
-                    issue.summary() for issue in self.model.issues_for(package.key)
+    def _refresh_categories(self) -> None:
+        categories = self.query_one("#categories", OptionList)
+        self.visible_groups = [
+            index
+            for index, group in enumerate(registry.GROUPS)
+            if any(self.model.matches_search(package) for package in group.packages)
+        ]
+        self.query_one("#no-categories").display = not self.visible_groups
+        with self.prevent(OptionList.OptionHighlighted):
+            categories.clear_options()
+            categories.add_options(
+                [
+                    Option(self._category_label(index), id=str(index))
+                    for index in self.visible_groups
                 ]
-                explanation = "; ".join(note for note in notes if note)
-            else:
-                heading = group.name
-                detail = f"{self.model.enabled_count(group)} of {len(group.packages)} packages selected. Enter opens this category."
-                explanation = (
-                    "a enables this category; d disables it. u undoes the last selection change."
-                )
-        else:
-            heading, detail = "No matching packages", "Press / and then Enter to clear the search."
-            explanation = "Search matches package names, descriptions and category names."
-        _put(screen, height - 7, 2, heading, width - 4, accent)
-        for offset, detail_line in enumerate(_wrap(detail, width - 4)[:2]):
-            _put(screen, height - 6 + offset, 2, detail_line, width - 4)
-        if explanation:
-            _put(
-                screen,
-                height - 5,
-                2,
-                explanation,
-                width - 4,
-                self.warning_style if browsing else self.category_style,
             )
-        status = (
-            f"{len(issues)} requirement(s) to review"
-            if issues
-            else "No missing package requirements"
+            if self.group_index in self.visible_groups:
+                categories.highlighted = self.visible_groups.index(self.group_index)
+
+    def _category_label(self, index: int) -> Text:
+        group = registry.GROUPS[index]
+        return Text(
+            f"{(group.title or group.name):<20} {self.model.enabled_count(group):>2}/{len(group.packages)}"
         )
-        status += "  |  Unsaved changes" if self.dirty else "  |  Selection unchanged"
-        _put(
-            screen,
-            height - 4,
-            2,
-            status,
-            width - 4,
-            self.warning_style if issues else self.enabled_style,
-        )
-        _put(screen, height - 3, 2, self.message, width - 4)
-        hint = (
-            "Enter browse  Up/Down categories" if not browsing else "Space toggle  Left categories"
-        )
-        _put(
-            screen,
-            height - 2,
-            1,
-            (" " + hint + "   Tab next type   / search   ? help").ljust(width - 2),
-            width - 2,
-            curses.A_REVERSE,
-        )
-        _put(
-            screen,
-            height - 1,
-            2,
-            "s Save   b Save & build   e Settings   p Presets   u Undo   q Quit",
-            width - 4,
-            curses.A_BOLD,
-        )
-        screen.refresh()
 
-    # -- input -----------------------------------------------------------
+    def _package_label(self, package: Package) -> Text:
+        note = self.model.status_note(package)
+        issue = "! " if self.model.issues_for(package.key) else ""
+        return Text(f"{issue}{package.key:<20} {package.summary}" + (f" · {note}" if note else ""))
 
-    def prompt(self, screen: "_CursesWindow", label: str, initial: str = "") -> str | None:
-        value = initial
-        position = len(value)
-        replace = True
-        _cursor(True)
-        try:
-            while True:
-                height, width = screen.getmaxyx()
-                if height < 10 or width < 40:
-                    return None
-                # Keep the input visible even for a long path or prompt label.
-                caption = label[: max(1, width // 2)]
-                available = width - len(caption) - 2
-                start = max(0, position - available + 1)
-                while _cell_width(value[start:position]) >= available:
-                    start += 1
-                _put(screen, height - 3, 0, " " * (width - 1), width - 1)
-                _put(screen, height - 3, 0, caption, len(caption))
-                _put(screen, height - 3, len(caption), value[start:], available)
-                try:
-                    screen.move(height - 3, len(caption) + _cell_width(value[start:position]))
-                    screen.refresh()
-                    key = screen.get_wch()
-                except curses.error:
-                    continue
-                if key in ("\n", "\r", curses.KEY_ENTER):
-                    return value.strip()
-                if key == "\x1b":
-                    return None
-                if key == curses.KEY_RESIZE:
-                    continue
-                if key == "\x15":
-                    value, position = "", 0
-                elif key in (curses.KEY_BACKSPACE, "\x7f", "\b"):
-                    if replace:
-                        value, position = "", 0
-                    elif position:
-                        value = value[: position - 1] + value[position:]
-                        position -= 1
-                elif key == curses.KEY_DC:
-                    value = value[:position] + value[position + 1 :]
-                elif key == curses.KEY_LEFT:
-                    position = max(0, position - 1)
-                elif key == curses.KEY_RIGHT:
-                    position = min(len(value), position + 1)
-                elif key == curses.KEY_HOME:
-                    position = 0
-                elif key == curses.KEY_END:
-                    position = len(value)
-                elif isinstance(key, str) and key.isprintable():
-                    if replace:
-                        value, position = "", 0
-                    if len(value) < 256:
-                        value = value[:position] + key + value[position:]
-                        position += len(key)
-                replace = False
-        finally:
-            _cursor(False)
-
-    def edit_launch_settings(self, screen: "_CursesWindow") -> None:
-        launch = self.result.launch
-        fields = (
-            ("c", "compiler", "Compiler (gcc/clang)"),
-            ("j", "jobs", "Jobs (auto for available CPUs)"),
-            ("i", "cuda_install", "CUDA install (ask/always/never)"),
-            ("a", "cuda_arch_mode", "CUDA architecture mode (native/all/custom)"),
-            ("t", "cuda_architectures", "Custom targets (space-separated numbers)"),
-            ("r", "build_root", "Build root"),
-        )
-        while True:
-            screen.erase()
-            height, width = screen.getmaxyx()
-            if height < 10 or width < 40:
-                _put(screen, 0, 0, "Resize terminal; q returns.", max(0, width - 1))
-            else:
-                _put(
-                    screen,
-                    0,
-                    0,
-                    "Launch settings (this session only; q returns)",
-                    width - 1,
-                    curses.A_REVERSE,
-                )
-                for index, (key, name, label) in enumerate(fields, 1):
-                    value = getattr(launch, name) or "auto"
-                    _put(screen, index, 0, f"{key}  {label}: {value}", width - 1)
-                _put(screen, height - 2, 0, self.message, width - 1)
-            screen.refresh()
-            pressed = screen.getch()
-            if pressed in (ord("q"), 27):
-                return
-            if height < 10 or width < 40:
-                continue
-            for key, name, label in fields:
-                if pressed == ord(key):
-                    answer = self.prompt(screen, label + ": ", str(getattr(launch, name)))
-                    if answer is None:
-                        continue
-                    value = "" if answer == "auto" and name == "jobs" else answer
-                    candidate = replace(launch, **{name: value})
-                    try:
-                        candidate.validate()
-                        setattr(launch, name, value)
-                        self.message = "Launch settings updated."
-                    except UsageError as error:
-                        self.message = str(error)
-
-    def save(self, screen: "_CursesWindow") -> bool:
-        answer = self.prompt(screen, "Save to: ", str(self.default_path))
-        if not answer:
-            self.message = "Save cancelled."
-            return False
-        try:
-            target = Path(answer).expanduser()
-            if not target.is_absolute():
-                target = Path.cwd() / target
-            if target.is_symlink():
-                raise BuildError("Refusing to replace a symlinked configuration file.")
-            publish_atomically(
-                target, render_config(self.model.settings, self.model.states), mode=0o644
-            )
-        except (OSError, BuildError, ValueError, RuntimeError) as error:
-            self.message = f"Save failed: {error}"
-            return False
-        self.result.saved_path = target
-        self.default_path = target
-        self._saved_config = render_config(self.model.settings, self.model.states)
-        self.message = f"Saved '{target}'."
-        return True
-
-    def choose_preset(self, screen: "_CursesWindow") -> None:
-        screen.erase()
-        height, width = screen.getmaxyx()
-        _put(screen, 0, 0, "Choose a preset", width - 1, curses.A_REVERSE)
-        for index, (key, name, note) in enumerate(_PRESETS, 2):
-            _put(screen, index, 0, f" {key}  {name}: {note}", width - 1)
-        _put(screen, height - 1, 0, "Press a preset key; Esc cancels", width - 1)
-        screen.refresh()
-        pressed = screen.getch()
-        for key, name, _note in _PRESETS:
-            if pressed == ord(key):
-                self.model.apply_preset(name)
-                self.message = f"Applied the '{name}' preset."
-                return
-        self.message = "Preset cancelled."
-
-    def handle(self, screen: "_CursesWindow", pressed: int) -> bool:
-        """Act on one keystroke. Returns False to leave the menu."""
-        previous = (dict(self.model.states), self.model.gpl, self.model.settings.latest)
-        rows = self.rows()
-        row = self.current(rows)
-        height, width = screen.getmaxyx()
-        if height < 10 or width < 40:
-            return not (pressed in (ord("q"), 27) and not self.dirty)
-        page = max(1, height - 7)
-
-        if pressed == ord("u"):
-            if self.history:
-                states, gpl, latest = self.history.pop()
-                self.model.states = states
-                self.model.settings.enable_gpl_and_non_free = gpl
-                self.model.settings.latest = latest
-                self.message = "Undid the last selection change."
-            else:
-                self.message = "No selection changes to undo."
-            return True
-        folding = pressed in (ord("["), ord("]"), curses.KEY_LEFT, curses.KEY_RIGHT) or (
-            pressed in (ord(" "), curses.KEY_ENTER, 10, 13) and row is not None and row.is_group
-        )
-        if self.model.search and folding:
-            if (
-                row is not None
-                and row.is_group
-                and pressed in (ord(" "), curses.KEY_ENTER, 10, 13, curses.KEY_RIGHT)
-            ):
-                self.cursor = min(self.cursor + 1, len(rows) - 1)
-            else:
-                self.message = "Clear the search to change category folds."
-            return True
-
-        if pressed in (curses.KEY_UP, ord("k")):
-            if width >= 80 and height >= 24 and row is not None and row.is_group:
-                self.cursor = next(
-                    (i for i in range(self.cursor - 1, -1, -1) if rows[i].is_group), self.cursor
-                )
-            else:
-                self.cursor = max(0, self.cursor - 1)
-        elif pressed in (curses.KEY_DOWN, ord("j")):
-            if width >= 80 and height >= 24 and row is not None and row.is_group:
-                self.cursor = next(
-                    (i for i in range(self.cursor + 1, len(rows)) if rows[i].is_group), self.cursor
-                )
-            else:
-                self.cursor = max(0, min(len(rows) - 1, self.cursor + 1))
-        elif pressed == curses.KEY_PPAGE:
-            self.cursor = max(0, self.cursor - page)
-        elif pressed == curses.KEY_NPAGE:
-            self.cursor = max(0, min(len(rows) - 1, self.cursor + page))
-        elif pressed == curses.KEY_HOME:
-            self.cursor = 0
-        elif pressed == curses.KEY_END:
-            self.cursor = max(0, len(rows) - 1)
-        elif pressed in (9, curses.KEY_BTAB):
-            headings = [i for i, candidate in enumerate(rows) if candidate.is_group]
-            candidates = (
-                [i for i in headings if i > self.cursor]
-                if pressed == 9
-                else [i for i in headings if i < self.cursor]
-            )
-            if headings:
-                self.cursor = (
-                    (candidates[0] if candidates else headings[0])
-                    if pressed == 9
-                    else (candidates[-1] if candidates else headings[-1])
-                )
-        elif pressed in (ord("["), ord("]")):
-            self.model.collapsed = (
-                {group.name for group in registry.GROUPS} if pressed == ord("[") else set()
-            )
-            self.cursor = 0
-        elif pressed == ord("?"):
-            self.show_help(screen)
-        elif pressed == ord("i") and row is not None:
-            if row.package is None:
-                group = self.model.group(row.group)
-                self.show_help(
-                    screen, (group.name, *(f"{p.key}: {p.summary}" for p in group.packages))
-                )
-            else:
-                package = row.package
-                self.show_help(
-                    screen,
-                    (
-                        package.key,
-                        package.summary,
-                        self.model.status_note(package),
-                        *(issue.message for issue in self.model.issues_for(package.key)),
-                    ),
-                )
-        elif pressed in (ord(" "), curses.KEY_ENTER, 10, 13):
-            if row is None:
-                pass
-            elif row.is_group:
-                if width >= 80 and height >= 24:
-                    self.model.collapsed.discard(row.group)
-                    self.cursor += 1
-                else:
-                    self._toggle_fold(row.group)
-            else:
-                assert row.package is not None
-                self.model.toggle(row.package.key)
-        elif pressed == curses.KEY_RIGHT:
-            if row is not None:
-                self.model.collapsed.discard(row.group)
-                if width >= 80 and height >= 24 and row.is_group:
-                    self.cursor += 1
-        elif pressed == curses.KEY_LEFT:
-            if row is not None:
-                self.model.collapsed.add(row.group)
-                self.cursor = next(
-                    (
-                        index
-                        for index, candidate in enumerate(self.rows())
-                        if candidate.is_group and candidate.group == row.group
-                    ),
-                    self.cursor,
-                )
-        elif pressed in (ord("a"), ord("d")):
-            if row is not None:
-                self.model.set_group(row.group, pressed == ord("a"))
-                state = "Enabled" if pressed == ord("a") else "Disabled"
-                self.message = f"{state} entire category ({len(self.model.group(row.group).packages)} packages), including hidden matches."
-        elif pressed == ord("g"):
-            self.model.settings.enable_gpl_and_non_free = not self.model.gpl
-        elif pressed == ord("l"):
-            self.model.settings.latest = not self.model.settings.latest
-        elif pressed == ord("/"):
-            answer = self.prompt(screen, "Filter: ")
-            if answer is not None:
-                self.model.search = answer
-                self.cursor = 0
-                self.top = 0
-                self.message = (
-                    "Search cleared." if not answer else f"Showing matches for '{answer}'."
-                )
-        elif pressed == ord("p"):
-            self.choose_preset(screen)
-        elif pressed == ord("f"):
-            if row is not None and row.package is not None:
-                changed = self.model.auto_fix(row.package.key)
-                self.message = (
-                    f"Enabled {', '.join(changed)}." if changed else "Nothing to fix here."
-                )
-        elif pressed == ord("F"):
-            changed = self.model.auto_fix_all()
-            self.message = f"Enabled {len(changed)} package(s)." if changed else "Nothing to fix."
-        elif pressed == ord("s"):
-            self.save(screen)
-        elif pressed == ord("e"):
-            self.edit_launch_settings(screen)
-        elif pressed == ord("b"):
-            try:
-                self.result.launch.validate()
-            except UsageError as error:
-                self.message = str(error)
-                return True
-            blocking = [issue for issue in self.model.issues() if issue.blocking]
-            if blocking:
-                self.message = "Resolve required packages before building: " + "; ".join(
-                    issue.summary() for issue in blocking
-                )
-                return True
-            if self.save(screen):
-                self.result.start_build = True
-                return False
-        elif pressed in (ord("q"), 27):
-            if self.dirty:
-                answer = self.prompt(screen, "Discard unsaved changes? [y/N]: ")
-                if (answer or "").lower() not in ("y", "yes"):
-                    self.message = "Still editing."
-                    return True
-            return False
-        if previous != (self.model.states, self.model.gpl, self.model.settings.latest):
-            self.history.append(previous)
-            self.history = self.history[-50:]
-        return True
-
-    def show_help(self, screen: "_CursesWindow", paragraphs: tuple[str, ...] = _HELP) -> None:
-        top = 0
-        while True:
-            screen.erase()
-            height, width = screen.getmaxyx()
-            lines = [
-                line for paragraph in paragraphs for line in _wrap(paragraph, max(1, width - 2))
+    def _show_category(self) -> None:
+        compiler = self.group_index is None
+        self.query_one("#compiler-category").set_class(compiler, "active")
+        self.query_one("#compiler-pane").display = compiler
+        self.query_one("#compiler-note").display = compiler
+        packages = self.query_one("#packages", SelectionList)
+        self.visible_packages = (
+            []
+            if compiler
+            else [
+                package
+                for package in registry.GROUPS[self.group_index or 0].packages
+                if self.model.matches_search(package)
             ]
-            page = max(1, height - 2)
-            top = min(top, max(0, len(lines) - page))
-            for offset, line in enumerate(lines[top : top + page]):
-                _put(screen, offset, 0, line, width - 1)
-            _put(
-                screen, height - 1, 0, "Up/Down scroll; q/Esc returns", width - 1, curses.A_REVERSE
-            )
-            screen.refresh()
-            pressed = screen.getch()
-            if pressed in (ord("q"), 27, ord("?")):
-                return
-            if pressed in (curses.KEY_DOWN, ord("j"), curses.KEY_NPAGE):
-                top += page if pressed == curses.KEY_NPAGE else 1
-            elif pressed in (curses.KEY_UP, ord("k"), curses.KEY_PPAGE):
-                top = max(0, top - (page if pressed == curses.KEY_PPAGE else 1))
-
-    def _toggle_fold(self, group_name: str) -> None:
-        if group_name in self.model.collapsed:
-            self.model.collapsed.discard(group_name)
-        else:
-            self.model.collapsed.add(group_name)
-
-    def loop(self, screen: "_CursesWindow") -> MenuResult:
-        _cursor(False)
-        screen.keypad(True)
-        if not os.environ.get("NO_COLOR") and curses.has_colors():
-            try:
-                curses.start_color()
-                curses.use_default_colors()
-                curses.init_pair(1, curses.COLOR_CYAN, -1)
-                curses.init_pair(2, curses.COLOR_GREEN, -1)
-                curses.init_pair(3, curses.COLOR_YELLOW, -1)
-                self.category_style = curses.color_pair(1)
-                self.enabled_style = curses.color_pair(2)
-                self.warning_style = curses.color_pair(3)
-            except curses.error:
-                # Monochrome terminals retain headings, counts and checkboxes.
-                pass
-        while True:
-            try:
-                self.draw(screen)
-                pressed = screen.getch()
-                if not self.handle(screen, pressed):
-                    return self.result
-            except KeyboardInterrupt:
-                return self.result
-
-
-def _wrap(text: str, width: int) -> list[str]:
-    words = text.split()
-    lines: list[str] = []
-    current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if len(candidate) > width and current:
-            lines.append(current)
-            current = word
-        else:
-            current = candidate
-    if current:
-        lines.append(current)
-    return lines
-
-
-def run_menu(
-    states: dict[str, bool] | None,
-    settings: BuildSettings,
-    default_path: Path,
-    launch: LaunchSettings | None = None,
-) -> MenuResult:
-    """Show the menu, refusing a non-interactive terminal rather than degrading.
-
-    A silently non-interactive editor would produce an empty selection that
-    looks deliberate, which is worse than saying the terminal cannot host it.
-    """
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        raise RuntimeError(
-            "The interactive menu needs a terminal. Edit a TOML file and pass it with "
-            "'--config' instead."
         )
-    model = MenuModel(states if states is not None else default_states(), settings)
-    application = MenuApp(model, default_path, launch)
-    try:
-        return curses.wrapper(application.loop)
-    except curses.error as error:
-        raise RuntimeError(f"Unable to initialize the terminal menu: {error}") from error
+        with self.prevent(SelectionList.SelectedChanged, SelectionList.SelectionHighlighted):
+            packages.clear_options()
+            packages.add_options(
+                [
+                    (self._package_label(package), package.key, self.model.enabled(package.key))
+                    for package in self.visible_packages
+                ]
+            )
+            packages.highlighted = 0 if self.visible_packages else None
+        packages.display = not compiler and bool(self.visible_packages)
+        self.query_one("#empty").display = not compiler and not self.visible_packages
+        self.query_one("#options").border_title = (
+            "COMPILERS"
+            if compiler
+            else (
+                registry.GROUPS[self.group_index or 0].title
+                or registry.GROUPS[self.group_index or 0].name
+            ).upper()
+        )
+        self._refresh_details()
+
+    def _refresh_state(self) -> None:
+        categories = self.query_one("#categories", OptionList)
+        for index in self.visible_groups:
+            categories.replace_option_prompt(str(index), self._category_label(index))
+        packages = self.query_one("#packages", SelectionList)
+        with self.prevent(SelectionList.SelectedChanged):
+            for index, package in enumerate(self.visible_packages):
+                packages.replace_option_prompt_at_index(index, self._package_label(package))
+                if self.model.enabled(package.key):
+                    packages.select(package.key)
+                else:
+                    packages.deselect(package.key)
+        with self.prevent(Switch.Changed):
+            self.query_one("#gpl", Switch).value = self.model.gpl
+            self.query_one("#latest", Switch).value = self.model.settings.latest
+        pane = self.query_one(CompilerPane)
+        pane.compiler = self.model.settings.compiler
+        pressed = self.query_one("#compiler-options", RadioSet).pressed_button
+        if pressed is not None and pressed.id != pane.compiler:
+            pane.refresh(recompose=True)
+        self.query_one(
+            "#compiler-category", Button
+        ).label = f"Compilers    {self.model.settings.compiler.upper()}"
+        self.query_one("#count", Static).update(
+            f"{sum(self.model.states.values())} / {len(registry.PACKAGES)} selected"
+        )
+        self.query_one("#launch-summary", Static).update(
+            f"Jobs {self.session.result.launch.jobs or 'Auto'}"
+        )
+        status = self.query_one("#status", Static)
+        status.update(plain(self.session.message))
+        status.set_class(self.session.failed, "error")
+        status.tooltip = plain(self.session.message + "\n" + str(self.session.default_path))
+        self._refresh_details()
+
+    def _current_package(self) -> Package | None:
+        highlighted = self.query_one("#packages", SelectionList).highlighted
+        if (
+            self.group_index is None
+            or highlighted is None
+            or highlighted >= len(self.visible_packages)
+        ):
+            return None
+        return self.visible_packages[highlighted]
+
+    def _detail_text(self) -> str:
+        package = self._current_package()
+        if package is None:
+            issues = self.model.issues()
+            summary = (
+                f"{len(issues)} unmet package requirements"
+                if issues
+                else "No missing package requirements"
+            )
+            return f"{summary} · Compiler {self.model.settings.compiler.upper()} · GPL/non-free {'ON' if self.model.gpl else 'OFF'}\n{self.session.default_path}"
+        return "\n".join(
+            filter(
+                None,
+                (
+                    f"{package.key}: {package.summary}",
+                    self.model.status_note(package),
+                    *(issue.message for issue in self.model.issues_for(package.key)),
+                ),
+            )
+        )
+
+    def _refresh_details(self) -> None:
+        self.query_one("#details", Static).update(plain(self._detail_text()))
+
+    def _change(self, edit: Callable[[], object], message: str) -> None:
+        self.session.change(edit, message)
+        self._refresh_state()
+
+    @on(OptionList.OptionHighlighted, "#categories")
+    def category_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        if event.option_id is not None and self.focused is self.query_one("#categories"):
+            self.group_index = int(event.option_id)
+            self._show_category()
+
+    @on(OptionList.OptionSelected, "#categories")
+    def category_selected(self) -> None:
+        self.action_options()
+
+    @on(Button.Pressed, "#compiler-category")
+    def compiler_category_selected(self) -> None:
+        self.group_index = None
+        self._show_category()
+        self.action_options()
+
+    @on(RadioSet.Changed, "#compiler-options")
+    def compiler_changed(self, event: RadioSet.Changed) -> None:
+        compiler = COMPILERS[event.index]
+        self._change(
+            lambda: setattr(self.model.settings, "compiler", compiler),
+            f"Compiler: {compiler.upper()}.",
+        )
+        self.call_after_refresh(self.action_categories)
+
+    @on(SelectionList.SelectionToggled, "#packages")
+    def package_toggled(self, event: SelectionList.SelectionToggled[str]) -> None:
+        key = event.selection.value
+        self._change(
+            lambda: self.model.toggle(key),
+            f"{'Disabled' if self.model.enabled(key) else 'Enabled'} {key}.",
+        )
+        self.call_after_refresh(self.action_categories)
+
+    @on(SelectionList.SelectionHighlighted, "#packages")
+    def package_highlighted(self) -> None:
+        self._refresh_details()
+
+    @on(Switch.Changed)
+    def setting_toggled(self, event: Switch.Changed) -> None:
+        name = "enable_gpl_and_non_free" if event.switch.id == "gpl" else "latest"
+        self._change(
+            lambda: setattr(self.model.settings, name, event.value), "Build setting updated."
+        )
+
+    @on(Input.Changed, "#search")
+    def search_changed(self, event: Input.Changed) -> None:
+        self.model.search = event.value
+        self._refresh_categories()
+        if self.group_index not in self.visible_groups:
+            self.group_index = self.visible_groups[0] if self.visible_groups else 0
+        self._show_category()
+
+    @on(Input.Submitted, "#search")
+    def search_submitted(self) -> None:
+        self.action_categories()
+
+    def on_key(self, event: events.Key) -> None:
+        if (
+            len(self.screen_stack) == 1
+            and self.focused is self.query_one("#search")
+            and event.key == "escape"
+        ):
+            event.stop()
+            self.action_categories()
+
+    def action_categories(self) -> None:
+        self.screen.remove_class("options-focused")
+        self.set_focus(
+            self.query_one("#compiler-category" if self.group_index is None else "#categories")
+        )
+        self._refresh_navigation()
+
+    def action_options(self) -> None:
+        if self.group_index is not None and not self.visible_packages:
+            return
+        self.screen.add_class("options-focused")
+        self.set_focus(
+            self.query_one("#compiler-options" if self.group_index is None else "#packages")
+        )
+        self._refresh_navigation()
+
+    @on(CompilerChoices.Confirmed)
+    def compiler_confirmed(self) -> None:
+        self.action_categories()
+
+    def action_next_category(self) -> None:
+        categories = self.query_one("#categories", OptionList)
+        if self.focused is self.query_one("#compiler-category"):
+            if self.visible_groups:
+                self.group_index = self.visible_groups[0]
+                categories.highlighted = 0
+                self._show_category()
+                self.set_focus(categories)
+        else:
+            categories.action_cursor_down()
+
+    def action_previous_category(self) -> None:
+        categories = self.query_one("#categories", OptionList)
+        if categories.highlighted in (None, 0) or self.focused is self.query_one(
+            "#compiler-category"
+        ):
+            self.action_compilers()
+        else:
+            categories.action_cursor_up()
+
+    def action_compilers(self) -> None:
+        self.group_index = None
+        self._show_category()
+        self.action_categories()
+
+    def action_search(self) -> None:
+        self.query_one("#search", Input).focus()
+
+    def action_toggle_gpl(self) -> None:
+        self._change(
+            lambda: setattr(self.model.settings, "enable_gpl_and_non_free", not self.model.gpl),
+            "GPL/non-free updated.",
+        )
+
+    def action_toggle_latest(self) -> None:
+        self._change(
+            lambda: setattr(self.model.settings, "latest", not self.model.settings.latest),
+            "Latest-version checks updated.",
+        )
+
+    def _set_category(self, enabled: bool) -> None:
+        if self.group_index is None:
+            self.session.message = "Choose exactly one compiler with Enter or Space."
+            self._refresh_state()
+            return
+        group = registry.GROUPS[self.group_index]
+        self._change(
+            lambda: self.model.set_group(group.name, enabled),
+            f"{'Enabled' if enabled else 'Disabled'} entire category, including hidden matches.",
+        )
+
+    def action_enable_category(self) -> None:
+        self._set_category(True)
+
+    def action_disable_category(self) -> None:
+        self._set_category(False)
+
+    def action_fix_current(self) -> None:
+        package = self._current_package()
+        if package:
+            self._change(
+                lambda: self.model.auto_fix(package.key), f"Enabled requirements for {package.key}."
+            )
+
+    def action_fix_all(self) -> None:
+        self._change(self.model.auto_fix_all, "Enabled missing requirements.")
+
+    def action_undo(self) -> None:
+        self.session.undo()
+        self._refresh_state()
+
+    @on(Button.Pressed, "#settings-button")
+    def action_settings(self) -> None:
+        self.push_screen(SettingsScreen(self.session.result.launch), self._settings_closed)
+
+    def _settings_closed(self, launch: LaunchSettings | None) -> None:
+        if launch is not None:
+            self.session.result.launch = launch
+            self.session.message, self.session.failed = (
+                "Launch settings updated for this session.",
+                False,
+            )
+        self._refresh_state()
+
+    @on(Button.Pressed, "#presets-button")
+    def action_presets(self) -> None:
+        self.push_screen(PresetScreen(), self._preset_selected)
+
+    def _preset_selected(self, preset: str | None) -> None:
+        if preset is not None:
+            self._change(lambda: self.model.apply_preset(preset), f"Applied the '{preset}' preset.")
+
+    def action_save_as(self) -> None:
+        self.push_screen(SaveScreen(self.session), lambda _: self._refresh_state())
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
+
+    def action_details(self) -> None:
+        self.push_screen(HelpScreen(self._detail_text()))
+
+    @on(Button.Pressed, "#build-button")
+    def action_build(self) -> None:
+        if self.session.prepare_build():
+            self.exit(self.session.result)
+        else:
+            self._refresh_state()
+            self.push_screen(HelpScreen(self.session.message, title="Build needs attention"))
+
+    def action_quit_menu(self) -> None:
+        self.exit(self.session.result)

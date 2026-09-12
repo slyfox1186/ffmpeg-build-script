@@ -36,7 +36,7 @@ jobs:
             --assume-yes --no-install-recommends pkgconf util-linux coreutils
 
       - name: Install development tools
-        run: python -m pip install pytest ruff mypy
+        run: python -m pip install '.[menu,dev]'
 
       - name: Run static analysis
         run: python run_linter.py

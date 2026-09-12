@@ -8,6 +8,7 @@
 #   [build]
 #   [packages]
 #   key = true|false
+#   compiler = "gcc"|"clang" (only in [build])
 #
 # Package entries are an explicit allowlist: an omitted key is disabled. A true
 # value either builds the component from source or requests its supported system
@@ -26,6 +27,10 @@
 # python3 build-ffmpeg.py --cleanup
 
 [build]
+# C/C++ compiler family. CLI --compiler (or --gcc/--clang) overrides this value.
+# Omitted compiler keys default to gcc for compatibility with older configs.
+compiler = "gcc"
+
 # Recheck upstream releases and rebuild components whose recorded versions differ.
 latest = false
 

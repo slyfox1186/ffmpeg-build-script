@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
+from ..runtime.http import HTTP_USER_AGENT
 from ..runtime.paths import safe_remove_tree
 from .system_setup import APT_SCRIPT_OPTIONS, SystemSetup
 
@@ -130,6 +131,8 @@ class HardwareDetection:
         exit_code = self.runner.run_logged(
             [
                 "curl",
+                "--user-agent",
+                HTTP_USER_AGENT,
                 "--proto",
                 "=https",
                 "--proto-redir",

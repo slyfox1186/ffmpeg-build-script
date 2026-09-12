@@ -26,7 +26,8 @@ ACTIONS = (
 OPTIONS = (
     ("-h, --help", "Show this help without changing the filesystem"),
     ("-v, --version", "Show the script version"),
-    ("    --compiler <gcc|clang>", "Select the C/C++ compiler (default: gcc)"),
+    ("    --compiler <gcc|clang>", "Override the config compiler (default: gcc)"),
+    ("    --gcc / --clang", "Aliases for --compiler gcc / --compiler clang"),
     ("    --config <path>", "Load build/package choices from TOML"),
     ("-j, --jobs <count>", "Set parallel build jobs (default: available CPUs)"),
     ("-l, --latest", "Refresh and rebuild outdated dependencies"),

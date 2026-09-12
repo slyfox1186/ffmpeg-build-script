@@ -1,8 +1,8 @@
-"""Package selection: reading a configuration file and writing one back.
+"""Build settings and package selection: reading and writing configuration.
 
 The accepted format is a deliberately small TOML subset, and the parser here is
 line-based rather than `tomllib`-based for two reasons. It has to reject
-everything outside that subset — a nested table, a string value, an array —
+everything outside that subset — a nested table, arbitrary strings, an array —
 rather than accept it and ignore it, and every diagnostic names the exact line
 that caused it, which a document parser cannot report.
 
@@ -22,8 +22,10 @@ from .runtime.logging import Logger
 CLEANUP_COMMAND = "build-ffmpeg.py --cleanup"
 
 _TABLE = re.compile(r"^\[([A-Za-z0-9._-]+)\]$")
-_ASSIGNMENT = re.compile(r"^([A-Za-z0-9_-]+)[ \t]*=[ \t]*(true|false)$")
+_ASSIGNMENT = re.compile(r"^([A-Za-z0-9_-]+)[ \t]*=[ \t]*(.*)$")
+_COMPILER = re.compile(r"""^(?:"(gcc|clang)"|'(gcc|clang)')$""")
 _SUPPORTED_TABLES = ("build", "packages")
+COMPILERS = ("gcc", "clang")
 
 
 class Selection:
@@ -72,11 +74,18 @@ class Selection:
 
 
 class BuildSettings:
-    """The `[build]` table: exactly two keys, as the schema has always had."""
+    """Persistent `[build]` options; omitted keys keep their legacy defaults."""
 
-    def __init__(self, *, latest: bool = False, enable_gpl_and_non_free: bool = False) -> None:
+    def __init__(
+        self, *, compiler: str = "gcc", latest: bool = False, enable_gpl_and_non_free: bool = False
+    ) -> None:
+        self.compiler = compiler
         self.latest = latest
         self.enable_gpl_and_non_free = enable_gpl_and_non_free
+
+    def validate(self) -> None:
+        if self.compiler not in COMPILERS:
+            raise UsageError("Compiler must be 'gcc' or 'clang'.")
 
 
 class LoadedConfig:
@@ -120,6 +129,20 @@ def load_config(config_file: Path, logger: Logger) -> LoadedConfig:
         if assignment is None:
             raise UsageError(f"Unsupported config syntax at {location}: '{raw_line}'.")
         key, value_text = assignment.group(1), assignment.group(2)
+        if current_table == "build" and key == "compiler":
+            entry_id = "build.compiler"
+            if entry_id in seen_entries:
+                raise UsageError(f"Duplicate config key '{entry_id}' at {location}.")
+            seen_entries.add(entry_id)
+            compiler_match = _COMPILER.fullmatch(value_text)
+            if compiler_match is None:
+                raise UsageError(
+                    f"Invalid compiler at {location}; expected a quoted 'gcc' or 'clang'."
+                )
+            settings.compiler = compiler_match.group(1) or compiler_match.group(2)
+            continue
+        if value_text not in ("true", "false"):
+            raise UsageError(f"Unsupported config syntax at {location}: '{raw_line}'.")
         value = value_text == "true"
 
         if current_table == "build":
@@ -169,6 +192,7 @@ _TEMPLATE_PREAMBLE = """\
 #   [build]
 #   [packages]
 #   key = true|false
+#   compiler = "gcc"|"clang" (only in [build])
 #
 # Package entries are an explicit allowlist: an omitted key is disabled. A true
 # value either builds the component from source or requests its supported system
@@ -187,6 +211,10 @@ _TEMPLATE_PREAMBLE = """\
 # python3 build-ffmpeg.py --cleanup
 
 [build]
+# C/C++ compiler family. CLI --compiler (or --gcc/--clang) overrides this value.
+# Omitted compiler keys default to gcc for compatibility with older configs.
+compiler = "{compiler}"
+
 # Recheck upstream releases and rebuild components whose recorded versions differ.
 latest = {latest}
 
@@ -204,8 +232,10 @@ def render_config(settings: BuildSettings, states: dict[str, bool]) -> str:
     the 127-key parity the linter checks is generated rather than
     hand-maintained, and the two files cannot drift in shape.
     """
+    settings.validate()
     parts = [
         _TEMPLATE_PREAMBLE.format(
+            compiler=settings.compiler,
             latest="true" if settings.latest else "false",
             gpl="true" if settings.enable_gpl_and_non_free else "false",
         )

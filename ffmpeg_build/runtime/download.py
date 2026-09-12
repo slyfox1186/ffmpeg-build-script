@@ -5,9 +5,8 @@ Downloads still go through `curl` rather than `urllib`. That is deliberate:
 `--max-filesize` bounds the transfer before it lands, and the `--write-out`
 line keeps the HTTP status and content type in the build log, which is what
 makes an HTML "verify your browser" page diagnosable instead of a mysterious
-tar error. Keeping curl's real user agent is part of that: pretending to be a
-browser makes some mirrors return that verification page with HTTP 200 in place
-of the archive.
+tar error. Retrieval commands share the project-selected HTTP user agent;
+successful HTTP responses still require archive validation.
 """
 
 from __future__ import annotations
@@ -15,15 +14,18 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
+import posixpath
 import re
 import tarfile
 import tempfile
 from collections.abc import Callable, Iterator
+from enum import Enum, auto
 from pathlib import Path
 
 from . import shellquote
 from .errors import BuildError
 from .exec import Runner
+from .http import HTTP_USER_AGENT
 from .logging import Logger
 from .paths import (
     DirectoryLock,
@@ -32,6 +34,7 @@ from .paths import (
     path_is_within,
     safe_remove_tree,
 )
+from .state import publish_atomically
 
 SUPPORTED_ARCHIVE_SUFFIXES = (".tar", ".tar.bz2", ".tar.gz", ".tar.xz")
 _ARCHIVE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
@@ -105,21 +108,21 @@ def write_archive_checksum(archive: Path, checksum_file: Path | None = None) -> 
     checksum = file_sha256(archive)
     if checksum is None:
         return False
-    handle, temporary_name = tempfile.mkstemp(prefix=".archive-sha256.", dir=record.parent)
-    temporary = Path(temporary_name)
     try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            stream.write(f"{checksum}\n")
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, record)
-    except OSError:
-        temporary.unlink(missing_ok=True)
+        publish_atomically(record, f"{checksum}\n")
+    except (OSError, BuildError):
         return False
     return True
 
 
 def _has_control_characters(text: str) -> bool:
     return any(ord(character) < 0x20 or ord(character) == 0x7F for character in text)
+
+
+class ExtractionResult(Enum):
+    SUCCESS = auto()
+    INVALID_ARCHIVE = auto()
+    LOCAL_FAILURE = auto()
 
 
 class Downloader:
@@ -186,6 +189,27 @@ class Downloader:
                         )
                         return False
                     name = member.name.removeprefix("./")
+                    if not (member.isfile() or member.isdir() or member.issym() or member.islnk()):
+                        self.logger.warn(
+                            f"Archive '{archive}' contains a special filesystem object."
+                        )
+                        return False
+                    if member.issym() or member.islnk():
+                        link = member.linkname
+                        target = posixpath.normpath(
+                            posixpath.join(posixpath.dirname(name), link)
+                            if member.issym()
+                            else link
+                        )
+                        root = name.split("/", 1)[0]
+                        if (
+                            not link
+                            or _has_control_characters(link)
+                            or link.startswith("/")
+                            or not (target == root or target.startswith(root + "/"))
+                        ):
+                            self.logger.warn(f"Archive '{archive}' contains an unsafe link target.")
+                            return False
                     size = member.size
                     if member.islnk():
                         # Charge links as copies too: tarfile may fall back to
@@ -326,6 +350,8 @@ class Downloader:
         settings = self.settings
         arguments = [
             "curl",
+            "--user-agent",
+            HTTP_USER_AGENT,
             "--fail",
             "--silent",
             "--show-error",
@@ -397,9 +423,12 @@ class Downloader:
         return True
 
     def extract_transactionally(self, archive: Path, target_directory: Path) -> bool:
+        return self._extract_transactionally(archive, target_directory) is ExtractionResult.SUCCESS
+
+    def _extract_transactionally(self, archive: Path, target_directory: Path) -> ExtractionResult:
         """Extract into a temporary tree and publish it with one rename."""
         if not self.validate_tar_archive(archive):
-            return False
+            return ExtractionResult.INVALID_ARCHIVE
         staging = Path(tempfile.mkdtemp(prefix=".extract.", dir=self.packages))
         self._register(staging)
         try:
@@ -413,20 +442,24 @@ class Downloader:
             self.logger.warn(f"Failed to extract '{archive}': {error}")
             safe_remove_tree(staging, self.packages)
             self._unregister(staging)
-            return False
+            return (
+                ExtractionResult.LOCAL_FAILURE
+                if isinstance(error, OSError)
+                else ExtractionResult.INVALID_ARCHIVE
+            )
 
         roots = list(staging.iterdir())
         if len(roots) != 1 or not roots[0].is_dir():
             self.logger.warn(f"Archive '{archive}' extracted no source files.")
             safe_remove_tree(staging, self.packages)
             self._unregister(staging)
-            return False
+            return ExtractionResult.INVALID_ARCHIVE
         stripped = roots[0]
 
         if not self._validate_extracted_tree(archive, stripped):
             safe_remove_tree(staging, self.packages)
             self._unregister(staging)
-            return False
+            return ExtractionResult.INVALID_ARCHIVE
 
         if target_directory.is_symlink() or not path_is_within(target_directory, self.packages):
             safe_remove_tree(staging, self.packages)
@@ -457,10 +490,10 @@ class Downloader:
             self.logger.warn(f"Failed to publish the extracted source for '{archive}': {error}")
             safe_remove_tree(staging, self.packages)
             self._unregister(staging)
-            return False
+            return ExtractionResult.LOCAL_FAILURE
         safe_remove_tree(staging, self.packages)
         self._unregister(staging)
-        return True
+        return ExtractionResult.SUCCESS
 
     # -- public entry points ---------------------------------------------
 
@@ -498,13 +531,16 @@ class Downloader:
         try:
             if not self._download_to_cache(url, name, target_file):
                 return None
-            if not self.extract_transactionally(target_file, target_directory):
+            extraction = self._extract_transactionally(target_file, target_directory)
+            if extraction is not ExtractionResult.SUCCESS:
                 # The archive was listed and checksum-verified moments ago, so
                 # an extraction failure is usually local (no space, no
                 # permission) and says nothing about the download. Purging a
                 # still-valid archive would force a full re-fetch.
-                if self.validate_tar_archive(target_file) and archive_checksum_matches(
-                    target_file, checksum_file
+                if (
+                    extraction is ExtractionResult.LOCAL_FAILURE
+                    and self.validate_tar_archive(target_file)
+                    and archive_checksum_matches(target_file, checksum_file)
                 ):
                     self.logger.warn(
                         f"Failed to extract '{name}'; its cached archive is still valid and was kept."

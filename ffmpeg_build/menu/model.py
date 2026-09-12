@@ -19,9 +19,8 @@ from ..runtime.state import assert_safe_build_root
 
 @dataclass
 class LaunchSettings:
-    """Session-only options; the TOML schema remains the two build booleans."""
+    """Session-only options; compiler and licence choices live in BuildSettings."""
 
-    compiler: str = "gcc"
     jobs: str = ""
     cuda_install: str = "ask"
     cuda_arch_mode: str = "native"
@@ -29,8 +28,6 @@ class LaunchSettings:
     build_root: str = ""
 
     def validate(self) -> None:
-        if self.compiler not in ("gcc", "clang"):
-            raise UsageError("Compiler must be 'gcc' or 'clang'.")
         if self.jobs and parse_integer(self.jobs, maximum=MAX_PROCESS_INTEGER) is None:
             raise UsageError("Jobs must be a positive integer, or empty for available CPUs.")
         if self.cuda_install not in ("ask", "always", "never"):
@@ -84,7 +81,6 @@ class MenuModel:
         # off in the menu, whereas render_config's defaults build the template.
         self.states = {key: states.get(key, False) for key in registry.PACKAGE_NAMES}
         self.settings = settings
-        self.collapsed = {group.name for group in registry.GROUPS}
         self.search = ""
 
     # -- selection -------------------------------------------------------
@@ -186,7 +182,7 @@ class MenuModel:
         while pending:
             current = pending.pop()
             for rule in registry.requirements_for(current):
-                gpl_openssl = self.gpl and self.enabled("openssl")
+                gpl_openssl = self.gpl and (self.enabled("openssl") or "openssl" in seen)
                 if rule.condition == "gpl-openssl" and not gpl_openssl:
                     continue
                 if rule.condition == "not-gpl-openssl" and gpl_openssl:
@@ -233,7 +229,8 @@ class MenuModel:
         if not self.search:
             return True
         needle = self.search.lower()
+        group = self.group(registry.PACKAGES[package.key].group)
         return any(
             needle in text.lower()
-            for text in (package.key, package.summary, registry.PACKAGES[package.key].group)
+            for text in (package.key, package.summary, group.name, group.title)
         )
