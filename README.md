@@ -573,6 +573,11 @@ HTTPS retrieval use the same user-agent from `ffmpeg_build/runtime/http.py`:
 Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
 ```
 
+`code.videolan.org` is an exception: Git, release-index and archive requests use
+the client's native user-agent because this host rejects the browser identity
+with HTTP 418. Git lookup failures report the upstream diagnostic and exit code
+in both the terminal and build log. Versions are still resolved from upstream tags.
+
 The child environment preserves `http_proxy`, `https_proxy`, `all_proxy`,
 `no_proxy`, `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY`. Uppercase `HTTP_PROXY`
 remains excluded, consistent with [curl's proxy environment rules](https://everything.curl.dev/usingcurl/proxies/env.html).

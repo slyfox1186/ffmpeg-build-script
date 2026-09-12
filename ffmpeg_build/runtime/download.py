@@ -25,7 +25,7 @@ from pathlib import Path
 from . import shellquote
 from .errors import BuildError
 from .exec import Runner
-from .http import HTTP_USER_AGENT
+from .http import user_agent_arguments
 from .logging import Logger
 from .paths import (
     DirectoryLock,
@@ -350,8 +350,7 @@ class Downloader:
         settings = self.settings
         arguments = [
             "curl",
-            "--user-agent",
-            HTTP_USER_AGENT,
+            *user_agent_arguments(url),
             "--fail",
             "--silent",
             "--show-error",

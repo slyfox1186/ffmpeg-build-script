@@ -97,12 +97,14 @@ def test_https_refused_before_network(
 
 
 @pytest.mark.parametrize("mode", ["valid", "html", "http_error", "oversized"])
+@pytest.mark.parametrize("host", ["example.test", "code.videolan.org"])
 def test_curl_transfer_contract(
     context: BuildContext,
     stub: Callable[[str, str], Path],
     tmp_path: Path,
     capfd: pytest.CaptureFixture[str],
     mode: str,
+    host: str,
 ) -> None:
     archive = archive_at(
         tmp_path / "fixture.tar.gz", [("project/file", b"payload", tarfile.REGTYPE)]
@@ -132,12 +134,13 @@ else:
     if mode == "oversized":
         context.downloader.settings.max_bytes = 1
     target = context.packages / "download.tar.gz"
-    success = context.downloader._download_to_cache(
-        "https://example.test/source", target.name, target
-    )
+    success = context.downloader._download_to_cache(f"https://{host}/source", target.name, target)
     assert success == (mode == "valid")
     arguments = json.loads(invocation.read_text())
-    assert arguments[arguments.index("--user-agent") + 1] == HTTP_USER_AGENT
+    if host == "code.videolan.org":
+        assert "--user-agent" not in arguments
+    else:
+        assert arguments[arguments.index("--user-agent") + 1] == HTTP_USER_AGENT
     assert arguments[arguments.index("--proto") + 1] == "=https"
     assert arguments[arguments.index("--proto-redir") + 1] == "=https"
     assert "--max-filesize" in arguments

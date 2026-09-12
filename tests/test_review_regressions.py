@@ -164,8 +164,17 @@ def test_network_proxy_settings_survive_without_inheriting_conda_or_cgi_proxy(
     assert "HTTP_PROXY" not in environment and "CONDA_PREFIX" not in environment
 
 
-def test_release_retrieval_commands_use_exact_project_user_agent(
-    context: BuildContext, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "host,native",
+    [
+        ("example.test", False),
+        ("code.videolan.org", True),
+        ("CODE.VIDEOLAN.ORG", True),
+        ("code.videolan.org.example.test", False),
+    ],
+)
+def test_release_retrieval_commands_use_host_compatible_user_agent(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, host: str, native: bool
 ) -> None:
     assert (
         HTTP_USER_AGENT
@@ -178,8 +187,12 @@ def test_release_retrieval_commands_use_exact_project_user_agent(
         return subprocess.CompletedProcess(arguments, 0, "a" * 40 + "\trefs/tags/v1.0\n", "")
 
     monkeypatch.setattr(context.runner, "capture", capture)
-    context.resolver.fetch_text("https://example.test/releases")
-    context.resolver.remote_tag_names("https://example.test/source.git")
-    context.resolver.remote_head_commit("https://example.test/source.git")
-    assert calls[0][calls[0].index("--user-agent") + 1] == HTTP_USER_AGENT
-    assert all(f"http.userAgent={HTTP_USER_AGENT}" in command for command in calls[1:])
+    context.resolver.fetch_text(f"https://{host}/releases")
+    context.resolver.remote_tag_names(f"https://{host}/source.git")
+    context.resolver.remote_head_commit(f"https://{host}/source.git")
+    if native:
+        assert "--user-agent" not in calls[0]
+        assert all(not any("http.userAgent=" in arg for arg in command) for command in calls[1:])
+    else:
+        assert calls[0][calls[0].index("--user-agent") + 1] == HTTP_USER_AGENT
+        assert all(f"http.userAgent={HTTP_USER_AGENT}" in command for command in calls[1:])

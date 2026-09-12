@@ -426,7 +426,12 @@ class BuildContext:
 
         # An empty version leads to broken URLs like `foo-.tar.gz` and confusing
         # rebuild logic, so it is a hard error rather than a silent wrong build.
-        if version is None or not is_valid_version(version):
+        if version is None:
+            raise BuildError(
+                f"Unable to resolve an upstream version for enabled package '{key}'. "
+                "Check the lookup warnings above and retry."
+            )
+        if not is_valid_version(version):
             raise BuildError(f"build() called for \"{key}\" with an invalid version '{version}'.")
 
         marker = self.marker_path(key)

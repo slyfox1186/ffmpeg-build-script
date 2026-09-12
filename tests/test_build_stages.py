@@ -140,7 +140,10 @@ def test_summary_explains_selected_gpl_integrations(
 
 @pytest.mark.parametrize("version", [None, "", "../escape", "bad version"])
 def test_invalid_build_versions(context: BuildContext, version: str | None) -> None:
-    with pytest.raises(BuildError, match="invalid version"):
+    message = (
+        "Unable to resolve an upstream version.*'nasm'" if version is None else "invalid version"
+    )
+    with pytest.raises(BuildError, match=message):
         context.build("nasm", version)
     context.selection = Selection({}, Path("fixture.toml"))
     assert not context.build("nasm", version)
