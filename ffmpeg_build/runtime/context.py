@@ -342,23 +342,19 @@ class BuildContext:
             marker = self.marker_path(key)
             prior_version = read_marker_version(marker)
             if prior_version is not None:
-                if self.package_artifacts_ready(key):
-                    if key == "m4" and prior_version == "latest":
-                        self.logger.warn(
-                            "Replacing legacy mutable m4 marker with a versioned release marker."
-                        )
-                    elif key == "vapoursynth":
-                        return prior_version.removeprefix("R")
-                    elif key == "ffmpeg":
-                        return prior_version.removeprefix("n")
-                    else:
-                        return prior_version
-                else:
+                if key == "m4" and prior_version == "latest":
                     self.logger.warn(
-                        f"'{key}' has a build marker but its required artifacts are missing; "
-                        "refreshing its version and source."
+                        "Replacing legacy mutable m4 marker with a versioned release marker."
                     )
-                marker.unlink(missing_ok=True)
+                    marker.unlink(missing_ok=True)
+                elif key == "vapoursynth":
+                    return prior_version.removeprefix("R")
+                elif key == "ffmpeg":
+                    return prior_version.removeprefix("n")
+                else:
+                    # build() checks artifacts and invalidates consumers. A
+                    # missing artifact needs repair, not an implicit upgrade.
+                    return prior_version
         return fetcher()
 
     def git_snapshot(self, repository_url: str, key: str, mode: str = "shallow") -> str | None:

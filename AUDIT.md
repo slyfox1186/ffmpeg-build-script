@@ -246,3 +246,11 @@ as a safe timeout optimization.
 GLM's claimed backup-failure deletion was false: backup_installed_programs is
 outside the promotion try/except. An injected backup failure now explicitly
 tests that neither installation nor rollback runs and old programs survive.
+
+## Medium severity: pinned repair behavior
+
+GLM correctly identified that an artifact-missing normal resume discarded the
+recorded release and queried upstream. It now repairs the pinned version;
+build() remains responsible for artifact checks and consumer invalidation.
+This also removes a redundant artifact probe on every normal version lookup.
+The regression forbids the network fetcher and verifies consumer invalidation.

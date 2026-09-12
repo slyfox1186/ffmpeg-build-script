@@ -83,6 +83,22 @@ def test_failed_upgrade_invalidates_consumer_markers_before_writes(
     assert context.build("ffmpeg", "1.0")
 
 
+def test_missing_artifacts_rebuild_pinned_version_without_refetch(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for key in ("zenlib", "mediainfo-lib", "ffmpeg"):
+        context.marker_path(key).write_text("0.4.41\n")
+    monkeypatch.setattr(context, "package_artifacts_ready", lambda key: key != "zenlib")
+
+    def forbidden() -> str:
+        pytest.fail("Repairing a pinned release must not rediscover an upstream version")
+
+    assert context.fetch_version_if_enabled("zenlib", forbidden) == "0.4.41"
+    assert context.build("zenlib", "0.4.41")
+    for key in ("zenlib", "mediainfo-lib", "ffmpeg"):
+        assert not context.marker_path(key).exists()
+
+
 def test_dependency_only_success_does_not_probe_system_ffmpeg(
     context: BuildContext, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
