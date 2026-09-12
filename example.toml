@@ -45,17 +45,17 @@ pkgconf = true  # pkg-config-compatible dependency resolver
 yasm = true  # Modular x86/x86-64 assembler
 
 # Compression, parsing, allocation, and other foundational libraries
-brotli = true  # Brotli compression and decompression
-gflags = true  # C++ command-line flag processing
-jemalloc = true  # General-purpose memory allocator
+brotli = false  # Brotli compression; the freetype build here disables its only use
+gflags = false  # C++ command-line flag processing; nothing built here links it
+jemalloc = false  # Allocator reachable only via FFmpeg's --custom-allocator, which this build never passes
 libiconv = true  # Character-encoding conversion
 libxml2 = true  # XML parsing and processing
 libzstd = true  # Zstandard compression and decompression
-pcre2 = true  # Perl-compatible regular expressions
+pcre2 = false  # Perl-compatible regular expressions; nothing built here links it
 zlib = true  # DEFLATE compression and decompression
 
 # Cryptography, TLS, name resolution, and network protocols
-c-ares = true  # Asynchronous DNS resolution
+c-ares = false  # Asynchronous DNS resolution; nothing built here links it
 gmp = true  # Arbitrary-precision arithmetic used by Nettle and GnuTLS
 gnutls = true  # TLS and cryptographic protocol support
 librist = true  # Reliable Internet Stream Transport
@@ -78,15 +78,15 @@ libzvbi = true  # Teletext and vertical-blanking-interval decoding
 
 # Still-image codecs, color management, and image containers
 avif = true  # AV1 Image File Format encoding and decoding
-giflib = true  # GIF image encoding and decoding
+giflib = false  # GIF codec; FFmpeg carries its own and no component here links this one
 lcms2 = true  # ICC color management with Little CMS
 libheif = true  # HEIF and AVIF image container support
-libhwy = true  # Portable SIMD primitives used by JPEG XL
-libjpeg-turbo = true  # SIMD-accelerated JPEG encoding and decoding
+libhwy = false  # SIMD primitives for JPEG XL, which arrives as the system libjxl-dev package
+libjpeg-turbo = true  # SIMD-accelerated JPEG; gpac probes for -ljpeg and links it
 libjxl = false  # System libjxl-dev integration; unavailable on Ubuntu 22.04
-libpng = true  # PNG image encoding and decoding
+libpng = true  # PNG codec; gpac probes for -lpng and links it
 librsvg = true  # SVG rasterization
-libtiff = true  # TIFF image encoding and decoding
+libtiff = false  # TIFF codec; nothing built here links it, and the system copy serves leptonica
 libwebp-git = true  # WebP image encoding and decoding
 openjpeg = true  # JPEG 2000 encoding and decoding
 
@@ -111,7 +111,7 @@ libgme = true  # Video-game music emulation
 libmodplug = true  # Tracker-module audio decoding
 libmysofa = true  # SOFA HRTF data for spatial audio
 libopenmpt = true  # Tracker-module audio decoding and rendering
-libsndfile = true  # Reading and writing sampled-audio file formats
+libsndfile = false  # Sampled-audio file I/O; rubberband builds with auto_features disabled
 libsoxr = true  # High-quality audio sample-rate conversion
 rubberband-git = false  # Time stretching and pitch shifting
 
@@ -169,7 +169,7 @@ udfread = true  # Universal Disk Format filesystem reader
 zenlib = true  # Utility library required by MediaInfoLib
 
 # Playback, capture, window systems, and visual output
-freeglut = true  # OpenGL utility toolkit for windows and input
+freeglut = false  # GLUT toolkit; FFmpeg's OpenGL device needs GL/GLX instead
 libcaca = true  # Color text and ASCII-art video output
 libv4l2 = true  # Video4Linux2 capture and device access
 opengl = true  # OpenGL video output

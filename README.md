@@ -196,6 +196,20 @@ instead of silently omitting an unavailable dependency. The system `libzix-dev`
 package is similarly absent from Ubuntu 22.04 and Debian 12; keep the `zix`
 source build enabled on those releases.
 
+The template also disables `brotli`, `c-ares`, `freeglut`, `gflags`, `giflib`,
+`jemalloc`, `libhwy`, `libsndfile`, `libtiff`, and `pcre2`. FFmpeg has no
+configure option for any of them, and every component built here that could
+consume one is configured with that consumer switched off, so they cost build
+time and produce nothing linkable. `jemalloc` is the partial exception: FFmpeg
+accepts `--custom-allocator=jemalloc`, which this script does not pass. Set any
+of these keys back to `true` to restore the source build. `libpng` and
+`libjpeg-turbo` stay enabled because GPAC probes for `-lpng` and `-ljpeg` and
+links whichever copies the workspace provides.
+
+Because an omitted key is disabled and an unknown key is a fatal error, these
+keys remain supported rather than removed, so configs that list them keep
+working.
+
 ## CUDA and hardware acceleration
 
 GPU discovery is advisory for compile-time feature selection. The script:
