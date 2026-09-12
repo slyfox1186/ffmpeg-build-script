@@ -108,6 +108,11 @@ def test_ordered_configure_matches_bash_baseline(
 
     fixtures = json.loads((Path(__file__).parent / "fixtures/configure-options.json").read_text())
     expected = fixtures[f"{preset}-{str(gpl).lower()}-{str(gpu).lower()}"]
+    if preset == "template" and gpl and gpu:
+        # Explicit user-requested departure from the historical Bash template:
+        # AMF headers now default on, retaining the existing GPL/AMD gates.
+        for name in ("stage_flags", "configure"):
+            expected[name].insert(expected[name].index("--enable-libsvtav1"), "--enable-amf")
     if preset == "template":
         context.selection = Selection(default_states(), Path("fixture.toml"))
     context.nonfree_and_gpl = gpl

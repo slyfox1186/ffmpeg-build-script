@@ -701,7 +701,6 @@ GROUPS: tuple[Group, ...] = (
             Package(
                 "amf-headers",
                 "AMD Advanced Media Framework SDK headers",
-                default_enabled=False,
                 gate=REQUIRES_GPL,
                 ffmpeg_flags=("--enable-amf",),
             ),

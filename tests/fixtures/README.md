@@ -17,6 +17,10 @@ with real pkgconf metadata. Host-dependent compiler and GPU probes are held
 constant, including the executable search path, and temporary workspace paths
 are normalized. Argument order remains significant.
 
+The user subsequently enabled AMF headers in the template. The comparison test
+explicitly adds --enable-amf for the template/GPL/AMD case; the historical JSON
+captures remain unchanged.
+
 `tests/test_workspace.py` checks these reference files on every CI interpreter.
 The independent native smoke build is documented in `WHERE_WE_LEFT_OFF.md`; it
 is not performed by these fixtures or CI.

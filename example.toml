@@ -176,7 +176,7 @@ sdl2 = true  # Window, audio, and input support required by ffplay
 xlib = true  # X11 and XCB screen capture
 
 # GPU APIs, codec SDK headers, and hardware acceleration
-amf-headers = false  # AMD Advanced Media Framework SDK headers
+amf-headers = true  # AMD Advanced Media Framework SDK headers
 libdrm = true  # Userspace Direct Rendering Manager interface
 libplacebo = true  # Vulkan-based GPU scaling and tone mapping
 libshaderc = false  # System libshaderc-dev integration; unavailable on Ubuntu 22.04
