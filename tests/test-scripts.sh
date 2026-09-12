@@ -466,6 +466,75 @@ assert_command_fails "a build root cannot be acquired by two processes" bash -c 
 ' _ "$repo_root" "$lock_root"
 exec {held_lock_fd}>&-
 
+# Exercise the wrapper in a separate shell: an exec redirection can otherwise
+# silence this test runner's own failure output along with the build's stderr.
+host_lock_runtime="$temporary_root/host-lock-runtime"
+mkdir -p "$host_lock_runtime"
+host_lock_stdout="$temporary_root/host-lock.stdout"
+host_lock_stderr="$temporary_root/host-lock.stderr"
+if bash -c '
+    source "$1/scripts/shared-utils.sh"
+    XDG_RUNTIME_DIR="$2"
+    locked_probe() {
+        printf "locked stdout\n"
+        printf "locked stderr\n" >&2
+        return 23
+    }
+    with_host_mutation_lock locked_probe
+    status=$?
+    with_host_mutation_lock true
+    printf "after lock stderr\n" >&2
+    exit "$status"
+' _ "$repo_root" "$host_lock_runtime" >"$host_lock_stdout" 2>"$host_lock_stderr"; then
+    fail_test "host lock preserves a wrapped command failure"
+else
+    assert_equal "23" "$?" "host lock preserves the wrapped command exit status"
+fi
+assert_equal "locked stdout" "$(<"$host_lock_stdout")" \
+    "host lock preserves stdout without mixing in diagnostics"
+assert_contains "$(<"$host_lock_stderr")" "locked stderr" \
+    "host lock preserves stderr inside the wrapped command"
+assert_contains "$(<"$host_lock_stderr")" "after lock stderr" \
+    "repeated host locks do not silence later diagnostics"
+
+for logging_mode in OFF ON; do
+    command_failure_log="$temporary_root/command-failure-$logging_mode.log"
+    : >"$command_failure_log"
+    if command_failure_output="$(bash -c '
+        source "$1/scripts/shared-utils.sh"
+        debug="$2"
+        log_file="$3"
+        failing_command() {
+            printf "command stdout\n"
+            printf "command stderr\n" >&2
+            return 37
+        }
+        run_logged failing_command
+    ' _ "$repo_root" "$logging_mode" "$command_failure_log" 2>&1)"; then
+        fail_test "logged command failures return nonzero in $logging_mode mode"
+    else
+        assert_equal "37" "$?" "logged command status is preserved in $logging_mode mode"
+    fi
+    for command_stream in stdout stderr; do
+        assert_contains "$command_failure_output" "command $command_stream" \
+            "failed command $command_stream reaches the terminal in $logging_mode mode"
+        assert_contains "$(<"$command_failure_log")" "command $command_stream" \
+            "failed command $command_stream is saved in the log in $logging_mode mode"
+    done
+done
+
+if bash -c '
+    source "$1/scripts/shared-utils.sh"
+    debug=ON
+    log_file="$2"
+    tee() { command tee "$@"; return 74; }
+    run_logged true
+' _ "$repo_root" "$temporary_root/failed-tee.log" >/dev/null 2>&1; then
+    fail_test "debug logging does not hide a failed log writer"
+else
+    assert_equal "74" "$?" "debug logging propagates log-writer failures"
+fi
+
 selection_file="$temporary_root/selection.toml"
 selection_output_file="$temporary_root/selection.out"
 printf '%s\n' \
@@ -653,11 +722,16 @@ detect_gpu_vendors() {
 }
 hardware_summary_output="$(initialize_hardware_detection)"
 assert_contains "$hardware_summary_output" \
-    $' --------------------\n\nNVIDIA: NVIDIA GPU detected' \
+    $' --------------------\n\n[' \
     "hardware banner has one blank line before its summary"
 assert_not_contains "$hardware_summary_output" \
-    $' --------------------\n\n\nNVIDIA: NVIDIA GPU detected' \
+    $' --------------------\n\n\n' \
     "hardware banner does not add a second blank line"
+# The summary used to be three bare printfs, so it never reached the build log a
+# bug report quotes. It is one logged record now, aligned across continuation lines.
+assert_contains "$hardware_summary_output" \
+    $'INFO  NVIDIA: NVIDIA GPU detected\n                 AMD:    AMD GPU detected' \
+    "hardware summary is one logged record with aligned continuation lines"
 
 apt_fixture_bin="$temporary_root/apt-fixture-bin"
 apt_fixture_log="$temporary_root/apt-fixture.log"
@@ -1133,6 +1207,8 @@ assert_file "$packages/project/sub/file.txt" "transactional extraction publishes
 curl_invocation="$temporary_root/curl-invocation"
 downloaded_archive="$packages/user-agent-download.tar.gz"
 if ! (
+    # Called indirectly by run_logged's "$@" invocation.
+    # shellcheck disable=SC2317
     curl() {
         local argument output_file=""
 
@@ -1157,10 +1233,60 @@ if ! (
     fail_test "archive downloads invoke curl successfully"
 fi
 pass "archive downloads invoke curl successfully"
-assert_contains "$(<"$curl_invocation")" \
-    $'--user-agent\nMozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0' \
-    "archive downloads use the configured browser user agent"
+assert_not_contains "$(<"$curl_invocation")" "--user-agent" \
+    "archive downloads keep curl's real user agent to avoid browser verification pages"
 assert_file "$downloaded_archive" "archive downloads publish the validated payload"
+
+# HTTP 200 can be an HTML verification page. It must never enter the cache,
+# and both the response metadata and the tar error must remain diagnosable.
+for download_failure_mode in html http_error; do
+    download_failure_log="$temporary_root/download-$download_failure_mode.log"
+    download_failure_target="$packages/rejected-$download_failure_mode.tar.gz"
+    : >"$download_failure_log"
+    if download_failure_output="$(
+        # Called indirectly by run_logged's "$@" invocation.
+        # shellcheck disable=SC2317
+        curl() {
+            local output_file=""
+            while (($# > 0)); do
+                if [[ "$1" == --output ]]; then
+                    output_file="$2"
+                    shift
+                fi
+                shift
+            done
+            if [[ "$download_failure_mode" == html ]]; then
+                printf '<html><title>Verify your browser</title></html>\n' >"$output_file"
+                printf 'HTTP 200; content-type: text/html; bytes: 55; URL: https://example.test/source\n'
+            else
+                printf 'curl: (22) The requested URL returned error: 503\n' >&2
+                printf 'HTTP 503; content-type: text/html; bytes: 0; URL: https://example.test/source\n'
+                return 22
+            fi
+        }
+        log_file="$download_failure_log" download_archive_to_cache "https://example.test/source" \
+            "rejected-$download_failure_mode.tar.gz" "$download_failure_target" 2>&1
+    )"; then
+        fail_test "downloads reject $download_failure_mode responses"
+    fi
+    assert_not_exists "$download_failure_target" \
+        "a $download_failure_mode response is not cached as an archive"
+    assert_not_exists "$download_failure_target.sha256" \
+        "a $download_failure_mode response is not given a trusted checksum"
+    assert_contains "$(<"$download_failure_log")" "content-type: text/html" \
+        "a $download_failure_mode response keeps its HTTP metadata in the log"
+    if [[ "$download_failure_mode" == html ]]; then
+        download_diagnostic="Unable to list tar archive"
+        assert_contains "$download_failure_output" "tar:" \
+            "invalid downloaded archives replay the underlying tar error"
+    else
+        download_diagnostic="error: 503"
+    fi
+    assert_contains "$download_failure_output" "$download_diagnostic" \
+        "a $download_failure_mode response displays its failure reason"
+    assert_contains "$(<"$download_failure_log")" "$download_diagnostic" \
+        "a $download_failure_mode response records its failure reason"
+done
 
 multi_root_source="$temporary_root/multi-root-source"
 mkdir -p "$multi_root_source/root-a" "$multi_root_source/root-b"
@@ -1242,8 +1368,12 @@ if build_output="$(build jemalloc 1.2.3)"; then
     fail_test "matching build marker skips rebuild"
 fi
 pass "matching build marker skips rebuild"
-assert_contains "$build_output" "Already built: jemalloc 1.2.3" \
+assert_contains "$build_output" "jemalloc 1.2.3 is already built." \
     "matching build marker reports the package status clearly"
+# Every per-package line leads with the package, so the run reads down one
+# column instead of behind a different prefix on each line.
+assert_contains "$build_output" "SKIP  jemalloc" \
+    "a skipped package leads with its own name"
 # The heading announces work that is about to happen. Printing it and then
 # "Already built" in the same breath told the reader two opposite things.
 assert_not_contains "$build_output" "STEP" \
@@ -1269,7 +1399,7 @@ if outdated_build_output="$(build jemalloc 1.2.3)"; then
 fi
 pass "outdated build markers preserve pinned versions by default"
 assert_contains "$outdated_build_output" \
-    "Outdated: jemalloc 1.2.2 -> 1.2.3; keeping the existing build." \
+    "jemalloc 1.2.2 -> 1.2.3 is outdated; keeping the existing build." \
     "outdated-package status names both versions and the outcome"
 if outdated_debug_output="$(debug=ON build jemalloc 1.2.3)"; then
     fail_test "debug mode still preserves a pinned outdated version"
@@ -1278,6 +1408,126 @@ pass "debug mode still preserves a pinned outdated version"
 assert_contains "$outdated_debug_output" \
     "Rebuild with '--latest', or: rm -f -- $packages/jemalloc.done" \
     "outdated-package guidance quotes the option and the alternate command"
+
+# Test version discovery and the actual yasm -> nasm -> giflib stage transition
+# without installing software or depending on live upstream availability.
+nasm_fixture="$temporary_root/nasm-fixture.sh"
+cat >"$nasm_fixture" <<'BASH'
+#!/usr/bin/env bash
+source "$1/scripts/core-libraries.sh"
+fixture_mode="$2"
+packages="$3/packages"
+workspace="$3/workspace"
+log_file="$3/build.log"
+build_threads=1
+LATEST=true
+mkdir -p "$packages" "$workspace/bin"
+: >"$log_file"
+
+curl_https() {
+    [[ "${*: -1}" == "https://www.nasm.us/pub/nasm/releasebuilds/" ]] || return 64
+    case "$fixture_mode" in
+        unavailable)
+            printf 'curl: (22) The requested URL returned error: 404\n' >&2
+            return 22
+            ;;
+        partial)
+            printf '<a href="99.0/">99.0/</a>\n'
+            return 18
+            ;;
+        invalid)
+            printf '%s\n' '<a href="4.0rc1/">4.0rc1/</a>' '<a href="4.0-20260819/">snapshot</a>'
+            return 0
+            ;;
+        resume | disabled)
+            printf 'unexpected network lookup\n' >&2
+            return 64
+            ;;
+    esac
+    printf '%s\n' \
+        '<a href="3.9/">3.9/</a>' \
+        '<a href="3.10/">3.10/</a>' \
+        '<a href="3.10.2/">3.10.2/</a>' \
+        '<a href="3.11rc1/">3.11rc1/</a>' \
+        '<a href="3.11-20260819/">snapshot</a>' \
+        '<a href="/elsewhere/99.0/">unrelated</a>'
+}
+
+if [[ "$fixture_mode" == lookup || "$fixture_mode" == partial || "$fixture_mode" == invalid ]]; then
+    repo_version=stale
+    nasm_version
+    status=$?
+    printf 'version=<%s>\n' "$repo_version"
+    exit "$status"
+fi
+
+PACKAGE_SELECTION_CONFIG_FILE=fixture
+PACKAGE_SELECTION=([yasm]=true [nasm]=true [giflib]=true)
+if [[ "$fixture_mode" == resume ]]; then
+    LATEST=false
+elif [[ "$fixture_mode" == disabled ]]; then
+    LATEST=false
+    PACKAGE_SELECTION[nasm]=false
+fi
+printf '1.3.0\n' >"$packages/yasm.done"
+printf '3.10.2\n' >"$packages/nasm.done"
+printf '#!/bin/sh\nexit 0\n' >"$workspace/bin/yasm"
+cp "$workspace/bin/yasm" "$workspace/bin/nasm"
+chmod +x "$workspace/bin/yasm" "$workspace/bin/nasm"
+find_git_repo() { repo_version=1.3.0; }
+giflib_repo_version() { repo_version=5.2.2; }
+download() {
+    [[ "$1" == *giflib-5.2.2.tar.gz/download ]] || exit 65
+    printf 'reached giflib download\n'
+    exit 0
+}
+XDG_RUNTIME_DIR="$3/runtime"
+with_host_mutation_lock true
+install_core_libraries
+exit 66
+BASH
+
+nasm_lookup_output="$(bash "$nasm_fixture" "$repo_root" lookup "$temporary_root/nasm-lookup" 2>&1)" ||
+    fail_test "NASM version discovery accepts the release index"
+assert_equal "version=<3.10.2>" "$nasm_lookup_output" \
+    "NASM selects the highest numeric stable release and ignores prereleases"
+for nasm_failure_mode in partial invalid; do
+    if nasm_failure_output="$(bash "$nasm_fixture" "$repo_root" "$nasm_failure_mode" \
+        "$temporary_root/nasm-$nasm_failure_mode" 2>&1)"; then
+        fail_test "NASM rejects a $nasm_failure_mode release index"
+    fi
+    assert_contains "$nasm_failure_output" "version=<>" \
+        "NASM clears stale versions after a $nasm_failure_mode release index"
+    assert_contains "$nasm_failure_output" "WARN" \
+        "NASM reports a $nasm_failure_mode release index"
+done
+
+for nasm_stage_mode in latest resume disabled; do
+    nasm_stage_output="$(bash "$nasm_fixture" "$repo_root" "$nasm_stage_mode" \
+        "$temporary_root/nasm-$nasm_stage_mode" 2>&1)" ||
+        fail_test "core libraries continue past NASM in $nasm_stage_mode mode"
+    assert_contains "$nasm_stage_output" "yasm 1.3.0 is already built." \
+        "core stage skips the built yasm in $nasm_stage_mode mode"
+    assert_contains "$nasm_stage_output" "reached giflib download" \
+        "core stage reaches the next package after NASM in $nasm_stage_mode mode"
+    assert_not_contains "$nasm_stage_output" "unexpected network lookup" \
+        "NASM respects the version lookup policy in $nasm_stage_mode mode"
+done
+
+if nasm_failure_output="$(bash "$nasm_fixture" "$repo_root" unavailable \
+    "$temporary_root/nasm-unavailable" 2>&1)"; then
+    fail_test "core stage stops when NASM discovery fails"
+else
+    assert_equal "1" "$?" "NASM discovery failure exits the core stage with status 1"
+fi
+assert_contains "$nasm_failure_output" "error: 404" \
+    "NASM fetch failures retain the underlying HTTP error"
+assert_contains "$nasm_failure_output" "Failed to detect the NASM version" \
+    "NASM discovery failure is visible after host setup"
+assert_not_contains "$nasm_failure_output" "invalid version" \
+    "NASM discovery failure stops before an empty version reaches build"
+assert_not_contains "$nasm_failure_output" "reached giflib download" \
+    "NASM discovery failure does not continue to later packages"
 
 # shellcheck source=scripts/ffmpeg-build.sh
 source "$repo_root/scripts/ffmpeg-build.sh"

@@ -326,9 +326,12 @@ initialize_hardware_detection() {
     printf '\n'
     box_out_banner "Hardware Detection"
     printf '\n'
-    printf 'NVIDIA: %s\n' "$is_nvidia_gpu_present"
-    printf 'AMD:    %s\n' "$is_amd_gpu_present"
-    printf 'Intel:  %s\n' "$is_intel_gpu_present"
+    # One record rather than three bare printfs: these results belong in the
+    # build log a bug report will quote, and routing them through the logger is
+    # what puts them there and keeps them on the same timeline as everything
+    # around them.
+    log "$(printf 'NVIDIA: %s\nAMD:    %s\nIntel:  %s' \
+        "$is_nvidia_gpu_present" "$is_amd_gpu_present" "$is_intel_gpu_present")"
     if ((has_vulkan_gpu == 0)); then
         warn "No supported GPU was detected; proprietary GPU integrations will be omitted and generic hardware APIs may have no runtime device."
     fi

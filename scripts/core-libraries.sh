@@ -28,7 +28,8 @@ install_core_libraries() {
     fi
 
     # Build nasm
-    fetch_version_if_enabled "nasm" nasm_version
+    fetch_version_if_enabled "nasm" nasm_version ||
+        fail "Failed to detect the NASM version; see the release-index error above. Line: ${LINENO}"
     if build "nasm" "$repo_version"; then
         download "https://www.nasm.us/pub/nasm/releasebuilds/$repo_version/nasm-$repo_version.tar.xz"
         ensure_autotools

@@ -25,11 +25,17 @@ _SHARED_UTILS_LOADED=1
 
 # Emit ANSI colors only to an interactive terminal and honor the standard
 # NO_COLOR convention. Build logs and redirected output remain plain text.
+#
+# The colors set a foreground and nothing else: the common "0;3xm" spelling
+# leads with a reset, which silently cancels any attribute it is combined with,
+# so BOLD$GREEN rendered as plain green and DIM$CYAN as plain cyan. Callers that
+# need a clean slate say NC explicitly instead.
 if [[ -t 1 && "${TERM:-dumb}" != "dumb" && -z "${NO_COLOR:-}" ]]; then
-    GREEN=$'\033[0;32m'
-    RED=$'\033[0;31m'
-    YELLOW=$'\033[0;33m'
-    CYAN=$'\033[0;36m'
+    GREEN=$'\033[32m'
+    RED=$'\033[31m'
+    YELLOW=$'\033[33m'
+    MAGENTA=$'\033[35m'
+    CYAN=$'\033[36m'
     BOLD=$'\033[1m'
     DIM=$'\033[2m'
     NC=$'\033[0m'
@@ -37,6 +43,7 @@ else
     GREEN=""
     RED=""
     YELLOW=""
+    MAGENTA=""
     CYAN=""
     BOLD=""
     DIM=""
@@ -129,31 +136,23 @@ declare -Ar PACKAGE_KEY_ALIASES=(
     ["vulkan-headers"]="vulkan-headers-git"
 )
 
-# Banner functions
+# Stage headings. The box is structure rather than content, so it is dimmed and
+# only the title carries a color; drawing it from the same palette as every log
+# line is what keeps a stage heading recognizably part of the same output.
 box_out_banner() {
     local text="$*"
     local text_len=${#text}
     local inner_len=$((text_len + 2))
-    local border color_border="" color_text="" color_reset=""
-
-    if [[ -n "$NC" ]] && command -v tput >/dev/null 2>&1; then
-        color_border="$(tput setaf 3 2>/dev/null || true)"
-        color_text="$(tput setaf 4 2>/dev/null || true)"
-        color_reset="$(tput sgr0 2>/dev/null || true)"
-        tput bold 2>/dev/null || true
-    fi
+    local border
 
     printf -v border '%*s' "$inner_len" ''
     border=${border// /-}
 
-    printf ' %b%s%b\n' "$color_border" "$border" "$color_reset"
-    printf '|%*s|\n' "$inner_len" ''
-    printf '| %b%s%b |\n' "$color_text" "$text" "$color_reset"
-    printf '|%*s|\n' "$inner_len" ''
-    printf ' %b%s%b\n' "$color_border" "$border" "$color_reset"
-    if [[ -n "$color_reset" ]]; then
-        printf '%b' "$color_reset"
-    fi
+    printf '%s %s%s\n' "$DIM" "$border" "$NC"
+    printf '%s|%*s|%s\n' "$DIM" "$inner_len" '' "$NC"
+    printf '%s|%s %s%s%s %s|%s\n' "$DIM" "$NC" "$BOLD$CYAN" "$text" "$NC" "$DIM" "$NC"
+    printf '%s|%*s|%s\n' "$DIM" "$inner_len" '' "$NC"
+    printf '%s %s%s\n' "$DIM" "$border" "$NC"
 }
 
 # Elapsed time since this process started. $SECONDS is a bash builtin, so this
@@ -183,14 +182,106 @@ format_duration() {
 # or multi-line message stays in one visual column.
 readonly LOG_PREFIX_WIDTH=17
 
+# Each level paints three separate things, because they answer three different
+# questions: the tag says what kind of line this is, the body tint says how much
+# attention it deserves, and the subject color marks the one token worth finding
+# when the line is skimmed rather than read.
+#
+# The hue map is deliberately small enough to state in a sentence: green is
+# forward progress, cyan is information and the values inside it, magenta is a
+# command or internal machinery, yellow and red are trouble, and dim is
+# de-emphasis. Nothing else gets a color, so a color always means something.
+#
+# Every entry starts with NC because these are concatenated after an arbitrary
+# preceding style: an attribute like BOLD or DIM adds to what is already set
+# rather than replacing it, so without the reset a colored value would bleed
+# into the rest of the line.
+declare -Ar LOG_TAG_COLOR=(
+    [STEP]="$NC$BOLD$GREEN"
+    [OK]="$NC$GREEN"
+    [INFO]="$NC$CYAN"
+    [RUN]="$NC$MAGENTA"
+    [SKIP]="$NC$DIM$CYAN"
+    [TIME]="$NC$DIM"
+    [DEBUG]="$NC$DIM$MAGENTA"
+    [WARN]="$NC$BOLD$YELLOW"
+    [ERROR]="$NC$BOLD$RED"
+)
+declare -Ar LOG_BODY_COLOR=(
+    [STEP]="$NC$BOLD"
+    [OK]="$NC$GREEN"
+    [INFO]="$NC"
+    [RUN]="$NC$DIM"
+    [SKIP]="$NC$DIM"
+    [TIME]="$NC$DIM"
+    [DEBUG]="$NC$DIM"
+    [WARN]="$NC$YELLOW"
+    [ERROR]="$NC$RED"
+)
+declare -Ar LOG_SUBJECT_COLOR=(
+    [STEP]="$NC$BOLD$CYAN"
+    [OK]="$NC$BOLD$GREEN"
+    [INFO]="$NC$CYAN"
+    [RUN]="$NC$BOLD"
+    [SKIP]="$NC$CYAN"
+    [TIME]="$NC$DIM"
+    [DEBUG]="$NC$MAGENTA"
+    [WARN]="$NC$BOLD$YELLOW"
+    [ERROR]="$NC$BOLD$RED"
+)
+
+# Levels whose message leads with its own subject: a package name for STEP, OK
+# and SKIP, a program name for RUN. Coloring that leading token puts the
+# identity of every line in one column, so a long scroll can be read down the
+# left edge without parsing the prose beside it.
+declare -Ar LOG_SUBJECT_IS_LEADING=(
+    [STEP]=1
+    [OK]=1
+    [RUN]=1
+    [SKIP]=1
+)
+
+colorize_log_subject() {
+    local text="$1" body_color="$2" subject_color="$3"
+    local subject="${text%% *}" remainder=""
+
+    if [[ "$text" == *' '* ]]; then
+        remainder=" ${text#* }"
+    fi
+    printf '%s%s%s%s%s' "$subject_color" "$subject" "$body_color" "$remainder" "$NC"
+}
+
+# Everything else carries its payload as quoted values: a path, a URL, a version,
+# an option. Those are what the reader is actually looking for, so they are lifted
+# out of the surrounding prose.
+#
+# Quotes are consumed in pairs and an unpaired one ends the scan, so an
+# apostrophe in prose recolors nothing after it.
+colorize_log_values() {
+    local text="$1" body_color="$2" value_color="$3"
+    local rendered="" prose value remainder
+
+    while [[ "$text" == *\'*\'* ]]; do
+        prose="${text%%\'*}"
+        remainder="${text#*\'}"
+        value="${remainder%%\'*}"
+        text="${remainder#*\'}"
+        rendered+="$prose$value_color'$value'$body_color"
+    done
+    printf '%s%s%s%s' "$body_color" "$rendered" "$text" "$NC"
+}
+
 # Every line the build prints goes through here, so the terminal and the build
 # log cannot drift. The terminal gets elapsed time, which is the useful clock
 # while watching a long build; the log file additionally gets a wall-clock stamp
 # so it can be lined up with system logs after the fact. The %(...)T form is a
 # bash builtin, so neither stamp forks a `date`.
 log_line() {
-    local level="$1" color="$2" stream="$3" message="$4"
-    local elapsed indent line first=1
+    local level="$1" stream="$2" message="$3"
+    local elapsed indent line rendered first=1
+    local tag_color="${LOG_TAG_COLOR[$level]-}"
+    local body_color="${LOG_BODY_COLOR[$level]-}"
+    local subject_color="${LOG_SUBJECT_COLOR[$level]-}"
     local -a message_lines=()
 
     elapsed="$(format_elapsed "$SECONDS")"
@@ -198,12 +289,20 @@ log_line() {
     mapfile -t message_lines <<<"$message"
 
     for line in "${message_lines[@]}"; do
+        # Only the first line of a record carries the subject; a continuation
+        # line is prose or a list item, so it takes the value treatment.
+        if ((first)) && [[ -n "${LOG_SUBJECT_IS_LEADING[$level]-}" ]]; then
+            rendered="$(colorize_log_subject "$line" "$body_color" "$subject_color")"
+        else
+            rendered="$(colorize_log_values "$line" "$body_color" "$subject_color")"
+        fi
+
         if ((first)); then
             printf '%s[%s]%s %s%-5s%s %s\n' \
-                "$DIM" "$elapsed" "$NC" "$color" "$level" "$NC" "$line" >&"$stream"
+                "$DIM" "$elapsed" "$NC" "$tag_color" "$level" "$NC" "$rendered" >&"$stream"
             first=0
         else
-            printf '%s%s\n' "$indent" "$line" >&"$stream"
+            printf '%s%s\n' "$indent" "$rendered" >&"$stream"
         fi
     done
 
@@ -216,28 +315,28 @@ log_line() {
 
 # Logging functions
 log() {
-    log_line "INFO" "$CYAN" 1 "$1"
+    log_line "INFO" 1 "$1"
 }
 
 # A stage or package heading. Bold so the eye can find the boundaries of a long
 # scroll without reading it.
 log_step() {
-    log_line "STEP" "$BOLD$GREEN" 1 "$1"
+    log_line "STEP" 1 "$1"
 }
 
 log_ok() {
-    log_line "OK" "$GREEN" 1 "$1"
+    log_line "OK" 1 "$1"
 }
 
 log_skip() {
-    log_line "SKIP" "$DIM" 1 "$1"
+    log_line "SKIP" 1 "$1"
 }
 
 # Only emitted under FFMPEG_BUILD_DEBUG=ON. Used for detail that is worth having
 # in a bug report but would bury the signal during a normal run.
 log_debug() {
     [[ "${debug:-OFF}" == "ON" ]] || return 0
-    log_line "DEBUG" "$DIM" 1 "$1"
+    log_line "DEBUG" 1 "$1"
 }
 
 # Diagnostics go to stderr: several helpers (git_clone, resolve_tool_path, the
@@ -245,7 +344,7 @@ log_debug() {
 # and stdout warnings would be captured into the caller's variable (e.g. a
 # clone-retry warning corrupting the detected version) instead of reaching the user.
 warn() {
-    log_line "WARN" "$YELLOW" 2 "$1"
+    log_line "WARN" 2 "$1"
 }
 
 require_vars() {
@@ -1138,9 +1237,10 @@ fail() {
     # like three separate failures.
     detail="$message"
     [[ -z "$origin" ]] || detail+=$'\n'"Raised from: $origin$check_location"
+    [[ -z "${log_file:-}" ]] || detail+=$'\n'"Build log: $log_file"
     detail+=$'\n'"Report a bug: https://github.com/slyfox1186/ffmpeg-build-script/issues"
     printf '\n' >&2
-    log_line "ERROR" "$RED" 2 "$detail"
+    log_line "ERROR" 2 "$detail"
     printf '\n' >&2
     if [[ "${GOOGLE_SPEECH:-false}" == "true" ]] && command -v google_speech >/dev/null 2>&1; then
         google_speech "Build failed. $1" >/dev/null 2>&1 || true
@@ -1186,16 +1286,20 @@ exit_fn() {
 
     printf '\n'
     box_out_banner "FFmpeg build completed successfully"
-    printf '\n%s✓ Version:%s %s\n' "$GREEN" "$NC" "${version_line:-unknown}"
-    printf '%s✓ Installation:%s /usr/local/bin\n' "$GREEN" "$NC"
-    printf '%s✓ Installed tools:%s %s\n' "$GREEN" "$NC" "${installed_tools[*]:-none}"
-    printf '%s✓ Encoders / decoders / filters:%s %s / %s / %s\n' \
-        "$GREEN" "$NC" "$encoder_count" "$decoder_count" "$filter_count"
-    printf '%s✓ Reported hardware accelerators:%s %s\n' "$GREEN" "$NC" "$hardware_accels"
-    printf '%s✓ Packages:%s %s built, %s already current, %s disabled\n' \
-        "$GREEN" "$NC" "$_PACKAGES_BUILT" "$_PACKAGES_ALREADY_BUILT" "$_PACKAGES_DISABLED"
-    printf '%s✓ Total time:%s %s\n' "$GREEN" "$NC" "$(format_duration "$SECONDS")"
-    printf '%s✓ Build log:%s %s\n\n' "$GREEN" "$NC" "${log_file:-not recorded}"
+    printf '\n%s✓ Version:%s %s%s%s\n' "$GREEN" "$NC" "$CYAN" "${version_line:-unknown}" "$NC"
+    printf '%s✓ Installation:%s %s/usr/local/bin%s\n' "$GREEN" "$NC" "$CYAN" "$NC"
+    printf '%s✓ Installed tools:%s %s%s%s\n' \
+        "$GREEN" "$NC" "$CYAN" "${installed_tools[*]:-none}" "$NC"
+    printf '%s✓ Encoders / decoders / filters:%s %s%s / %s / %s%s\n' \
+        "$GREEN" "$NC" "$CYAN" "$encoder_count" "$decoder_count" "$filter_count" "$NC"
+    printf '%s✓ Reported hardware accelerators:%s %s%s%s\n' \
+        "$GREEN" "$NC" "$CYAN" "$hardware_accels" "$NC"
+    printf '%s✓ Packages:%s %s%s%s built, %s%s%s already current, %s%s%s disabled\n' \
+        "$GREEN" "$NC" "$CYAN" "$_PACKAGES_BUILT" "$NC" \
+        "$CYAN" "$_PACKAGES_ALREADY_BUILT" "$NC" \
+        "$CYAN" "$_PACKAGES_DISABLED" "$NC"
+    printf '%s✓ Total time:%s %s%s%s\n' "$GREEN" "$NC" "$CYAN" "$(format_duration "$SECONDS")" "$NC"
+    printf '%s✓ Build log:%s %s%s%s\n\n' "$GREEN" "$NC" "$CYAN" "${log_file:-not recorded}" "$NC"
 
     exit 0
 }
@@ -1207,6 +1311,17 @@ exit_fn() {
 notify_failure() {
     if command -v notify-send >/dev/null 2>&1; then
         notify-send -t 5000 "$1" 2>/dev/null || true
+    fi
+}
+
+# Replay only the failed command's newly appended output. The original stays
+# in the log, so do not pass this through warn() and duplicate it there.
+replay_log_output() {
+    local start_pos="${1:-}"
+
+    if [[ -n "${log_file:-}" && -f "$log_file" && "$start_pos" =~ ^[0-9]+$ ]]; then
+        printf '\n' >&2
+        tail -c "+$((start_pos + 1))" "$log_file" >&2 || true
     fi
 }
 
@@ -1226,13 +1341,16 @@ run_logged() {
 
     local exit_code start_pos command_started duration
     local -a pipeline_status=()
-    log_line "RUN" "$DIM" 1 "$(format_command "$@")"
+    log_line "RUN" 1 "$(format_command "$@")" || return 1
     command_started="$SECONDS"
 
     if [[ "$debug" == "ON" ]]; then
         if [[ -n "${log_file:-}" ]]; then
-            "$@" 2>&1 | tee -a "$log_file"
-            pipeline_status=("${PIPESTATUS[@]}")
+            if "$@" 2>&1 | tee -a "$log_file"; then
+                pipeline_status=("${PIPESTATUS[@]}")
+            else
+                pipeline_status=("${PIPESTATUS[@]}")
+            fi
             if ((pipeline_status[0] != 0)); then
                 exit_code=${pipeline_status[0]}
             else
@@ -1251,10 +1369,7 @@ run_logged() {
             exit_code=0
         else
             exit_code=$?
-            printf '\n' >&2
-            if [[ -f "$log_file" && "$start_pos" =~ ^[0-9]+$ ]]; then
-                tail -c "+$((start_pos + 1))" "$log_file" >&2 || true
-            fi
+            replay_log_output "$start_pos"
         fi
     elif "$@"; then
         exit_code=0
@@ -1264,10 +1379,12 @@ run_logged() {
 
     # Only the slow commands get a timing line. A compile that ran for twenty
     # minutes is worth recording; a version probe that took no measurable time
-    # would just push the useful output off the screen.
+    # would just push the useful output off the screen. It is TIME rather than
+    # OK because it annotates the command above it; reusing OK would put the
+    # same tag on "this command took a while" and "this package is built".
     duration=$((SECONDS - command_started))
     if ((exit_code == 0 && duration >= 30)); then
-        log_line "OK" "$DIM" 1 "finished in $(format_duration "$duration")"
+        log_line "TIME" 1 "finished in $(format_duration "$duration")"
     fi
     return "$exit_code"
 }
@@ -1472,16 +1589,15 @@ build() {
         fi
         if [[ "$prior_version" == "$package_version" ]]; then
             _PACKAGES_ALREADY_BUILT=$((_PACKAGES_ALREADY_BUILT + 1))
-            log_skip "Already built: $package_name $package_version"
+            log_skip "$package_name $package_version is already built."
             log_debug "Force a rebuild with: $(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         elif is_true "${LATEST:-false}"; then
-            log "Outdated: $package_name $prior_version -> $package_version; rebuilding."
-            start_package_build "$package_name" "$package_version"
+            start_package_build "$package_name" "$package_version" "$prior_version"
             return 0
         else
             _PACKAGES_ALREADY_BUILT=$((_PACKAGES_ALREADY_BUILT + 1))
-            log_skip "Outdated: $package_name $prior_version -> $package_version; keeping the existing build."
+            log_skip "$package_name $prior_version -> $package_version is outdated; keeping the existing build."
             log_debug "Rebuild with '--latest', or: $(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         fi
@@ -1494,12 +1610,22 @@ build() {
 # Announces the package about to be built and starts its clock. Split out of
 # build() because three of that function's branches reach this point and the
 # counter must advance exactly once per package that actually builds.
+#
+# An upgrade names the version being replaced here rather than on a separate
+# line before the heading, which said the same thing twice and separated the
+# package name from the heading that announces it.
 start_package_build() {
+    local package_name="$1" package_version="$2" prior_version="${3:-}"
+
     _PACKAGES_BUILT=$((_PACKAGES_BUILT + 1))
     _PACKAGE_START_SECONDS="$SECONDS"
-    _PACKAGE_IN_PROGRESS="$1"
+    _PACKAGE_IN_PROGRESS="$package_name"
     printf '\n'
-    log_step "$1 $2"
+    if [[ -n "$prior_version" ]]; then
+        log_step "$package_name $package_version (replacing $prior_version)"
+    else
+        log_step "$package_name $package_version"
+    fi
 }
 
 build_done() {
@@ -1750,32 +1876,46 @@ write_archive_checksum() {
 # --strip-components=1 cannot silently produce an empty source directory.
 validate_tar_archive() {
     local archive="${1:-}"
-    local entry normalized top_component="" archive_listing
+    local entry normalized top_component="" archive_listing start_pos
     local has_payload=false
 
     [[ -f "$archive" ]] || return 1
-    archive_listing="$(tar -tf "$archive" 2>>"${log_file:-/dev/null}")" ||
+    start_pos="$(wc -c <"${log_file:-/dev/null}" 2>/dev/null || printf '0\n')"
+    if ! archive_listing="$(tar -tf "$archive" 2>>"${log_file:-/dev/stderr}")"; then
+        replay_log_output "$start_pos"
+        warn "Unable to list tar archive '$archive'."
         return 1
+    fi
 
     while IFS= read -r entry; do
         [[ -n "$entry" ]] || continue
-        [[ ! "$entry" =~ [[:cntrl:]] ]] || return 1
         normalized="${entry#./}"
-        [[ -n "$normalized" && "$normalized" != /* ]] || return 1
-        [[ "$normalized" != ".." && "$normalized" != ../* && "$normalized" != */../* && "$normalized" != */.. ]] ||
+        if [[ "$entry" =~ [[:cntrl:]] || -z "$normalized" || "$normalized" == /* ||
+            "$normalized" == ".." || "$normalized" == ../* || "$normalized" == */../* || "$normalized" == */.. ]]; then
+            warn "Archive '$archive' contains an unsafe member: $(format_command "$entry")."
             return 1
+        fi
 
         if [[ -z "$top_component" ]]; then
             top_component="${normalized%%/*}"
             top_component="${top_component%/}"
-            [[ -n "$top_component" && "$top_component" != "." && "$top_component" != ".." ]] || return 1
+            [[ -n "$top_component" && "$top_component" != "." && "$top_component" != ".." ]] || {
+                warn "Archive '$archive' has an invalid root: $(format_command "$entry")."
+                return 1
+            }
         fi
 
-        [[ "$normalized" == "$top_component" || "$normalized" == "$top_component/"* ]] || return 1
+        [[ "$normalized" == "$top_component" || "$normalized" == "$top_component/"* ]] || {
+            warn "Archive '$archive' contains multiple roots: $(format_command "$top_component" "$normalized")."
+            return 1
+        }
         [[ "$normalized" == */* && "$normalized" != "$top_component/" ]] && has_payload=true
     done <<<"$archive_listing"
 
-    [[ "$has_payload" == "true" ]]
+    [[ "$has_payload" == "true" ]] || {
+        warn "Archive '$archive' has no payload below its top-level directory."
+        return 1
+    }
 }
 
 # Held across both populating the cache and reading it, because validating an
@@ -1823,10 +1963,14 @@ with_host_mutation_lock() {
     local lock_dir="${XDG_RUNTIME_DIR:-$HOME/.cache}/ffmpeg-build-script"
     local lock_fd="" status
 
+    # A redirection on exec itself persists for the rest of the build. Scope
+    # stderr suppression to a group so later warnings and failures stay visible.
     if command -v flock >/dev/null 2>&1 && mkdir -p -- "$lock_dir" 2>/dev/null &&
-        exec {lock_fd}<"$lock_dir" 2>/dev/null; then
+        { exec {lock_fd}<"$lock_dir"; } 2>/dev/null; then
         flock -w "${HOST_MUTATION_LOCK_TIMEOUT:-3600}" "$lock_fd" ||
             warn "Timed out waiting for the host-mutation lock; continuing, so APT may report a lock error of its own."
+    else
+        warn "Unable to open the host-mutation lock in '$lock_dir'; continuing without it."
     fi
     "$@"
     status=$?
@@ -1894,7 +2038,6 @@ download_archive_to_cache() {
         --fail --silent --show-error --location
         --proto "=https" --proto-redir "=https"
         --tlsv1.2
-        --user-agent "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
         --retry "$download_retry" --retry-delay "$download_retry_delay"
         --retry-max-time "$download_max_time"
         --retry-connrefused --retry-all-errors
@@ -1903,8 +2046,12 @@ download_archive_to_cache() {
     )
 
     log "Downloading '$download_url' as '$download_file'."
-    if ! curl "${curl_args[@]}" --output "$temp_target_file" "$download_url" \
-        2>>"${log_file:-/dev/null}"; then
+    # Keep curl's real user agent: pretending to be a browser makes VideoLAN
+    # return an HTML verification page with HTTP 200 instead of the archive.
+    # run_logged preserves HTTP diagnostics and replays transfer failures.
+    if ! run_logged curl "${curl_args[@]}" --output "$temp_target_file" \
+        --write-out $'\nHTTP %{http_code}; content-type: %{content_type}; bytes: %{size_download}; URL: %{url_effective}\n' \
+        "$download_url"; then
         rm -f -- "$temp_target_file"
         warn "Failed to download '$download_file'."
         return 1
@@ -1948,20 +2095,21 @@ extract_archive_transactionally() {
         return 1
     register_temporary_path "$extraction_directory"
 
-    if ! tar -xf "$archive" -C "$extraction_directory" --strip-components=1 \
-        --no-same-owner --no-same-permissions --delay-directory-restore \
-        >>"${log_file:-/dev/null}" 2>&1; then
+    if ! run_logged tar -xf "$archive" -C "$extraction_directory" --strip-components=1 \
+        --no-same-owner --no-same-permissions --delay-directory-restore; then
         safe_remove_tree "$extraction_directory" "$packages"
         return 1
     fi
 
     if [[ -z "$(find "$extraction_directory" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+        warn "Archive '$archive' extracted no source files."
         safe_remove_tree "$extraction_directory" "$packages"
         return 1
     fi
 
     while IFS= read -r -d '' extracted_path; do
         if [[ "$extracted_path" =~ [[:cntrl:]] ]]; then
+            warn "Archive '$archive' extracted a path containing control characters: $(format_command "$extracted_path")."
             safe_remove_tree "$extraction_directory" "$packages"
             return 1
         fi
@@ -1976,6 +2124,7 @@ extract_archive_transactionally() {
             return 1
         }
         if [[ "$link_target" == /* || "$link_target" =~ [[:cntrl:]] ]]; then
+            warn "Archive '$archive' contains an unsafe symlink: $(format_command "$link_path" "$link_target")."
             safe_remove_tree "$extraction_directory" "$packages"
             return 1
         fi
@@ -1985,6 +2134,7 @@ extract_archive_transactionally() {
         }
         if [[ "$resolved_link" != "$extraction_directory" &&
             "$resolved_link" != "$extraction_directory"/* ]]; then
+            warn "Archive '$archive' contains a symlink escaping its source directory: $(format_command "$link_path" "$link_target")."
             safe_remove_tree "$extraction_directory" "$packages"
             return 1
         fi
@@ -1998,6 +2148,7 @@ extract_archive_transactionally() {
         return 1
     }
     if [[ -n "$special_path" ]]; then
+        warn "Archive '$archive' contains a special filesystem object: $(format_command "$special_path")."
         safe_remove_tree "$extraction_directory" "$packages"
         return 1
     fi
@@ -3064,22 +3215,31 @@ giflib_download_url() {
     printf 'https://sourceforge.net/projects/giflib/files/giflib-%s.x/giflib-%s.tar.gz/download\n' "$major_version" "$version"
 }
 
-# NASM version fetching
-# Sets repo_version like every other fetcher so nasm can go through
-# fetch_version_if_enabled(), which reuses a recorded marker instead of
-# contacting nasm.us on every run. Substituting a hardcoded version on failure
-# turned a network problem into a download error naming the wrong subsystem, so
-# report it here instead.
+# Discover numeric stable releases from the same index used for downloads;
+# /pub/nasm/stable/ no longer exists. Ignore prereleases and snapshots, and let
+# fetch_version_if_enabled() reuse the recorded version on normal reruns.
 nasm_version() {
     local connect_timeout="${DOWNLOAD_CONNECT_TIMEOUT:-2}"
+    local max_time="${VERSION_CHECK_MAX_TIME:-15}"
+    local release_index_url="https://www.nasm.us/pub/nasm/releasebuilds/"
+    local releases_html
 
+    repo_version=""
+    if ! releases_html=$(curl_https -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
+        "$release_index_url"); then
+        warn "Failed to fetch the NASM release index '$release_index_url'."
+        return 1
+    fi
+
+    # Check the HTTP result before parsing: a failed transfer can contain a
+    # partial listing, which must not be mistaken for the latest release.
     repo_version=$(
-        curl_https -fsS --max-time 10 --connect-timeout "$connect_timeout" "https://www.nasm.us/pub/nasm/stable/" 2>/dev/null |
-            grep -oP 'nasm-\K[0-9]+\.[0-9]+(?:\.[0-9]+)?(?=\.tar\.xz)' |
+        printf '%s' "$releases_html" |
+            grep -oP 'href="\K[0-9]+(?:\.[0-9]+){1,2}(?=/")' |
             sort -ruV | sed -n '1p'
     )
     [[ -n "$repo_version" ]] || {
-        warn "Unable to detect the latest nasm release from nasm.us."
+        warn "No stable NASM release was found in '$release_index_url'."
         return 1
     }
 }
