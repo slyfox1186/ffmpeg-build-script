@@ -133,7 +133,7 @@ pass "--help aligns every table description"
 assert_not_exists "$help_root" "--help has no filesystem side effects"
 
 version_output="$(BUILD_ROOT="$temporary_root/version-root" bash "$repo_root/build-ffmpeg.sh" --version)"
-assert_equal "6.0.0" "$version_output" "--version is exact and side-effect free"
+assert_equal "7.0.0" "$version_output" "--version is exact and side-effect free"
 assert_not_exists "$temporary_root/version-root" "--version does not create BUILD_ROOT"
 
 unknown_option_root="$temporary_root/unknown-option-root"
@@ -691,8 +691,39 @@ if [[ -f "$migration_root/packages/ffmpeg.done" ]]; then
 fi
 pass "adoption clears the FFmpeg marker so a new package gets linked in"
 
-# Forgiveness is limited to the legacy format and to additions. A real settings
-# change, and any change once the record is v2, must still stop the build.
+# The 6 -> 7 script upgrade preserves dependencies but relinks FFmpeg. Changes
+# to real build settings must still be rejected even during that upgrade.
+for upgrade_case in compatible flags selection; do
+    upgrade_root="$temporary_root/upgrade-$upgrade_case"
+    mkdir -p "$upgrade_root/packages" "$upgrade_root/workspace"
+    write_build_root_marker "$upgrade_root"
+    run_to_build_context "$upgrade_root" >/dev/null 2>&1 || true
+    sed -i 's/^script_version=7.0.0$/script_version=6.0.0/' "$upgrade_root/.ffmpeg-build-context"
+    printf 'n8.1.2\n' >"$upgrade_root/packages/ffmpeg.done"
+    printf '3.02\n' >"$upgrade_root/packages/nasm.done"
+    case "$upgrade_case" in
+        flags) sed -i "s/^cflags=.*/cflags='-O1'/" "$upgrade_root/.ffmpeg-build-context" ;;
+        selection) sed -i 's/^package.vulkan=true$/package.vulkan=false/' "$upgrade_root/.ffmpeg-build-context" ;;
+    esac
+    upgrade_output="$(run_to_build_context "$upgrade_root" || true)"
+    if [[ "$upgrade_case" == compatible ]]; then
+        assert_contains "$upgrade_output" "Adopted this workspace" \
+            "7.0.0 adopts a compatible 6.0.0 workspace"
+        assert_contains "$(<"$upgrade_root/.ffmpeg-build-context")" "script_version=7.0.0" \
+            "workspace adoption records the new script version"
+        assert_not_exists "$upgrade_root/packages/ffmpeg.done" \
+            "the major upgrade forces FFmpeg to pick up the integration changes"
+    else
+        assert_contains "$upgrade_output" "Run 'build-ffmpeg.sh --cleanup' before rebuilding." \
+            "a major upgrade still rejects changed $upgrade_case"
+        assert_file "$upgrade_root/packages/ffmpeg.done" \
+            "a rejected upgrade preserves its FFmpeg build marker"
+    fi
+    assert_equal "3.02" "$(<"$upgrade_root/packages/nasm.done")" \
+        "the $upgrade_case upgrade preserves dependency markers"
+done
+
+# Other changes retain the existing strict build-context checks.
 changed_setting_root="$temporary_root/changed-setting-root"
 mkdir -p "$changed_setting_root/packages" "$changed_setting_root/workspace"
 write_build_root_marker "$changed_setting_root"
@@ -1531,6 +1562,96 @@ assert_not_contains "$nasm_failure_output" "reached giflib download" \
 
 # shellcheck source=scripts/ffmpeg-build.sh
 source "$repo_root/scripts/ffmpeg-build.sh"
+
+for shader_mode in current legacy missing unknown; do
+    if shader_output="$(bash -c '
+        source "$1/scripts/ffmpeg-build.sh"
+        mode="$2"
+        PACKAGE_SELECTION_CONFIG_FILE=fixture
+        PACKAGE_SELECTION=([libshaderc]=true)
+        options=()
+        command() {
+            if [[ "$1" == -v ]]; then
+                [[ "$mode" != missing && "$2" == glslangValidator ]] || return 1
+                printf "/fixture/bin/glslangValidator\n"
+            else
+                builtin command "$@"
+            fi
+        }
+        library_exists() { return 0; }
+        case "$mode" in
+            current | missing) help="  --glslc=GLSLC use GLSL compiler" ;;
+            legacy) help="  --enable-libshaderc enable libshaderc" ;;
+            unknown) help="  --enable-vulkan enable Vulkan" ;;
+        esac
+        append_ffmpeg_shader_options options "$help"
+        printf "option=%s\n" "${options[@]}"
+        printf "shader_requirement=%s\n" "${REQUIRED_FFMPEG_CONFIG_SYMBOLS[CONFIG_SCALE_VULKAN_FILTER]-}"
+    ' _ "$repo_root" "$shader_mode" 2>&1)"; then
+        [[ "$shader_mode" == current || "$shader_mode" == legacy ]] ||
+            fail_test "unusable Vulkan shader support must fail explicitly"
+    else
+        [[ "$shader_mode" == missing || "$shader_mode" == unknown ]] ||
+            fail_test "supported Vulkan shader integration must configure"
+    fi
+    case "$shader_mode" in
+        current)
+            assert_contains "$shader_output" "option=--glslc=/fixture/bin/glslangValidator" \
+                "current FFmpeg selects a build-time shader compiler"
+            assert_not_contains "$shader_output" "--enable-libshaderc" \
+                "current FFmpeg never receives the removed libshaderc option"
+            assert_contains "$shader_output" "shader_requirement=Vulkan scale filter" \
+                "current FFmpeg must retain SPIR-V compilation after configure"
+            ;;
+        legacy)
+            assert_contains "$shader_output" "option=--enable-libshaderc" \
+                "older FFmpeg releases retain their supported shaderc integration"
+            ;;
+        missing)
+            assert_contains "$shader_output" "neither glslangValidator, glslang nor glslc is available" \
+                "missing shader compilers fail with an actionable dependency error"
+            ;;
+        unknown)
+            assert_contains "$shader_output" "Vulkan shader integration needs review" \
+                "unrecognized FFmpeg shader interfaces are not silently dropped"
+            ;;
+    esac
+done
+
+shader_config="$temporary_root/shader-config.mak"
+printf 'CONFIG_SCALE_VULKAN_FILTER=yes\n' >"$shader_config"
+for shader_config_state in enabled missing; do
+    if shader_validation_output="$(bash -c '
+        source "$1/scripts/ffmpeg-build.sh"
+        REQUIRED_FFMPEG_CONFIG_SYMBOLS[CONFIG_SCALE_VULKAN_FILTER]="Vulkan shader support"
+        validate_required_ffmpeg_features "$2"
+    ' _ "$repo_root" "$shader_config" 2>&1)"; then
+        [[ "$shader_config_state" == enabled ]] ||
+            fail_test "configure must not silently lose Vulkan shader filters"
+        pass "configured Vulkan shader filters satisfy the feature requirement"
+    else
+        [[ "$shader_config_state" == missing ]] ||
+            fail_test "enabled Vulkan shader filters must pass validation"
+        assert_contains "$shader_validation_output" "Vulkan shader support" \
+            "missing Vulkan shader filters produce an explicit configure failure"
+    fi
+    : >"$shader_config"
+done
+
+vulkan_host_packages="$(bash -c '
+    source "$1/scripts/system-setup.sh"
+    COMPILER_FLAG=gcc
+    PACKAGE_SELECTION_CONFIG_FILE=fixture
+    PACKAGE_SELECTION=([vulkan]=true)
+    selected_packages=()
+    collect_host_packages selected_packages
+    printf "%s\n" "${selected_packages[@]}"
+' _ "$repo_root")"
+for vulkan_host_package in libvulkan-dev glslang-tools spirv-headers; do
+    assert_contains "$vulkan_host_packages" "$vulkan_host_package" \
+        "Vulkan selection installs $vulkan_host_package"
+done
+
 ffmpeg_test_prefix="$temporary_root/ffmpeg-prefix"
 mkdir -p "$ffmpeg_test_prefix/bin"
 for ffmpeg_test_tool in ffmpeg ffprobe ffplay; do

@@ -352,7 +352,7 @@ collect_host_packages() {
     append_packages_if_enabled "$target_name" "libvpx" libvpx-dev
     append_packages_if_enabled "$target_name" "libshaderc" libshaderc-dev
     append_packages_if_enabled "$target_name" "libplacebo" libplacebo-dev
-    append_packages_if_enabled "$target_name" "vulkan" libvulkan-dev
+    append_packages_if_enabled "$target_name" "vulkan" libvulkan-dev glslang-tools spirv-headers
 
     if package_enabled "xlib" || package_enabled "opengl" ||
         package_enabled "freeglut" || package_enabled "sdl2" ||

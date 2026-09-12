@@ -9,6 +9,21 @@ build complete.
 The project favors static dependency archives, but the final binary can still
 link dynamically to selected operating-system libraries and GPU runtimes.
 
+## Major update: 7.0.0
+
+- FFmpeg's Vulkan integration follows the selected release's configure options:
+  older releases retain libshaderc support, while current releases use a
+  build-time SPIR-V compiler and verify shader support after configuration.
+- Latest stable dependency discovery stays automatic, including the corrected
+  NASM release lookup; `--latest` refreshes versions without introducing pins.
+- Downloads retain archive safety checks and use curl's real user agent to
+  avoid receiving browser-verification pages in place of source archives.
+- Errors remain visible on the terminal and in the build log, with HTTP
+  response details, archive-rejection reasons, and recorded hardware detection.
+- Compatible 6.0.0 workspaces retain built dependencies. FFmpeg is reconfigured
+  for the updated integration; changed compiler flags or package selections
+  still require a clean workspace.
+
 ## Requirements and supported hosts
 
 - x86_64

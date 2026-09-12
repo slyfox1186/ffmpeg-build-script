@@ -52,6 +52,33 @@ append_required_configure_options() {
     record_required_ffmpeg_config_option "$@"
 }
 
+# Inspect the selected source release rather than guessing from its version.
+# FFmpeg 9 replaced runtime libshaderc linking with build-time GLSL compilation.
+append_ffmpeg_shader_options() {
+    local target_name="$1" configure_help="$2"
+    local compiler compiler_path
+
+    if [[ "$configure_help" == *"--glslc="* ]]; then
+        for compiler in glslangValidator glslang glslc; do
+            compiler_path="$(command -v "$compiler" 2>/dev/null || true)"
+            [[ -n "$compiler_path" ]] || continue
+            append_required_configure_options "$target_name" "--glslc=$compiler_path"
+            # spirv_compiler is internal and is not exported in config.mak.
+            # scale_vulkan depends on it, so this checks the usable capability.
+            REQUIRED_FFMPEG_CONFIG_SYMBOLS[CONFIG_SCALE_VULKAN_FILTER]="Vulkan scale filter (build-time shader compilation)"
+            log "Using '$compiler_path' to compile Vulkan shaders at build time."
+            return 0
+        done
+        fail "Vulkan requires a build-time SPIR-V compiler, but neither glslangValidator, glslang nor glslc is available. Install the host 'glslang-tools' package and retry."
+    elif [[ "$configure_help" == *"--enable-libshaderc"* ]]; then
+        if package_enabled "libshaderc" && library_exists "shaderc >= 2019.1"; then
+            append_required_configure_options "$target_name" --enable-libshaderc
+        fi
+    elif package_enabled "libshaderc"; then
+        fail "The selected FFmpeg source exposes neither '--glslc' nor '--enable-libshaderc'; its Vulkan shader integration needs review."
+    fi
+}
+
 validate_required_ffmpeg_features() {
     local config_file="${1:-}"
     local config_symbol option
@@ -195,7 +222,7 @@ restore_installed_ffmpeg_programs() {
 
 build_ffmpeg() {
     local ffmpeg_version marker_file installed_version recorded_version
-    local source_directory extra_cflags extra_cxxflags extra_ldflags extra_libs
+    local source_directory configure_help extra_cflags extra_cxxflags extra_ldflags extra_libs
     local cuda_version cuda_major
     local staging_root staged_prefix install_backup_dir install_status
     local ffplay_enabled=false
@@ -242,6 +269,8 @@ build_ffmpeg() {
         download "https://ffmpeg.org/releases/ffmpeg-$ffmpeg_version.tar.xz" \
             "ffmpeg-$ffmpeg_version.tar.xz"
         source_directory="$PWD"
+        configure_help="$("$source_directory/configure" --help)" ||
+            fail "Unable to inspect the selected FFmpeg release's configure options."
         execute mkdir -p build
         cd build || fail "Unable to enter FFmpeg build directory."
 
@@ -404,8 +433,7 @@ build_ffmpeg() {
 
         if package_enabled "vulkan" && vulkan_headers_recent; then
             append_required_configure_options detected_config --enable-vulkan
-            package_enabled "libshaderc" && library_exists "shaderc >= 2019.1" &&
-                append_required_configure_options detected_config --enable-libshaderc
+            append_ffmpeg_shader_options detected_config "$configure_help"
             package_enabled "libplacebo" &&
                 library_exists "libplacebo >= 5.229.0" &&
                 libplacebo_has_pl_alpha_none &&

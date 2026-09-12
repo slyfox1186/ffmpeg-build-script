@@ -3,7 +3,9 @@
 
 set -o pipefail
 
-readonly SCRIPT_VERSION="6.0.0"
+# 7.0: release-aware Vulkan builds, dynamic NASM discovery, safer downloads,
+# and persistent failure diagnostics. See README.md for the major-update notes.
+readonly SCRIPT_VERSION="7.0.0"
 # Cap on the differing build-context fields listed in the mismatch message. A
 # changed config can move a hundred of them, and a wall of those buries the one
 # line the reader needs.
@@ -398,24 +400,27 @@ summarize_build_context_changes() {
     printf ' - %s\n' "${changes[@]}"
 }
 
-# A workspace written by an older script is not the same thing as a workspace
-# built with different settings. Two differences are bookkeeping: the four flag
-# fields v1 never meaningfully recorded, and package keys that did not exist in
-# the registry when the record was written. When those are the only differences,
-# nothing already built is invalid, so accept the workspace instead of charging
-# the user a multi-hour rebuild for a script update. Prints the package keys that
-# were added; returns non-zero when any other field moved, which still aborts.
+# Accept legacy bookkeeping gaps and the compatible 6 -> 7 script upgrade.
+# Only v1's unrecorded flags may be ignored; v2 flags and all existing settings
+# must still match. Prints added package keys. Adoption relinks FFmpeg when
+# the script version or enabled integrations changed, preserving dependencies.
 build_context_is_migratable() {
     local previous_file="$1" current_file="$2"
     local -A previous_fields=()
     local -a added_package_keys=()
-    local line key value field ignored
+    local line key value field ignored legacy_context=false
 
     while IFS= read -r line; do
         [[ "$line" == *=* ]] || line="format=$line"
         previous_fields["${line%%=*}"]="${line#*=}"
     done <"$previous_file"
-    [[ "${previous_fields[format]:-}" == "$BUILD_CONTEXT_LEGACY_FORMAT" ]] || return 1
+    case "${previous_fields[format]:-}" in
+        "$BUILD_CONTEXT_LEGACY_FORMAT") legacy_context=true ;;
+        "$BUILD_CONTEXT_FORMAT")
+            [[ "${previous_fields[script_version]:-}" == "6.0.0" && "$SCRIPT_VERSION" == "7.0.0" ]] || return 1
+            ;;
+        *) return 1 ;;
+    esac
 
     while IFS= read -r line; do
         [[ "$line" == *=* ]] || line="format=$line"
@@ -423,9 +428,16 @@ build_context_is_migratable() {
         value="${line#*=}"
         [[ "$key" != "format" ]] || continue
 
+        # This release changes discovery, diagnostics and FFmpeg integration;
+        # dependency ABI/build flags are unchanged. Reconfigure FFmpeg below.
+        if [[ "$key" == script_version && "${previous_fields[$key]:-}" == "6.0.0" && "$value" == "7.0.0" ]]; then
+            unset "previous_fields[$key]"
+            continue
+        fi
+
         ignored=0
         for field in "${BUILD_CONTEXT_LEGACY_UNRECORDED_FIELDS[@]}"; do
-            [[ "$key" != "$field" ]] || ignored=1
+            [[ "$legacy_context" != true || "$key" != "$field" ]] || ignored=1
         done
         ((!ignored)) || continue
 
@@ -448,7 +460,7 @@ build_context_is_migratable() {
         [[ "$key" == "format" ]] && continue
         ignored=0
         for field in "${BUILD_CONTEXT_LEGACY_UNRECORDED_FIELDS[@]}"; do
-            [[ "$key" != "$field" ]] || ignored=1
+            [[ "$legacy_context" != true || "$key" != "$field" ]] || ignored=1
         done
         ((ignored)) || return 1
     done
@@ -462,26 +474,34 @@ build_context_is_migratable() {
 # build the new dependency and link an FFmpeg that ignores it.
 adopt_migrated_build_context() {
     local context_file="$1" temporary_context="$2" added_packages="$3"
-    local package_name
+    local package_name reconfigure_ffmpeg=false
+
+    grep -Fxq "script_version=$SCRIPT_VERSION" "$context_file" || reconfigure_ffmpeg=true
+    while IFS= read -r package_name; do
+        [[ -n "$package_name" ]] || continue
+        package_enabled "$package_name" || continue
+        reconfigure_ffmpeg=true
+    done <<<"$added_packages"
+
+    # Invalidate before publishing: an interruption between these writes must
+    # never leave a new context paired with an old, reusable FFmpeg marker.
+    if is_true "$reconfigure_ffmpeg" && package_enabled ffmpeg && [[ -f "$packages/ffmpeg.done" ]]; then
+        rm -f -- "$packages/ffmpeg.done" ||
+            fail "Unable to clear the FFmpeg build marker for a reconfigure. Line: ${LINENO}"
+    fi
 
     if ! mv -f -- "$temporary_context" "$context_file"; then
         rm -f -- "$temporary_context"
         fail "Unable to publish the upgraded build-context file '$context_file'."
     fi
-    log "Adopted this workspace: it was recorded by an older version of this script, and nothing already built is affected."
+    log "Adopted this workspace: existing dependency builds remain valid."
     log_debug "Upgraded '$context_file' to $BUILD_CONTEXT_FORMAT."
 
-    [[ -n "$added_packages" ]] || return 0
-    log "Newly available since that workspace was created: ${added_packages//$'\n'/, }"
-    while IFS= read -r package_name; do
-        [[ -n "$package_name" ]] || continue
-        package_enabled "$package_name" || continue
-        [[ -f "$packages/ffmpeg.done" ]] || continue
-        rm -f -- "$packages/ffmpeg.done" ||
-            fail "Unable to clear the FFmpeg build marker for a reconfigure. Line: ${LINENO}"
-        log "FFmpeg will be reconfigured and relinked so it picks those up."
-        return 0
-    done <<<"$added_packages"
+    [[ -z "$added_packages" ]] ||
+        log "Newly available since that workspace was created: ${added_packages//$'\n'/, }"
+    if is_true "$reconfigure_ffmpeg" && package_enabled ffmpeg; then
+        log "FFmpeg will be reconfigured and relinked for the updated build integration."
+    fi
 }
 
 ensure_build_context() {

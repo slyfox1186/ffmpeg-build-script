@@ -1364,7 +1364,7 @@ run_logged() {
             fi
         fi
     elif [[ -n "${log_file:-}" ]]; then
-        start_pos="$(wc -c <"$log_file" 2>/dev/null || printf '0\n')"
+        start_pos="$(wc -c 2>/dev/null <"$log_file" || printf '0\n')"
         if "$@" >>"$log_file" 2>&1; then
             exit_code=0
         else
@@ -1880,7 +1880,7 @@ validate_tar_archive() {
     local has_payload=false
 
     [[ -f "$archive" ]] || return 1
-    start_pos="$(wc -c <"${log_file:-/dev/null}" 2>/dev/null || printf '0\n')"
+    start_pos="$(wc -c 2>/dev/null <"${log_file:-/dev/null}" || printf '0\n')"
     if ! archive_listing="$(tar -tf "$archive" 2>>"${log_file:-/dev/stderr}")"; then
         replay_log_output "$start_pos"
         warn "Unable to list tar archive '$archive'."
