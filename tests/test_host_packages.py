@@ -297,7 +297,7 @@ def test_hardware_summary(
     monkeypatch.setattr(hardware, "detect_gpu_vendors", lambda: None)
     hardware.run()
     output = capsys.readouterr().out
-    assert " --------------------\n\n[" in output
+    assert "── Hardware Detection ──\n\n[" in output
     assert " --------------------\n\n\n" not in output
     assert "INFO  NVIDIA: NVIDIA GPU detected\n                 AMD:    AMD GPU detected" in output
 

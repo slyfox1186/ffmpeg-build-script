@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.fetchers import find_git_repo, sdl2_download_url
@@ -15,13 +17,28 @@ from .helpers import (
     workspace_or_pkgconf_library_file,
 )
 
-# LAME publishes no version index and 3.100 (2017) is still the current
-# release, so `--latest` cannot move it. Update this literal when upstream
-# ships a new one.
-LAME_VERSION = "3.100"
 
-# Used when SourceForge's release index is unreachable.
-OPENCORE_AMR_FALLBACK_VERSION = "0.1.6"
+def fix_sdl2_alsa_signatures(context: BuildContext, source: Path) -> None:
+    """Apply upstream's ALSA type corrections only to affected SDL sources.
+
+    https://github.com/libsdl-org/SDL/commit/f0e7000f9229a058610446edc9e5e7ba0380ae85
+    SDL2's static ALSA backend assigns the actual functions to these pointers;
+    Clang correctly rejects the incompatible declarations in older tarballs.
+    """
+    target = source / "src/audio/alsa/SDL_alsa_audio.c"
+    if not target.is_file():
+        return
+    original = target.read_text(encoding="utf-8")
+    corrected = original.replace(
+        "static int (*ALSA_snd_pcm_info_free)(snd_pcm_info_t *);",
+        "static void (*ALSA_snd_pcm_info_free)(snd_pcm_info_t *);",
+    ).replace(
+        "static int (*ALSA_snd_pcm_hw_params_get_rate)(snd_pcm_hw_params_t *, unsigned int*, int*);",
+        "static int (*ALSA_snd_pcm_hw_params_get_rate)(const snd_pcm_hw_params_t *, unsigned int*, int*);",
+    )
+    if corrected != original:
+        target.write_text(corrected, encoding="utf-8")
+        context.logger.info("Applied upstream SDL2 ALSA function-signature corrections.")
 
 
 def install_audio_libraries(context: BuildContext) -> None:
@@ -58,6 +75,7 @@ def install_audio_libraries(context: BuildContext) -> None:
     if context.build("sdl2", sdl2_version):
         assert sdl2_version is not None
         source = context.download(sdl2_download_url(sdl2_version), f"SDL2-{sdl2_version}.tar.gz")
+        fix_sdl2_alsa_signatures(context, source)
         cmake_ninja_install(
             context,
             source,
@@ -210,12 +228,6 @@ def install_audio_libraries(context: BuildContext) -> None:
     opencore_version = context.fetch_version_if_enabled(
         "opencore-amr", context.versions.opencore_amr
     )
-    if context.package_enabled("opencore-amr") and opencore_version is None:
-        opencore_version = OPENCORE_AMR_FALLBACK_VERSION
-        context.logger.warn(
-            f"Falling back to opencore-amr '{opencore_version}' because its official release "
-            "index is unavailable."
-        )
     if context.build("opencore-amr", opencore_version):
         source = context.download(
             "https://downloads.sourceforge.net/project/opencore-amr/opencore-amr"
@@ -228,11 +240,12 @@ def install_audio_libraries(context: BuildContext) -> None:
         "opencore-amr", "--enable-libopencore-amrnb", "--enable-libopencore-amrwb"
     )
 
-    if context.build("liblame", LAME_VERSION):
+    lame_version = context.fetch_version_if_enabled("liblame", context.versions.lame)
+    if context.build("liblame", lame_version):
         source = context.download(
-            f"https://downloads.sourceforge.net/project/lame/lame/{LAME_VERSION}"
-            f"/lame-{LAME_VERSION}.tar.gz",
-            f"liblame-{LAME_VERSION}.tar.gz",
+            f"https://downloads.sourceforge.net/project/lame/lame/{lame_version}"
+            f"/lame-{lame_version}.tar.gz",
+            f"liblame-{lame_version}.tar.gz",
         )
         iconv_options: list[str] = []
         if context.package_enabled("libiconv") and (workspace / "lib/libiconv.a").is_file():
@@ -240,11 +253,12 @@ def install_audio_libraries(context: BuildContext) -> None:
         configure_make_install(
             context,
             source,
-            *[f"--disable-{feature}" for feature in ("gtktest", "shared")],
+            # FFmpeg needs libmp3lame, not the optional standalone encoder.
+            *[f"--disable-{feature}" for feature in ("gtktest", "shared", "frontend")],
             "--enable-nasm",
             *iconv_options,
         )
-        context.build_done("liblame", LAME_VERSION)
+        context.build_done("liblame", lame_version)
     context.append_configure_options_if_enabled("liblame", "--enable-libmp3lame")
 
     theora_version = context.fetch_version_if_enabled(

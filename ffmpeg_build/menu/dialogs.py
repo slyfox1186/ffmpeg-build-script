@@ -62,7 +62,7 @@ class PresetScreen(ModalScreen[str | None]):
         with VerticalScroll(classes="dialog"):
             yield Label("Package presets", classes="title")
             yield Static(
-                "Selecting a preset saves immediately. Press u afterwards to undo. Compiler and build settings are preserved.",
+                "Selecting a preset saves immediately. Press u afterwards to undo. Compiler and build settings are preserved. Completed packages are reused when building.",
                 classes="hint",
             )
             yield OptionList(

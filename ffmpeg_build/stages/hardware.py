@@ -16,7 +16,6 @@ from pathlib import Path
 
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
-from ..runtime.http import HTTP_USER_AGENT
 from ..runtime.paths import safe_remove_tree
 from .system_setup import APT_SCRIPT_OPTIONS, SystemSetup
 
@@ -116,23 +115,27 @@ class HardwareDetection:
                 "Using NVIDIA's 'wsl-ubuntu' repository for this Debian WSL2 userspace."
             )
 
+        repository_url = (
+            f"https://developer.download.nvidia.com/compute/cuda/repos/{repository}/x86_64/"
+        )
+        keyring_version = context.resolver.scrape_highest(
+            repository_url, r"cuda-keyring_([0-9]+(?:\.[0-9]+)+-[0-9]+)_all\.deb"
+        )
+        if keyring_version is None:
+            raise BuildError("Unable to discover NVIDIA's current CUDA repository keyring.")
+
         # Staged inside the package cache, not /tmp, so the removal below gets a
         # real containment boundary. Deriving the allowed root from the
         # temporary directory itself would make that check true by construction.
         temp_directory = Path(tempfile.mkdtemp(prefix=".cuda-keyring.", dir=context.packages))
         context.register_temporary_path(temp_directory)
         keyring_file = temp_directory / "cuda-keyring.deb"
-        keyring_url = (
-            "https://developer.download.nvidia.com/compute/cuda/repos/"
-            f"{repository}/x86_64/cuda-keyring_1.1-1_all.deb"
-        )
+        keyring_url = f"{repository_url}cuda-keyring_{keyring_version}_all.deb"
 
         self.logger.info(f"Downloading NVIDIA's CUDA repository keyring for '{repository}'...")
         exit_code = self.runner.run_logged(
             [
                 "curl",
-                "--user-agent",
-                HTTP_USER_AGENT,
                 "--proto",
                 "=https",
                 "--proto-redir",

@@ -8,7 +8,7 @@ import pytest
 
 from ffmpeg_build.runtime.context import BuildContext
 from ffmpeg_build.runtime.errors import BuildError
-from ffmpeg_build.runtime.http import HTTP_USER_AGENT
+from ffmpeg_build.runtime.fetchers import ResolvedVersion, giflib_download_url
 
 
 @pytest.mark.parametrize(
@@ -97,6 +97,28 @@ def test_clone_and_retry_use_host_compatible_identity(
     assert context.cloner.clone(f"https://{host}/project/repo.git", "repo") is None
     assert len(calls) == 2
     for arguments in calls:
-        assert (f"http.userAgent={HTTP_USER_AGENT}" in arguments) == (host == "github.com")
+        assert not any("http.userAgent=" in argument for argument in arguments)
         assert "protocol.allow=never" in arguments and "protocol.https.allow=always" in arguments
     assert not list(context.packages.glob(".clone-*"))
+
+
+@pytest.mark.parametrize("tag_version", ["9.8.7", None])
+def test_fontconfig_prefers_current_tags_to_the_legacy_release_directory(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tag_version: str | None
+) -> None:
+    monkeypatch.setattr(context.resolver, "gitlab_version", lambda *args: tag_version)
+
+    def legacy(*args: object, **kwargs: object) -> str:
+        pytest.fail("Do not silently downgrade to the stale legacy mirror")
+
+    monkeypatch.setattr(context.resolver, "scrape_highest", legacy)
+    expected = ResolvedVersion(tag_version, "gitlab") if tag_version else None
+    assert context.versions.fontconfig() == expected
+
+
+@pytest.mark.parametrize("version", ["5.2.2", "6.1.3", "7.12.34"])
+def test_giflib_uses_direct_downloads_for_the_resolved_major_version(version: str) -> None:
+    major = version.split(".", 1)[0]
+    assert giflib_download_url(version) == (
+        f"https://downloads.sourceforge.net/project/giflib/giflib-{major}.x/giflib-{version}.tar.gz"
+    )

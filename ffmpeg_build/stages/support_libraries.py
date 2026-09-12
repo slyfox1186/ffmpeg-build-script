@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..runtime.buildsys import meson_project_option_exists
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.fetchers import (
@@ -348,19 +349,12 @@ def _install_gnutls_stack(context: BuildContext) -> None:
         )
         context.build_done("nettle", nettle_version)
 
-    # The upstream archive splits releases into per-series directories, so the
-    # v3.8 path pins the series and only the patch level tracks upstream. When
-    # GnuTLS opens a v3.9 directory this keeps building the last 3.8 release and
-    # reports nothing, so bump both paths below by hand at that point.
-    gnutls_version = context.fetch_version_if_enabled(
-        "gnutls",
-        lambda: context.versions.resolver.gnu_version(
-            "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/"
-        ),
-    )
+    gnutls_version = context.fetch_version_if_enabled("gnutls", context.versions.gnutls)
     if context.build("gnutls", gnutls_version):
+        assert gnutls_version is not None
+        series = ".".join(gnutls_version.split(".")[:2])
         source = context.download(
-            f"https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-{gnutls_version}.tar.xz"
+            f"https://www.gnupg.org/ftp/gcrypt/gnutls/v{series}/gnutls-{gnutls_version}.tar.xz"
         )
         configure_make_install(
             context,
@@ -393,20 +387,21 @@ def _install_gnutls_stack(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("gmp", "--enable-gmp")
 
 
-def _version_and_source(resolved: ResolvedVersion | str | None) -> tuple[str | None, str]:
+def _version_and_source(
+    resolved: ResolvedVersion | str | None, *, marker_source: str = "release"
+) -> tuple[str | None, str]:
     """Normalize what `fetch_version_if_enabled` returned for a font package.
 
     A fresh lookup reports which upstream answered, because FreeType and
     Fontconfig publish differently named archives on their release mirror and
-    on GitLab. A rerun instead hands back the recorded marker string; the
-    source is irrelevant there, since nothing is downloaded when the recorded
-    version already matches.
+    on GitLab. A marker has no source metadata, so use the package's current
+    archive host if missing artifacts require that recorded version to rebuild.
     """
     if resolved is None:
         return None, "release"
     if isinstance(resolved, ResolvedVersion):
         return resolved.version, resolved.source
-    return resolved, "release"
+    return resolved, marker_source
 
 
 def _install_fonts(context: BuildContext) -> None:
@@ -447,7 +442,8 @@ def _install_fonts(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("freetype", "--enable-libfreetype")
 
     fontconfig_version, fontconfig_source = _version_and_source(
-        context.fetch_version_if_enabled("fontconfig", context.versions.fontconfig)
+        context.fetch_version_if_enabled("fontconfig", context.versions.fontconfig),
+        marker_source="gitlab",
     )
     if context.package_enabled("fontconfig") and fontconfig_version is None:
         raise BuildError(
@@ -573,7 +569,11 @@ def _install_lv2_stack(context: BuildContext) -> None:
             "--strip",
             "-Ddocs=disabled",
             "-Dtests=disabled",
-            "-Dtools=disabled",
+            *[
+                f"-D{option}=disabled"
+                for option in ("tools", "plugins")
+                if meson_project_option_exists(source, option)
+            ],
             "-Donline_docs=false",
         )
         context.build_done("lv2-git", lv2_commit)

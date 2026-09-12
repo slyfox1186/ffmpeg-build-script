@@ -8,9 +8,8 @@ import tempfile
 from pathlib import Path
 
 from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS
-from ..runtime.context import CARGO_C_VERSION, RUST_TOOLCHAIN_VERSION, BuildContext
+from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
-from ..runtime.http import HTTP_USER_AGENT
 
 _PC_NAME = re.compile(r"^[A-Za-z0-9_.+-]+$")
 _LINKER_FLAG = re.compile(r"^-l[A-Za-z0-9_+.-]+$")
@@ -242,8 +241,14 @@ def setup_python_venv(context: BuildContext, venv_path: Path, requirements: list
     )
 
 
+def require_release(version: str | None, package: str) -> str:
+    if version is None:
+        raise BuildError(f"Unable to resolve the latest stable release of {package}.")
+    return version
+
+
 def install_rustup(context: BuildContext) -> None:
-    """Install a pinned Rust toolchain inside the workspace.
+    """Resolve and install the current stable Rust toolchain inside the workspace.
 
     Keeping it here rather than in the user's `~/.cargo` means a build never
     mutates a toolchain the user maintains for something else.
@@ -252,7 +257,8 @@ def install_rustup(context: BuildContext) -> None:
     rustup_home = context.workspace / "rust-toolchain/rustup"
     context.env["CARGO_HOME"] = str(cargo_home)
     context.env["RUSTUP_HOME"] = str(rustup_home)
-    context.env["RUSTUP_TOOLCHAIN"] = RUST_TOOLCHAIN_VERSION
+    rust_version = require_release(context.versions.rust(), "Rust")
+    context.env["RUSTUP_TOOLCHAIN"] = rust_version
     cargo_home.mkdir(parents=True, exist_ok=True)
     rustup_home.mkdir(parents=True, exist_ok=True)
     context.path_prepend(cargo_home / "bin")
@@ -270,8 +276,6 @@ def install_rustup(context: BuildContext) -> None:
         exit_code = context.runner.run_logged(
             [
                 "curl",
-                "--user-agent",
-                HTTP_USER_AGENT,
                 "--proto",
                 "=https",
                 "--proto-redir",
@@ -317,21 +321,22 @@ def install_rustup(context: BuildContext) -> None:
             str(cargo_home / "bin/rustup"),
             "toolchain",
             "install",
-            RUST_TOOLCHAIN_VERSION,
+            rust_version,
             "--profile",
             "minimal",
         ]
     )
     context.path_prepend(cargo_home / "bin")
     report = context.runner.capture(["rustc", "--version"]).stdout.strip()
-    if not report.startswith(f"rustc {RUST_TOOLCHAIN_VERSION} "):
+    if not report.startswith(f"rustc {rust_version} "):
         raise BuildError(
-            f"Expected isolated Rust '{RUST_TOOLCHAIN_VERSION}', got '{report or 'unavailable'}'."
+            f"Expected isolated Rust '{rust_version}', got '{report or 'unavailable'}'."
         )
     context.logger.info(f"Using isolated '{report}'.")
 
 
 def check_and_install_cargo_c(context: BuildContext) -> None:
+    cargo_c_version = require_release(context.versions.cargo_c(), "cargo-c")
     cargo_c_root = context.workspace / "cargo-tools"
     context.path_prepend(cargo_c_root / "bin")
 
@@ -340,10 +345,10 @@ def check_and_install_cargo_c(context: BuildContext) -> None:
         parts = report.split("\n", 1)[0].split()
         return parts[1] if len(parts) > 1 else ""
 
-    if installed_version() == CARGO_C_VERSION:
-        context.logger.info(f"Using cargo-c '{CARGO_C_VERSION}'.")
+    if installed_version() == cargo_c_version:
+        context.logger.info(f"Using cargo-c '{cargo_c_version}'.")
         return
-    context.logger.info(f"Installing cargo-c '{CARGO_C_VERSION}' into the isolated workspace...")
+    context.logger.info(f"Installing cargo-c '{cargo_c_version}' into the isolated workspace...")
     context.execute(
         [
             "cargo",
@@ -353,12 +358,12 @@ def check_and_install_cargo_c(context: BuildContext) -> None:
             "--root",
             str(cargo_c_root),
             "--version",
-            CARGO_C_VERSION,
+            cargo_c_version,
             "cargo-c",
         ]
     )
     context.path_prepend(cargo_c_root / "bin")
-    if installed_version() != CARGO_C_VERSION:
+    if installed_version() != cargo_c_version:
         raise BuildError(
-            f"cargo-c installation did not produce the requested version '{CARGO_C_VERSION}'."
+            f"cargo-c installation did not produce the requested version '{cargo_c_version}'."
         )

@@ -8,10 +8,6 @@ from ..runtime.fetchers import find_git_repo, giflib_download_url
 from ..runtime.versions import GNU_FALLBACK_MIRROR, GNU_PRIMARY_MIRROR
 from .helpers import cmake_ninja_install, configure_make_install, ensure_autotools
 
-# Used when upstream's release index is unreachable. Each fallback is a real
-# published release, and reaching one is always reported.
-GIFLIB_FALLBACK_VERSION = "5.2.2"
-
 
 def install_core_libraries(context: BuildContext) -> None:
     print()
@@ -43,12 +39,6 @@ def install_core_libraries(context: BuildContext) -> None:
         context.build_done("nasm", nasm_version)
 
     giflib_version = context.fetch_version_if_enabled("giflib", context.versions.giflib)
-    if context.package_enabled("giflib") and giflib_version is None:
-        giflib_version = GIFLIB_FALLBACK_VERSION
-        context.logger.warn(
-            f"Falling back to giflib version '{giflib_version}' because upstream version "
-            "detection failed."
-        )
     if context.build("giflib", giflib_version):
         assert giflib_version is not None
         source = context.download(

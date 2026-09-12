@@ -254,6 +254,25 @@ class DirectoryLock:
         os.close(self._fd)
         self._fd = None
 
+    def owner_pid(self) -> int | None:
+        """Read the kernel's exclusive flock owner for this exact directory."""
+        fd = self._open()
+        try:
+            metadata = os.fstat(fd)
+            expected = (os.major(metadata.st_dev), os.minor(metadata.st_dev), metadata.st_ino)
+            for line in Path("/proc/locks").read_text().splitlines():
+                fields = line.split()
+                if len(fields) < 8 or fields[1:4] != ["FLOCK", "ADVISORY", "WRITE"]:
+                    continue
+                major, minor, inode = fields[5].split(":")
+                if (int(major, 16), int(minor, 16), int(inode)) == expected:
+                    return int(fields[4])
+            return None
+        except (OSError, ValueError) as error:
+            raise BuildError(f"Unable to identify the build lock owner: {error}") from error
+        finally:
+            os.close(fd)
+
     def assert_current(self) -> None:
         """Reject a replaced path even though its original inode stays locked."""
         if self._fd is None:

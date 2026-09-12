@@ -16,7 +16,6 @@ from pathlib import Path
 
 from .errors import BuildError
 from .exec import Runner
-from .http import user_agent_arguments
 from .logging import Logger
 from .paths import safe_remove_tree
 
@@ -57,7 +56,15 @@ class GitCloner:
         commit = completed.stdout.strip()
         return commit if _COMMIT.fullmatch(commit) else None
 
-    def clone(self, repository_url: str, repository_name: str, mode: str = "shallow") -> str | None:
+    def clone(
+        self,
+        repository_url: str,
+        repository_name: str,
+        mode: str = "shallow",
+        *,
+        reference: str | None = None,
+        expected_commit: str | None = None,
+    ) -> str | None:
         """Clone and publish a snapshot, returning the checked-out commit."""
         if not repository_url.startswith("https://") or any(
             ord(character) < 0x20 for character in repository_url
@@ -82,7 +89,6 @@ class GitCloner:
             "--foreground",
             str(self.clone_timeout),
             "git",
-            *user_agent_arguments(repository_url, git=True),
             "-c",
             "protocol.allow=never",
             "-c",
@@ -94,6 +100,8 @@ class GitCloner:
             arguments += ["--depth", "1"]
         elif mode == "recurse":
             arguments += ["--depth", "1", "--recurse-submodules", "--shallow-submodules"]
+        if reference is not None:
+            arguments += ["--branch", reference]
         arguments += ["--", repository_url, str(clone_directory)]
 
         environment = {"GIT_TERMINAL_PROMPT": "0"}
@@ -114,11 +122,13 @@ class GitCloner:
                 return None
 
         actual_commit = self.local_head(clone_directory)
-        if actual_commit is None:
+        if actual_commit is None or (
+            expected_commit is not None and actual_commit != expected_commit
+        ):
             safe_remove_tree(clone_parent, self.packages)
             self._unregister(clone_parent)
             self.logger.warn(
-                f"Cloned '{repository_url}', but its checked-out commit could not be verified."
+                f"Cloned '{repository_url}', but its checked-out commit did not match the requested release."
             )
             return None
 

@@ -9,14 +9,31 @@ for VideoLAN and SVT-AV1 repositories.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import tomllib
 from dataclasses import dataclass
 
 from .errors import BuildError
+from .versioncmp import version_sort
 from .versions import DEFAULT_VERSION_PATTERN, VersionResolver
 
 _THREE_PART = re.compile(r"^[0-9]+(\.[0-9]+){2}$")
+
+# These are upstream tag naming conventions, never fixed release versions.
+GIT_RELEASE_PREFIXES = {
+    "av1-git": "v",
+    "zimg-git": "release-",
+    "ant-git": "rel/",
+    "gpac-git": "v",
+    "libgav1-git": "v",
+    "libwebp-git": "v",
+    "opencl-sdk-git": "v",
+    "vulkan-headers-git": "v",
+    "rubberband-git": "v",
+    "lv2-git": "v",
+}
 
 
 @dataclass(frozen=True)
@@ -66,24 +83,15 @@ class PackageVersions:
         return None
 
     def fontconfig(self) -> ResolvedVersion | None:
-        version = self.resolver.scrape_highest(
-            "https://www.freedesktop.org/software/fontconfig/release/",
-            r"fontconfig-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(?:xz|gz|bz2)",
-            max_time=int(os.environ.get("FREEDESKTOP_RELEASE_INDEX_MAX_TIME") or "5"),
-            connect_timeout=int(
-                os.environ.get("FREEDESKTOP_RELEASE_CONNECT_TIMEOUT")
-                or os.environ.get("DOWNLOAD_CONNECT_TIMEOUT")
-                or "2"
-            ),
-        )
-        if version:
-            return ResolvedVersion(version, "release")
-        self.logger.warn("Fontconfig release archive is unavailable; trying FreeDesktop GitLab.")
+        # The legacy release directory stopped updating before the GitLab
+        # releases. Prefer upstream tags so a reachable old mirror cannot
+        # silently select an obsolete version.
         version = self.resolver.gitlab_version(
             "https://gitlab.freedesktop.org", "fontconfig/fontconfig", "", "."
         )
         if version:
             return ResolvedVersion(version, "gitlab")
+        self.logger.warn("Unable to discover the latest Fontconfig release from upstream tags.")
         return None
 
     # -- release indexes -------------------------------------------------
@@ -101,6 +109,88 @@ class PackageVersions:
             self.logger.warn("sdl2_repo_version: no SDL2 version found in the SDL release archive.")
             return None
         return ordered[-1]
+
+    def lame(self) -> str | None:
+        # Require both the release directory and filename to be numeric. The
+        # feed also includes old beta releases in their own directories.
+        return self.resolver.scrape_highest(
+            "https://sourceforge.net/projects/lame/rss?path=/lame",
+            r"/lame/[0-9]+(?:\.[0-9]+)+/lame-([0-9]+(?:\.[0-9]+)+)\.tar\.gz",
+        )
+
+    def gnutls(self) -> str | None:
+        root = "https://www.gnupg.org/ftp/gcrypt/gnutls/"
+        listing = self.resolver.fetch_text(root)
+        if listing is None:
+            return None
+        series = re.findall(r'href="v([0-9]+\.[0-9]+)/?"', listing)
+        for branch in version_sort(series, reverse=True, unique=True):
+            releases = self.resolver.fetch_text(f"{root}v{branch}/")
+            if releases is None:
+                # A failed newer-series lookup must not silently choose an old series.
+                return None
+            matches = re.findall(rf"gnutls-({re.escape(branch)}\.[0-9]+)\.tar\.xz", releases)
+            ordered = version_sort(matches, reverse=True, unique=True)
+            if ordered:
+                return ordered[0]
+        return None
+
+    def rust(self) -> str | None:
+        text = self.resolver.fetch_text(
+            "https://static.rust-lang.org/dist/channel-rust-stable.toml"
+        )
+        if text is None:
+            return None
+        try:
+            report = tomllib.loads(text)["pkg"]["rust"]["version"]
+            version = report.split()[0] if isinstance(report, str) else ""
+        except (tomllib.TOMLDecodeError, KeyError, TypeError, IndexError):
+            return None
+        return version if _THREE_PART.fullmatch(version) else None
+
+    def cargo_c(self) -> str | None:
+        # The official sparse registry includes the full Cargo build metadata
+        # and yanked status, unlike Git tags or a hardcoded compatible version.
+        text = self.resolver.fetch_text("https://index.crates.io/ca/rg/cargo-c")
+        if text is None:
+            return None
+        versions: list[str] = []
+        try:
+            for line in text.splitlines():
+                entry = json.loads(line)
+                if not isinstance(entry, dict):
+                    return None
+                version = entry.get("vers")
+                if (
+                    entry.get("yanked") is False
+                    and isinstance(version, str)
+                    and re.fullmatch(r"[0-9]+(?:\.[0-9]+){2}(?:\+[A-Za-z0-9.-]+)?", version)
+                ):
+                    versions.append(version)
+        except json.JSONDecodeError:
+            return None
+        ordered = version_sort(versions, reverse=True, unique=True)
+        return ordered[0] if ordered else None
+
+    def cython(self) -> str | None:
+        text = self.resolver.fetch_text("https://pypi.org/pypi/Cython/json")
+        if text is None:
+            return None
+        try:
+            releases = json.loads(text)["releases"]
+            if not isinstance(releases, dict):
+                return None
+            versions = [
+                version
+                for version, files in releases.items()
+                if _THREE_PART.fullmatch(version)
+                and isinstance(files, list)
+                and any(isinstance(file, dict) and file.get("yanked") is False for file in files)
+            ]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return None
+        ordered = version_sort(versions, reverse=True, unique=True)
+        return ordered[0] if ordered else None
 
     def opencore_amr(self) -> str | None:
         version = self.resolver.scrape_highest(
@@ -149,10 +239,8 @@ class PackageVersions:
 
     # -- forge-specific shapes -------------------------------------------
 
-    def openssl_lts(self) -> str | None:
-        return self.resolver.github_version(
-            "openssl/openssl", "openssl-", "", re.compile(r"^3\.5\.[0-9]+$")
-        )
+    def openssl(self) -> str | None:
+        return self.resolver.github_version("openssl/openssl", "openssl-")
 
     def rav1e(self) -> str | None:
         return self.resolver.github_version("xiph/rav1e", "v", "alpha|beta|rc")
@@ -212,10 +300,7 @@ class PackageVersions:
         tags = self.resolver.remote_tag_names(f"https://code.videolan.org/{project}.git")
         if not tags:
             return None
-        from .versioncmp import version_sort
-
-        ordered = version_sort(tags, reverse=True, unique=True)
-        return ordered[count - 1] if count <= len(ordered) else None
+        return self.resolver.select_prefixed_version(tags, "", index=count)
 
     def svt_av1(self, index: int = 1) -> str | None:
         return self.resolver.gitlab_version(
@@ -274,8 +359,7 @@ def giflib_download_url(version: str) -> str:
         raise BuildError(f"giflib_download_url() received an invalid version: '{version}'.")
     major = match.group(1)
     return (
-        f"https://sourceforge.net/projects/giflib/files/giflib-{major}.x"
-        f"/giflib-{version}.tar.gz/download"
+        f"https://downloads.sourceforge.net/project/giflib/giflib-{major}.x/giflib-{version}.tar.gz"
     )
 
 

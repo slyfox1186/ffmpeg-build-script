@@ -21,16 +21,10 @@ from .helpers import (
     install_rustup,
     meson_ninja_install,
     pkgconfig_add_private_lib,
+    require_release,
     setup_python_venv,
 )
 from .system_setup import check_avx512, set_ant_path
-
-# Used when the Xvid release index is unreachable.
-XVIDCORE_FALLBACK_VERSION = "1.3.7"
-
-# VapourSynth's build needs Cython, pinned so a Cython release cannot change
-# the generated sources underneath an otherwise identical build.
-CYTHON_VERSION = "3.2.8"
 
 
 def use_vapoursynth_python_environment(context: BuildContext) -> None:
@@ -558,19 +552,19 @@ def _install_gpl_video(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("avisynth", "--enable-avisynth")
 
     xvidcore_release = context.fetch_version_if_enabled("xvidcore", context.versions.xvidcore)
-    if context.package_enabled("xvidcore") and xvidcore_release is None:
-        xvidcore_release = XVIDCORE_FALLBACK_VERSION
-        context.logger.warn(
-            f"Falling back to Xvid '{xvidcore_release}' because its official release index "
-            "is unavailable."
-        )
     if context.build("xvidcore", xvidcore_release):
         source = context.download(
             f"https://downloads.xvid.com/downloads/xvidcore-{xvidcore_release}.tar.bz2"
         )
         generic = source / "build/generic"
         context.execute(["sh", "bootstrap.sh"], cwd=generic)
-        context.execute(["sh", "configure", f"--prefix={workspace}"], cwd=generic)
+        # Xvid's bool typedef predates C23. Keep its int representation and
+        # constrain only this recipe when newer Autoconf selects GNU C23.
+        context.execute(
+            ["sh", "configure", f"--prefix={workspace}"],
+            cwd=generic,
+            env_overrides={"CFLAGS": f"{context.env.get('CFLAGS', '')} -std=gnu17".strip()},
+        )
         # Upstream's all/install targets unconditionally build and install both
         # variants. FFmpeg needs only xvid.h and libxvidcore.a.
         context.make(generic, "libxvidcore.a")
@@ -702,7 +696,7 @@ def _install_vapoursynth(context: BuildContext) -> None:
         setup_python_venv(
             context,
             workspace / "python_virtual_environment/vapoursynth",
-            [f"Cython=={CYTHON_VERSION}"],
+            [f"Cython=={require_release(context.versions.cython(), 'Cython')}"],
         )
         use_vapoursynth_python_environment(context)
 

@@ -17,11 +17,39 @@ from ffmpeg_build.stages.ffmpeg_build import (
     ffmpeg_installed_version,
 )
 from ffmpeg_build.stages.hardware import HardwareDetection
+from ffmpeg_build.stages.support_libraries import install_support_libraries
 from ffmpeg_build.stages.system_setup import SystemSetup
 
 
 def stage_for(context: BuildContext) -> FFmpegStage:
     return FFmpegStage(context, HardwareDetection(context, SystemSetup(context)))
+
+
+def test_fontconfig_repairs_a_recorded_version_using_the_current_archive_host(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context.selection = Selection({"fontconfig": True}, Path("fixture.toml"))
+    context.marker_path("fontconfig").write_text("9.8.7\n")
+
+    def forbidden() -> None:
+        pytest.fail("Repair must reuse the recorded version without a new release lookup")
+
+    monkeypatch.setattr(context.versions, "fontconfig", forbidden)
+
+    class ArchiveReached(Exception):
+        pass
+
+    def download(primary: str, fallback: str) -> Path:
+        assert primary == (
+            "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/9.8.7/"
+            "fontconfig-9.8.7.tar.gz"
+        )
+        assert fallback.endswith("fontconfig-9.8.7.tar.xz")
+        raise ArchiveReached
+
+    monkeypatch.setattr(context.downloader, "download_with_fallback", download)
+    with pytest.raises(ArchiveReached):
+        install_support_libraries(context)
 
 
 def test_build_markers_and_messages(
@@ -209,7 +237,9 @@ def test_core_stage_continues_after_nasm(
     monkeypatch.setattr(context.versions, "nasm", nasm)
 
     def download(url: str, filename: str | None = None) -> Path:
-        assert "giflib-5.2.2.tar.gz/download" in url
+        assert (
+            url == "https://downloads.sourceforge.net/project/giflib/giflib-5.x/giflib-5.2.2.tar.gz"
+        )
         raise ReachedGiflib
 
     monkeypatch.setattr(context, "download", download)
@@ -436,3 +466,78 @@ def test_promotion_waits_before_backup_or_install(
         with pytest.raises(BuildError, match="Timed out waiting to install"):
             stage.promote_installation(tmp_path, staging, "9.0.1", False, tmp_path)
     assert not staging.exists()
+
+
+def test_sdl2_alsa_correction_compiles_with_clang(context: BuildContext, tmp_path: Path) -> None:
+    import shutil
+    import subprocess
+
+    from ffmpeg_build.stages.audio_libraries import fix_sdl2_alsa_signatures
+
+    clang = shutil.which("clang")
+    if clang is None:
+        pytest.skip("Clang is needed to reproduce the SDL2 function-pointer diagnostic")
+    target = tmp_path / "src/audio/alsa/SDL_alsa_audio.c"
+    target.parent.mkdir(parents=True)
+    target.write_text("""typedef struct info snd_pcm_info_t;
+typedef struct params snd_pcm_hw_params_t;
+void snd_pcm_info_free(snd_pcm_info_t *);
+int snd_pcm_hw_params_get_rate(const snd_pcm_hw_params_t *, unsigned int *, int *);
+static int (*ALSA_snd_pcm_info_free)(snd_pcm_info_t *);
+static int (*ALSA_snd_pcm_hw_params_get_rate)(snd_pcm_hw_params_t *, unsigned int*, int*);
+void load(void) {
+    ALSA_snd_pcm_info_free = snd_pcm_info_free;
+    ALSA_snd_pcm_hw_params_get_rate = snd_pcm_hw_params_get_rate;
+}
+""")
+    command = [clang, "-fsyntax-only", "-Werror=incompatible-function-pointer-types", str(target)]
+    assert subprocess.run(command, capture_output=True).returncode != 0
+    fix_sdl2_alsa_signatures(context, tmp_path)
+    corrected = target.read_text()
+    compiled = subprocess.run(command, capture_output=True, text=True)
+    assert compiled.returncode == 0, compiled.stderr
+    fix_sdl2_alsa_signatures(context, tmp_path)
+    assert target.read_text() == corrected
+
+
+def test_xvid_preserves_legacy_bool_and_scopes_c_dialect(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import shlex
+    import shutil
+    import subprocess
+    from collections.abc import Sequence
+
+    from ffmpeg_build.stages.video_libraries import _install_gpl_video
+
+    clang = shutil.which("clang")
+    if clang is None:
+        pytest.skip("Clang is needed to reproduce the Xvid C23 diagnostic")
+    context.selection = Selection({"xvidcore": True}, Path("fixture.toml"))
+    context.env["CFLAGS"] = "-O2 -fPIC"
+    original_env = context.env.copy()
+    monkeypatch.setattr(context.versions, "xvidcore", lambda: "9.8.7")
+    monkeypatch.setattr(context, "download", lambda *args: tmp_path)
+    source = tmp_path / "legacy.c"
+    source.write_text('typedef int bool;\n_Static_assert(sizeof(bool) == sizeof(int), "ABI");\n')
+    command = [clang, "-std=gnu2x", "-fsyntax-only", str(source)]
+    assert subprocess.run(command, capture_output=True).returncode != 0
+
+    class Configured(Exception):
+        pass
+
+    def execute(arguments: Sequence[str], **kwargs: object) -> None:
+        if list(arguments[:2]) != ["sh", "configure"]:
+            return
+        overrides = kwargs["env_overrides"]
+        assert isinstance(overrides, dict)
+        flags = overrides["CFLAGS"]
+        assert flags.startswith(original_env["CFLAGS"] + " ")
+        result = subprocess.run([*command, *shlex.split(flags)], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert context.env == original_env
+        raise Configured
+
+    monkeypatch.setattr(context, "execute", execute)
+    with pytest.raises(Configured):
+        _install_gpl_video(context)

@@ -19,7 +19,8 @@ from .cli import (
     usage_text,
 )
 from .config import CLEANUP_COMMAND, BuildSettings, Selection, load_config
-from .runtime.context import CARGO_C_VERSION, RUST_TOOLCHAIN_VERSION, BuildContext
+from .runtime.build_lock import take_over_build_lock
+from .runtime.context import BuildContext
 from .runtime.errors import BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
 from .runtime.logging import Logger
@@ -238,7 +239,7 @@ class Orchestrator:
             )
 
         self._lock = DirectoryLock(root)
-        if not self._lock.acquire():
+        if not take_over_build_lock(self._lock, self.logger):
             self._lock = None
             raise BuildError(f"Another process is already using build root '{root}'.")
 
@@ -313,8 +314,8 @@ class Orchestrator:
                 "script_version": SCRIPT_VERSION,
                 "compiler": context.compiler,
                 "gpl_and_non_free": "true" if context.nonfree_and_gpl else "false",
-                "rust_toolchain": RUST_TOOLCHAIN_VERSION,
-                "cargo_c": CARGO_C_VERSION,
+                "rust_toolchain": "latest-stable",
+                "cargo_c": "latest-stable",
                 "cflags": environment.get("CFLAGS", ""),
                 "cxxflags": environment.get("CXXFLAGS", ""),
                 "cppflags": environment.get("CPPFLAGS", ""),
@@ -391,6 +392,13 @@ class Orchestrator:
         """
         previous_fields = parse_build_context(previous)
         reconfigure = previous_fields.get("script_version") != SCRIPT_VERSION
+        if any(
+            previous_fields.get(field) != "latest-stable" for field in ("rust_toolchain", "cargo_c")
+        ):
+            # Migrate only the Rust-built component when adopting dynamic tools.
+            # Native C/C++ dependencies remain reusable with identical flags.
+            context.marker_path("rav1e").unlink(missing_ok=True)
+            reconfigure = True
         for package_name in added_packages:
             if context.package_enabled(package_name):
                 reconfigure = True
@@ -519,9 +527,12 @@ class Orchestrator:
         print()
         self.logger.banner(f"FFmpeg Build Script {SCRIPT_VERSION}")
         print()
-        self.logger.info(f"Build root: '{context.cwd}'.")
-        self.logger.info(f"Parallel jobs: '{context.build_threads}'.")
-        self.logger.info(f"Compiler family: '{context.compiler}'.")
+        self.logger.info(f"Build root: {context.cwd}")
+        self.logger.info(f"Parallel jobs: {context.build_threads}")
+        self.logger.info(f"Compiler family: {context.compiler}")
+        selected = sum(context.selection.states().values())
+        self.logger.info(f"Selected packages: {selected} of {len(registry.PACKAGE_NAMES)}")
+        self.logger.info("Completed packages are reused; 'already built' does not mean disabled.")
         if context.nonfree_and_gpl:
             self.logger.warn("GPL and non-free components are enabled.")
 

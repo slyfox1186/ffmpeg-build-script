@@ -13,7 +13,6 @@ import pytest
 from ffmpeg_build.runtime.context import BuildContext
 from ffmpeg_build.runtime.download import archive_checksum_matches, write_archive_checksum
 from ffmpeg_build.runtime.errors import BuildError
-from ffmpeg_build.runtime.http import HTTP_USER_AGENT
 
 
 def archive_at(path: Path, entries: list[tuple[str, bytes | str, bytes]]) -> Path:
@@ -97,7 +96,9 @@ def test_https_refused_before_network(
 
 
 @pytest.mark.parametrize("mode", ["valid", "html", "http_error", "oversized"])
-@pytest.mark.parametrize("host", ["example.test", "code.videolan.org"])
+@pytest.mark.parametrize(
+    "host", ["example.test", "code.videolan.org", "sourceforge.net", "downloads.sourceforge.net"]
+)
 def test_curl_transfer_contract(
     context: BuildContext,
     stub: Callable[[str, str], Path],
@@ -137,10 +138,7 @@ else:
     success = context.downloader._download_to_cache(f"https://{host}/source", target.name, target)
     assert success == (mode == "valid")
     arguments = json.loads(invocation.read_text())
-    if host == "code.videolan.org":
-        assert "--user-agent" not in arguments
-    else:
-        assert arguments[arguments.index("--user-agent") + 1] == HTTP_USER_AGENT
+    assert "--user-agent" not in arguments
     assert arguments[arguments.index("--proto") + 1] == "=https"
     assert arguments[arguments.index("--proto-redir") + 1] == "=https"
     assert "--max-filesize" in arguments

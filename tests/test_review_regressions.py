@@ -14,7 +14,6 @@ from ffmpeg_build.runtime.context import BuildContext
 from ffmpeg_build.runtime.download import write_archive_checksum
 from ffmpeg_build.runtime.errors import BuildError, SignalStop
 from ffmpeg_build.runtime.exec import base_environment, strip_workspace_entries
-from ffmpeg_build.runtime.http import HTTP_USER_AGENT
 from ffmpeg_build.runtime.paths import DirectoryLock
 from ffmpeg_build.runtime.state import build_root_is_adoptable, write_build_root_marker
 from tests.conftest import REPO
@@ -165,21 +164,18 @@ def test_network_proxy_settings_survive_without_inheriting_conda_or_cgi_proxy(
 
 
 @pytest.mark.parametrize(
-    "host,native",
+    "host",
     [
-        ("example.test", False),
-        ("code.videolan.org", True),
-        ("CODE.VIDEOLAN.ORG", True),
-        ("code.videolan.org.example.test", False),
+        "github.com",
+        "code.videolan.org",
+        "sourceforge.net",
+        "downloads.sourceforge.net",
+        "gitlab.freedesktop.org",
     ],
 )
 def test_release_retrieval_commands_use_host_compatible_user_agent(
-    context: BuildContext, monkeypatch: pytest.MonkeyPatch, host: str, native: bool
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, host: str
 ) -> None:
-    assert (
-        HTTP_USER_AGENT
-        == "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-    )
     calls: list[list[str]] = []
 
     def capture(arguments: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -190,9 +186,5 @@ def test_release_retrieval_commands_use_host_compatible_user_agent(
     context.resolver.fetch_text(f"https://{host}/releases")
     context.resolver.remote_tag_names(f"https://{host}/source.git")
     context.resolver.remote_head_commit(f"https://{host}/source.git")
-    if native:
-        assert "--user-agent" not in calls[0]
-        assert all(not any("http.userAgent=" in arg for arg in command) for command in calls[1:])
-    else:
-        assert calls[0][calls[0].index("--user-agent") + 1] == HTTP_USER_AGENT
-        assert all(f"http.userAgent={HTTP_USER_AGENT}" in command for command in calls[1:])
+    assert "--user-agent" not in calls[0]
+    assert all(not any("http.userAgent=" in arg for arg in command) for command in calls[1:])

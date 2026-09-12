@@ -19,18 +19,12 @@ from . import artifacts, shellquote
 from .download import Downloader, DownloadSettings
 from .errors import BuildError
 from .exec import Runner, path_prepend
-from .fetchers import PackageVersions
+from .fetchers import GIT_RELEASE_PREFIXES, PackageVersions
 from .git import GitCloner
 from .logging import Logger, format_duration
 from .paths import canonicalize, path_is_within, safe_remove_tree
 from .state import read_marker_version, write_marker_version
 from .versions import VersionResolver
-
-# Versioned host-side build helpers. Keeping cargo-c inside the workspace avoids
-# mutating the user's global Cargo installation and makes rav1e's C ABI build
-# reproducible across otherwise identical runs.
-CARGO_C_VERSION = "0.10.24+cargo-0.98.0"
-RUST_TOOLCHAIN_VERSION = "1.95.0"
 
 _Version = TypeVar("_Version")
 
@@ -358,51 +352,68 @@ class BuildContext:
         return fetcher()
 
     def git_snapshot(self, repository_url: str, key: str, mode: str = "shallow") -> str | None:
-        """Resolve the commit to build for a Git-tracked package.
-
-        Historical releases recorded human labels for mutable snapshots, so
-        only a commit-shaped marker is trustworthy enough to reuse.
-        """
+        """Build a stable release tag, retaining exact commits for normal resumes."""
         if not self.package_enabled(key):
             return None
         marker = self.marker_path(key)
         prior_version = read_marker_version(marker)
         source_directory = self.packages / key
-
-        if (
-            prior_version
+        valid_prior = (
+            prior_version is not None
             and len(prior_version) >= 12
             and all(character in "0123456789abcdefABCDEF" for character in prior_version)
-        ):
-            if self.latest:
-                remote_commit = self.resolver.remote_head_commit(repository_url)
-                if remote_commit is None:
-                    raise BuildError(f"Unable to resolve the remote HEAD for '{key}'.")
-                if (
-                    remote_commit.startswith(prior_version)
-                    and self.cloner.local_head(source_directory) == remote_commit
-                ):
-                    # build() decides whether installed artifacts need repair;
-                    # a matching source checkout does not need another clone.
-                    return remote_commit
-            else:
-                source_commit = self.cloner.local_head(source_directory)
-                if source_commit and source_commit.startswith(prior_version):
-                    return prior_version
-                raise BuildError(
-                    f"Git marker for '{key}' records '{prior_version}', but its matching "
-                    f"source checkout is unavailable at '{source_directory}'. Restore that "
-                    "checkout to repair the pinned build, or use '--latest' to refresh it."
-                )
-        elif prior_version:
+        )
+        if valid_prior and not self.latest:
+            assert prior_version is not None
+            source_commit = self.cloner.local_head(source_directory)
+            if source_commit and source_commit.startswith(prior_version):
+                return prior_version
+            raise BuildError(
+                f"Git marker for '{key}' records '{prior_version}', but its matching "
+                f"source checkout is unavailable at '{source_directory}'. Restore that "
+                "checkout to repair the pinned build, or use '--latest' to refresh it."
+            )
+        if prior_version and not valid_prior:
             self.logger.warn(f"Replacing legacy non-commit marker for Git snapshot '{key}'.")
             marker.unlink(missing_ok=True)
 
-        commit = self.cloner.clone(repository_url, key, mode)
-        if commit is None:
-            raise BuildError(
-                f"Unable to obtain a Git snapshot for '{key}' from '{repository_url}'."
+        reference: str | None = None
+        remote_commit: str | None = None
+        if key in GIT_RELEASE_PREFIXES:
+            prefix = GIT_RELEASE_PREFIXES[key]
+            tags = self.resolver.remote_tag_names(repository_url)
+            version = self.resolver.select_prefixed_version(tags or [], prefix)
+            if version is None:
+                raise BuildError(f"Unable to resolve a stable release tag for '{key}'.")
+            reference = prefix + version
+            remote_commit = self.resolver.remote_head_commit(
+                repository_url, f"refs/tags/{reference}"
             )
+            if remote_commit is None:
+                raise BuildError(f"Unable to resolve the stable release commit for '{key}'.")
+            self.logger.info(f"{key}: selected stable release {reference} ({remote_commit[:12]}).")
+        elif key.endswith("-git"):
+            raise BuildError(f"No stable release discovery rule is registered for '{key}'.")
+        elif valid_prior and self.latest:
+            remote_commit = self.resolver.remote_head_commit(repository_url)
+            if remote_commit is None:
+                raise BuildError(f"Unable to resolve the remote HEAD for '{key}'.")
+
+        if (
+            remote_commit
+            and prior_version
+            and remote_commit.startswith(prior_version)
+            and self.cloner.local_head(source_directory) == remote_commit
+        ):
+            return remote_commit
+        if reference is not None:
+            commit = self.cloner.clone(
+                repository_url, key, mode, reference=reference, expected_commit=remote_commit
+            )
+        else:
+            commit = self.cloner.clone(repository_url, key, mode)
+        if commit is None:
+            raise BuildError(f"Unable to obtain a Git release for '{key}' from '{repository_url}'.")
         return commit
 
     def build(self, key: str, version: str | None) -> bool:

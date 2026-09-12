@@ -289,7 +289,7 @@ def migratable_added_packages(
     if not legacy_context:
         if previous_format != BUILD_CONTEXT_FORMAT:
             raise ContextMismatch
-        if previous.get("script_version") not in MIGRATABLE_SCRIPT_VERSIONS:
+        if previous.get("script_version") not in MIGRATABLE_SCRIPT_VERSIONS | {script_version}:
             raise ContextMismatch
 
     remaining = dict(previous)
@@ -314,6 +314,13 @@ def migratable_added_packages(
             if not key.startswith("package."):
                 raise ContextMismatch
             added_packages.append(key[len("package.") :])
+            continue
+        if (
+            key in ("rust_toolchain", "cargo_c")
+            and value == "latest-stable"
+            and re.fullmatch(r"[0-9]+(?:\.[0-9]+){2}(?:\+[A-Za-z0-9.-]+)?", remaining[key])
+        ):
+            remaining.pop(key)
             continue
         if remaining[key] != value:
             raise ContextMismatch

@@ -1,8 +1,8 @@
 """Upstream release discovery.
 
 Every fetcher returns a version string or None. None means "upstream could not
-be reached or published nothing usable", which several recipes recover from
-with a pinned fallback literal; only the callers decide whether that is fatal.
+be reached or published nothing usable". Enabled packages fail explicitly;
+there is no fixed-version fallback that could masquerade as the latest release.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from collections.abc import Sequence
 
 from .errors import BuildError
 from .exec import Runner
-from .http import user_agent_arguments
 from .logging import Logger
 from .versioncmp import version_sort
 
@@ -49,7 +48,6 @@ class VersionResolver:
         completed = self.runner.capture(
             [
                 "curl",
-                *user_agent_arguments(url),
                 "--proto",
                 "=https",
                 "--proto-redir",
@@ -76,7 +74,6 @@ class VersionResolver:
         completed = self.runner.capture(
             [
                 "git",
-                *user_agent_arguments(repository_url, git=True),
                 "-c",
                 "protocol.allow=never",
                 "-c",
@@ -106,7 +103,6 @@ class VersionResolver:
         completed = self.runner.capture(
             [
                 "git",
-                *user_agent_arguments(repository_url, git=True),
                 "-c",
                 "protocol.allow=never",
                 "-c",
@@ -114,6 +110,7 @@ class VersionResolver:
                 "ls-remote",
                 repository_url,
                 reference,
+                *([reference + "^{}"] if reference.startswith("refs/tags/") else []),
             ],
             env_overrides={"GIT_TERMINAL_PROMPT": "0"},
             timeout=self.git_timeout,
@@ -125,10 +122,14 @@ class VersionResolver:
                 f"{completed.stderr.strip() or 'no diagnostic output'}"
             )
             return None
-        first = completed.stdout.split("\n", 1)[0].split()
-        if not first or not _COMMIT.match(first[0]):
-            return None
-        return first[0]
+        references = {}
+        for line in completed.stdout.splitlines():
+            fields = line.split()
+            if len(fields) == 2 and _COMMIT.fullmatch(fields[0]):
+                references[fields[1]] = fields[0]
+        # Annotated tag objects are not commits. Prefer the peeled commit;
+        # lightweight tags have only the unpeeled reference.
+        return references.get(reference + "^{}") or references.get(reference)
 
     # -- selection -------------------------------------------------------
 
@@ -156,7 +157,7 @@ class VersionResolver:
                 version = reference[len(prefix) :]
             else:
                 version = reference
-            if not version_pattern.match(version):
+            if not version_pattern.fullmatch(version):
                 continue
             versions.append(version)
         if not versions:

@@ -258,9 +258,9 @@ def install_global_tools(context: BuildContext) -> None:
 
 def _install_openssl(context: BuildContext) -> None:
     workspace = context.workspace
-    openssl_version = context.fetch_version_if_enabled("openssl", context.versions.openssl_lts)
+    openssl_version = context.fetch_version_if_enabled("openssl", context.versions.openssl)
     if context.package_enabled("openssl") and openssl_version is None:
-        raise BuildError("Failed to detect the latest OpenSSL 3.5 LTS release.")
+        raise BuildError("Failed to detect the latest stable OpenSSL release.")
     if context.build("openssl", openssl_version):
         zlib_include_dir = workspace_or_pkgconf_include_dir(
             context, "zlib", "zlib", workspace / "lib/libz.a", workspace / "lib/libz.so"

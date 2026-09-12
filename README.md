@@ -297,6 +297,16 @@ Each successful component writes an atomic `.done` marker containing the exact
 release version or Git commit used. A normal rerun reuses those versions and
 does not contact every upstream service. `--latest` refreshes upstream versions
 and rebuilds components whose recorded version changed.
+Every source recipe discovers releases from upstream tags or release indexes;
+there are no fixed release-version fallbacks. Git packages select stable release
+tags and verify the checked-out commit, including annotated tags. x264 uses
+upstream's `stable` branch because it does not publish ordinary release tags;
+SDL2 stays within the SDL2 API family. Rust, cargo-c, Cython, and NVIDIA's CUDA
+keyring also resolve their current releases dynamically. Adopting dynamic Rust
+tools rebuilds rav1e and FFmpeg while preserving other compatible dependencies.
+System integrations use the distribution's APT packages; their versions follow
+the configured distribution repositories. `All` selects every package and
+reuses completed builds; `SKIP ... already built` means reuse, not deselection.
 Missing installed artifacts are repaired from the recorded release or matching
 Git checkout. If a recorded Git checkout is missing or points to another commit,
 a normal rerun stops with recovery instructions; restore that checkout or use
@@ -453,6 +463,14 @@ cache writes. A locally recorded SHA-256 detects cache damage or tampering
 between runs; it is not a substitute for an upstream signature. Git snapshot
 builds are cloned transactionally and recorded by commit.
 
+Starting a build automatically force-kills a competing build that owns the same
+build-root lock, including its worker processes, before acquiring the lock.
+The owner is identified by the kernel lock record and process descriptors are
+pinned before signalling. Unrelated processes and other build roots are left
+alone. If a worker belongs to another user or cannot be stopped, takeover fails
+and surviving stopped processes are resumed. Host installation locks still wait
+or fail normally; they do not force-kill their owners.
+
 In addition to the compressed transfer limit, archives are limited to 8 GiB of
 declared extracted data (hard links charged as copies) and 100,000 members.
 `DOWNLOAD_MAX_EXTRACTED_BYTES` and `DOWNLOAD_MAX_MEMBERS` are positive-integer
@@ -533,11 +551,14 @@ FFmpeg installation verified (/usr/local/bin):
 
 The complete version output for each program is retained in the build log.
 
-On a color terminal, elapsed times are green and package versions are bold
-yellow. RUN lines use cyan for executables and paths, magenta for option names,
-and yellow for values. Highlighting preserves the exact shell-quoted command.
-Redirected output, dumb terminals, and a nonempty `NO_COLOR` setting stay plain;
-the saved build log never receives these presentation codes.
+The logging palette uses bright white message text on dark terminals, neutral
+gray timestamps, blue progress and information labels, green success labels,
+amber warnings, and rose-red errors. Package names use bold white text in step
+headings and package versions share one yellow accent; section headings use
+compact blue rules. Commands and arguments use one uniform
+white foreground without syntax highlighting. Redirected output, dumb terminals,
+and a nonempty `NO_COLOR` setting stay plain; the saved build log never receives
+these presentation codes. Shell quoting is preserved exactly.
 
 Useful manual checks:
 
@@ -567,16 +588,14 @@ the projects it invokes:
 ## HTTP retrieval
 
 Archive and release-index downloads, CUDA/Rust installer downloads, and Git
-HTTPS retrieval use the same user-agent from `ffmpeg_build/runtime/http.py`:
+HTTPS retrieval use each client's native user-agent. A browser identity causes
+some upstream hosts to return HTML download or verification pages instead of
+archives, or reject command-line requests with HTTP 418. Git lookup failures
+report the upstream diagnostic and exit code in both the terminal and build log.
 
-```text
-Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
-```
-
-`code.videolan.org` is an exception: Git, release-index and archive requests use
-the client's native user-agent because this host rejects the browser identity
-with HTTP 418. Git lookup failures report the upstream diagnostic and exit code
-in both the terminal and build log. Versions are still resolved from upstream tags.
+giflib uses SourceForge's direct download service with its discovered release
+version. Fontconfig prefers current upstream GitLab tags over its older release
+directory. Every downloaded archive still passes the same safety and format checks.
 
 The child environment preserves `http_proxy`, `https_proxy`, `all_proxy`,
 `no_proxy`, `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY`. Uppercase `HTTP_PROXY`

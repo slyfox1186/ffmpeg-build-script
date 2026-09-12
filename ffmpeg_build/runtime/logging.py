@@ -1,6 +1,6 @@
 """Terminal and build-log output.
 
-Every line the build prints goes through `log_line`, so the terminal and the
+Every structured log line goes through `line`, so the terminal and the
 build log cannot drift. The terminal gets elapsed time, which is the useful
 clock while watching a long build; the log file additionally gets a wall-clock
 stamp so it can be lined up with system logs after the fact.
@@ -22,6 +22,10 @@ from . import shellquote
 # or multi-line message stays in one visual column.
 LOG_PREFIX_WIDTH = 17
 
+_PACKAGE_VERSION = re.compile(
+    r"(?<!\S)(?:[nRv]?[0-9]+(?:\.[0-9]+)*(?:[+.-][A-Za-z0-9.-]+)?|[0-9a-fA-F]{12,64})(?=[\s)]|$)"
+)
+
 
 def _color_enabled(stream: TextIO) -> bool:
     if os.environ.get("NO_COLOR"):
@@ -35,75 +39,48 @@ def _color_enabled(stream: TextIO) -> bool:
 
 
 class Palette:
-    """ANSI attributes, or empty strings when color is suppressed.
+    """Bright text and a small status palette for a dark build terminal.
 
-    The colors set a foreground and nothing else: the common "0;3xm" spelling
-    leads with a reset, which silently cancels any attribute it is combined
-    with, so BOLD+GREEN renders as plain green. Callers that need a clean slate
-    say `nc` explicitly instead.
+    Color describes the kind of record, never the syntax of its arguments.
+    Extended terminals get consistent colors; basic terminals use ANSI colors.
     """
 
-    __slots__ = ("green", "red", "yellow", "magenta", "cyan", "bold", "dim", "nc")
+    __slots__ = ("text", "muted", "accent", "success", "warning", "error", "bold", "nc")
 
     def __init__(self, enabled: bool) -> None:
-        self.green = "\033[32m" if enabled else ""
-        self.red = "\033[31m" if enabled else ""
-        self.yellow = "\033[33m" if enabled else ""
-        self.magenta = "\033[35m" if enabled else ""
-        self.cyan = "\033[36m" if enabled else ""
+        extended = "256color" in os.environ.get("TERM", "") or os.environ.get("COLORTERM", "") in (
+            "truecolor",
+            "24bit",
+        )
+
+        def color(index: int, basic: int) -> str:
+            if not enabled:
+                return ""
+            return f"\033[38;5;{index}m" if extended else f"\033[{basic}m"
+
+        self.text = color(255, 97)
+        self.muted = color(246, 90)
+        self.accent = color(75, 94)
+        self.success = color(78, 92)
+        self.warning = color(221, 93)
+        self.error = color(204, 91)
         self.bold = "\033[1m" if enabled else ""
-        self.dim = "\033[2m" if enabled else ""
         self.nc = "\033[0m" if enabled else ""
 
 
-# Each level paints three separate things, because they answer three different
-# questions: the tag says what kind of line this is, the body tint says how much
-# attention it deserves, and the subject color marks the one token worth finding
-# when the line is skimmed rather than read.
-#
-# The hue map is deliberately small enough to state in a sentence: green is
-# forward progress, cyan is information and the values inside it, magenta is a
-# command or internal machinery, yellow and red are trouble, and dim is
-# de-emphasis. Nothing else gets a color, so a color always means something.
+# Status colors stay in one column. Package versions share one yellow accent;
+# command arguments and other message text keep a uniform white foreground.
 _TAG_STYLE = {
-    "STEP": ("bold", "green"),
-    "OK": ("green",),
-    "INFO": ("cyan",),
-    "RUN": ("magenta",),
-    "SKIP": ("dim", "cyan"),
-    "TIME": ("dim",),
-    "DEBUG": ("dim", "magenta"),
-    "WARN": ("bold", "yellow"),
-    "ERROR": ("bold", "red"),
+    "STEP": ("bold", "accent"),
+    "OK": ("success",),
+    "INFO": ("accent",),
+    "RUN": ("muted",),
+    "SKIP": ("muted",),
+    "TIME": ("muted",),
+    "DEBUG": ("muted",),
+    "WARN": ("bold", "warning"),
+    "ERROR": ("bold", "error"),
 }
-_BODY_STYLE = {
-    "STEP": ("bold",),
-    "OK": ("green",),
-    "INFO": (),
-    "RUN": (),
-    "SKIP": ("dim",),
-    "TIME": ("dim",),
-    "DEBUG": ("dim",),
-    "WARN": ("yellow",),
-    "ERROR": ("red",),
-}
-_SUBJECT_STYLE = {
-    "STEP": ("bold", "cyan"),
-    "OK": ("bold", "green"),
-    "INFO": ("cyan",),
-    "RUN": ("bold",),
-    "SKIP": ("cyan",),
-    "TIME": ("dim",),
-    "DEBUG": ("magenta",),
-    "WARN": ("bold", "yellow"),
-    "ERROR": ("bold", "red"),
-}
-
-# Levels whose message leads with its own subject: a package name for STEP, OK
-# and SKIP, a program name for RUN. Coloring that leading token puts the
-# identity of every line in one column, so a long scroll can be read down the
-# left edge without parsing the prose beside it.
-_SUBJECT_IS_LEADING = frozenset({"STEP", "OK", "RUN", "SKIP"})
 
 
 def format_elapsed(total: int) -> str:
@@ -142,63 +119,6 @@ class Logger:
         # colored value would bleed into the rest of the line.
         return palette.nc + "".join(getattr(palette, name) for name in names)
 
-    def _colorize_subject(
-        self, text: str, body: str, subject: str, nc: str, version_style: str = ""
-    ) -> str:
-        head, separator, tail = text.partition(" ")
-        if version_style and tail:
-            version, gap, detail = tail.partition(" ")
-            tail = f"{version_style}{version}{body}{gap}{detail}"
-        remainder = f"{separator}{tail}" if separator else ""
-        return f"{subject}{head}{body}{remainder}{nc}"
-
-    def _colorize_command(self, arguments: Sequence[str], palette: Palette) -> str:
-        """Style original argv while retaining exactly the logged shell quoting."""
-        parts: list[str] = []
-        for index, argument in enumerate(arguments):
-            quoted = shellquote.quote(argument)
-            if index == 0:
-                styled = self._styles(palette, ("bold", "cyan")) + quoted
-            elif "=" in argument and (
-                argument.startswith("-") or re.match(r"[A-Za-z_][A-Za-z0-9_]*=", argument)
-            ):
-                key, equal, value = quoted.partition("=")
-                value_style = "cyan" if "/" in argument.partition("=")[2] else "yellow"
-                styled = (
-                    self._styles(palette, ("magenta",))
-                    + key
-                    + palette.nc
-                    + equal
-                    + self._styles(palette, (value_style,))
-                    + value
-                )
-            elif argument.startswith("-"):
-                styled = self._styles(palette, ("magenta",)) + quoted
-            else:
-                value_style = "cyan" if "/" in argument else "yellow"
-                styled = self._styles(palette, (value_style,)) + quoted
-            parts.append(styled + palette.nc)
-        return " ".join(parts)
-
-    def _colorize_values(self, text: str, body: str, value: str, nc: str) -> str:
-        """Lift quoted payloads out of the surrounding prose.
-
-        Quotes are consumed in pairs and an unpaired one ends the scan, so an
-        apostrophe in prose recolors nothing after it.
-        """
-        rendered: list[str] = []
-        remaining = text
-        while True:
-            prose, quote, after = remaining.partition("'")
-            if not quote:
-                break
-            inner, closing, rest = after.partition("'")
-            if not closing:
-                break
-            rendered.append(f"{prose}{value}'{inner}'{body}")
-            remaining = rest
-        return f"{body}{''.join(rendered)}{remaining}{nc}"
-
     def line(
         self,
         level: str,
@@ -210,34 +130,26 @@ class Logger:
         target = stream if stream is not None else self._out
         palette = self.err_palette if target is self._err else self.out_palette
         tag = self._styles(palette, _TAG_STYLE[level])
-        body = self._styles(palette, _BODY_STYLE[level])
-        subject = self._styles(palette, _SUBJECT_STYLE[level])
         elapsed = format_elapsed(self.elapsed_seconds)
         indent = " " * LOG_PREFIX_WIDTH
+        body = palette.text + (palette.bold if level == "STEP" else "")
 
-        # splitlines(), never split("\n"): a trailing newline must not produce a
-        # phantom final record.
+        if level == "RUN" and command_arguments is not None:
+            message = shellquote.join(list(command_arguments))
+        # A trailing newline must not produce a phantom final record.
         message_lines = message.splitlines() or [""]
         for index, text in enumerate(message_lines):
-            # Only the first line of a record carries the subject; a
-            # continuation line is prose or a list item, so it takes the value
-            # treatment.
-            if index == 0 and level == "RUN" and command_arguments is not None:
-                rendered = self._colorize_command(command_arguments, palette)
-            elif index == 0 and level in _SUBJECT_IS_LEADING:
-                version_style = (
-                    self._styles(palette, ("bold", "yellow"))
-                    if level in ("STEP", "OK", "SKIP")
-                    else ""
-                )
-                rendered = self._colorize_subject(text, body, subject, palette.nc, version_style)
-            else:
-                rendered = self._colorize_values(text, body, subject, palette.nc)
             if index == 0:
-                prefix = f"[{palette.green}{elapsed}{palette.nc}] {tag}{level:<5}{palette.nc} "
-                print(f"{prefix}{rendered}", file=target, flush=True)
+                if level in ("STEP", "OK", "SKIP"):
+                    text = _PACKAGE_VERSION.sub(
+                        lambda match: f"{palette.warning}{match[0]}{body}", text
+                    )
+                prefix = f"{palette.nc}{palette.muted}[{elapsed}]{palette.nc} {tag}{level:<5}{palette.nc} "
+                print(f"{prefix}{body}{text}{palette.nc}", file=target, flush=True)
             else:
-                print(f"{indent}{rendered}", file=target, flush=True)
+                print(
+                    f"{indent}{palette.nc}{palette.text}{text}{palette.nc}", file=target, flush=True
+                )
 
         self.write_log_records(level, message_lines, elapsed)
 
@@ -290,21 +202,11 @@ class Logger:
         self.line("ERROR", message, stream=self._err)
 
     def banner(self, text: str) -> None:
-        """Stage heading.
-
-        The box is structure rather than content, so it is dimmed and only the
-        title carries a color; drawing it from the same palette as every log
-        line is what keeps a stage heading recognizably part of the same output.
-        """
+        """A compact section heading using the same accent as package steps."""
         palette = self.out_palette
-        inner = len(text) + 2
-        border = "-" * inner
-        blank = " " * inner
-        print(f"{palette.dim} {border}{palette.nc}")
-        print(f"{palette.dim}|{blank}|{palette.nc}")
         print(
-            f"{palette.dim}|{palette.nc} {palette.bold}{palette.cyan}{text}"
-            f"{palette.nc} {palette.dim}|{palette.nc}"
+            f"{palette.nc}{palette.accent}──{palette.nc} "
+            f"{palette.bold}{palette.text}{text}{palette.nc} {palette.accent}──{palette.nc}",
+            file=self._out,
+            flush=True,
         )
-        print(f"{palette.dim}|{blank}|{palette.nc}")
-        print(f"{palette.dim} {border}{palette.nc}", flush=True)

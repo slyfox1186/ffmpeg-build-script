@@ -314,3 +314,25 @@ def test_opening_saved_clang_config_never_rewrites_it(tmp_path: Path) -> None:
             assert path.read_text() == original and path.stat().st_mtime_ns == stamp
 
     asyncio.run(check())
+
+
+@pytest.mark.parametrize("keys", [("p", "a", "b"), ("p", "down", "enter", "b")])
+def test_all_preset_saves_every_package_before_build(tmp_path: Path, keys: tuple[str, ...]) -> None:
+    async def check() -> None:
+        path = tmp_path / "custom.toml"
+        app = MenuApp(
+            MenuModel(
+                {}, BuildSettings(compiler="clang", latest=True, enable_gpl_and_non_free=True)
+            ),
+            path,
+        )
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.press(*keys)
+            assert app.session.result.start_build
+            assert app.session.result.saved_path == path
+            loaded = load_config(path, Logger())
+            assert loaded.selection.states() == dict.fromkeys(registry.PACKAGE_NAMES, True)
+            assert loaded.settings.compiler == "clang"
+            assert loaded.settings.latest and loaded.settings.enable_gpl_and_non_free
+
+    asyncio.run(check())

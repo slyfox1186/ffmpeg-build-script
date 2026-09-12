@@ -189,7 +189,7 @@ class FFmpegStage:
         if display_results:
             palette = self.logger.out_palette
             print(
-                f"\n{palette.green}FFmpeg installation verified{palette.nc} ({install_prefix}/bin):"
+                f"\n{palette.bold}{palette.text}FFmpeg installation verified{palette.nc} ({install_prefix}/bin):"
             )
             for version_line in version_lines:
                 print(f"  {version_line}")
@@ -678,19 +678,18 @@ def report_success(context: BuildContext) -> None:
     ]
 
     palette = context.logger.out_palette
-    green, cyan, nc = palette.green, palette.cyan, palette.nc
+    check = f"{palette.success}✓{palette.nc}{palette.text}"
     print()
     context.logger.banner("FFmpeg build completed successfully")
-    print(f"\n{green}✓ Version:{nc} {cyan}{version_line}{nc}")
-    print(f"{green}✓ Installation:{nc} {cyan}/usr/local/bin{nc}")
-    print(f"{green}✓ Installed tools:{nc} {cyan}{' '.join(installed_tools) or 'none'}{nc}")
+    print(f"\n{check} Version: {version_line}{palette.nc}")
+    print(f"{check} Installation: /usr/local/bin{palette.nc}")
+    print(f"{check} Installed tools: {' '.join(installed_tools) or 'none'}{palette.nc}")
     print(
-        f"{green}✓ Encoders / decoders / filters:{nc} "
-        f"{cyan}{counts['encoders']} / {counts['decoders']} / {counts['filters']}{nc}"
+        f"{check} Encoders / decoders / filters: "
+        f"{counts['encoders']} / {counts['decoders']} / {counts['filters']}{palette.nc}"
     )
     print(
-        f"{green}✓ Reported hardware accelerators:{nc} "
-        f"{cyan}{', '.join(accelerators) or 'none reported'}{nc}"
+        f"{check} Reported hardware accelerators: {', '.join(accelerators) or 'none reported'}{palette.nc}"
     )
     _report_package_summary(context)
 
@@ -713,11 +712,11 @@ def _report_package_summary(context: BuildContext) -> None:
             )
 
     palette = context.logger.out_palette
-    green, cyan, nc = palette.green, palette.cyan, palette.nc
+    check = f"{palette.success}✓{palette.nc}{palette.text}"
     print(
-        f"{green}✓ Packages:{nc} {cyan}{context.packages_built}{nc} built, "
-        f"{cyan}{context.packages_already_built}{nc} already current, "
-        f"{cyan}{context.packages_disabled}{nc} disabled"
+        f"{check} Packages: {context.packages_built} built, "
+        f"{context.packages_already_built} already current, "
+        f"{context.packages_disabled} disabled{palette.nc}"
     )
-    print(f"{green}✓ Total time:{nc} {cyan}{format_duration(context.logger.elapsed_seconds)}{nc}")
-    print(f"{green}✓ Build log:{nc} {cyan}{context.log_file}{nc}\n")
+    print(f"{check} Total time: {format_duration(context.logger.elapsed_seconds)}{palette.nc}")
+    print(f"{check} Build log: {context.log_file}{palette.nc}\n")
