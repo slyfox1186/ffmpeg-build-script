@@ -3177,6 +3177,16 @@ ensure_autotools() {
     execute autoreconf -fi
 }
 
+# CMake's package registries let a host-installed config package satisfy a
+# find_package() that should resolve inside the workspace, so every configure in
+# this project disables them.
+readonly -a CMAKE_NO_PACKAGE_REGISTRY_OPTIONS=(
+    -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON
+    -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF
+    -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF
+    -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
+)
+
 cmake_ninja_install() {
     local build_dir
     build_dir="${1:-}"
@@ -3188,10 +3198,7 @@ cmake_ninja_install() {
     execute cmake "$@" -B "$build_dir" \
         -DCMAKE_INSTALL_PREFIX="$workspace" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
-        -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
-        -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
-        -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+        "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
         -G Ninja \
         -Wno-dev
     execute ninja "-j$build_threads" -C "$build_dir"

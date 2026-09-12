@@ -12,6 +12,18 @@
 source "$(dirname "${BASH_SOURCE[0]}")/shared-utils.sh"
 
 # Install video libraries
+# Both branches of the vapoursynth `if build` need the virtual environment on
+# PATH: one to build it, the other because FFmpeg's configure still has to find
+# it on a rerun that skips the build.
+use_vapoursynth_python_environment() {
+    local venv_bin="$workspace/python_virtual_environment/vapoursynth/bin"
+
+    PYTHON="$venv_bin/python"
+    export PYTHON
+    path_prepend "$venv_bin"
+    [[ -z "${ccache_dir:-}" ]] || path_prepend "$ccache_dir"
+}
+
 install_video_libraries() {
     local vmaf_version x265_release selected_version xvidcore_release
     local vapoursynth_package_version
@@ -251,10 +263,7 @@ install_video_libraries() {
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
                           -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
                           -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
-                          -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
-                          -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
-                          -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
-                          -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+                          "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
                           -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             log "Building x265 10-bit library"
@@ -263,10 +272,7 @@ install_video_libraries() {
                           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
                           -DENABLE_HDR10_PLUS=ON -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON \
                           -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
-                          -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
-                          -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
-                          -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
-                          -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+                          "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
                           -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             log "Building x265 8-bit library"
@@ -278,10 +284,7 @@ install_video_libraries() {
                           -DENABLE_SHARED=OFF -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
                           -DEXTRA_LINK_FLAGS="-L." -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
                           -DENABLE_LIBNUMA=OFF \
-                          -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
-                          -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF \
-                          -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF \
-                          -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF \
+                          "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
                           -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             # Install headers and metadata while Ninja's declared 8-bit archive
@@ -457,11 +460,7 @@ EOF
         venv_packages=("Cython==3.2.8")
         setup_python_venv_and_install_packages "$workspace/python_virtual_environment/vapoursynth" "${venv_packages[@]}"
 
-        # Explicitly set the PYTHON environment variable to the virtual environment's Python
-        export PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
-
-        path_prepend "$workspace/python_virtual_environment/vapoursynth/bin"
-        [[ -n "${ccache_dir:-}" ]] && path_prepend "$ccache_dir"
+        use_vapoursynth_python_environment
 
         # Set Python flags for Meson dependency detection
         PYTHON3_CFLAGS="$(python3-config --cflags)" || fail "'python3-config --cflags' failed. Line: $LINENO"
@@ -489,11 +488,7 @@ EOF
                 fail "VapourSynth is enabled but its FFmpeg SDK files are missing. Run 'rm -f -- $packages/vapoursynth.done' to rebuild it. Line: ${LINENO}"
         fi
 
-        # Explicitly set the PYTHON environment variable to the virtual environment's Python
-        PYTHON="$workspace/python_virtual_environment/vapoursynth/bin/python"
-        export PYTHON
-        path_prepend "$workspace/python_virtual_environment/vapoursynth/bin"
-        [[ -n "${ccache_dir:-}" ]] && path_prepend "$ccache_dir"
+        use_vapoursynth_python_environment
     fi
     append_configure_options_if_enabled "vapoursynth" "--enable-vapoursynth"
 
