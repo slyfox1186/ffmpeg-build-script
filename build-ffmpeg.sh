@@ -395,8 +395,14 @@ initialize_build_root() {
         "$log_file" \
         "$cwd/.ffmpeg-build-root" \
         "$cwd/.ffmpeg-build-context"
-    : >"$log_file" || fail "Unable to initialize build log '$log_file'."
     cd -- "$cwd" || fail "Unable to enter build root '$cwd'."
+}
+
+# Kept out of initialize_build_root() so the previous build.log survives until
+# ensure_build_context() has decided whether to abort. Truncating first
+# destroyed the log of the very run the user is being told to investigate.
+truncate_build_log() {
+    : >"$log_file" || fail "Unable to initialize build log '$log_file'."
 }
 
 handle_signal() {
@@ -449,7 +455,13 @@ run_build() {
     require_sudo
     initialize_build_root
     configure_toolchain
+    # Before ensure_build_context: the context has to record the flags the
+    # build actually uses. Snapshotting the inherited environment (normally
+    # empty) meant a change in the computed defaults, such as reusing a
+    # workspace on a different CPU with -march=native, went undetected.
+    source_compiler_flags
     ensure_build_context
+    truncate_build_log
 
     printf '\n'
     box_out_banner "FFmpeg Build Script $SCRIPT_VERSION"

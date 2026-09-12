@@ -291,7 +291,7 @@ install_video_libraries() {
 
             execute mv "libx265.a" "libx265_main.a"
 
-            execute ar -M <<EOF
+            execute ar -M <<'EOF'
 CREATE libx265.a
 ADDLIB libx265_main.a
 ADDLIB libx265_main10.a

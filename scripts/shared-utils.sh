@@ -957,6 +957,11 @@ sudo_keepalive_start() {
     [[ -n "$_SUDO_KEEPALIVE_PID" ]] && kill -0 "$_SUDO_KEEPALIVE_PID" 2>/dev/null && return 0
     local parent_pid=$$
     (
+        # Bash has no way to set FD_CLOEXEC, so the build-root lock descriptor
+        # is inherited here. This subshell outlives a SIGKILLed parent by up to
+        # one sleep interval, and while it holds that descriptor the next run's
+        # `flock -n` fails immediately. Drop it explicitly.
+        [[ -z "$_BUILD_ROOT_LOCK_FD" ]] || exec {_BUILD_ROOT_LOCK_FD}>&-
         while kill -0 "$parent_pid" 2>/dev/null; do
             # -n: never prompt. If the cached credential can't be refreshed
             # (e.g. timestamp_timeout=0), stop instead of spinning.

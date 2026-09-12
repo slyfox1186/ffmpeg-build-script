@@ -29,7 +29,7 @@ install_image_libraries() {
         with_x265=OFF
 
         package_enabled "av1-git" && [[ -f "$workspace/lib/libaom.a" || -f "$workspace/lib64/libaom.a" ]] && with_aom=ON
-        library_exists dav1d && with_dav1d=ON
+        package_enabled "libdav1d" && library_exists dav1d && with_dav1d=ON
         library_exists libde265 && with_libde265=ON
         package_enabled "rav1e" && [[ -f "$workspace/lib/librav1e.a" || -f "$workspace/lib64/librav1e.a" ]] && with_rav1e=ON
         is_true "$NONFREE_AND_GPL" && package_enabled "x265" &&

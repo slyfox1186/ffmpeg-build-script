@@ -338,7 +338,6 @@ collect_host_packages() {
     append_packages_if_enabled "$target_name" "libvo-amrwbenc" libvo-amrwbenc-dev
     append_packages_if_enabled "$target_name" "libgsm" libgsm1-dev
     append_packages_if_enabled "$target_name" "ladspa" ladspa-sdk
-    append_packages_if_enabled "$target_name" "frei0r" frei0r-plugins-dev
     append_packages_if_enabled "$target_name" "libopenh264" libopenh264-dev
     append_packages_if_enabled "$target_name" "libopenmpt" libopenmpt-dev
     append_packages_if_enabled "$target_name" "librtmp" librtmp-dev
@@ -440,6 +439,10 @@ collect_host_packages() {
     fi
 
     if is_true "$NONFREE_AND_GPL"; then
+        # frei0r is in FFmpeg's EXTERNAL_LIBRARY_GPL_LIST and ffmpeg-build.sh
+        # gates --enable-frei0r on GPL mode, so a default LGPL build installed
+        # the development package and then never used it.
+        append_packages_if_enabled "$target_name" "frei0r" frei0r-plugins-dev
         append_packages_if_enabled "$target_name" "libsmbclient" libsmbclient-dev
         append_packages_if_enabled "$target_name" "libcdio" \
             libcdio-dev libcdio-paranoia-dev

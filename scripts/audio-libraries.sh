@@ -138,9 +138,13 @@ install_audio_libraries() {
     append_configure_options_if_enabled "opencore-amr" "--enable-libopencore-amrnb" "--enable-libopencore-amrwb"
 
     # Build liblame
-    if build "liblame" "3.100"; then
+    # Pinned deliberately: 3.100 (2017) is still the current LAME release and
+    # upstream publishes no version index to detect from, so --latest cannot
+    # move it. Update this literal when upstream ships a new release.
+    local lame_version="3.100"
+    if build "liblame" "$lame_version"; then
         local -a lame_iconv_options=()
-        download "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz" "liblame-3.100.tar.gz"
+        download "https://downloads.sourceforge.net/project/lame/lame/$lame_version/lame-$lame_version.tar.gz" "liblame-$lame_version.tar.gz"
         if package_enabled "libiconv" && [[ -f "$workspace/lib/libiconv.a" ]]; then
             lame_iconv_options=(--with-libiconv-prefix="$workspace")
         fi
@@ -150,7 +154,7 @@ install_audio_libraries() {
                              "${lame_iconv_options[@]}"
         execute make "-j$build_threads"
         execute make install
-        build_done "liblame" "3.100"
+        build_done "liblame" "$lame_version"
     fi
     append_configure_options_if_enabled "liblame" "--enable-libmp3lame"
 

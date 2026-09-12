@@ -24,9 +24,6 @@ install_global_tools() {
         printf "\n%s\n" "An AMD GPU was detected without an NVIDIA GPU present."
     fi
 
-    # Source the compiler flags
-    source_compiler_flags
-
     # Build m4 from a versioned release. "m4-latest" is mutable and cannot be
     # represented truthfully by a durable build marker.
     fetch_version_if_enabled "m4" gnu_repo "$GNU_PRIMARY_MIRROR/m4/"
