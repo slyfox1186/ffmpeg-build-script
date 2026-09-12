@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import tempfile
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import shellquote
@@ -98,6 +101,38 @@ class CommandFailed(BuildError):
         super().__init__(message)
         self.exit_code = exit_code
         self.command = command
+
+
+@contextmanager
+def managed_process(process: subprocess.Popen[bytes]) -> Iterator[subprocess.Popen[bytes]]:
+    """Reap the command and stop its process group before unwinding a build.
+
+    Callers create a new process group, retaining the controlling terminal for
+    sudo. Killing only make leaves its compiler children writing after locks
+    have been released or installation rollback has started.
+    """
+    try:
+        yield process
+    except BaseException:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+        raise
+    finally:
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
 
 
 class Runner:
@@ -199,28 +234,33 @@ class Runner:
         elif self.log_file is not None:
             start = self._log_size()
             with self.log_file.open("ab") as sink:
-                completed = subprocess.run(
-                    list(arguments),
-                    cwd=working_directory,
-                    env=environment,
-                    stdout=sink,
-                    stderr=subprocess.STDOUT,
-                    input=stdin_text.encode() if stdin_text is not None else None,
-                    check=False,
-                )
-            exit_code = completed.returncode
+                with managed_process(
+                    subprocess.Popen(
+                        list(arguments),
+                        cwd=working_directory,
+                        env=environment,
+                        stdout=sink,
+                        stderr=subprocess.STDOUT,
+                        stdin=subprocess.PIPE if stdin_text is not None else None,
+                        process_group=0,
+                    )
+                ) as process:
+                    process.communicate(stdin_text.encode() if stdin_text is not None else None)
+                    exit_code = process.wait()
             if exit_code != 0:
                 self._replay_log(start)
         else:
-            completed = subprocess.run(
-                list(arguments),
-                cwd=working_directory,
-                env=environment,
-                input=stdin_text,
-                text=stdin_text is not None,
-                check=False,
-            )
-            exit_code = completed.returncode
+            with managed_process(
+                subprocess.Popen(
+                    list(arguments),
+                    cwd=working_directory,
+                    env=environment,
+                    stdin=subprocess.PIPE if stdin_text is not None else None,
+                    process_group=0,
+                )
+            ) as process:
+                process.communicate(stdin_text.encode() if stdin_text is not None else None)
+                exit_code = process.wait()
 
         # Only the slow commands get a timing line. A compile that ran for
         # twenty minutes is worth recording; a version probe that took no
@@ -244,38 +284,31 @@ class Runner:
         producing a partial one would make a bug report misleading.
         """
         assert self.log_file is not None
-        with self.log_file.open("ab") as sink:
-            process = subprocess.Popen(
-                list(arguments),
-                cwd=cwd,
-                env=dict(environment),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE if stdin_text is not None else None,
-            )
-            if stdin_text is not None and process.stdin is not None:
-                process.stdin.write(stdin_text.encode())
-                process.stdin.close()
-            assert process.stdout is not None
-            output = process.stdout
-            try:
-                for chunk in iter(output.readline, b""):
+        # A file-backed input avoids a pipe deadlock when a child produces
+        # output before reading all its input. Output remains bounded chunks.
+        with self.log_file.open("ab") as sink, tempfile.TemporaryFile() as source:
+            if stdin_text is not None:
+                source.write(stdin_text.encode())
+                source.seek(0)
+            with managed_process(
+                subprocess.Popen(
+                    list(arguments),
+                    cwd=cwd,
+                    env=dict(environment),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    stdin=source if stdin_text is not None else None,
+                    process_group=0,
+                )
+            ) as process:
+                assert process.stdout is not None
+                output = process.stdout
+                for chunk in iter(lambda: os.read(output.fileno(), 65536), b""):
                     sys.stdout.buffer.write(chunk)
                     sys.stdout.flush()
                     sink.write(chunk)
-            except OSError as error:
-                process.kill()
-                process.wait()
-                raise BuildError(
-                    f"Unable to record command output in '{self.log_file}': {error}"
-                ) from error
-            except BaseException:
-                process.kill()
-                process.wait()
-                raise
-            finally:
-                process.stdout.close()
-            return process.wait()
+                sink.flush()
+                return process.wait()
 
     def execute(
         self,
@@ -314,15 +347,23 @@ class Runner:
         exit are reported the same way: through the returned status.
         """
         try:
-            return subprocess.run(
-                list(arguments),
-                cwd=str(cwd) if cwd is not None else None,
-                env=self.child_environment(env_overrides),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
+            with managed_process(
+                subprocess.Popen(
+                    list(arguments),
+                    cwd=str(cwd) if cwd is not None else None,
+                    env=self.child_environment(env_overrides),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    process_group=0,
+                )
+            ) as process:
+                stdout, stderr = process.communicate(timeout=timeout)
+                return subprocess.CompletedProcess(
+                    list(arguments),
+                    process.returncode,
+                    stdout.decode(errors="replace"),
+                    stderr.decode(errors="replace"),
+                )
         except (OSError, subprocess.SubprocessError) as error:
             return subprocess.CompletedProcess(list(arguments), 127, "", str(error))
 
@@ -382,8 +423,13 @@ def notify_failure(message: str) -> None:
     """
     if shutil.which("notify-send") is None:
         return
-    subprocess.run(
-        ["notify-send", "-t", "5000", message],
-        capture_output=True,
-        check=False,
-    )
+    try:
+        subprocess.run(
+            ["notify-send", "-t", "5000", "--", message],
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        # Desktop notification is best-effort and must never mask build failure.
+        pass
