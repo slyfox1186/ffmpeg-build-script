@@ -97,3 +97,19 @@ cleanup so it reads capabilities and the log while the workspace still exists.
 Capability probes use bounded managed subprocesses and report failures instead
 of silently displaying zero capabilities. Regression coverage forbids system
 binary probes for a dependencies-only selection.
+
+## High severity: archive expansion and source recovery
+
+Compressed download limits did not bound expanded payloads or member counts.
+Validation now enforces 8 GiB of declared data and 100,000 members, including
+cached archives and pessimistic hard-link copy costs. These are new documented
+environment overrides, not dependency changes. Tests use small limits and real
+compressed archives to exercise rejection without consuming gigabytes.
+Python's [tarfile security guidance](https://docs.python.org/3/library/tarfile.html#hints-for-further-verification)
+and Context7 explicitly caution that data filters alone do not prevent resource
+exhaustion; these bounds do not constitute an execution sandbox.
+
+Extraction previously deleted the old source before publishing the replacement.
+It now moves the old tree aside and restores it on publication failure; if
+restoration fails, recovery files are retained and their location reported.
+A rename-failure regression verifies the previous source survives.

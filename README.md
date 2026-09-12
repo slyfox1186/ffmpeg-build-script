@@ -353,6 +353,14 @@ cache writes. A locally recorded SHA-256 detects cache damage or tampering
 between runs; it is not a substitute for an upstream signature. Git snapshot
 builds are cloned transactionally and recorded by commit.
 
+In addition to the compressed transfer limit, archives are limited to 8 GiB of
+declared extracted data (hard links charged as copies) and 100,000 members.
+`DOWNLOAD_MAX_EXTRACTED_BYTES` and `DOWNLOAD_MAX_MEMBERS` are positive-integer
+overrides for unusually large source releases. Cached archives obey the same
+limits. A source publication failure restores the previous source directory.
+These checks and Python's explicit data filter reduce extraction risks; they
+do not make third-party build scripts safe to execute without trust.
+
 Cleanup opens directory components without following symlinks and removes
 entries relative to those descriptors. It preserves other devices and reports
 removal errors; same-device bind mounts are subject to the same limitation as

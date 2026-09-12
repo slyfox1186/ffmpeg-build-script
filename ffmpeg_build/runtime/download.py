@@ -26,7 +26,13 @@ from . import shellquote
 from .errors import BuildError
 from .exec import Runner
 from .logging import Logger
-from .paths import DirectoryLock, canonicalize, is_exclusive_regular_file, safe_remove_tree
+from .paths import (
+    DirectoryLock,
+    canonicalize,
+    is_exclusive_regular_file,
+    path_is_within,
+    safe_remove_tree,
+)
 
 SUPPORTED_ARCHIVE_SUFFIXES = (".tar", ".tar.bz2", ".tar.gz", ".tar.xz")
 _ARCHIVE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
@@ -46,6 +52,8 @@ class DownloadSettings:
         self.connect_timeout = positive("DOWNLOAD_CONNECT_TIMEOUT", 5)
         self.max_time = positive("DOWNLOAD_MAX_TIME", 1800)
         self.max_bytes = positive("DOWNLOAD_MAX_BYTES", 1073741824)
+        self.max_extracted_bytes = positive("DOWNLOAD_MAX_EXTRACTED_BYTES", 8 * 1024**3)
+        self.max_members = positive("DOWNLOAD_MAX_MEMBERS", 100000)
         self.retry = positive("DOWNLOAD_RETRY", 5)
         self.retry_delay = positive("DOWNLOAD_RETRY_DELAY", 5)
         self.lock_timeout = positive("DOWNLOAD_LOCK_TIMEOUT", 1800)
@@ -162,12 +170,41 @@ class Downloader:
         enforce the single-root rule or the "has payload below the root" rule
         that stripping one component depends on, so those stay explicit here.
         """
-        if not archive.is_file():
+        if not is_exclusive_regular_file(archive):
             return False
         try:
+            if archive.stat().st_size > self.settings.max_bytes:
+                self.logger.warn(f"Archive '{archive}' exceeds the configured transfer size limit.")
+                return False
+            names: list[str] = []
+            sizes: dict[str, int] = {}
+            expanded_bytes = 0
             with tarfile.open(archive) as bundle:
-                names = bundle.getnames()
-        except (tarfile.TarError, OSError, EOFError) as error:
+                for member in bundle:
+                    if len(names) >= self.settings.max_members:
+                        self.logger.warn(
+                            f"Archive '{archive}' exceeds the configured member limit."
+                        )
+                        return False
+                    name = member.name.removeprefix("./")
+                    size = member.size
+                    if member.islnk():
+                        # Charge links as copies too: tarfile may fall back to
+                        # copying if the filesystem cannot create a hard link.
+                        target = member.linkname.removeprefix("./")
+                        if target not in sizes:
+                            self.logger.warn(f"Archive '{archive}' has an unresolved hard link.")
+                            return False
+                        size = sizes[target]
+                    expanded_bytes += size
+                    if size < 0 or expanded_bytes > self.settings.max_extracted_bytes:
+                        self.logger.warn(
+                            f"Archive '{archive}' exceeds the configured extracted size limit."
+                        )
+                        return False
+                    sizes[name] = size
+                    names.append(member.name)
+        except (tarfile.TarError, OSError, EOFError, KeyError) as error:
             self.logger.warn(f"Unable to list tar archive '{archive}': {error}")
             return False
 
@@ -373,7 +410,7 @@ class Downloader:
                 # from 3.14: this project targets exactly that range, so the
                 # default would change behavior between supported hosts.
                 bundle.extractall(path=staging, filter="data")
-        except (tarfile.TarError, OSError, EOFError) as error:
+        except (tarfile.TarError, OSError, EOFError, KeyError) as error:
             self.logger.warn(f"Failed to extract '{archive}': {error}")
             safe_remove_tree(staging, self.packages)
             self._unregister(staging)
@@ -392,9 +429,27 @@ class Downloader:
             self._unregister(staging)
             return False
 
-        safe_remove_tree(target_directory, self.packages)
+        if target_directory.is_symlink() or not path_is_within(target_directory, self.packages):
+            safe_remove_tree(staging, self.packages)
+            self._unregister(staging)
+            raise BuildError(f"Refusing unsafe extraction destination: '{target_directory}'.")
+        previous = staging / ".previous-source"
+        had_previous = target_directory.exists()
         try:
-            os.rename(stripped, target_directory)
+            if had_previous:
+                os.rename(target_directory, previous)
+            try:
+                os.rename(stripped, target_directory)
+            except BaseException:
+                if had_previous:
+                    try:
+                        os.rename(previous, target_directory)
+                    except OSError as restore_error:
+                        self._unregister(staging)
+                        raise BuildError(
+                            f"Source restoration failed; recovery files remain at '{previous}'."
+                        ) from restore_error
+                raise
         except OSError as error:
             self.logger.warn(f"Failed to publish the extracted source for '{archive}': {error}")
             safe_remove_tree(staging, self.packages)
