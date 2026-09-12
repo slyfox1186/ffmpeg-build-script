@@ -19,8 +19,9 @@ def contract_errors(root: Path) -> list[str]:
     errors: list[str] = []
     template = (root / "example.toml").read_text(encoding="utf-8")
     keys = set(tomllib.loads(template)["packages"])
+    declared = [package.key for group in registry.GROUPS for package in group.packages]
     registered = set(registry.PACKAGE_NAMES)
-    if keys != registered or len(registered) != len(registry.PACKAGE_NAMES):
+    if keys != registered or len(set(declared)) != len(declared):
         errors.append(
             f"Template/registry mismatch: template-only={sorted(keys - registered)}, "
             f"registry-only={sorted(registered - keys)}; duplicate registry keys are forbidden."

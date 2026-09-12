@@ -184,3 +184,19 @@ Evidence is retained at `/tmp/ffmpeg-native-audit-_biue3qb/{build.log,result.jso
 the build plus smoke test took approximately 74 seconds. This selected FFmpeg
 alone, with system bzlib/lzma prerequisites; it does not verify 127 native
 dependencies, physical GPU integrations, ffplay, or privileged rollback.
+
+## Low severity: recipe consistency and unnecessary work
+
+GitHub tag-prefix fallback now fetches one consistent tag list instead of making
+the same network request twice for unprefixed releases or a failed lookup.
+Version selection rejects nonpositive indexes and incomplete Git hashes.
+Disabled VapourSynth no longer injects a nonexistent Python environment into
+later recipes. AviSynth now applies the same CMake package-registry isolation
+flags as other recipes, matching the documented policy.
+
+Removed four unreferenced internal helpers/constants, including an unused
+recursive replacement helper that bypassed guarded deletion. No public CLI,
+configuration schema, or dependency versions changed. The registry contract
+check examines raw declarations before dictionary deduplication so duplicate
+keys can actually fail validation. The fixture capture wrapper now declares its
+signature explicitly, removing its former type-ignore suppression.

@@ -16,7 +16,6 @@ import contextlib
 import hashlib
 import os
 import re
-import shutil
 import tarfile
 import tempfile
 from collections.abc import Callable, Iterator
@@ -544,10 +543,3 @@ class Downloader:
         if source is not None:
             return source
         raise BuildError("Failed to download from both primary and fallback mirrors.")
-
-
-def copy_tree(source: Path, destination: Path) -> None:
-    """Copy a directory tree, replacing whatever is at the destination."""
-    if destination.exists():
-        shutil.rmtree(destination)
-    shutil.copytree(source, destination, symlinks=True)

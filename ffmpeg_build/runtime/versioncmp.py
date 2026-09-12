@@ -133,9 +133,3 @@ def version_sort(values: list[str], *, reverse: bool = False, unique: bool = Fal
             continue
         deduplicated.append(value)
     return deduplicated
-
-
-def highest_version(values: list[str]) -> str | None:
-    """The newest entry, or None when there is nothing to choose from."""
-    ordered = version_sort(list(values), reverse=True)
-    return ordered[0] if ordered else None

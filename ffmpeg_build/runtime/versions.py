@@ -21,7 +21,7 @@ GNU_FALLBACK_MIRROR = "https://mirror.team-cymru.com/gnu"
 
 DEFAULT_VERSION_PATTERN = re.compile(r"^[0-9]+(\.[0-9]+){1,3}$")
 _REPO_NAME = re.compile(r"^[a-zA-Z0-9._/-]+$")
-_COMMIT = re.compile(r"^[0-9a-fA-F]{40,64}$")
+_COMMIT = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 
 
 class VersionResolver:
@@ -128,6 +128,8 @@ class VersionResolver:
         index: int = 1,
     ) -> str | None:
         """Pick the nth-newest tag matching a prefix and shape."""
+        if index < 1:
+            raise BuildError("Version selection index must be a positive integer.")
         exclude = re.compile(exclude_pattern) if exclude_pattern else None
         versions: list[str] = []
         for reference in references:
@@ -180,7 +182,16 @@ class VersionResolver:
         This is the fallback dispatch the Bash `github_repo` used for
         repositories whose tagging convention is not recorded anywhere.
         """
-        return self.github_version(repository, "v") or self.github_version(repository, "")
+        if not _REPO_NAME.fullmatch(repository):
+            raise BuildError(f"Invalid repository name format: '{repository}'.")
+        tags = self.remote_tag_names(f"https://github.com/{repository}.git")
+        if tags is None:
+            self.logger.warn(f"Failed to fetch tags for GitHub repository '{repository}'.")
+            return None
+        version = self.select_prefixed_version(tags, "v") or self.select_prefixed_version(tags, "")
+        if version is None:
+            self.logger.warn(f"github_version: no stable version found for '{repository}'.")
+        return version
 
     def gitlab_version(
         self,

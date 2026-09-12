@@ -545,6 +545,7 @@ def _install_gpl_video(context: BuildContext) -> None:
                 "-DBUILD_SHARED_LIBS=OFF",
                 "-DHEADERS_ONLY=OFF",
                 "-DENABLE_PLUGINS=OFF",
+                *CMAKE_NO_PACKAGE_REGISTRY_OPTIONS,
                 "-Wno-dev",
             ],
             cwd=source,
@@ -744,7 +745,7 @@ def _install_vapoursynth(context: BuildContext) -> None:
                     "VapourSynth is enabled but its FFmpeg SDK files are missing. Run "
                     f"'rm -f -- {context.packages}/vapoursynth.done' to rebuild it."
                 )
-        use_vapoursynth_python_environment(context)
+            use_vapoursynth_python_environment(context)
     context.append_configure_options_if_enabled("vapoursynth", "--enable-vapoursynth")
 
 

@@ -39,13 +39,3 @@ def meson_project_option_exists(source: Path, option_name: str) -> bool:
             except OSError:
                 return False
     return False
-
-
-def expand_options(template: str, values: tuple[str, ...]) -> list[str]:
-    """Expand what Bash wrote as a brace expansion.
-
-    `-D{a,b,c}=disabled` is a shell feature, not a build-system one. Writing the
-    expansion out here keeps the option list a real list rather than a string
-    that only a shell could interpret.
-    """
-    return [template.format(value=value) for value in values]

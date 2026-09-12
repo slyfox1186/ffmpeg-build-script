@@ -57,6 +57,8 @@ def test_completed_workspace_runs_all_dependency_stages(
     flags = context.configure_options
     if preset == "none":
         assert flags == []
+        assert "python_virtual_environment/vapoursynth" not in context.env["PATH"]
+        assert "PYTHON" not in context.env
     else:
         assert ("--enable-libx264" in flags) == (gpl and context.package_enabled("x264"))
         assert ("--enable-openssl" in flags) == (gpl and context.package_enabled("openssl"))

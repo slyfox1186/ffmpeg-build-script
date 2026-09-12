@@ -24,7 +24,6 @@ CLEANUP_COMMAND = "build-ffmpeg.py --cleanup"
 _TABLE = re.compile(r"^\[([A-Za-z0-9._-]+)\]$")
 _ASSIGNMENT = re.compile(r"^([A-Za-z0-9_-]+)[ \t]*=[ \t]*(true|false)$")
 _SUPPORTED_TABLES = ("build", "packages")
-_SUPPORTED_BUILD_KEYS = ("latest", "enable_gpl_and_non_free")
 
 
 class Selection:
