@@ -85,31 +85,45 @@ def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
 
 
 def _remove_at(parent_fd: int, name: str, device: int) -> None:
+    # Post-order traversal without Python recursion: valid source archives can
+    # contain more directory levels than the interpreter's recursion limit.
+    pending: list[tuple[int, str, os.stat_result | None, int | None]] = [
+        (parent_fd, name, None, None)
+    ]
+    opened: set[int] = set()
     try:
-        inspected = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-    except FileNotFoundError:
-        return
-    if inspected.st_dev != device:
-        return
-    if not stat.S_ISDIR(inspected.st_mode):
-        try:
-            os.unlink(name, dir_fd=parent_fd)
-        except FileNotFoundError:
-            pass
-        return
-    child_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY, dir_fd=parent_fd)
-    try:
-        if not _same_inode(inspected, os.fstat(child_fd)):
-            raise OSError(errno.ESTALE, "Directory changed before removal", name)
-        with os.scandir(child_fd) as entries:
-            children = [entry.name for entry in entries]
-        for child in children:
-            _remove_at(child_fd, child, device)
-        if not _same_inode(inspected, os.stat(name, dir_fd=parent_fd, follow_symlinks=False)):
-            raise OSError(errno.ESTALE, "Directory changed during removal", name)
-        os.rmdir(name, dir_fd=parent_fd)
+        while pending:
+            parent, child, expected, child_fd = pending.pop()
+            if child_fd is not None:
+                assert expected is not None
+                if not _same_inode(expected, os.stat(child, dir_fd=parent, follow_symlinks=False)):
+                    raise OSError(errno.ESTALE, "Directory changed during removal", child)
+                os.rmdir(child, dir_fd=parent)
+                os.close(child_fd)
+                opened.remove(child_fd)
+                continue
+            try:
+                inspected = os.stat(child, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if inspected.st_dev != device:
+                continue
+            if not stat.S_ISDIR(inspected.st_mode):
+                try:
+                    os.unlink(child, dir_fd=parent)
+                except FileNotFoundError:
+                    pass
+                continue
+            fd = os.open(child, os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY, dir_fd=parent)
+            opened.add(fd)
+            if not _same_inode(inspected, os.fstat(fd)):
+                raise OSError(errno.ESTALE, "Directory changed before removal", child)
+            pending.append((parent, child, inspected, fd))
+            with os.scandir(fd) as entries:
+                pending.extend((fd, entry.name, None, None) for entry in entries)
     finally:
-        os.close(child_fd)
+        for fd in opened:
+            os.close(fd)
 
 
 def remove_tree_one_filesystem(target: Path) -> None:

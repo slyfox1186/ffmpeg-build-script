@@ -218,3 +218,13 @@ A second isolated native FFmpeg 9.0.1 build with Clang 20.1.2 passed staged
 installation checks and the same ten-frame FFV1 encode/probe/decode test.
 `/tmp/ffmpeg-native-audit-7de6pm5p` retains logs, result.json, and ffbuild/config.mak
 with CC=clang and CXX=clang++. No host installation was performed.
+
+## High/medium severity: cancellation recovery and deep cleanup
+
+Independent review reproduced a raw RecursionError on a valid 1,100-level source
+tree. Deletion now uses iterative post-order traversal, retaining descriptor
+pinning and inode/device checks. A real deep-tree regression verifies removal.
+Personal follow-up found an interruption window immediately after moving the
+old source aside: abort cleanup could remove its registered staging directory.
+Staging leaves disposable cleanup before that move; an injected interrupt after
+the actual rename proves recovery data survives teardown.

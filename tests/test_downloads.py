@@ -200,6 +200,30 @@ def test_archive_resource_limits_preserve_existing_source(
     assert (target / "keep").read_text() == "old source"
 
 
+def test_interrupt_after_old_source_rename_retains_recovery(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive = archive_at(
+        context.packages / "project.tar.gz", [("project/new", b"new", tarfile.REGTYPE)]
+    )
+    target = context.packages / "project"
+    target.mkdir()
+    (target / "keep").write_text("old source")
+    rename = os.rename
+
+    def interrupt(source: str | os.PathLike[str], destination: str | os.PathLike[str]) -> None:
+        rename(source, destination)
+        if Path(destination).name == ".previous-source":
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(os, "rename", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        context.downloader.extract_transactionally(archive, target)
+    context.remove_registered_temporary_paths()
+    recovered = list(context.packages.glob(".extract.*/.previous-source/keep"))
+    assert len(recovered) == 1 and recovered[0].read_text() == "old source"
+
+
 def test_failed_source_publication_restores_previous_tree(
     context: BuildContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:

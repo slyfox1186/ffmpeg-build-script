@@ -434,6 +434,10 @@ class Downloader:
             raise BuildError(f"Refusing unsafe extraction destination: '{target_directory}'.")
         previous = staging / ".previous-source"
         had_previous = target_directory.exists()
+        # Once staging can contain the old source it is recovery data. A signal
+        # can arrive immediately after rename, before Python enters its handler;
+        # abort cleanup must never erase that only remaining copy.
+        self._unregister(staging)
         try:
             if had_previous:
                 os.rename(target_directory, previous)

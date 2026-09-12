@@ -358,6 +358,18 @@ def test_temporary_registry_containment(context: BuildContext, tmp_path: Path) -
     assert real.is_dir() and outside.is_dir()
 
 
+def test_deep_tree_deletion_does_not_recurse(tmp_path: Path) -> None:
+    target = tmp_path / "deep"
+    target.mkdir()
+    child = target
+    for _ in range(1100):
+        child /= "d"
+        child.mkdir()
+    (child / "payload").write_text("deep source")
+    safe_remove_tree(target, tmp_path)
+    assert not target.exists() and tmp_path.exists()
+
+
 def test_bounded_deletion(tmp_path: Path) -> None:
     root = tmp_path / "root"
     child = root / "child"
