@@ -134,7 +134,11 @@ sndio = true  # sndio audio input and output
 av1-git = true  # AOMedia AV1 encoding and decoding with libaom
 kvazaar = true  # HEVC/H.265 video encoding
 libdav1d = true  # High-performance AV1 video decoding
-libgav1-git = true  # Google AV1 video decoding
+# Disabled by default: FFmpeg has no --enable-libgav1, so this builds a
+# standalone AV1 decoder that the FFmpeg binary cannot link against.
+# AV1 decoding comes from libdav1d instead. The key is kept because an
+# unknown package name is a fatal config error.
+libgav1-git = false  # Standalone AV1 decoder; not used by FFmpeg
 libopenh264 = true  # Cisco H.264 encoding and decoding
 libsnappy = true  # Snappy compression required by the HAP decoder
 libtheora = true  # Theora video encoding and decoding
@@ -158,6 +162,7 @@ gpac-git = true  # GPAC and MP4Box multimedia packaging tools
 libbluray = true  # Blu-ray disc navigation and access
 libcdio = true  # Audio CD input; enabled only in GPL/non-free mode
 libdvdread = true  # DVD disc structure and data access
+libdvdnav = true  # DVD navigation; with libdvdread it enables FFmpeg's dvdvideo demuxer (GPL)
 mediainfo-cli = true  # Command-line technical metadata inspector
 mediainfo-lib = true  # Library for reading technical media metadata
 udfread = true  # Universal Disk Format filesystem reader

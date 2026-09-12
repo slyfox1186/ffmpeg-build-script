@@ -392,6 +392,14 @@ build_ffmpeg() {
                 append_required_configure_options detected_config --enable-libsmbclient
             package_enabled "libcdio" && library_exists libcdio_paranoia &&
                 append_required_configure_options detected_config --enable-libcdio
+            # FFmpeg's dvdvideo demuxer needs both, and enabling either alone
+            # fails configure. Both are in EXTERNAL_LIBRARY_GPL_LIST, so this
+            # stays inside the GPL gate.
+            if package_enabled "libdvdread" && package_enabled "libdvdnav" &&
+                library_exists dvdread && library_exists dvdnav; then
+                append_required_configure_options detected_config \
+                    --enable-libdvdread --enable-libdvdnav
+            fi
         fi
 
         if package_enabled "vulkan" && vulkan_headers_recent; then

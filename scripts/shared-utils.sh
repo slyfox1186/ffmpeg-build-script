@@ -92,7 +92,7 @@ readonly -a SUPPORTED_PACKAGE_NAMES=(
     libwebp-git libhwy brotli lcms2 gflags opencl-sdk-git vulkan-headers-git
     libjpeg-turbo rubberband-git c-ares lv2-git serd pcre2 zix sord sratom lilv jemalloc
     libsoxr sdl2 libsndfile libogg libfdk-aac vorbis libopus libmysofa opencore-amr
-    liblame libtheora av1-git libvmaf rav1e zimg-git avif kvazaar libdvdread udfread
+    liblame libtheora av1-git libvmaf rav1e zimg-git avif kvazaar libdvdread libdvdnav udfread
     ant-git zenlib mediainfo-lib mediainfo-cli vid-stab x264 x265 nv-codec-headers
     vaapi amf-headers srt avisynth xvidcore gpac-git svt-av1 vapoursynth libgav1-git
     libheif openjpeg libbluray libvpx
@@ -1269,7 +1269,7 @@ package_artifacts_ready() {
         xvidcore) [[ -f "$workspace/lib/libxvidcore.a" && -f "$workspace/include/xvid.h" ]] ;;
         vapoursynth) vapoursynth_sdk_ready_for_ffmpeg ;;
         ffmpeg) [[ -x /usr/local/bin/ffmpeg && -x /usr/local/bin/ffprobe ]] ;;
-        libzstd | librist | zlib | openssl | libxml2 | libpng | libtiff | gnutls | freetype | fontconfig | harfbuzz | fribidi | libass | libwebp-git | libhwy | lcms2 | gflags | libjpeg-turbo | rubberband-git | c-ares | serd | pcre2 | zix | sord | sratom | jemalloc | libsoxr | sdl2 | libsndfile | libogg | libfdk-aac | libopus | libmysofa | avif | kvazaar | libdvdread | udfread | zenlib | mediainfo-lib | vid-stab | srt | svt-av1 | libheif | openjpeg)
+        libzstd | librist | zlib | openssl | libxml2 | libpng | libtiff | gnutls | freetype | fontconfig | harfbuzz | fribidi | libass | libwebp-git | libhwy | lcms2 | gflags | libjpeg-turbo | rubberband-git | c-ares | serd | pcre2 | zix | sord | sratom | jemalloc | libsoxr | sdl2 | libsndfile | libogg | libfdk-aac | libopus | libmysofa | avif | kvazaar | libdvdread | libdvdnav | udfread | zenlib | mediainfo-lib | vid-stab | srt | svt-av1 | libheif | openjpeg)
             module_name="$package_name"
             case "$package_name" in
                 libxml2) module_name=libxml-2.0 ;;
@@ -1292,6 +1292,7 @@ package_artifacts_ready() {
                 libopus) module_name=opus ;;
                 avif) module_name=libavif ;;
                 libdvdread) module_name=dvdread ;;
+                libdvdnav) module_name=dvdnav ;;
                 udfread) module_name=libudfread ;;
                 zenlib) module_name=libzen ;;
                 mediainfo-lib) module_name=libmediainfo ;;

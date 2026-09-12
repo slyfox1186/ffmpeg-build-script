@@ -155,6 +155,18 @@ install_video_libraries() {
         build_done "libdvdread" "$repo_version"
     fi
 
+    # Build libdvdnav. FFmpeg's dvdvideo demuxer needs libdvdread and libdvdnav
+    # together, and the 206 project id was already registered with nothing
+    # calling it.
+    fetch_version_if_enabled "libdvdnav" find_git_repo "206" "1"
+    if build "libdvdnav" "$repo_version"; then
+        download "https://code.videolan.org/videolan/libdvdnav/-/archive/$repo_version/libdvdnav-$repo_version.tar.bz2"
+        meson_ninja_install "build" \
+            --default-library=static \
+            --buildtype=release
+        build_done "libdvdnav" "$repo_version"
+    fi
+
     # Build udfread (uses meson since v1.2.0)
     fetch_version_if_enabled "udfread" find_git_repo "363" "1"
     if build "udfread" "$repo_version"; then
