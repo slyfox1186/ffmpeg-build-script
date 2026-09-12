@@ -29,11 +29,17 @@ if [[ -t 1 && "${TERM:-dumb}" != "dumb" && -z "${NO_COLOR:-}" ]]; then
     GREEN=$'\033[0;32m'
     RED=$'\033[0;31m'
     YELLOW=$'\033[0;33m'
+    CYAN=$'\033[0;36m'
+    BOLD=$'\033[1m'
+    DIM=$'\033[2m'
     NC=$'\033[0m'
 else
     GREEN=""
     RED=""
     YELLOW=""
+    CYAN=""
+    BOLD=""
+    DIM=""
     NC=""
 fi
 
@@ -49,6 +55,15 @@ readonly BUILD_ROOT_MARKER_HEADER="ffmpeg-build-root:v1"
 readonly CLEANUP_COMMAND="build-ffmpeg.sh --cleanup"
 _BUILD_ROOT_LOCK_FD=""
 _PACKAGE_CACHE_LOCK_FD=""
+
+# Run tallies, reported once the build finishes. Counting here rather than
+# re-deriving from markers keeps the summary honest about what this run did as
+# opposed to what a previous run left behind.
+_PACKAGES_BUILT=0
+_PACKAGES_ALREADY_BUILT=0
+_PACKAGES_DISABLED=0
+_PACKAGE_START_SECONDS=0
+_PACKAGE_IN_PROGRESS=""
 
 # Cross-script state, assigned at runtime by build-ffmpeg.sh and the stage
 # scripts. Declared here because the stage scripts source only this file, so
@@ -141,12 +156,88 @@ box_out_banner() {
     fi
 }
 
+# Elapsed time since this process started. $SECONDS is a bash builtin, so this
+# costs no subprocess even when thousands of lines are emitted.
+format_elapsed() {
+    local total="${1:-0}"
+
+    printf '%02d:%02d:%02d' \
+        "$((total / 3600))" "$((total % 3600 / 60))" "$((total % 60))"
+}
+
+# Durations read better at the scale they occur: a package build is minutes, a
+# full run is hours, a probe is seconds.
+format_duration() {
+    local total="${1:-0}"
+
+    if ((total >= 3600)); then
+        printf '%dh%02dm' "$((total / 3600))" "$((total % 3600 / 60))"
+    elif ((total >= 60)); then
+        printf '%dm%02ds' "$((total / 60))" "$((total % 60))"
+    else
+        printf '%ds' "$total"
+    fi
+}
+
+# Width of "[HH:MM:SS] LEVEL ", used to indent continuation lines so a wrapped
+# or multi-line message stays in one visual column.
+readonly LOG_PREFIX_WIDTH=17
+
+# Every line the build prints goes through here, so the terminal and the build
+# log cannot drift. The terminal gets elapsed time, which is the useful clock
+# while watching a long build; the log file additionally gets a wall-clock stamp
+# so it can be lined up with system logs after the fact. The %(...)T form is a
+# bash builtin, so neither stamp forks a `date`.
+log_line() {
+    local level="$1" color="$2" stream="$3" message="$4"
+    local elapsed indent line first=1
+    local -a message_lines=()
+
+    elapsed="$(format_elapsed "$SECONDS")"
+    printf -v indent '%*s' "$LOG_PREFIX_WIDTH" ''
+    mapfile -t message_lines <<<"$message"
+
+    for line in "${message_lines[@]}"; do
+        if ((first)); then
+            printf '%s[%s]%s %s%-5s%s %s\n' \
+                "$DIM" "$elapsed" "$NC" "$color" "$level" "$NC" "$line" >&"$stream"
+            first=0
+        else
+            printf '%s%s\n' "$indent" "$line" >&"$stream"
+        fi
+    done
+
+    [[ -n "${log_file:-}" && -f "$log_file" ]] || return 0
+    for line in "${message_lines[@]}"; do
+        printf '%(%Y-%m-%d %H:%M:%S)T [%s] %-5s %s\n' \
+            -1 "$elapsed" "$level" "$line" >>"$log_file"
+    done
+}
+
 # Logging functions
 log() {
-    printf '%s\n' "$1"
-    if [[ -n "${log_file:-}" && -f "$log_file" ]]; then
-        printf '%s\n' "$1" >>"$log_file"
-    fi
+    log_line "INFO" "$CYAN" 1 "$1"
+}
+
+# A stage or package heading. Bold so the eye can find the boundaries of a long
+# scroll without reading it.
+log_step() {
+    log_line "STEP" "$BOLD$GREEN" 1 "$1"
+}
+
+log_ok() {
+    log_line "OK" "$GREEN" 1 "$1"
+}
+
+log_skip() {
+    log_line "SKIP" "$DIM" 1 "$1"
+}
+
+# Only emitted under FFMPEG_BUILD_DEBUG=ON. Used for detail that is worth having
+# in a bug report but would bury the signal during a normal run.
+log_debug() {
+    [[ "${debug:-OFF}" == "ON" ]] || return 0
+    log_line "DEBUG" "$DIM" 1 "$1"
 }
 
 # Diagnostics go to stderr: several helpers (git_clone, resolve_tool_path, the
@@ -154,7 +245,7 @@ log() {
 # and stdout warnings would be captured into the caller's variable (e.g. a
 # clone-retry warning corrupting the detected version) instead of reaching the user.
 warn() {
-    printf '%s[WARNING]%s %s\n' "$YELLOW" "$NC" "$1" >&2
+    log_line "WARN" "$YELLOW" 2 "$1"
 }
 
 require_vars() {
@@ -1026,18 +1117,31 @@ require_sudo() {
 # line every time. BASH_SOURCE[1]/BASH_LINENO[0] is fail()'s own caller, so the
 # frame above it is the stage script that invoked that helper.
 fail() {
-    local origin=""
+    local message="$1"
+    local origin="" check_location="" detail
 
+    # Callers append "Line: N", which expands at the call site and so names the
+    # failing check. Lift it out of the prose: trailing punctuation in the middle
+    # of a sentence reads as noise, while a location reads as a location.
+    if [[ "$message" =~ ^(.*[^[:space:]])[[:space:]]+Line:[[:space:]]*([0-9]+)[.]?$ ]]; then
+        message="${BASH_REMATCH[1]}"
+        check_location=" (check at ${BASH_SOURCE[1]##*/}:${BASH_REMATCH[2]})"
+    fi
     if ((${#BASH_SOURCE[@]} > 2)); then
         origin="${BASH_SOURCE[2]##*/}:${BASH_LINENO[1]}"
     elif ((${#BASH_SOURCE[@]} > 1)); then
         origin="${BASH_SOURCE[1]##*/}:${BASH_LINENO[0]}"
     fi
+
+    # One record, so the location and the bug-report pointer align under the
+    # message instead of arriving as three separately tagged lines that read
+    # like three separate failures.
+    detail="$message"
+    [[ -z "$origin" ]] || detail+=$'\n'"Raised from: $origin$check_location"
+    detail+=$'\n'"Report a bug: https://github.com/slyfox1186/ffmpeg-build-script/issues"
     printf '\n' >&2
-    printf '%s[ERROR]%s %s\n' "$RED" "$NC" "$1" >&2
-    [[ -z "$origin" ]] || printf '%s[ERROR]%s Raised from: %s\n' "$RED" "$NC" "$origin" >&2
+    log_line "ERROR" "$RED" 2 "$detail"
     printf '\n' >&2
-    printf '%s[INFO]%s For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues\n' "$GREEN" "$NC" >&2
     if [[ "${GOOGLE_SPEECH:-false}" == "true" ]] && command -v google_speech >/dev/null 2>&1; then
         google_speech "Build failed. $1" >/dev/null 2>&1 || true
     fi
@@ -1087,7 +1191,11 @@ exit_fn() {
     printf '%s✓ Installed tools:%s %s\n' "$GREEN" "$NC" "${installed_tools[*]:-none}"
     printf '%s✓ Encoders / decoders / filters:%s %s / %s / %s\n' \
         "$GREEN" "$NC" "$encoder_count" "$decoder_count" "$filter_count"
-    printf '%s✓ Reported hardware accelerators:%s %s\n\n' "$GREEN" "$NC" "$hardware_accels"
+    printf '%s✓ Reported hardware accelerators:%s %s\n' "$GREEN" "$NC" "$hardware_accels"
+    printf '%s✓ Packages:%s %s built, %s already current, %s disabled\n' \
+        "$GREEN" "$NC" "$_PACKAGES_BUILT" "$_PACKAGES_ALREADY_BUILT" "$_PACKAGES_DISABLED"
+    printf '%s✓ Total time:%s %s\n' "$GREEN" "$NC" "$(format_duration "$SECONDS")"
+    printf '%s✓ Build log:%s %s\n\n' "$GREEN" "$NC" "${log_file:-not recorded}"
 
     exit 0
 }
@@ -1116,11 +1224,10 @@ notify_failure() {
 run_logged() {
     (($# > 0)) || fail "run_logged() called without a command. Line: ${LINENO}"
 
-    local exit_code start_pos
+    local exit_code start_pos command_started duration
     local -a pipeline_status=()
-    printf '$'
-    printf ' %q' "$@"
-    printf '\n'
+    log_line "RUN" "$DIM" 1 "$(format_command "$@")"
+    command_started="$SECONDS"
 
     if [[ "$debug" == "ON" ]]; then
         if [[ -n "${log_file:-}" ]]; then
@@ -1155,6 +1262,13 @@ run_logged() {
         exit_code=$?
     fi
 
+    # Only the slow commands get a timing line. A compile that ran for twenty
+    # minutes is worth recording; a version probe that took no measurable time
+    # would just push the useful output off the screen.
+    duration=$((SECONDS - command_started))
+    if ((exit_code == 0 && duration >= 30)); then
+        log_line "OK" "$DIM" 1 "finished in $(format_duration "$duration")"
+    fi
     return "$exit_code"
 }
 
@@ -1328,12 +1442,14 @@ build() {
     # entirely for them (fetch_version_if_enabled leaves the version empty) without
     # tripping the empty-version guard below.
     if ! package_enabled "$package_name"; then
-        echo
+        # A filtered config disables dozens of packages. Announcing each one at
+        # INFO buried the packages that were actually building, so the detail
+        # moves to debug and the run-end summary reports the count.
+        _PACKAGES_DISABLED=$((_PACKAGES_DISABLED + 1))
         if [[ -n "$PACKAGE_SELECTION_CONFIG_FILE" ]]; then
-            printf "Package '%s' is disabled by config '%s'.\n" \
-                "$package_name" "$PACKAGE_SELECTION_CONFIG_FILE"
+            log_debug "$package_name is disabled by config '$PACKAGE_SELECTION_CONFIG_FILE'."
         else
-            printf "Package '%s' is disabled by config.\n" "$package_name"
+            log_debug "$package_name is disabled by config."
         fi
         return 1
     fi
@@ -1345,39 +1461,45 @@ build() {
     [[ -n "$stripped_version" && "$package_version" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] ||
         fail "build() called for \"$package_name\" with an invalid version '$package_version'. Line: ${LINENO}"
 
-    echo
-    printf '%sBuilding%s %s%s%s %s(version %s%s%s)\n' \
-        "$GREEN" "$NC" "$YELLOW" "$package_name" "$NC" \
-        "$GREEN" "$YELLOW" "$package_version" "$NC"
-    echo "========================================================"
-
     prior_version="$(read_marker_version "$packages/$package_name.done" || true)"
     if [[ -n "$prior_version" ]]; then
         if ! package_artifacts_ready "$package_name"; then
-            warn "'$package_name' has a build marker but its required workspace artifacts are missing; rebuilding."
+            warn "$package_name has a build marker but its workspace artifacts are missing; rebuilding."
             rm -f -- "$packages/$package_name.done" ||
                 fail "Unable to remove stale marker for '$package_name'. Line: ${LINENO}"
+            start_package_build "$package_name" "$package_version"
             return 0
         fi
         if [[ "$prior_version" == "$package_version" ]]; then
-            printf 'Already built: %s %s\n' "$package_name" "$package_version"
-            printf "Rebuild: run '%s'.\n" \
-                "$(format_command rm -f -- "$packages/$package_name.done")"
+            _PACKAGES_ALREADY_BUILT=$((_PACKAGES_ALREADY_BUILT + 1))
+            log_skip "Already built: $package_name $package_version"
+            log_debug "Force a rebuild with: $(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         elif is_true "${LATEST:-false}"; then
-            printf 'Outdated: %s %s -> %s; rebuilding.\n' \
-                "$package_name" "$prior_version" "$package_version"
+            log "Outdated: $package_name $prior_version -> $package_version; rebuilding."
+            start_package_build "$package_name" "$package_version"
             return 0
         else
-            printf 'Outdated: %s %s -> %s; keeping the existing build.\n' \
-                "$package_name" "$prior_version" "$package_version"
-            printf "Rebuild: add '--latest' to your 'build-ffmpeg.sh' command or run '%s'.\n" \
-                "$(format_command rm -f -- "$packages/$package_name.done")"
+            _PACKAGES_ALREADY_BUILT=$((_PACKAGES_ALREADY_BUILT + 1))
+            log_skip "Outdated: $package_name $prior_version -> $package_version; keeping the existing build."
+            log_debug "Rebuild with '--latest', or: $(format_command rm -f -- "$packages/$package_name.done")"
             return 1
         fi
     fi
 
+    start_package_build "$package_name" "$package_version"
     return 0
+}
+
+# Announces the package about to be built and starts its clock. Split out of
+# build() because three of that function's branches reach this point and the
+# counter must advance exactly once per package that actually builds.
+start_package_build() {
+    _PACKAGES_BUILT=$((_PACKAGES_BUILT + 1))
+    _PACKAGE_START_SECONDS="$SECONDS"
+    _PACKAGE_IN_PROGRESS="$1"
+    printf '\n'
+    log_step "$1 $2"
 }
 
 build_done() {
@@ -1406,6 +1528,16 @@ build_done() {
     if ! mv -f -- "$temp_file" "$packages/$package_name.done"; then
         rm -f -- "$temp_file"
         fail "Failed to publish the build marker for '$package_name'. Line: ${LINENO}"
+    fi
+
+    # Only time packages this run actually started. A recipe that calls
+    # build_done outside a build() branch would otherwise report the elapsed
+    # time of whichever package ran before it.
+    if [[ "$_PACKAGE_IN_PROGRESS" == "$package_name" ]]; then
+        log_ok "$package_name $package_version in $(format_duration "$((SECONDS - _PACKAGE_START_SECONDS))")"
+        _PACKAGE_IN_PROGRESS=""
+    else
+        log_ok "$package_name $package_version"
     fi
 }
 

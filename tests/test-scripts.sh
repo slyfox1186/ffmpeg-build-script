@@ -530,6 +530,118 @@ assert_contains "$changed_context_output" \
     "changed-context failure quotes the cleanup command"
 assert_not_contains "$changed_context_output" "Run --cleanup" \
     "changed-context failure does not present an option as a command"
+# The payload carries well over a hundred fields. Naming the ones that differ is
+# the difference between an actionable message and a dead end, but listing all of
+# them buries the answer, so the list is capped.
+assert_contains "$changed_context_output" "cflags is new in this version of the script" \
+    "changed-context failure names the fields that differ"
+# Both halves matter. The negative alone would pass if the summary fell back to
+# the generic message, which quotes no values at all.
+assert_contains "$changed_context_output" "(now '-O2 -pipe" \
+    "changed-context failure renders a flag value as the shell would run it"
+assert_not_contains "$changed_context_output" '-O2\ -pipe' \
+    "changed-context failure prints flag values without shell escaping"
+assert_contains "$changed_context_output" " - and " \
+    "changed-context failure reports how many fields it left out"
+assert_not_contains "$changed_context_output" "package.zlib is new" \
+    "changed-context failure truncates rather than listing every field"
+
+# The context check is pure, so reaching it must not cost a password. This
+# fails if require_sudo moves back above ensure_build_context in run_build.
+sudo_probe_bin="$temporary_root/sudo-probe-bin"
+sudo_probe_log="$temporary_root/sudo-probe.log"
+mkdir -p "$sudo_probe_bin"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    "printf '%s\n' \"\$*\" >>\"$sudo_probe_log\"" \
+    '[[ "${1:-}" != "-n" ]]' >"$sudo_probe_bin/sudo"
+chmod +x "$sudo_probe_bin/sudo"
+: >"$sudo_probe_log"
+sudo_probe_root="$temporary_root/sudo-probe-root"
+mkdir -p "$sudo_probe_root/packages" "$sudo_probe_root/workspace"
+write_build_root_marker "$sudo_probe_root"
+printf 'stale build context\n' >"$sudo_probe_root/.ffmpeg-build-context"
+if sudo_probe_output="$(
+    env PATH="$sudo_probe_bin:$PATH" BUILD_ROOT="$sudo_probe_root" \
+        bash "$repo_root/build-ffmpeg.sh" -b -n -l --config "$selection_file" 2>&1
+)"; then
+    fail_test "a stale build context still aborts the build"
+fi
+pass "a stale build context still aborts the build"
+sudo_probe_log_contents="$(cat "$sudo_probe_log")"
+# Without this the empty-log assertion below would also pass on an unrelated
+# early crash, which is the failure mode it is supposed to rule out.
+assert_contains "$sudo_probe_output" "Run 'build-ffmpeg.sh --cleanup' before rebuilding." \
+    "the sudo probe aborts at the build-context check, not somewhere earlier"
+assert_equal "" "$sudo_probe_log_contents" \
+    "a stale build context aborts before asking for sudo"
+
+# A workspace recorded by an older script must not cost a full rebuild when the
+# only differences are bookkeeping. The fixture is generated from the script's
+# own payload rather than hand-written, so it cannot drift from the real format.
+refusing_sudo_bin="$temporary_root/refusing-sudo-bin"
+mkdir -p "$refusing_sudo_bin"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$refusing_sudo_bin/sudo"
+chmod +x "$refusing_sudo_bin/sudo"
+
+# No --config, so every package is enabled. That is the invocation the legacy
+# workspaces in the field were created with, and it is the only one where a
+# newly registered package is actually selected.
+run_to_build_context() {
+    env PATH="$refusing_sudo_bin:$PATH" BUILD_ROOT="$1" \
+        bash "$repo_root/build-ffmpeg.sh" -b -n -l 2>&1
+}
+
+migration_root="$temporary_root/migration-root"
+mkdir -p "$migration_root/packages" "$migration_root/workspace"
+write_build_root_marker "$migration_root"
+run_to_build_context "$migration_root" >/dev/null 2>&1 || true
+assert_contains "$(<"$migration_root/.ffmpeg-build-context")" "ffmpeg-build-context:v2" \
+    "a fresh workspace records the current build-context format"
+
+# Downgrade it the way the old script actually wrote one: v1 header, and the
+# four flag fields empty because v1 snapshotted them before computing them.
+sed -i 's/^ffmpeg-build-context:v2$/ffmpeg-build-context:v1/' "$migration_root/.ffmpeg-build-context"
+sed -i "s/^cflags=.*/cflags=''/;s/^cxxflags=.*/cxxflags=''/;s/^cppflags=.*/cppflags=''/;s/^ldflags=.*/ldflags=''/" \
+    "$migration_root/.ffmpeg-build-context"
+grep -v '^package\.libdvdnav=' "$migration_root/.ffmpeg-build-context" >"$migration_root/.ctx.tmp"
+mv "$migration_root/.ctx.tmp" "$migration_root/.ffmpeg-build-context"
+printf 'n8.1.2\n' >"$migration_root/packages/ffmpeg.done"
+
+migration_output="$(run_to_build_context "$migration_root" || true)"
+assert_contains "$migration_output" "Adopted this workspace" \
+    "a legacy build context is adopted instead of forcing a rebuild"
+assert_contains "$migration_output" "libdvdnav" \
+    "adoption names the packages that became available"
+assert_not_contains "$migration_output" "Run 'build-ffmpeg.sh --cleanup' before rebuilding." \
+    "adoption does not demand a cleanup"
+assert_contains "$(<"$migration_root/.ffmpeg-build-context")" "ffmpeg-build-context:v2" \
+    "adoption upgrades the record so the next run compares strictly"
+if [[ -f "$migration_root/packages/ffmpeg.done" ]]; then
+    fail_test "adoption clears the FFmpeg marker so a new package gets linked in"
+fi
+pass "adoption clears the FFmpeg marker so a new package gets linked in"
+
+# Forgiveness is limited to the legacy format and to additions. A real settings
+# change, and any change once the record is v2, must still stop the build.
+changed_setting_root="$temporary_root/changed-setting-root"
+mkdir -p "$changed_setting_root/packages" "$changed_setting_root/workspace"
+write_build_root_marker "$changed_setting_root"
+run_to_build_context "$changed_setting_root" >/dev/null 2>&1 || true
+sed -i 's/^ffmpeg-build-context:v2$/ffmpeg-build-context:v1/;s/^compiler=.*/compiler=clang/' \
+    "$changed_setting_root/.ffmpeg-build-context"
+assert_contains "$(run_to_build_context "$changed_setting_root" || true)" \
+    "compiler was 'clang', is now 'gcc'" \
+    "a real settings change is still refused in the legacy format"
+
+migrated_root="$temporary_root/migrated-root"
+mkdir -p "$migrated_root/packages" "$migrated_root/workspace"
+write_build_root_marker "$migrated_root"
+run_to_build_context "$migrated_root" >/dev/null 2>&1 || true
+sed -i "s/^cflags=.*/cflags='-O1'/" "$migrated_root/.ffmpeg-build-context"
+assert_contains "$(run_to_build_context "$migrated_root" || true)" \
+    "Run 'build-ffmpeg.sh --cleanup' before rebuilding." \
+    "changed flags are refused once the record is in the current format"
 
 # shellcheck source=scripts/hardware-detection.sh
 source "$repo_root/scripts/hardware-detection.sh"
@@ -1130,13 +1242,23 @@ if build_output="$(build jemalloc 1.2.3)"; then
     fail_test "matching build marker skips rebuild"
 fi
 pass "matching build marker skips rebuild"
-assert_contains "$build_output" "Building jemalloc (version 1.2.3)" \
-    "build heading labels the package version clearly"
 assert_contains "$build_output" "Already built: jemalloc 1.2.3" \
     "matching build marker reports the package status clearly"
-assert_contains "$build_output" \
-    "Rebuild: run 'rm -f -- $packages/jemalloc.done'." \
-    "matching build marker quotes its actionable rebuild command"
+# The heading announces work that is about to happen. Printing it and then
+# "Already built" in the same breath told the reader two opposite things.
+assert_not_contains "$build_output" "STEP" \
+    "a skipped package is not announced as a build step"
+# The rebuild command stays out of the per-package stream, which would repeat it
+# for every already-current package, and is available under the debug flag.
+assert_not_contains "$build_output" "rm -f -- $packages/jemalloc.done" \
+    "matching build marker does not repeat the rebuild command per package"
+if debug_build_output="$(debug=ON build jemalloc 1.2.3)"; then
+    fail_test "debug mode still skips a matching build marker"
+fi
+pass "debug mode still skips a matching build marker"
+assert_contains "$debug_build_output" \
+    "Force a rebuild with: rm -f -- $packages/jemalloc.done" \
+    "debug mode quotes the actionable rebuild command"
 assert_not_contains "$build_output" "lockfile" \
     "build markers are not mislabeled as lockfiles"
 
@@ -1147,11 +1269,15 @@ if outdated_build_output="$(build jemalloc 1.2.3)"; then
 fi
 pass "outdated build markers preserve pinned versions by default"
 assert_contains "$outdated_build_output" \
-    "add '--latest' to your 'build-ffmpeg.sh' command" \
-    "outdated-package guidance quotes the option and script name"
-assert_contains "$outdated_build_output" \
-    "or run 'rm -f -- $packages/jemalloc.done'." \
-    "outdated-package guidance quotes the alternate command"
+    "Outdated: jemalloc 1.2.2 -> 1.2.3; keeping the existing build." \
+    "outdated-package status names both versions and the outcome"
+if outdated_debug_output="$(debug=ON build jemalloc 1.2.3)"; then
+    fail_test "debug mode still preserves a pinned outdated version"
+fi
+pass "debug mode still preserves a pinned outdated version"
+assert_contains "$outdated_debug_output" \
+    "Rebuild with '--latest', or: rm -f -- $packages/jemalloc.done" \
+    "outdated-package guidance quotes the option and the alternate command"
 
 # shellcheck source=scripts/ffmpeg-build.sh
 source "$repo_root/scripts/ffmpeg-build.sh"
