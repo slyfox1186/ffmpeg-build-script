@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .. import registry
 from ..config import BuildSettings, Selection
-from ..registry import Gate, Kind, Package
+from ..registry import Gate, Package
 from ..runtime.errors import UsageError
 
 
@@ -67,9 +67,11 @@ class MenuModel:
     """The editable configuration behind the menu."""
 
     def __init__(self, states: dict[str, bool], settings: BuildSettings) -> None:
-        self.states = dict(states)
+        # Normalize the allowlist before rendering/saving: omitted choices are
+        # off in the menu, whereas render_config's defaults build the template.
+        self.states = {key: states.get(key, False) for key in registry.PACKAGE_NAMES}
         self.settings = settings
-        self.collapsed: set[str] = set()
+        self.collapsed = {group.name for group in registry.GROUPS}
         self.search = ""
 
     # -- selection -------------------------------------------------------
@@ -111,8 +113,9 @@ class MenuModel:
                 package.key: package.default_enabled for package in registry.PACKAGES.values()
             }
         elif name == "minimal":
+            tools = {tool.key for tool in registry.GROUPS[0].packages}
             self.states = {
-                package.key: package.kind is Kind.TOOL or package.key == "ffmpeg"
+                package.key: package.key in tools or package.key == "ffmpeg"
                 for package in registry.PACKAGES.values()
             }
 
@@ -217,4 +220,7 @@ class MenuModel:
         if not self.search:
             return True
         needle = self.search.lower()
-        return needle in package.key.lower() or needle in package.summary.lower()
+        return any(
+            needle in text.lower()
+            for text in (package.key, package.summary, registry.PACKAGES[package.key].group)
+        )

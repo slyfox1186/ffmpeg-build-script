@@ -31,6 +31,9 @@ runtime, public CLI/TOML contracts, package versions, and existing user work.
    toggles grouped by package type, verify category navigation and group versus
    package actions, search/reset, narrow terminals, save errors, and the complete
    save/reload/build selection path in real pseudo-terminals.
+   Explicitly verify empty search clears, Escape preserves the existing filter,
+   group actions state that hidden packages are included, and save failures
+   retain their message and unsaved selection. Open on a category overview.
 7. Commit each independently revertible fix after its focused regressions and
    full gate pass, then rerun the full gate on each commit. Review the complete
    changed paths again after the first green result. Perform a bounded native

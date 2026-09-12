@@ -125,3 +125,28 @@ NO_COLOR and redirection remain plain, and file logs contain no added ANSI.
 Real PTY output was captured and its SGR attributes rendered for visual review
 at 1200 pixels (`/tmp/ffmpeg-color-preview.png`); exact hues depend on terminal
 theme. The screenshots supplied by the user were inspected before this change.
+
+## Requested improvement and medium-severity menu defects
+
+The menu opens on all 15 package types with enabled counts, expands to 127
+independent toggles, and supports category jumps, full details/help, presets and
+search. Cyan categories and green checkboxes supplement the text indicators.
+Narrow layouts retain counts, licensing/latest state and essential actions.
+
+Fixed search clearing/cancellation, cursor-visibility failures, editing below
+minimum terminal size, save-path exceptions, stale dirty flags, and hidden
+scope of category actions. Text prompts now support immediate Escape,
+replacement/editing, horizontal scrolling and Unicode cell widths. Relative
+save paths use the invocation directory. The minimal preset previously enabled
+all Kind.TOOL packages, including MediaInfo CLI without its required libraries;
+it now follows its documented build-tools-and-FFmpeg definition. Normalizing
+partial menu allowlists prevents omitted packages from being saved as enabled.
+
+Real curses tests at 80x24 and 40x10 toggle every package off/on independently,
+exercise categories, empty results, search clear/cancel, group scope, save
+failure, save/reload and Build. A 24x6 test rejects edits and exits safely.
+The existing external-keystroke test still verifies edited compiler/jobs reach
+the build launcher. Actual screen buffers were inspected at both normal sizes.
+The reviewers disagreed about narrow prompts: the old drawing call was inside
+its error handler, but cursor visibility changes were outside it; the fix covers
+both that verified failure and minimum-size input handling.
