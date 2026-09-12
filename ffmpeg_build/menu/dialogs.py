@@ -288,12 +288,12 @@ c opens Compilers. g toggles GPL/non-free; l toggles latest-version checks.
 a / d enables or disables the entire category, including hidden search matches.
 p opens package presets. u undoes the last saved change (up to 50).
 f enables the current package's requirements; F fixes all requirements.
-i shows the full description and dependency details.
+D shows the full description and dependency details.
 e edits jobs, CUDA and build root for this session.
 
 Every package, compiler, licence, latest-version, preset and undo change saves immediately. A failed save reverts the change and shows an error.
 s saves to another file and makes it the new autosave destination.
-o imports a TOML file into the current configuration; u undoes the import.
+i imports a TOML file into the current configuration; u undoes the import.
 b validates the configuration, saves it and starts the build.
 q quits immediately. Ctrl+C, Ctrl+D or Ctrl+Q exits from any screen.
 The terminal is restored and cleared when the menu closes.

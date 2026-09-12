@@ -141,7 +141,7 @@ class MenuApp(App[MenuResult]):
     BINDINGS = [
         Binding("b", "build", "Build"),
         Binding("q", "quit_menu", "Quit"),
-        Binding("o", "import_config", "Import"),
+        Binding("i", "import_config", "Import"),
         Binding("e", "settings", "Settings"),
         Binding("p", "presets", "Presets"),
         Binding("s", "save_as", "Save as"),
@@ -160,7 +160,7 @@ class MenuApp(App[MenuResult]):
         Binding("f", "fix_current", "Fix package", show=False),
         Binding("F", "fix_all", "Fix requirements", show=False),
         Binding("question_mark", "help", "Help", show=False),
-        Binding("i", "details", "Details", show=False),
+        Binding("D", "details", "Details", show=False),
     ]
 
     def __init__(

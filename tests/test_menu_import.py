@@ -150,7 +150,7 @@ def test_import_dialog_keyboard_errors_refresh_and_undo(
             if size[0] >= 110:
                 await pilot.click("#import-button")
             else:
-                await pilot.press("o")
+                await pilot.press("i")
             assert isinstance(app.screen, ImportScreen)
             path = app.screen.query_one(Input)
             path.value = str(source)
@@ -159,7 +159,7 @@ def test_import_dialog_keyboard_errors_refresh_and_undo(
             await pilot.press("enter")
             assert not isinstance(app.screen, ImportScreen)
             assert app.session.snapshot() == before and not app.session.default_path.exists()
-            await pilot.press("o", "enter")
+            await pilot.press("i", "enter")
             assert isinstance(app.screen, ImportScreen)
             assert "Enter a file path" in app.screen.query_one("#import-error").render_line(0).text
             path = app.screen.query_one(Input)
@@ -194,7 +194,7 @@ def test_import_physical_arrows_and_build_handoff(tmp_path: Path) -> None:
     terminal = Terminal(tmp_path, (80, 24))
     try:
         terminal.expect(focus="compiler-category")
-        terminal.send(b"o")
+        terminal.send(b"i")
         terminal.expect(focus="import-path", screen="ImportScreen")
         terminal.send(str(source).encode() + b"\x1b[B\x1b[C\r")
         terminal.expect(screen="Screen", compiler="clang", selected=1)

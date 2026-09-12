@@ -187,7 +187,7 @@ scroll beneath it. Counts include packages only.
 | Tab / Shift-Tab | Move between controls |
 | `a` / `d` | Enable or disable the entire package category, including hidden search matches |
 | `/` | Focus live search by package name, description or category |
-| `i` / `?` | Open full details or keyboard help |
+| `D` / `?` | Open full details or keyboard help |
 | `p` | Choose template, all, minimal or none preset |
 | `u` | Undo up to 50 package, category, preset, compiler, GPL or latest changes |
 | `c` | Open the Compilers category |
@@ -195,7 +195,7 @@ scroll beneath it. Counts include packages only.
 | `f` / `F` | Enable requirements for the current package or all packages |
 | `e` | Edit jobs, CUDA installation/targets and build root for this session |
 | `s` | Save as; subsequent edits auto-save to the chosen file |
-| `o` | Import a TOML file into the current configuration; undo with `u` |
+| `i` | Import a TOML file into the current configuration; undo with `u` |
 | `b` | Validate, save and build using the current configuration |
 | `q` | Quit immediately; changes are already saved |
 | Ctrl+C / Ctrl+D / Ctrl+Q | Exit from any screen |
@@ -219,7 +219,7 @@ Left/Right moves the text cursor in the path field or selects a button in the
 button row. Returning to the buttons restores the last focused button; Enter
 activates it. Tab and Shift+Tab also move between controls.
 
-The Import button or `o` opens a file-path dialog with the same keyboard controls.
+The Import button or `i` opens a file-path dialog with the same keyboard controls.
 Import replaces all package selections and persistent build settings (compiler,
 GPL/non-free and latest), then saves to the current autosave destination. Omitted
 packages are disabled, just as with `--config`. Session-only launch settings stay
