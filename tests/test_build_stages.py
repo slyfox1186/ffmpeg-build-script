@@ -115,6 +115,29 @@ def test_dependency_only_success_does_not_probe_system_ffmpeg(
     assert "Dependency build completed successfully" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("gpl", [False, True])
+def test_summary_explains_selected_gpl_integrations(
+    context: BuildContext, capsys: pytest.CaptureFixture[str], gpl: bool
+) -> None:
+    from ffmpeg_build.stages.ffmpeg_build import report_success
+
+    context.logger._out = sys.stdout
+    context.logger._err = sys.stderr
+    context.selection = Selection(
+        {"x264": True, "libdvdread": True, "zenlib": True}, Path("fixture.toml")
+    )
+    context.nonfree_and_gpl = gpl
+    report_success(context)
+    output = capsys.readouterr()
+    text = output.out + output.err
+    if gpl:
+        assert "integrations inactive" not in text
+    else:
+        notice = next(line for line in text.splitlines() if "integrations inactive" in line)
+        assert "x264" in notice and "libdvdread" in notice
+        assert "zenlib" not in notice
+
+
 @pytest.mark.parametrize("version", [None, "", "../escape", "bad version"])
 def test_invalid_build_versions(context: BuildContext, version: str | None) -> None:
     with pytest.raises(BuildError, match="invalid version"):

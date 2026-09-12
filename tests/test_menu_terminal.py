@@ -50,7 +50,7 @@ def terminal_script(code: str, tmp_path: Path, height: int, width: int) -> dict[
     return result
 
 
-@pytest.mark.parametrize(("height", "width"), [(24, 80), (10, 40)])
+@pytest.mark.parametrize(("height", "width"), [(36, 120), (24, 80), (10, 40)])
 def test_real_menu_all_packages_search_categories_save_and_build(
     tmp_path: Path, height: int, width: int
 ) -> None:
@@ -73,6 +73,16 @@ def check(screen):
     screen.keypad(True)
     assert len(app.rows()) == len(registry.GROUPS) == 15
     app.draw(screen); snapshots['overview'] = text(screen)
+    if screen.getmaxyx()[1] >= 80:
+        app.handle(screen, 10)
+        assert app.current(app.rows()).package is not None
+        app.handle(screen, 9)
+        assert app.current(app.rows()).group == registry.GROUPS[1].name
+        app.handle(screen, curses.KEY_UP)
+        assert app.current(app.rows()).is_group and app.cursor == 0
+        app.handle(screen, 10)
+        assert app.current(app.rows()).package is not None
+        app.handle(screen, curses.KEY_LEFT)
     app.handle(screen, 9)
     assert app.current(app.rows()).group == registry.GROUPS[1].name
     app.handle(screen, curses.KEY_BTAB)
@@ -87,6 +97,22 @@ def check(screen):
         assert sum(model.enabled(name) for name in registry.PACKAGE_NAMES) == before + 1
         app.handle(screen, ord(' ')); assert not model.enabled(key)
         assert not app.dirty
+    app.handle(screen, ord('a')); before_preset = dict(model.states)
+    keys('n'); app.handle(screen, ord('p'))
+    assert not any(model.states.values())
+    app.handle(screen, ord('u')); assert model.states == before_preset
+    app.handle(screen, ord('u')); assert not any(model.states.values())
+    folds = set(model.collapsed); model.search = 'm4'; app.cursor = 0
+    for key in [' ', '[', ']', curses.KEY_LEFT, curses.KEY_RIGHT]:
+        app.handle(screen, ord(key) if isinstance(key, str) else key)
+    assert model.collapsed == folds
+    model.search = ''
+    keys('cbogus\nq'); app.handle(screen, ord('e'))
+    assert app.result.launch.compiler == 'gcc' and 'Compiler must' in app.message
+    app.result.launch.build_root = '/etc'
+    assert app.handle(screen, ord('b')) and 'unsafe build root' in app.message
+    assert not (root / 'custom.toml').exists()
+    app.result.launch.build_root = str(root / 'build')
     model.search = 'opus'
     app.cursor = 0
     keys('\x1b'); app.handle(screen, ord('/'))

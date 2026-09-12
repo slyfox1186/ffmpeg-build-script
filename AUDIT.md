@@ -128,10 +128,12 @@ theme. The screenshots supplied by the user were inspected before this change.
 
 ## Requested improvement and medium-severity menu defects
 
-The menu opens on all 15 package types with enabled counts, expands to 127
-independent toggles, and supports category jumps, full details/help, presets and
-search. Cyan categories and green checkboxes supplement the text indicators.
-Narrow layouts retain counts, licensing/latest state and essential actions.
+The menu presents 15 package types and 127 independent toggles. At 80x24 and
+larger, a category sidebar and package pane separate navigation from selection;
+short category names, aligned counts, explicit states and a detail area improve
+scanning. Wider screens show package descriptions in the list. Cyan frames,
+green enabled states and yellow licensing/requirement notices supplement text
+indicators. Compact layouts retain counts and essential actions.
 
 Fixed search clearing/cancellation, cursor-visibility failures, editing below
 minimum terminal size, save-path exceptions, stale dirty flags, and hidden
@@ -142,14 +144,23 @@ all Kind.TOOL packages, including MediaInfo CLI without its required libraries;
 it now follows its documented build-tools-and-FFmpeg definition. Normalizing
 partial menu allowlists prevents omitted packages from being saved as enabled.
 
-Real curses tests at 80x24 and 40x10 toggle every package off/on independently,
+Real curses tests at 120x36, 80x24 and 40x10 toggle every package off/on independently,
 exercise categories, empty results, search clear/cancel, group scope, save
 failure, save/reload and Build. A 24x6 test rejects edits and exits safely.
-The existing external-keystroke test still verifies edited compiler/jobs reach
-the build launcher. Actual screen buffers were inspected at both normal sizes.
+The external-keystroke test verifies edited compiler/jobs reach the build launcher.
+Actual screen buffers and rendered previews were inspected at all three sizes;
+`/tmp/ffmpeg-menu-120-overview.png` and `/tmp/ffmpeg-menu-80-gpu.png` retain examples.
 The reviewers disagreed about narrow prompts: the old drawing call was inside
 its error handler, but cursor visibility changes were outside it; the fix covers
 both that verified failure and minimum-size input handling.
+
+The second review's verified menu fixes add 50-step selection undo (including
+bulk presets), freeze folds while searching, and validate candidate launch edits
+before retaining them. Environment validation runs before opening the editor;
+Build validates unsafe roots and bounded CUDA targets before saving. Build roots
+expand tilde consistently with save paths. A summary warning names selected
+FFmpeg integrations left inactive without GPL authorization. Tests cover both
+license modes, invalid values, saved-file preservation and tilde launch paths.
 
 ## Medium severity: interpreter fallback and numeric input
 
@@ -266,3 +277,57 @@ the code was wrong, not that promise. Local Git object IDs must be exactly 40 or
 succeeds, restores it on failure, and preserves recovery after an interrupt.
 Tests cover missing artifacts, missing/mismatched source, object ID lengths,
 publication/restore failures and interruption immediately after the backup move.
+
+## Second review disposition
+
+The completed core and integration panels returned 15 numbered findings. Each
+was checked against its actual caller and behavior; the table records decisions
+in addition to the causal explanations and regressions above.
+
+| Review finding | Verification and disposition |
+| --- | --- |
+| Kimi: privileged child may outlive forcibly killed sudo | Confirmed signal-relay risk using sudo(8); fixed ordering. Rejected a longer arbitrary kill deadline and the suggestion that sudo -k terminates a session: it invalidates cached credentials. |
+| Kimi: initial sudo authentication is unbounded | True that require_sudo has no timeout; false that it is the only unbounded command. It is interactive authentication, not a native probe. Retained human-controlled authentication rather than inventing a 60-second password deadline. A hung PAM service remains unverified. |
+| Kimi: recursive cleanup can crash | Reproduced with 1,100 nested directories; replaced Python recursion with iterative traversal. |
+| Kimi: duplicate archive validation | Confirmed. Three validation passes on the 12,036,420-byte native FFmpeg archive took 0.400, 0.392 and 0.391 seconds each with the local cache warm. Kept validation at independent cache/extraction boundaries; the proposed inode/size/mtime cache is not proof of unchanged content. Larger archives remain a possible optimization, not a measured multi-minute defect here. |
+| GLM: failed backup enters destructive rollback | False: the backup call is outside the promotion exception handler. A regression injects backup failure and forbids install/rollback, preserving all originals. |
+| GLM: artifact repair discards the pinned release | Confirmed and fixed for releases and matching Git checkouts. The suggested example of deleting libzen.a alone is not covered by metadata-only artifact detection; this remains a limitation. |
+| GLM: forward hard links should be accepted | The real Python 3.12 data-filter extractor raises KeyError when a hard link precedes its target. Retained rejection; no supplied upstream archive demonstrated a need for a different extraction engine. |
+| GLM: final wait can hang on kernel D-state | Correct residual limitation. Documented; rejected abandoning a writer and releasing locks before it stops. |
+| Kimi: presets can lose unsaved selections | Confirmed; added 50-step undo covering individual and bulk changes, instead of another confirmation prompt. |
+| Kimi: search hides persistent fold changes | Confirmed; fold commands preserve the pre-search state. |
+| Kimi: invalid launch edits remain applied | Confirmed; validate a candidate copy before retaining it. |
+| Kimi: relative save directory is only accidentally correct | Not a current defect: production code never changes process cwd. Child cwd arguments do not change the parent. Kept invocation-relative saving without a speculative extra parameter. |
+| GLM: invalid request fails only after menu saves | Confirmed for environment and edited-root inputs; now validate before editor entry or before Build saves, respectively. |
+| GLM: build-root tilde is treated literally | Confirmed; expand it on validation and launch, with an actual menu-to-context regression. |
+| GLM: GPL-gated choices vanish from the summary | Confirmed as a reporting gap; added a warning naming inactive FFmpeg integrations while preserving documented licensing behavior. |
+
+The reviewers' agreement on host-satisfiable requirements matches the README:
+the menu warns and the build checks the host. It must not reject those choices
+unconditionally. Their numeric per-keystroke timing estimates were not measured
+by the reviewers and are not treated as benchmark evidence; no selection cache
+was introduced for the 127-package model.
+
+## Behavior changes and remaining verification
+
+The requested AMF default is now true in example.toml and the menu template;
+GPL authorization and AMD hardware gates still apply. The help includes the
+requested latest/GPL example. New archive expansion/member limits and fail-closed
+host locks are explicit safety behavior changes. No dependency version or
+existing CLI/TOML key was silently changed; the two new limit environment
+overrides and menu undo key are documented. No ignored config.toml was created.
+
+Native GCC and Clang FFmpeg builds and the ZenLib build above passed. These do
+not prove all 127 native builds, all advertised Debian/Ubuntu/WSL combinations,
+GPU paths, ffplay, or real privileged install/rollback. Artifact metadata checks
+do not certify every installed archive/header; undeclared optional dependency
+relationships still require a clean workspace. Prefix rollback covers the three
+programs, not an entire /usr/local snapshot. Advisory locks are cooperative;
+same-device bind mounts and hostile processes are not a sandbox boundary.
+Archive limits do not fully bound decompressor/PAX-header CPU or memory usage.
+
+Railway CLI reports no linked project for this checkout. Read-only service-source
+queries covered all 18 accessible services in six projects, with no source
+repository matching this one. No Railway config/server entry point is tracked.
+GitHub CI is the available release gate; a Railway deployment cannot be claimed
+without a configured service association. No unrelated service was created.

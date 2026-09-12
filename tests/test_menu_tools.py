@@ -95,8 +95,15 @@ def test_launch_settings_validation(field: str, value: str) -> None:
         launch.validate()
 
 
+@pytest.mark.parametrize("targets", ["89 9999999999999999999999", "８９", "-1"])
+def test_custom_cuda_menu_targets_rejected_before_save(targets: str) -> None:
+    with pytest.raises(UsageError, match="numeric targets"):
+        LaunchSettings(cuda_arch_mode="custom", cuda_architectures=targets).validate()
+
+
+@pytest.mark.parametrize("tilde", [False, True])
 def test_menu_build_uses_edited_settings(
-    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tilde: bool
 ) -> None:
     orchestrator = Orchestrator(REPO, [])
     orchestrator.build_root = context.cwd
@@ -105,7 +112,14 @@ def test_menu_build_uses_edited_settings(
         "[build]\nlatest=false\nenable_gpl_and_non_free=false\n[packages]\nffmpeg=true\n"
     )
     root = str(tmp_path / "edited-build")
-    launch = LaunchSettings(compiler="clang", jobs="3", cuda_install="never", build_root=root)
+    if tilde:
+        monkeypatch.setenv("HOME", str(tmp_path))
+    launch = LaunchSettings(
+        compiler="clang",
+        jobs="3",
+        cuda_install="never",
+        build_root="~/edited-build" if tilde else root,
+    )
     monkeypatch.setattr(
         "ffmpeg_build.menu.app.run_menu",
         lambda *args: MenuResult(saved_path=path, start_build=True, launch=launch),
@@ -122,6 +136,19 @@ def test_menu_build_uses_edited_settings(
     assert not built.latest and not built.nonfree_and_gpl
     assert os.environ["CUDA_INSTALL"] == "never"
     assert built.selection.enabled("ffmpeg") and not built.selection.enabled("x264")
+
+
+def test_invalid_environment_is_rejected_before_menu_can_save(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DOWNLOAD_MAX_TIME", "invalid")
+
+    def forbidden(*args: object) -> MenuResult:
+        pytest.fail("Invalid environment opened an editor that can overwrite configuration")
+
+    monkeypatch.setattr("ffmpeg_build.menu.app.run_menu", forbidden)
+    with pytest.raises(UsageError, match="DOWNLOAD_MAX_TIME"):
+        Orchestrator(REPO, []).run_menu(Arguments(), BuildSettings(), Selection())
 
 
 def test_real_terminal_menu_save_and_launch(tmp_path: Path) -> None:
@@ -159,7 +186,7 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'build':result.start_build, 'pa
         transcript.clear()
 
     try:
-        expect(b"FFmpeg package selection")
+        expect(b"BUILD CONFIGURATION")
         os.write(master, b"e")
         expect(b"Launch settings")
         os.write(master, b"c")
@@ -170,7 +197,7 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'build':result.start_build, 'pa
         expect(b"Jobs (auto")
         os.write(master, b"3\n")
         os.write(master, b"q")
-        expect(b"FFmpeg package selection")
+        expect(b"BUILD CONFIGURATION")
         os.write(master, b"b")
         expect(b"Save to:")
         os.write(master, b"\n")

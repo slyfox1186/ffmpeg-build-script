@@ -670,6 +670,10 @@ class Orchestrator:
         from .menu.app import run_menu
         from .menu.model import LaunchSettings
 
+        # Validate immutable environment inputs before an editing session can
+        # save files. Selection requirements remain editable inside the menu.
+        validate_build_settings(Selection(), self.debug_value)
+
         states = selection.states() if selection.has_config else None
         default_path = (
             selection.config_file
@@ -704,7 +708,11 @@ class Orchestrator:
         arguments.nonfree_and_gpl = False
         os.environ.update(
             {
-                "BUILD_ROOT": result.launch.build_root,
+                "BUILD_ROOT": (
+                    str(Path(result.launch.build_root).expanduser())
+                    if result.launch.build_root
+                    else ""
+                ),
                 "CUDA_INSTALL": result.launch.cuda_install,
                 "CUDA_ARCH_MODE": result.launch.cuda_arch_mode,
                 "CUDA_ARCHITECTURES": result.launch.cuda_architectures,

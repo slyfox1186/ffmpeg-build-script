@@ -161,13 +161,17 @@ it loads that file's allowlist. The opening overview groups all 127 packages
 into 15 types: build tools, foundational libraries, networking, text, images,
 audio codecs, audio processing, audio plugins, audio devices, video codecs,
 video processing, media metadata, playback/capture, GPU support, and FFmpeg.
-Expand a category to toggle each package independently. Category counts remain
-visible; checkboxes, descriptions and licensing labels work without color too.
+At 80×24 or larger, a category sidebar sits beside the package list. Short type
+names, aligned counts, explicit On/Off states, licensing notices, and a separate
+description area make selections easier to scan. Enter opens a category; Space
+toggles the highlighted package; Left returns to its category. Wider terminals
+also show descriptions beside package names. Smaller terminals use a compact
+tree. Checkboxes, focus highlighting and text labels work without color too.
 
 | Key | Action |
 | --- | --- |
-| Up/down or `k`/`j` | Move between groups and packages |
-| Space or Enter | Toggle a package or fold a group |
+| Up/down or `k`/`j` | Navigate categories or packages; compact view moves through the tree |
+| Space or Enter | Toggle a package or enter a category; compact view folds categories |
 | Left/right | Collapse or expand a group |
 | Tab / Shift-Tab | Jump to the next or previous category |
 | `[` / `]` | Collapse or expand every category |
@@ -175,6 +179,7 @@ visible; checkboxes, descriptions and licensing labels work without color too.
 | `/` | Search package names, descriptions and categories; empty Enter clears, Escape cancels |
 | `i` / `?` | Read full package/category details or keyboard help; scroll with arrows |
 | `p` | Choose template, all, minimal, or none preset |
+| `u` | Undo up to 50 package, category, preset, GPL or latest changes |
 | `g` / `l` | Toggle GPL/non-free authorization or latest mode |
 | `f` / `F` | Enable required dependencies for the current package or all packages |
 | `e` | Edit compiler, jobs, CUDA installation/targets, and build root |
@@ -182,12 +187,16 @@ visible; checkboxes, descriptions and licensing labels work without color too.
 | `b` | Save and build; mandatory selection problems must be resolved first |
 | `q` | Quit; unsaved package changes require confirmation |
 
-Search reveals matching packages even inside collapsed categories; clearing it
-restores those folds. The minimal preset selects the build-tools category and
+Search reveals matching packages even inside collapsed categories; fold commands
+leave the saved folds unchanged while searching. Clearing search restores those
+folds. The minimal preset selects the build-tools category and
 FFmpeg, without unrelated application tools. Text fields support arrows,
 Backspace/Delete, Home/End and Ctrl-U; typing replaces the initial value and
 Escape cancels immediately. Relative save paths resolve from the invocation
-directory. Save failures retain the selection and show an error. Below 40×10,
+directory. Invalid launch edits retain the previous valid value, and unsafe
+build roots or invalid numeric targets block Build before it saves. `~` expands
+in both save paths and build roots. Save failures retain the selection and show
+an error. Below 40×10,
 resize before editing; unchanged menus can still quit with `q`.
 
 Compiler, jobs, CUDA settings, and build root are **session-only launcher
@@ -199,7 +208,8 @@ The menu distinguishes packages waiting for GPL authorization, libraries that
 build but whose FFmpeg integration needs GPL, and the GnuTLS stack suppressed
 when GPL mode selects OpenSSL. Dependencies available from system packages
 are shown as requirements to check, rather than unconditional selection
-errors; the normal build verifies them against the host.
+errors; the normal build verifies them against the host. The build's closing
+summary also names selected FFmpeg integrations left inactive by GPL mode.
 
 ## Build state and version policy
 

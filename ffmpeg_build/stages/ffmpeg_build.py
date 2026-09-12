@@ -696,7 +696,21 @@ def report_success(context: BuildContext) -> None:
 
 
 def _report_package_summary(context: BuildContext) -> None:
+    from ..registry import PACKAGES, Gate
     from ..runtime.logging import format_duration
+
+    if not context.nonfree_and_gpl:
+        inactive = [
+            package.key
+            for package in PACKAGES.values()
+            if package.gate in (Gate.REQUIRES_GPL, Gate.FLAG_REQUIRES_GPL)
+            and context.package_enabled(package.key)
+        ]
+        if inactive:
+            context.logger.warn(
+                "Selected FFmpeg integrations inactive without GPL/non-free authorization: "
+                + ", ".join(inactive)
+            )
 
     palette = context.logger.out_palette
     green, cyan, nc = palette.green, palette.cyan, palette.nc

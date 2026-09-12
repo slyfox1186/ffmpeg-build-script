@@ -1,20 +1,20 @@
 """Selection state and live requirement evaluation for the interactive menu.
 
-Everything here is pure: it reads the registry and a set of booleans and
-returns what should be displayed. No build code runs, which is exactly why the
-registry keeps licence gating and requirement rules as data.
+Selection evaluation reads registry rules and booleans without running builds.
+Launch validation also checks that an edited path is a safe build root.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from .. import registry
 from ..config import BuildSettings, Selection
 from ..registry import Gate, Package
-from ..runtime.errors import UsageError
+from ..runtime.errors import BuildError, UsageError
 from ..runtime.settings import MAX_PROCESS_INTEGER, parse_integer
+from ..runtime.state import assert_safe_build_root
 
 
 @dataclass
@@ -37,12 +37,24 @@ class LaunchSettings:
             raise UsageError("CUDA installation must be 'ask', 'always', or 'never'.")
         if self.cuda_arch_mode not in ("native", "all", "custom"):
             raise UsageError("CUDA architecture mode must be 'native', 'all', or 'custom'.")
-        if self.cuda_arch_mode == "custom" and not re.fullmatch(
-            r"[0-9]+(?:\s+[0-9]+)*", self.cuda_architectures
-        ):
-            raise UsageError("Custom CUDA architectures need numeric targets, for example '86 89'.")
+        if self.cuda_arch_mode == "custom":
+            targets = self.cuda_architectures.split()
+            if not targets or any(
+                parse_integer(target, minimum=0, maximum=MAX_PROCESS_INTEGER) is None
+                for target in targets
+            ):
+                raise UsageError(
+                    "Custom CUDA architectures need numeric targets, for example '86 89'."
+                )
         if any(character.isspace() or ord(character) < 32 for character in self.build_root):
             raise UsageError("The build root may not contain whitespace or control characters.")
+        if self.build_root:
+            try:
+                assert_safe_build_root(
+                    Path(self.build_root).expanduser(), Path(__file__).resolve().parents[2]
+                )
+            except (BuildError, OSError, ValueError, RuntimeError) as error:
+                raise UsageError(str(error)) from error
 
 
 @dataclass(frozen=True)
