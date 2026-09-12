@@ -306,6 +306,23 @@ pass "a relative --config is not retried beside the script"
 assert_not_contains "$script_dir_config_output" "Loaded package selection config" \
     "a relative --config never loads the copy beside the script"
 
+# A shared helper called from thirty stage-script sites reports the same
+# "Line: ${LINENO}" every time, so fail() also names the frame two levels up:
+# the package recipe that invoked the helper.
+fail_origin_script="$temporary_root/fail-origin-stage.sh"
+printf '%s\n' \
+    'source "$1/scripts/shared-utils.sh"' \
+    'shared_helper() { fail "helper rejected its input"; }' \
+    'package_recipe() { shared_helper; }' \
+    'package_recipe' \
+    >"$fail_origin_script"
+if fail_origin_output="$(bash "$fail_origin_script" "$repo_root" 2>&1)"; then
+    fail_test "fail() exits non-zero"
+fi
+pass "fail() exits non-zero"
+assert_contains "$fail_origin_output" "Raised from: fail-origin-stage.sh:3" \
+    "fail() names the recipe frame, not the shared helper"
+
 # The resolve_*/git_clone helpers report with warn() and return non-zero rather
 # than calling fail(), so a caller that checks the status actually aborts.
 if captured_helper_output="$(

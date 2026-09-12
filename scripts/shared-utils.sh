@@ -1020,9 +1020,22 @@ require_sudo() {
     sudo_keepalive_start
 }
 
+# The "Line: ${LINENO}" many callers append expands at the call site, so it
+# already names the failing check. What it cannot show is which package recipe
+# was running: a helper called from thirty stage-script sites reports the same
+# line every time. BASH_SOURCE[1]/BASH_LINENO[0] is fail()'s own caller, so the
+# frame above it is the stage script that invoked that helper.
 fail() {
+    local origin=""
+
+    if ((${#BASH_SOURCE[@]} > 2)); then
+        origin="${BASH_SOURCE[2]##*/}:${BASH_LINENO[1]}"
+    elif ((${#BASH_SOURCE[@]} > 1)); then
+        origin="${BASH_SOURCE[1]##*/}:${BASH_LINENO[0]}"
+    fi
     printf '\n' >&2
     printf '%s[ERROR]%s %s\n' "$RED" "$NC" "$1" >&2
+    [[ -z "$origin" ]] || printf '%s[ERROR]%s Raised from: %s\n' "$RED" "$NC" "$origin" >&2
     printf '\n' >&2
     printf '%s[INFO]%s For help or to report a bug create an issue at: https://github.com/slyfox1186/ffmpeg-build-script/issues\n' "$GREEN" "$NC" >&2
     if [[ "${GOOGLE_SPEECH:-false}" == "true" ]] && command -v google_speech >/dev/null 2>&1; then
