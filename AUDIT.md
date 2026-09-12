@@ -113,3 +113,15 @@ Extraction previously deleted the old source before publishing the replacement.
 It now moves the old tree aside and restores it on publication failure; if
 restoration fails, recovery files are retained and their location reported.
 A rename-failure regression verifies the previous source survives.
+
+## Requested improvement: readable build colors
+
+Elapsed digits are green; package versions in STEP, OK and SKIP are bold yellow.
+RUN highlighting uses original argv rather than reparsing shell text: cyan
+executables/paths, magenta option names, yellow values, without the former dim
+body. Tests verify ANSI-stripped output is byte-for-byte the original quoted
+command, including spaces, quotes, control characters and shell syntax.
+NO_COLOR and redirection remain plain, and file logs contain no added ANSI.
+Real PTY output was captured and its SGR attributes rendered for visual review
+at 1200 pixels (`/tmp/ffmpeg-color-preview.png`); exact hues depend on terminal
+theme. The screenshots supplied by the user were inspected before this change.

@@ -433,6 +433,12 @@ FFmpeg installation verified (/usr/local/bin):
 
 The complete version output for each program is retained in the build log.
 
+On a color terminal, elapsed times are green and package versions are bold
+yellow. RUN lines use cyan for executables and paths, magenta for option names,
+and yellow for values. Highlighting preserves the exact shell-quoted command.
+Redirected output, dumb terminals, and a nonempty `NO_COLOR` setting stay plain;
+the saved build log never receives these presentation codes.
+
 Useful manual checks:
 
 ```bash

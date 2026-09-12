@@ -224,7 +224,7 @@ class Runner:
         if not arguments:
             raise BuildError("run_logged() called without a command.")
         command_display = shellquote.join(list(arguments))
-        self.logger.run(command_display)
+        self.logger.run(command_display, arguments=arguments)
         started = self.logger.elapsed_seconds
         environment = self.child_environment(env_overrides)
         working_directory = str(cwd) if cwd is not None else None

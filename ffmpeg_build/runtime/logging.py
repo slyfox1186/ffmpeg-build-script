@@ -9,10 +9,14 @@ stamp so it can be lined up with system logs after the fact.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
+
+from . import shellquote
 
 # Width of "[HH:MM:SS] LEVEL ", used to indent continuation lines so a wrapped
 # or multi-line message stays in one visual column.
@@ -76,7 +80,7 @@ _BODY_STYLE = {
     "STEP": ("bold",),
     "OK": ("green",),
     "INFO": (),
-    "RUN": ("dim",),
+    "RUN": (),
     "SKIP": ("dim",),
     "TIME": ("dim",),
     "DEBUG": ("dim",),
@@ -138,10 +142,43 @@ class Logger:
         # colored value would bleed into the rest of the line.
         return palette.nc + "".join(getattr(palette, name) for name in names)
 
-    def _colorize_subject(self, text: str, body: str, subject: str, nc: str) -> str:
+    def _colorize_subject(
+        self, text: str, body: str, subject: str, nc: str, version_style: str = ""
+    ) -> str:
         head, separator, tail = text.partition(" ")
+        if version_style and tail:
+            version, gap, detail = tail.partition(" ")
+            tail = f"{version_style}{version}{body}{gap}{detail}"
         remainder = f"{separator}{tail}" if separator else ""
         return f"{subject}{head}{body}{remainder}{nc}"
+
+    def _colorize_command(self, arguments: Sequence[str], palette: Palette) -> str:
+        """Style original argv while retaining exactly the logged shell quoting."""
+        parts: list[str] = []
+        for index, argument in enumerate(arguments):
+            quoted = shellquote.quote(argument)
+            if index == 0:
+                styled = self._styles(palette, ("bold", "cyan")) + quoted
+            elif "=" in argument and (
+                argument.startswith("-") or re.match(r"[A-Za-z_][A-Za-z0-9_]*=", argument)
+            ):
+                key, equal, value = quoted.partition("=")
+                value_style = "cyan" if "/" in argument.partition("=")[2] else "yellow"
+                styled = (
+                    self._styles(palette, ("magenta",))
+                    + key
+                    + palette.nc
+                    + equal
+                    + self._styles(palette, (value_style,))
+                    + value
+                )
+            elif argument.startswith("-"):
+                styled = self._styles(palette, ("magenta",)) + quoted
+            else:
+                value_style = "cyan" if "/" in argument else "yellow"
+                styled = self._styles(palette, (value_style,)) + quoted
+            parts.append(styled + palette.nc)
+        return " ".join(parts)
 
     def _colorize_values(self, text: str, body: str, value: str, nc: str) -> str:
         """Lift quoted payloads out of the surrounding prose.
@@ -162,7 +199,14 @@ class Logger:
             remaining = rest
         return f"{body}{''.join(rendered)}{remaining}{nc}"
 
-    def line(self, level: str, message: str, *, stream: TextIO | None = None) -> None:
+    def line(
+        self,
+        level: str,
+        message: str,
+        *,
+        stream: TextIO | None = None,
+        command_arguments: Sequence[str] | None = None,
+    ) -> None:
         target = stream if stream is not None else self._out
         palette = self.err_palette if target is self._err else self.out_palette
         tag = self._styles(palette, _TAG_STYLE[level])
@@ -178,12 +222,19 @@ class Logger:
             # Only the first line of a record carries the subject; a
             # continuation line is prose or a list item, so it takes the value
             # treatment.
-            if index == 0 and level in _SUBJECT_IS_LEADING:
-                rendered = self._colorize_subject(text, body, subject, palette.nc)
+            if index == 0 and level == "RUN" and command_arguments is not None:
+                rendered = self._colorize_command(command_arguments, palette)
+            elif index == 0 and level in _SUBJECT_IS_LEADING:
+                version_style = (
+                    self._styles(palette, ("bold", "yellow"))
+                    if level in ("STEP", "OK", "SKIP")
+                    else ""
+                )
+                rendered = self._colorize_subject(text, body, subject, palette.nc, version_style)
             else:
                 rendered = self._colorize_values(text, body, subject, palette.nc)
             if index == 0:
-                prefix = f"{palette.dim}[{elapsed}]{palette.nc} {tag}{level:<5}{palette.nc} "
+                prefix = f"[{palette.green}{elapsed}{palette.nc}] {tag}{level:<5}{palette.nc} "
                 print(f"{prefix}{rendered}", file=target, flush=True)
             else:
                 print(f"{indent}{rendered}", file=target, flush=True)
@@ -216,8 +267,8 @@ class Logger:
     def skip(self, message: str) -> None:
         self.line("SKIP", message)
 
-    def run(self, message: str) -> None:
-        self.line("RUN", message)
+    def run(self, message: str, *, arguments: Sequence[str] | None = None) -> None:
+        self.line("RUN", message, command_arguments=arguments)
 
     def time(self, message: str) -> None:
         self.line("TIME", message)
