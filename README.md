@@ -347,6 +347,13 @@ cache writes. A locally recorded SHA-256 detects cache damage or tampering
 between runs; it is not a substitute for an upstream signature. Git snapshot
 builds are cloned transactionally and recorded by commit.
 
+Cleanup opens directory components without following symlinks and removes
+entries relative to those descriptors. It preserves other devices and reports
+removal errors; same-device bind mounts are subject to the same limitation as
+`rm --one-file-system`. Host-mutation lock failures stop the operation. Final
+FFmpeg backup, installation, validation and rollback share a lock on the
+installation prefix across workspaces and users.
+
 The project does **not** copy workspace libraries over distribution libraries,
 replace `libstdc++`, delete a system Rust compiler, wipe Cargo caches, or append
 ad hoc linker paths under `/etc`.

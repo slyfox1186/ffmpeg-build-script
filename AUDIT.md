@@ -58,3 +58,20 @@ ensure_autotools and configure_make_install helpers used workspace Libtool
 prefix, and passed the real pkgconf artifact/version check in six seconds.
 The user's build tree and system installation were not modified by this smoke
 build. Logs and result.json remain in that temporary directory.
+
+## High severity: deletion races and installation transactions
+
+Deletion previously validated a canonical path and reopened it by absolute
+name, allowing an ancestor symlink swap between validation and removal.
+Directory traversal now pins each component with O_NOFOLLOW, compares opened
+directory identities, and surfaces unexpected errors. Tests substitute an
+ancestor at the open boundary and verify outside data survives. Lock acquisition
+closes descriptors on interruption; ownership checks run under the build lock.
+Noninteractive cleanup no longer upgrades a legacy marker before returning.
+
+Host locks now fail closed (an intentional correction to the former
+warn-and-continue behavior). Final installation additionally locks the shared
+prefix inode across users/workspaces for the entire backup/promote/validate/
+restore transaction. Restoration attempts the remaining programs after an
+individual command or logging error. Contention and partial restoration are
+covered by regressions. Real privileged installation/rollback is unverified.

@@ -348,11 +348,64 @@ def test_bounded_deletion(tmp_path: Path) -> None:
     with pytest.raises(BuildError, match="symlinked"):
         safe_remove_tree(link, root)
     assert payload.read_text() == "preserve"
+
     # Nested symlinks are unlinked, never traversed.
     child.mkdir()
     (child / "link").symlink_to(sibling, target_is_directory=True)
     safe_remove_tree(child, root)
     assert payload.read_text() == "preserve"
+
+
+def test_deletion_rejects_ancestor_swapped_for_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    (root / "parent/child").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    (outside / "child").mkdir(parents=True)
+    (outside / "child/keep").write_text("user data")
+    real_open = os.open
+    swapped = False
+
+    def swap(
+        path: str | os.PathLike[str], flags: int, mode: int = 0o777, *, dir_fd: int | None = None
+    ) -> int:
+        nonlocal swapped
+        if str(path) == "parent" and not swapped:
+            swapped = True
+            (root / "parent").rename(root / "original")
+            (root / "parent").symlink_to(outside, target_is_directory=True)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", swap)
+    with pytest.raises(BuildError, match="Failed to remove"):
+        safe_remove_tree(root / "parent/child", root)
+    assert swapped
+    assert (outside / "child/keep").read_text() == "user data"
+
+
+def test_interrupted_lock_wait_closes_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with DirectoryLock(tmp_path) as first:
+        assert first.acquire()
+        before = len(list(Path("/proc/self/fd").iterdir()))
+
+        def interrupted(_delay: float) -> None:
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("ffmpeg_build.runtime.paths.time.sleep", interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            DirectoryLock(tmp_path).acquire(timeout=1)
+        assert len(list(Path("/proc/self/fd").iterdir())) == before
+
+
+def test_host_lock_timeout_prevents_mutation(monkeypatch: pytest.MonkeyPatch) -> None:
+    orch = Orchestrator(REPO, [])
+    monkeypatch.setenv("HOST_MUTATION_LOCK_TIMEOUT", "0")
+    with orch.host_mutation_lock():
+        with pytest.raises(BuildError, match="Timed out"):
+            orch.host_mutation_lock()
 
 
 @pytest.mark.parametrize("payload", ["", "1.0\n2.0\n", "../bad\n", "1.0 x\n", "\xff"])

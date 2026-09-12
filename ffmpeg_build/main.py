@@ -222,16 +222,6 @@ class Orchestrator:
         log_file = root / "build.log"
         self.validate_build_root()
 
-        for managed in (
-            packages,
-            workspace,
-            log_file,
-            root / BUILD_ROOT_MARKER_NAME,
-            root / BUILD_CONTEXT_NAME,
-        ):
-            if managed.is_symlink():
-                raise BuildError(f"Refusing symlink at managed build path '{managed}'.")
-
         # The build root is created empty first and nothing is put inside it
         # until its marker exists: an interrupt here leaves an empty directory
         # the next run accepts, rather than a populated unmarked one that
@@ -257,6 +247,18 @@ class Orchestrator:
         if not self._lock.acquire():
             self._lock = None
             raise BuildError(f"Another process is already using build root '{root}'.")
+
+        self._lock.assert_current()
+        self.validate_build_root()
+        for managed in (
+            packages,
+            workspace,
+            log_file,
+            root / BUILD_ROOT_MARKER_NAME,
+            root / BUILD_CONTEXT_NAME,
+        ):
+            if managed.is_symlink():
+                raise BuildError(f"Refusing symlink at managed build path '{managed}'.")
 
         if log_file.exists() and not log_file.is_file():
             raise BuildError(f"Build log path is not a regular file: '{log_file}'.")
@@ -444,27 +446,6 @@ class Orchestrator:
         repository = canonicalize(self.repo_root)
         assert_safe_build_root(resolved, repository)
 
-        # Establish that this directory is ours before taking a lock on it.
-        if build_root_marker_matches(resolved / BUILD_ROOT_MARKER_NAME, resolved):
-            pass
-        elif resolved == repository / "build" and legacy_build_root_marker(
-            resolved / BUILD_ROOT_MARKER_NAME
-        ):
-            self.logger.warn(
-                "Upgrading the legacy marker in the repository's default build directory "
-                "before cleanup."
-            )
-            write_build_root_marker(resolved)
-        elif build_root_is_adoptable(resolved):
-            self.logger.warn(
-                f"'{resolved}' holds only this project's empty scaffolding from an interrupted "
-                "run; cleaning it up."
-            )
-        else:
-            raise BuildError(
-                f"Refusing to clean a build root without a valid path-bound marker: '{resolved}'"
-            )
-
         # A build already holds this directory lock through all stages. Opening
         # another descriptor here would contend with our own lock on success.
         lock = self._lock if self._lock is not None and self._lock.held else DirectoryLock(resolved)
@@ -472,6 +453,24 @@ class Orchestrator:
         if not lock.acquire():
             raise BuildError(f"Another process is already using build root '{resolved}'.")
         try:
+            lock.assert_current()
+            # Verify ownership while holding the directory lock.
+            if build_root_marker_matches(resolved / BUILD_ROOT_MARKER_NAME, resolved):
+                pass
+            elif resolved == repository / "build" and legacy_build_root_marker(
+                resolved / BUILD_ROOT_MARKER_NAME
+            ):
+                self.logger.warn("Recognized legacy marker in the default build directory.")
+            elif build_root_is_adoptable(resolved):
+                self.logger.warn(
+                    f"'{resolved}' holds only this project's empty scaffolding from an interrupted "
+                    "run; cleaning it up."
+                )
+            else:
+                raise BuildError(
+                    f"Refusing to clean a build root without a valid path-bound marker: '{resolved}'"
+                )
+
             if not sys.stdin.isatty():
                 self.logger.info(
                     f"Standard input is not interactive; leaving build files in place at "
@@ -490,6 +489,7 @@ class Orchestrator:
                     from .runtime.paths import remove_tree_one_filesystem
 
                     try:
+                        lock.assert_current()
                         remove_tree_one_filesystem(resolved)
                     except OSError as error:
                         raise BuildError(f"Failed to remove build root '{resolved}'.") from error
@@ -585,18 +585,12 @@ class Orchestrator:
         )
         try:
             lock_dir.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            self.logger.warn(
-                f"Unable to open the host-mutation lock in '{lock_dir}'; continuing without it."
-            )
-            return DirectoryLock(lock_dir)
+        except OSError as error:
+            raise BuildError(f"Unable to create the host-mutation lock in '{lock_dir}'.") from error
         lock = DirectoryLock(lock_dir)
         timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT", "3600"))
         if not lock.acquire(timeout=timeout):
-            self.logger.warn(
-                "Timed out waiting for the host-mutation lock; continuing, so APT may report "
-                "a lock error of its own."
-            )
+            raise BuildError("Timed out waiting for the host-mutation lock; no host changes made.")
         return lock
 
     # -- entry point -----------------------------------------------------

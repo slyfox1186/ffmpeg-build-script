@@ -66,62 +66,72 @@ def path_is_within(candidate: str | os.PathLike[str], root: str | os.PathLike[st
     return resolved_root in resolved_candidate.parents
 
 
-def _purge_directory(directory_fd: int, device: int) -> None:
-    """Empty one directory, never following a symlink or crossing a mount.
+def _open_directory(path: Path) -> int:
+    """Pin every path component without following even an ancestor symlink."""
+    fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for component in path.absolute().parts[1:]:
+            child = os.open(component, os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
-    `shutil.rmtree` has no one-file-system guard and no `xdev` parameter, so
-    the `rm -rf --one-file-system` behavior this project relies on has to be
-    written out. Entries on another device are left intact exactly as GNU `rm`
-    leaves them.
-    """
-    with os.scandir(directory_fd) as entries:
-        children = list(entries)
-    for entry in children:
+
+def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
+    return (first.st_dev, first.st_ino) == (second.st_dev, second.st_ino)
+
+
+def _remove_at(parent_fd: int, name: str, device: int) -> None:
+    try:
+        inspected = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if inspected.st_dev != device:
+        return
+    if not stat.S_ISDIR(inspected.st_mode):
         try:
-            entry_stat = entry.stat(follow_symlinks=False)
-        except OSError:
-            continue
-        if entry_stat.st_dev != device:
-            continue
-        if stat.S_ISDIR(entry_stat.st_mode):
-            try:
-                child_fd = os.open(
-                    entry.name,
-                    os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY,
-                    dir_fd=directory_fd,
-                )
-            except OSError:
-                continue
-            try:
-                _purge_directory(child_fd, device)
-            finally:
-                os.close(child_fd)
-            try:
-                os.rmdir(entry.name, dir_fd=directory_fd)
-            except OSError:
-                pass
-        else:
-            try:
-                os.unlink(entry.name, dir_fd=directory_fd)
-            except FileNotFoundError:
-                pass
+            os.unlink(name, dir_fd=parent_fd)
+        except FileNotFoundError:
+            pass
+        return
+    child_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY, dir_fd=parent_fd)
+    try:
+        if not _same_inode(inspected, os.fstat(child_fd)):
+            raise OSError(errno.ESTALE, "Directory changed before removal", name)
+        with os.scandir(child_fd) as entries:
+            children = [entry.name for entry in entries]
+        for child in children:
+            _remove_at(child_fd, child, device)
+        if not _same_inode(inspected, os.stat(name, dir_fd=parent_fd, follow_symlinks=False)):
+            raise OSError(errno.ESTALE, "Directory changed during removal", name)
+        os.rmdir(name, dir_fd=parent_fd)
+    finally:
+        os.close(child_fd)
 
 
 def remove_tree_one_filesystem(target: Path) -> None:
-    """Remove `target` and everything under it on the same filesystem."""
+    """Remove through pinned directory descriptors, staying on one device.
+
+    Device boundaries are preserved, as with rm --one-file-system. A bind
+    mount of the same device is not distinguishable by st_dev.
+    """
+    if target.absolute() == Path("/"):
+        raise BuildError("Refusing to remove '/'.")
     try:
-        target_stat = os.lstat(target)
+        parent_fd = _open_directory(target.parent)
     except FileNotFoundError:
         return
-    if not stat.S_ISDIR(target_stat.st_mode):
-        os.unlink(target)
-        return
-    directory_fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY)
     try:
-        _purge_directory(directory_fd, target_stat.st_dev)
+        try:
+            inspected = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        _remove_at(parent_fd, target.name, inspected.st_dev)
     finally:
-        os.close(directory_fd)
-    os.rmdir(target)
+        os.close(parent_fd)
 
 
 def safe_remove_tree(target: str | os.PathLike[str], allowed_root: str | os.PathLike[str]) -> None:
@@ -192,31 +202,44 @@ class DirectoryLock:
             return True
         # PEP 446 makes this descriptor non-inheritable, so no child and no
         # background helper can keep the lock alive past this process.
-        fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+        fd = _open_directory(self.directory)
         deadline = None if timeout is None else time.monotonic() + timeout
-        while True:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError as error:
-                if error.errno not in (errno.EACCES, errno.EAGAIN):
-                    os.close(fd)
-                    raise
-                if deadline is not None and time.monotonic() >= deadline:
-                    os.close(fd)
-                    return False
-                if deadline is None:
-                    os.close(fd)
-                    return False
-                time.sleep(0.25)
-                continue
-            self._fd = fd
-            return True
+        try:
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as error:
+                    if error.errno not in (errno.EACCES, errno.EAGAIN):
+                        raise
+                    if deadline is None:
+                        return False
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    time.sleep(min(0.25, remaining))
+                    continue
+                self._fd = fd
+                return True
+        finally:
+            if self._fd is None:
+                os.close(fd)
 
     def release(self) -> None:
         if self._fd is None:
             return
         os.close(self._fd)
         self._fd = None
+
+    def assert_current(self) -> None:
+        """Reject a replaced path even though its original inode stays locked."""
+        if self._fd is None:
+            raise BuildError(f"Directory lock is not held: '{self.directory}'.")
+        current_fd = _open_directory(self.directory)
+        try:
+            if not _same_inode(os.fstat(self._fd), os.fstat(current_fd)):
+                raise BuildError(f"Locked directory was replaced: '{self.directory}'.")
+        finally:
+            os.close(current_fd)
 
     def __enter__(self) -> DirectoryLock:
         return self

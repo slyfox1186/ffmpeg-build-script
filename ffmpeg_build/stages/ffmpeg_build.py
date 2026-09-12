@@ -15,7 +15,7 @@ from pathlib import Path
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.exec import base_environment
-from ..runtime.paths import safe_remove_tree
+from ..runtime.paths import DirectoryLock, safe_remove_tree
 from ..runtime.state import read_marker_version
 from .hardware import HardwareDetection
 
@@ -239,7 +239,12 @@ class FFmpegStage:
                 ]
             else:
                 command = ["sudo", "rm", "-f", "--", str(target)]
-            if self.context.runner.run_logged(command) == 0:
+            try:
+                status = self.context.runner.run_logged(command)
+            except (BuildError, OSError) as error:
+                self.logger.warn(f"Restoring '{target}' failed: {error}")
+                status = 1
+            if status == 0:
                 self.logger.warn(f"Restored the previous state of '{target}'.")
             else:
                 restored = False
@@ -257,33 +262,39 @@ class FFmpegStage:
         install_prefix: Path = Path("/usr/local"),
     ) -> None:
         """Keep a recoverable backup through promotion and installed validation."""
-        backup_dir = staging_root / "previous-install"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        self.backup_installed_programs(backup_dir, install_prefix)
-        # Once promotion starts, automatic abort cleanup must not erase the only
-        # recovery copy if either installation or restoration fails.
-        self.context.unregister_temporary_path(staging_root)
-        try:
-            status = self.context.runner.run_logged(
-                ["sudo", "make", "install"], cwd=build_directory
-            )
-            if status != 0:
-                raise BuildError(
-                    f"Installing FFmpeg into '{install_prefix}' failed with exit code {status}."
+        # Lock the shared destination inode, not a per-user/per-workspace path.
+        # Keep the backup, write, validation and any rollback in one transaction.
+        with DirectoryLock(install_prefix) as lock:
+            timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT") or "3600")
+            if not lock.acquire(timeout=timeout):
+                raise BuildError(f"Timed out waiting to install into '{install_prefix}'.")
+            backup_dir = staging_root / "previous-install"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            self.backup_installed_programs(backup_dir, install_prefix)
+            # Once promotion starts, automatic abort cleanup must not erase the only
+            # recovery copy if either installation or restoration fails.
+            self.context.unregister_temporary_path(staging_root)
+            try:
+                status = self.context.runner.run_logged(
+                    ["sudo", "make", "install"], cwd=build_directory
                 )
-            self.validate_installation(ffmpeg_version, ffplay_enabled, install_prefix)
-        except BaseException as error:
-            restored = self.restore_installed_programs(backup_dir, install_prefix)
-            outcome = (
-                "The previously installed programs were restored."
-                if restored
-                else "Restoration was incomplete."
-            )
-            detail = f"{outcome} Recovery files remain at '{staging_root}'."
-            if isinstance(error, BuildError):
-                raise BuildError(f"{error} {detail}") from error
-            self.logger.warn(detail)
-            raise
+                if status != 0:
+                    raise BuildError(
+                        f"Installing FFmpeg into '{install_prefix}' failed with exit code {status}."
+                    )
+                self.validate_installation(ffmpeg_version, ffplay_enabled, install_prefix)
+            except BaseException as error:
+                restored = self.restore_installed_programs(backup_dir, install_prefix)
+                outcome = (
+                    "The previously installed programs were restored."
+                    if restored
+                    else "Restoration was incomplete."
+                )
+                detail = f"{outcome} Recovery files remain at '{staging_root}'."
+                if isinstance(error, BuildError):
+                    raise BuildError(f"{error} {detail}") from error
+                self.logger.warn(detail)
+                raise
 
     # -- the stage -------------------------------------------------------
 

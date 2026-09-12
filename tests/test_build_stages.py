@@ -238,7 +238,9 @@ else: sys.exit(64)
         stage.validate_installation("8.1.2", True, prefix, False)
 
 
-@pytest.mark.parametrize("failure", ["install", "validation", "restore", "interrupt"])
+@pytest.mark.parametrize(
+    "failure", ["install", "validation", "restore", "restore-error", "interrupt"]
+)
 def test_install_promotion_restores_and_preserves_recovery(
     context: BuildContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
@@ -269,6 +271,8 @@ def test_install_promotion_restores_and_preserves_recovery(
             return 0 if failure == "validation" else 37
         if failure == "restore":
             return 74
+        if failure == "restore-error" and arguments[-1].endswith("/ffmpeg"):
+            raise BuildError("Output recording failed during restore")
         if arguments[1] == "cp":
             shutil.copy2(arguments[-2], arguments[-1])
         elif arguments[1] == "rm":
@@ -291,12 +295,30 @@ def test_install_promotion_restores_and_preserves_recovery(
             stage.promote_installation(tmp_path, staging, "9.0.1", True, prefix)
         assert (
             "Restoration was incomplete"
-            if failure == "restore"
+            if failure in ("restore", "restore-error")
             else "previously installed programs were restored"
         ) in str(caught.value)
     context.remove_registered_temporary_paths()
     assert (staging / "previous-install/ffmpeg").read_text() == "old-ffmpeg"
-    if failure != "restore":
+    if failure not in ("restore", "restore-error"):
         assert (prefix / "bin/ffmpeg").read_text() == "old-ffmpeg"
         assert (prefix / "bin/ffprobe").read_text() == "old-ffprobe"
         assert not (prefix / "bin/ffplay").exists()
+    if failure == "restore-error":
+        assert (prefix / "bin/ffprobe").read_text() == "old-ffprobe"
+        assert not (prefix / "bin/ffplay").exists()
+
+
+def test_promotion_waits_before_backup_or_install(
+    context: BuildContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ffmpeg_build.runtime.paths import DirectoryLock
+
+    monkeypatch.setenv("HOST_MUTATION_LOCK_TIMEOUT", "0")
+    stage = stage_for(context)
+    staging = context.packages / "staging"
+    with DirectoryLock(tmp_path) as held:
+        assert held.acquire()
+        with pytest.raises(BuildError, match="Timed out waiting to install"):
+            stage.promote_installation(tmp_path, staging, "9.0.1", False, tmp_path)
+    assert not staging.exists()
