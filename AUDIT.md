@@ -228,3 +228,21 @@ Personal follow-up found an interruption window immediately after moving the
 old source aside: abort cleanup could remove its registered staging directory.
 Staging leaves disposable cleanup before that move; an injected interrupt after
 the actual rename proves recovery data survives teardown.
+
+## High severity: privileged cancellation ordering
+
+The installed sudo(8) manual confirms sudo relays signals and reports its
+command's termination, but cannot relay SIGKILL. Logged sudo mutations now
+receive TERM and are awaited without forcibly killing the signal relay. This
+keeps rollback and lock release behind command termination. The review's
+suggested 30-second grace only moves the same unsafe cutoff; it was not adopted.
+Signal-permission errors are attached to the original failure instead of masking
+it. A real process requiring more than one second to shut down verifies ordering.
+Actual root-owned installer cancellation remains unverified. Kernel D-state or
+a privileged command that never terminates can still block shutdown; abandoning
+it and releasing locks would permit concurrent writes, so that is not treated
+as a safe timeout optimization.
+
+GLM's claimed backup-failure deletion was false: backup_installed_programs is
+outside the promotion try/except. An injected backup failure now explicitly
+tests that neither installation nor rollback runs and old programs survive.

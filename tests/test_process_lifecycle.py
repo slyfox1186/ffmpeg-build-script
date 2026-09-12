@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from ffmpeg_build.runtime.context import BuildContext
-from ffmpeg_build.runtime.exec import notify_failure
+from ffmpeg_build.runtime.exec import managed_process, notify_failure
 
 
 @pytest.mark.parametrize("mode", ["quiet", "debug", "terminal", "capture"])
@@ -97,3 +97,36 @@ def test_notification_failure_does_not_mask_build_failure(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(subprocess, "run", fail)
     notify_failure("original build failure")
+
+
+def test_signal_relay_finishes_shutdown_before_unwinding(tmp_path: Path) -> None:
+    finished = tmp_path / "shutdown-finished"
+    code = (
+        "import signal,time,pathlib; "
+        "signal.signal(signal.SIGTERM, lambda *args: (time.sleep(1.2), "
+        f"pathlib.Path({str(finished)!r}).write_text('done'), exit(0))); "
+        "print('ready',flush=True); time.sleep(30)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", code], stdout=subprocess.PIPE, process_group=0
+    )
+    with pytest.raises(RuntimeError, match="original interruption"):
+        with managed_process(process, signal_relay=True):
+            assert process.stdout is not None and process.stdout.readline() == b"ready\n"
+            raise RuntimeError("original interruption")
+    assert process.returncode == 0 and finished.read_text() == "done"
+
+
+def test_signal_permission_error_preserves_original_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def denied(*args: object) -> None:
+        raise PermissionError("credential-changing process")
+
+    process = subprocess.Popen([sys.executable, "-c", "pass"], process_group=0)
+    monkeypatch.setattr("os.killpg", denied)
+    with pytest.raises(RuntimeError, match="original failure") as caught:
+        with managed_process(process):
+            raise RuntimeError("original failure")
+    assert process.returncode == 0
+    assert "credential-changing process" in str(caught.value.__notes__)

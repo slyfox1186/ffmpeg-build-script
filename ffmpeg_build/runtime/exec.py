@@ -104,7 +104,9 @@ class CommandFailed(BuildError):
 
 
 @contextmanager
-def managed_process(process: subprocess.Popen[bytes]) -> Iterator[subprocess.Popen[bytes]]:
+def managed_process(
+    process: subprocess.Popen[bytes], *, signal_relay: bool = False
+) -> Iterator[subprocess.Popen[bytes]]:
     """Reap the command and stop its process group before unwinding a build.
 
     Callers create a new process group, retaining the controlling terminal for
@@ -113,11 +115,19 @@ def managed_process(process: subprocess.Popen[bytes]) -> Iterator[subprocess.Pop
     """
     try:
         yield process
-    except BaseException:
+    except BaseException as original:
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
+        except PermissionError as error:
+            original.add_note(f"Unable to signal every process in group {process.pid}: {error}")
+        if signal_relay:
+            # sudo relays TERM and waits for its privileged command, but cannot
+            # relay KILL. Killing sudo could orphan an installer and let it race
+            # rollback. Retain locks until sudo confirms command termination.
+            process.wait()
+            raise
         try:
             process.wait(timeout=1)
         except subprocess.TimeoutExpired:
@@ -127,6 +137,8 @@ def managed_process(process: subprocess.Popen[bytes]) -> Iterator[subprocess.Pop
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            except PermissionError as error:
+                original.add_note(f"Unable to kill every process in group {process.pid}: {error}")
             process.wait()
         raise
     finally:
@@ -242,7 +254,8 @@ class Runner:
                         stderr=subprocess.STDOUT,
                         stdin=subprocess.PIPE if stdin_text is not None else None,
                         process_group=0,
-                    )
+                    ),
+                    signal_relay=Path(arguments[0]).name == "sudo",
                 ) as process:
                     process.communicate(stdin_text.encode() if stdin_text is not None else None)
                     exit_code = process.wait()
@@ -256,7 +269,8 @@ class Runner:
                     env=environment,
                     stdin=subprocess.PIPE if stdin_text is not None else None,
                     process_group=0,
-                )
+                ),
+                signal_relay=Path(arguments[0]).name == "sudo",
             ) as process:
                 process.communicate(stdin_text.encode() if stdin_text is not None else None)
                 exit_code = process.wait()
@@ -298,7 +312,8 @@ class Runner:
                     stderr=subprocess.STDOUT,
                     stdin=source if stdin_text is not None else None,
                     process_group=0,
-                )
+                ),
+                signal_relay=Path(arguments[0]).name == "sudo",
             ) as process:
                 assert process.stdout is not None
                 output = process.stdout

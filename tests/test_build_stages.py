@@ -356,6 +356,31 @@ def test_install_promotion_restores_and_preserves_recovery(
         assert not (prefix / "bin/ffplay").exists()
 
 
+def test_failed_backup_never_starts_install_or_rollback(
+    context: BuildContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from collections.abc import Sequence
+
+    prefix = tmp_path / "installed"
+    (prefix / "bin").mkdir(parents=True)
+    for name in ("ffmpeg", "ffprobe"):
+        (prefix / "bin" / name).write_text("original")
+    staging = context.packages / "staging"
+    staging.mkdir()
+
+    def fail_backup(arguments: Sequence[str], **kwargs: object) -> None:
+        raise BuildError("disk full during backup")
+
+    def forbidden(*args: object, **kwargs: object) -> int:
+        pytest.fail("A backup failure must not start install or restoration")
+
+    monkeypatch.setattr(context, "execute", fail_backup)
+    monkeypatch.setattr(context.runner, "run_logged", forbidden)
+    with pytest.raises(BuildError, match="disk full"):
+        stage_for(context).promote_installation(tmp_path, staging, "9.0.1", False, prefix)
+    assert all((prefix / "bin" / name).read_text() == "original" for name in ("ffmpeg", "ffprobe"))
+
+
 def test_promotion_waits_before_backup_or_install(
     context: BuildContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
