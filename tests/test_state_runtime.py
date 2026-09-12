@@ -27,6 +27,34 @@ from ffmpeg_build.runtime.versioncmp import version_sort
 from tests.conftest import REPO, invoke
 
 
+def test_empty_timeout_overrides_use_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in (
+        "GIT_OPERATION_TIMEOUT",
+        "GIT_CLONE_TIMEOUT",
+        "VERSION_CHECK_MAX_TIME",
+        "FREEDESKTOP_RELEASE_INDEX_MAX_TIME",
+        "FREEDESKTOP_RELEASE_CONNECT_TIMEOUT",
+        "DOWNLOAD_CONNECT_TIMEOUT",
+        "HOST_MUTATION_LOCK_TIMEOUT",
+    ):
+        monkeypatch.setenv(name, "")
+    orchestrator = Orchestrator(REPO, [])
+    orchestrator.build_root = tmp_path / "build"
+    ctx = orchestrator.build_context(Arguments(), BuildSettings(), Selection())
+    assert ctx.resolver.git_timeout == 120 and ctx.cloner.clone_timeout == 1800
+
+    def scrape(*args: object, **kwargs: object) -> str:
+        assert kwargs["max_time"] == 5 and kwargs["connect_timeout"] == 2
+        return "2.14.3"
+
+    monkeypatch.setattr(ctx.resolver, "scrape_highest", scrape)
+    assert ctx.versions.freetype() is not None
+    with orchestrator.host_mutation_lock() as lock:
+        assert lock.held
+
+
 @pytest.mark.parametrize(
     "mode", ["unmarked", "scaffold", "foreign", "spaces", "ancestor", "home", "system"]
 )

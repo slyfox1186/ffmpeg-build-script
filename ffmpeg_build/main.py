@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import signal
 import sys
 import tempfile
@@ -26,6 +25,7 @@ from .runtime.errors import BuildError, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
 from .runtime.logging import Logger
 from .runtime.paths import DirectoryLock, canonicalize, is_exclusive_regular_file
+from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 from .runtime.state import (
     BUILD_CONTEXT_NAME,
     BUILD_ROOT_MARKER_NAME,
@@ -98,7 +98,7 @@ def validate_build_settings(selection: Selection, debug_value: str) -> None:
                 "'CUDA_ARCH_MODE=custom' requires 'CUDA_ARCHITECTURES' (for example: '86 89')"
             )
         for value in values:
-            if not value.isdigit():
+            if parse_integer(value, minimum=0, maximum=MAX_PROCESS_INTEGER) is None:
                 issues.append(f"'CUDA_ARCHITECTURES' entry '{value}' is not a number")
     elif mode not in ("native", "all"):
         issues.append(f"'CUDA_ARCH_MODE' must be 'native', 'all', or 'custom'; got '{mode}'")
@@ -108,11 +108,12 @@ def validate_build_settings(selection: Selection, debug_value: str) -> None:
     # subsystem entirely.
     for name in _POSITIVE_INTEGER_SETTINGS:
         value = os.environ.get(name, "")
-        if value and not re.match(r"^[1-9][0-9]*$", value):
+        maximum = sys.maxsize if name.endswith("_BYTES") else MAX_PROCESS_INTEGER
+        if value and parse_integer(value, maximum=maximum) is None:
             issues.append(f"'{name}' must be a positive integer; got '{value}'")
     for name in _NON_NEGATIVE_INTEGER_SETTINGS:
         value = os.environ.get(name, "")
-        if value and not value.isdigit():
+        if value and parse_integer(value, minimum=0, maximum=MAX_PROCESS_INTEGER) is None:
             issues.append(f"'{name}' must be a non-negative integer; got '{value}'")
 
     for rule in registry.SETTINGS_REQUIREMENTS:
@@ -590,7 +591,7 @@ class Orchestrator:
         except OSError as error:
             raise BuildError(f"Unable to create the host-mutation lock in '{lock_dir}'.") from error
         lock = DirectoryLock(lock_dir)
-        timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT", "3600"))
+        timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT") or "3600")
         if not lock.acquire(timeout=timeout):
             raise BuildError("Timed out waiting for the host-mutation lock; no host changes made.")
         return lock

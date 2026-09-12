@@ -44,15 +44,19 @@ def interpreter_version(executable: str) -> tuple[int, int] | None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=5,
         )
-    except OSError:
+    except (OSError, subprocess.SubprocessError, UnicodeError):
         return None
     if completed.returncode != 0:
         return None
     parts = completed.stdout.strip().split(".")
-    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+    if len(parts) != 2 or not all(part.isascii() and part.isdigit() for part in parts):
         return None
-    return (int(parts[0]), int(parts[1]))
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except ValueError:
+        return None
 
 
 def ask_consent(question: str) -> bool:
@@ -114,7 +118,12 @@ def resolve_conda_interpreter() -> str | None:
         return None
     environment_python = os.path.join(CONDA_ROOT, "envs", CONDA_ENVIRONMENT, "bin", "python")
     if os.access(environment_python, os.X_OK):
-        return environment_python
+        if (interpreter_version(environment_python) or (0, 0)) >= REQUIRED_VERSION:
+            return environment_python
+        sys.stderr.write(
+            "The existing Conda interpreter is incompatible; checking system Python.\n"
+        )
+        return None
     question = "Create conda environment '%s' (python=%s) and install %s? [y/N]: " % (
         CONDA_ENVIRONMENT,
         CONDA_PYTHON_VERSION,
@@ -171,7 +180,7 @@ def main(argv: list[str]) -> int:
 
     from ffmpeg_build.usage import metadata_response
 
-    answer = metadata_response(argv)
+    answer = metadata_response(argv or ["--help"])
     if answer is not None:
         sys.stdout.write(answer)
         return 0

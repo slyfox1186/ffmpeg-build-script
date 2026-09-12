@@ -205,6 +205,8 @@ def test_launcher_metadata_never_resolves_interpreter(
     monkeypatch.setattr(module, "resolve_conda_interpreter", forbidden)
     assert module.main(["--version"]) == 0
     assert capsys.readouterr().out == "8.0.0\n"
+    assert module.main([]) == 0
+    assert "--build" in capsys.readouterr().out
 
 
 def test_launcher_declined_environment_is_not_created(
@@ -263,4 +265,16 @@ def test_launcher_prefers_compatible_system_python(monkeypatch: pytest.MonkeyPat
     module = launcher_module()
     monkeypatch.setattr(module.os, "access", lambda path, mode: True)
     monkeypatch.setattr(module, "interpreter_version", lambda path: (3, 12))
+    assert module.resolve_system_interpreter() == "/usr/bin/python3"
+
+
+def test_incompatible_conda_does_not_hide_compatible_system_python(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = launcher_module()
+    monkeypatch.setattr(module.os, "access", lambda path, mode: True)
+    monkeypatch.setattr(
+        module, "interpreter_version", lambda path: (3, 11) if "install-ffmpeg" in path else (3, 12)
+    )
+    assert module.resolve_conda_interpreter() is None
     assert module.resolve_system_interpreter() == "/usr/bin/python3"

@@ -134,6 +134,13 @@ With no action, the script prints help. `--build`, `--cleanup`, and `--menu`
 are mutually exclusive. Without `--config`, every registered package is selected; using the
 reviewed `custom.toml` allowlist is the recommended path.
 
+Bare invocation, help and version reporting do not resolve or create an
+interpreter environment. An incompatible existing Conda interpreter falls back
+to the compatible system-interpreter search. Numeric settings accept ASCII
+decimal digits; jobs, timeouts and counters are bounded to 2,147,483,647, while
+byte limits may use the host's signed integer range. Empty environment timeout
+overrides use the documented defaults.
+
 Arguments are validated before any config file is read, so an invalid request
 never applies a package selection. A relative `--config` path resolves against
 the directory you ran the script from, never against the script's own

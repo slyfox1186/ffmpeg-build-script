@@ -185,6 +185,30 @@ def test_valid_cuda_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     validate_build_settings(Selection(), "OFF")
 
 
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("DOWNLOAD_MAX_TIME", "5\n"),
+        ("DOWNLOAD_RETRY", "٣"),
+        ("DOWNLOAD_RETRY", "²"),
+        ("GIT_OPERATION_TIMEOUT", "9" * 5000),
+        ("DOWNLOAD_MAX_MEMBERS", "0"),
+        ("DOWNLOAD_MAX_EXTRACTED_BYTES", "-1"),
+    ],
+)
+def test_malformed_numeric_settings_are_usage_errors(
+    name: str, value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(name, value)
+    with pytest.raises(UsageError):
+        validate_build_settings(Selection(), "OFF")
+
+
+def test_huge_jobs_is_a_usage_error() -> None:
+    with pytest.raises(UsageError, match="Invalid jobs"):
+        parse_arguments(["--jobs=" + "9" * 5000])
+
+
 def test_launcher_and_help_parse_on_old_python() -> None:
     for path in (
         REPO / "build-ffmpeg.py",

@@ -14,6 +14,7 @@ from .. import registry
 from ..config import BuildSettings, Selection
 from ..registry import Gate, Package
 from ..runtime.errors import UsageError
+from ..runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 
 
 @dataclass
@@ -30,7 +31,7 @@ class LaunchSettings:
     def validate(self) -> None:
         if self.compiler not in ("gcc", "clang"):
             raise UsageError("Compiler must be 'gcc' or 'clang'.")
-        if self.jobs and not re.fullmatch(r"[1-9][0-9]*", self.jobs):
+        if self.jobs and parse_integer(self.jobs, maximum=MAX_PROCESS_INTEGER) is None:
             raise UsageError("Jobs must be a positive integer, or empty for available CPUs.")
         if self.cuda_install not in ("ask", "always", "never"):
             raise UsageError("CUDA installation must be 'ask', 'always', or 'never'.")

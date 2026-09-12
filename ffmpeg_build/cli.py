@@ -14,10 +14,10 @@ be read and applied on its way to the error.
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 
 from .runtime.errors import UsageError
+from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 from .usage import SCRIPT_NAME, SCRIPT_VERSION, metadata_response, usage_text
 
 __all__ = [
@@ -29,8 +29,6 @@ __all__ = [
     "resolve_config_path",
     "usage_text",
 ]
-
-_JOBS_VALUE = re.compile(r"^[1-9][0-9]*$")
 
 
 class Arguments:
@@ -122,15 +120,10 @@ def parse_arguments(argv: list[str]) -> Arguments:
 
 
 def _parse_jobs(value: str) -> int:
-    """Validate at the point of assignment.
-
-    Once parsing ends an empty value is indistinguishable from an omitted
-    option, and `--jobs=` would quietly mean "auto-detect" rather than being
-    rejected.
-    """
-    if not _JOBS_VALUE.fullmatch(value):
+    parsed = parse_integer(value, maximum=MAX_PROCESS_INTEGER)
+    if parsed is None:
         raise UsageError(f"Invalid jobs value '{value}'; expected a positive integer.")
-    return int(value)
+    return parsed
 
 
 def resolve_config_path(raw_path: str, invocation_dir: Path) -> Path:

@@ -150,3 +150,14 @@ the build launcher. Actual screen buffers were inspected at both normal sizes.
 The reviewers disagreed about narrow prompts: the old drawing call was inside
 its error handler, but cursor visibility changes were outside it; the fix covers
 both that verified failure and minimum-size input handling.
+
+## Medium severity: interpreter fallback and numeric input
+
+The launcher probes existing Conda interpreters before selecting them, with a
+five-second deadline; stale environments no longer hide compatible system
+Python. Bare invocation now reaches side-effect-free help directly. ASCII
+integer parsing rejects newline suffixes, Unicode digit lookalikes and values
+too large for downstream native settings, including Python's integer conversion
+digit limit. Empty timeout overrides consistently use defaults instead of
+passing int(""). Tests exercise these inputs before workspace creation and
+verify empty Git/font/lock timeouts and stale-interpreter fallback.

@@ -44,12 +44,11 @@ class PackageVersions:
         version = self.resolver.scrape_highest(
             "https://download.savannah.gnu.org/releases/freetype/",
             r"freetype-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(?:xz|gz|bz2)",
-            max_time=int(os.environ.get("FREEDESKTOP_RELEASE_INDEX_MAX_TIME", "5")),
+            max_time=int(os.environ.get("FREEDESKTOP_RELEASE_INDEX_MAX_TIME") or "5"),
             connect_timeout=int(
-                os.environ.get(
-                    "FREEDESKTOP_RELEASE_CONNECT_TIMEOUT",
-                    os.environ.get("DOWNLOAD_CONNECT_TIMEOUT", "2"),
-                )
+                os.environ.get("FREEDESKTOP_RELEASE_CONNECT_TIMEOUT")
+                or os.environ.get("DOWNLOAD_CONNECT_TIMEOUT")
+                or "2"
             ),
         )
         if version:
@@ -70,12 +69,11 @@ class PackageVersions:
         version = self.resolver.scrape_highest(
             "https://www.freedesktop.org/software/fontconfig/release/",
             r"fontconfig-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(?:xz|gz|bz2)",
-            max_time=int(os.environ.get("FREEDESKTOP_RELEASE_INDEX_MAX_TIME", "5")),
+            max_time=int(os.environ.get("FREEDESKTOP_RELEASE_INDEX_MAX_TIME") or "5"),
             connect_timeout=int(
-                os.environ.get(
-                    "FREEDESKTOP_RELEASE_CONNECT_TIMEOUT",
-                    os.environ.get("DOWNLOAD_CONNECT_TIMEOUT", "2"),
-                )
+                os.environ.get("FREEDESKTOP_RELEASE_CONNECT_TIMEOUT")
+                or os.environ.get("DOWNLOAD_CONNECT_TIMEOUT")
+                or "2"
             ),
         )
         if version:

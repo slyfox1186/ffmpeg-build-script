@@ -95,7 +95,7 @@ class BuildContext:
 
         self.download_settings = DownloadSettings(dict(os.environ))
         self.resolver = VersionResolver(
-            runner, logger, git_timeout=int(os.environ.get("GIT_OPERATION_TIMEOUT", "120"))
+            runner, logger, git_timeout=int(os.environ.get("GIT_OPERATION_TIMEOUT") or "120")
         )
         self.versions = PackageVersions(self.resolver)
         self.downloader = Downloader(
@@ -108,7 +108,7 @@ class BuildContext:
             build_root_locked=True,
         )
         self.cloner = GitCloner(
-            clone_timeout=int(os.environ.get("GIT_CLONE_TIMEOUT", "1800")),
+            clone_timeout=int(os.environ.get("GIT_CLONE_TIMEOUT") or "1800"),
             operation_timeout=self.resolver.git_timeout,
             runner=runner,
             logger=logger,

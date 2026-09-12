@@ -44,7 +44,7 @@ class VersionResolver:
         which bytes get compiled.
         """
         if max_time is None:
-            max_time = int(os.environ.get("VERSION_CHECK_MAX_TIME", "15"))
+            max_time = int(os.environ.get("VERSION_CHECK_MAX_TIME") or "15")
         completed = self.runner.capture(
             [
                 "curl",
