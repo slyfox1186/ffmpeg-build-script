@@ -15,6 +15,7 @@ from pathlib import Path
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.exec import Runner, base_environment
+from ..runtime.logging import Logger
 from ..runtime.paths import DirectoryLock, safe_remove_tree
 from ..runtime.state import read_marker_version
 from .hardware import HardwareDetection
@@ -45,17 +46,11 @@ class ConfigureOptions:
 def ffmpeg_installed_version(binary: Path = Path("/usr/local/bin/ffmpeg")) -> str | None:
     if not os.access(binary, os.X_OK):
         return None
-    import subprocess
-
-    try:
-        completed = subprocess.run(
-            [str(binary), "-hide_banner", "-version"],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=base_environment(),
-        )
-    except OSError:
+    completed = Runner(Logger(), base_environment()).capture(
+        [str(binary), "-hide_banner", "-version"],
+        timeout=20,
+    )
+    if completed.returncode != 0:
         return None
     match = _VERSION_LINE.match(completed.stdout.split("\n", 1)[0])
     return match.group("version") if match else None
@@ -138,9 +133,8 @@ class FFmpegStage:
         install_prefix: Path = Path("/usr/local"),
         display_results: bool = True,
     ) -> None:
-        import subprocess
-
         context = self.context
+        probes = Runner(self.logger, base_environment())
         binaries = ["ffmpeg", "ffprobe"] + (["ffplay"] if require_ffplay else [])
         for binary in binaries:
             binary_path = install_prefix / "bin" / binary
@@ -151,12 +145,9 @@ class FFmpegStage:
         for binary in binaries:
             binary_path = install_prefix / "bin" / binary
             command_display = f"{binary_path} -hide_banner -version"
-            completed = subprocess.run(
+            completed = probes.capture(
                 [str(binary_path), "-hide_banner", "-version"],
-                capture_output=True,
-                text=True,
-                check=False,
-                env=base_environment(),
+                timeout=20,
             )
             output = (completed.stdout + completed.stderr).rstrip("\n")
             if context.log_file.is_file():
@@ -186,12 +177,9 @@ class FFmpegStage:
             version_lines.append(version_line)
 
         for capability in ("encoders", "decoders"):
-            completed = subprocess.run(
+            completed = probes.capture(
                 [str(install_prefix / "bin/ffmpeg"), "-hide_banner", f"-{capability}"],
-                capture_output=True,
-                text=True,
-                check=False,
-                env=base_environment(),
+                timeout=20,
             )
             if completed.returncode != 0 or not any(
                 _CODEC_ROW.match(line) for line in completed.stdout.splitlines()

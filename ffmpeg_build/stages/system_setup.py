@@ -9,7 +9,7 @@ from pathlib import Path
 from ..registry import PACKAGES, Kind
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
-from ..runtime.exec import BASE_PATH
+from ..runtime.exec import BASE_PATH, Runner
 
 # The project standardizes on the high-level APT interface. Only its expected
 # script-interface notice is suppressed; command diagnostics and exit codes
@@ -480,8 +480,6 @@ class SystemSetup:
         is a native build, and they would rewrite paths returned from package
         metadata.
         """
-        import subprocess
-
         context = self.context
         system_pkgconf = Path("/usr/bin/pkgconf")
         if not os.access(system_pkgconf, os.X_OK):
@@ -491,12 +489,9 @@ class SystemSetup:
         environment = self.runner.child_environment()
         for name in ("PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR"):
             environment.pop(name, None)
-        completed = subprocess.run(
+        completed = Runner(self.context.logger, environment).capture(
             [str(system_pkgconf), "--variable=pc_path", "pkgconf"],
-            capture_output=True,
-            text=True,
-            env=environment,
-            check=False,
+            timeout=30,
         )
         if completed.returncode != 0:
             raise BuildError("Unable to query the host pkgconf default search path.")

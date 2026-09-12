@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -92,13 +92,20 @@ def isolate(context: BuildContext, monkeypatch: pytest.MonkeyPatch) -> None:
     capture = context.runner.capture
 
     def checked_capture(
-        arguments: Sequence[str], **kwargs: object
+        arguments: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env_overrides: Mapping[str, str] | None = None,
+        timeout: float | None = 30,
+        stdin_text: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if len(arguments) >= 3 and arguments[0] == "git" and arguments[1] == "-C":
             return subprocess.CompletedProcess(list(arguments), 0, COMMIT + "\n", "")
         if arguments[0] in ("curl", "git", "sudo", "apt"):
             pytest.fail(f"Unexpected network/host command in completed workspace: {arguments}")
-        return capture(arguments, **kwargs)  # type: ignore[arg-type]
+        return capture(
+            arguments, cwd=cwd, env_overrides=env_overrides, timeout=timeout, stdin_text=stdin_text
+        )
 
     monkeypatch.setattr(context.runner, "capture", checked_capture)
     real_artifacts = context.package_artifacts_ready

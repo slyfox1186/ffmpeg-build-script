@@ -77,6 +77,18 @@ def test_capture_non_utf8_output(context: BuildContext) -> None:
     assert result.stdout == "\ufffd"
 
 
+def test_capture_handles_large_duplex_input_and_timeout(context: BuildContext) -> None:
+    code = "import sys; print('x' * 200000, end=''); sys.stdout.flush(); assert len(sys.stdin.read()) == 200000"
+    result = context.runner.capture(
+        [sys.executable, "-c", code], stdin_text="y" * 200000, timeout=5
+    )
+    assert result.returncode == 0 and len(result.stdout) == 200000
+    timed_out = context.runner.capture(
+        [sys.executable, "-c", "import time; time.sleep(30)"], timeout=0.1
+    )
+    assert timed_out.returncode != 0 and "timed out" in timed_out.stderr
+
+
 def test_notification_failure_does_not_mask_build_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("shutil.which", lambda name: "/bin/notify-send")
 

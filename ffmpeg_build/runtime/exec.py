@@ -179,13 +179,12 @@ class Runner:
         try:
             with self.log_file.open("rb") as handle:
                 handle.seek(start)
-                payload = handle.read()
+                sys.stderr.write("\n")
+                for payload in iter(lambda: handle.read(65536), b""):
+                    sys.stderr.buffer.write(payload)
+                sys.stderr.flush()
         except OSError:
             return
-        if payload:
-            sys.stderr.write("\n")
-            sys.stderr.buffer.write(payload)
-            sys.stderr.flush()
 
     # -- execution -------------------------------------------------------
 
@@ -337,7 +336,8 @@ class Runner:
         *,
         cwd: Path | None = None,
         env_overrides: Mapping[str, str] | None = None,
-        timeout: float | None = None,
+        timeout: float | None = 30,
+        stdin_text: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run a command for its output, never raising.
 
@@ -354,10 +354,13 @@ class Runner:
                     env=self.child_environment(env_overrides),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    stdin=subprocess.PIPE if stdin_text is not None else None,
                     process_group=0,
                 )
             ) as process:
-                stdout, stderr = process.communicate(timeout=timeout)
+                stdout, stderr = process.communicate(
+                    stdin_text.encode() if stdin_text is not None else None, timeout=timeout
+                )
                 return subprocess.CompletedProcess(
                     list(arguments),
                     process.returncode,
@@ -367,7 +370,7 @@ class Runner:
         except (OSError, subprocess.SubprocessError) as error:
             return subprocess.CompletedProcess(list(arguments), 127, "", str(error))
 
-    def probe(self, arguments: Sequence[str], *, timeout: float | None = None) -> bool:
+    def probe(self, arguments: Sequence[str], *, timeout: float | None = 30) -> bool:
         return self.capture(arguments, timeout=timeout).returncode == 0
 
     def which(self, tool: str) -> str | None:
@@ -411,7 +414,8 @@ class Runner:
         if self._keepalive_thread is None:
             return
         self._keepalive_stop.set()
-        self._keepalive_thread.join(timeout=2)
+        # A refresh has a ten-second deadline plus process cleanup time.
+        self._keepalive_thread.join(timeout=12)
         self._keepalive_thread = None
 
 

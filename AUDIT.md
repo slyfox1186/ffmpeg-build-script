@@ -161,3 +161,26 @@ too large for downstream native settings, including Python's integer conversion
 digit limit. Empty timeout overrides consistently use defaults instead of
 passing int(""). Tests exercise these inputs before workspace creation and
 verify empty Git/font/lock timeouts and stale-interpreter fallback.
+
+## Medium severity: bounded native probes
+
+Compiler/header probes, pkgconf path discovery, and FFmpeg installation checks
+now share managed process cleanup with explicit deadlines. Captured probes
+default to 30 seconds; FFmpeg checks use 20 seconds. Failed version commands
+cannot certify an installed release merely by printing a plausible version.
+Duplex input/output and timeout regressions exercise real subprocesses. Failure
+log replay streams 64 KiB chunks rather than loading an entire failed build log.
+Sudo keepalive shutdown waits for its bounded refresh to finish.
+
+## Native FFmpeg verification
+
+On 2026-09-12, the actual FFmpeg stage downloaded stable 9.0.1, configured and
+compiled with GCC/eight jobs, installed into an isolated DESTDIR, and passed
+its real version/encoder/decoder validation. A test-only subclass stopped at
+the promotion boundary; no sudo/APT or system installation was performed.
+The resulting binary encoded a 128x96, ten-frame FFV1 sample. ffprobe verified
+codec/dimensions/frame count, and FFmpeg decoded all ten frames to framemd5.
+Evidence is retained at `/tmp/ffmpeg-native-audit-_biue3qb/{build.log,result.json}`;
+the build plus smoke test took approximately 74 seconds. This selected FFmpeg
+alone, with system bzlib/lzma prerequisites; it does not verify 127 native
+dependencies, physical GPU integrations, ffplay, or privileged rollback.

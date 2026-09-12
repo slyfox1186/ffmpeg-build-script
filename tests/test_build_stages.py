@@ -11,7 +11,11 @@ from ffmpeg_build.runtime.context import BuildContext
 from ffmpeg_build.runtime.errors import BuildError
 from ffmpeg_build.runtime.state import read_marker_version
 from ffmpeg_build.stages.core_libraries import install_core_libraries
-from ffmpeg_build.stages.ffmpeg_build import ConfigureOptions, FFmpegStage
+from ffmpeg_build.stages.ffmpeg_build import (
+    ConfigureOptions,
+    FFmpegStage,
+    ffmpeg_installed_version,
+)
 from ffmpeg_build.stages.hardware import HardwareDetection
 from ffmpeg_build.stages.system_setup import SystemSetup
 
@@ -233,6 +237,13 @@ def test_configure_options_preserve_order() -> None:
     options = ConfigureOptions()
     options.add("--enable-a", "--enable-b", "--enable-a", "", "--disable-a")
     assert options.options == ["--enable-a", "--enable-b", "--disable-a"]
+
+
+def test_failed_installed_version_probe_is_not_accepted(
+    stub: Callable[[str, str], Path],
+) -> None:
+    binary = stub("ffmpeg", "print('ffmpeg version 9.0.1'); raise SystemExit(1)")
+    assert ffmpeg_installed_version(binary) is None
 
 
 def test_installation_validation(

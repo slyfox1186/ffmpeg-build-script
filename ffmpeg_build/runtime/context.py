@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TypeVar
@@ -226,36 +225,28 @@ class BuildContext:
         compiler = self.env.get("CC", "cc")
         if self.runner.which(compiler) is None:
             return False
-        try:
-            probe = subprocess.run(
+        return (
+            self.runner.capture(
                 [compiler, f"-I{self.workspace}/include", "-E", "-x", "c", "-"],
-                input=f"#include <{header}>\n",
-                capture_output=True,
-                text=True,
-                env=self.runner.child_environment(),
-                check=False,
-            )
-        except OSError:
-            return False
-        return probe.returncode == 0
+                stdin_text=f"#include <{header}>\n",
+                timeout=30,
+            ).returncode
+            == 0
+        )
 
     def compile_probe(self, source: str, extra_arguments: Sequence[str] = ()) -> bool:
         """Compile a fragment to test for a symbol rather than guess a version."""
         compiler = self.env.get("CC", "cc")
         if self.runner.which(compiler) is None:
             return False
-        try:
-            probe = subprocess.run(
+        return (
+            self.runner.capture(
                 [compiler, *extra_arguments, "-fsyntax-only", "-x", "c", "-"],
-                input=source,
-                capture_output=True,
-                text=True,
-                env=self.runner.child_environment(),
-                check=False,
-            )
-        except OSError:
-            return False
-        return probe.returncode == 0
+                stdin_text=source,
+                timeout=30,
+            ).returncode
+            == 0
+        )
 
     def pkgconf_variable(self, module: str, variable: str) -> str:
         completed = self.runner.capture(["pkgconf", f"--variable={variable}", module])
@@ -296,16 +287,10 @@ class BuildContext:
         environment = self.runner.child_environment()
         for name in ("PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR"):
             environment.pop(name, None)
-        try:
-            completed = subprocess.run(
-                [str(pkgconf_binary), "--variable=pc_path", "pkgconf"],
-                capture_output=True,
-                text=True,
-                env=environment,
-                check=False,
-            )
-        except OSError:
-            return False
+        completed = Runner(self.logger, environment).capture(
+            [str(pkgconf_binary), "--variable=pc_path", "pkgconf"],
+            timeout=30,
+        )
         if completed.returncode != 0:
             return False
         return completed.stdout.strip() == self.system_pkg_config_path
