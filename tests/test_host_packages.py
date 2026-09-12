@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -13,6 +14,48 @@ from ffmpeg_build.runtime.errors import BuildError
 from ffmpeg_build.stages.hardware import HardwareDetection
 from ffmpeg_build.stages.helpers import pkgconf_include_dir, pkgconf_library_dir
 from ffmpeg_build.stages.system_setup import HostPackages, SystemSetup, release_unavailable_packages
+
+
+@pytest.mark.parametrize("family,names", [("gcc", ("gcc", "g++")), ("clang", ("clang", "clang++"))])
+def test_report_selected_compilers_through_build_path(
+    context: BuildContext,
+    stub: Callable[[str, str], Path],
+    capsys: pytest.CaptureFixture[str],
+    family: str,
+    names: tuple[str, str],
+) -> None:
+    from ffmpeg_build.main import Orchestrator
+
+    context.compiler = family
+    Orchestrator(context.repo_root, []).configure_toolchain(context)
+    context.logger._out = sys.stdout
+    for name in names:
+        # A shared driver must be invoked through its compiler symlink name.
+        driver = stub(
+            "driver",
+            "import pathlib,sys; assert sys.argv[1:] == ['--version']; print(pathlib.Path(sys.argv[0]).name + ' version 25.1.0')",
+        )
+        (driver.parent / name).symlink_to(driver)
+    context.env["PATH"] = str(driver.parent)
+    SystemSetup(context).report_compiler_versions()
+    output = capsys.readouterr().out
+    for label, name in zip(("C compiler", "C++ compiler"), names, strict=True):
+        assert f"{label}: '{name} version 25.1.0' ('{driver.parent / name}')." in output
+
+
+def test_compiler_version_failure_is_visible(
+    context: BuildContext,
+    stub: Callable[[str, str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context.logger._out = sys.stdout
+    context.logger._err = sys.stderr
+    binary = stub("gcc", "print('unusable banner'); raise SystemExit(1)")
+    context.env["PATH"] = str(binary.parent)
+    SystemSetup(context).report_compiler_versions()
+    output = capsys.readouterr().err
+    assert "unable to read the version" in output and "was not found" in output
+    assert "unusable banner" not in output
 
 
 def test_new_workspace_discovers_tools_installed_after_path_setup(context: BuildContext) -> None:

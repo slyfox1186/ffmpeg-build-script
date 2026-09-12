@@ -557,6 +557,23 @@ class SystemSetup:
         self.context.env["JDK_HOME"] = str(java_home)
         self.context.path_prepend(java_home / "bin")
 
+    def report_compiler_versions(self) -> None:
+        """Report the selected C/C++ commands through the actual build PATH."""
+        for variable, label in (("CC", "C compiler"), ("CXX", "C++ compiler")):
+            command = self.context.env[variable]
+            executable = self.runner.which(command)
+            if executable is None:
+                self.logger.warn(f"{label}: '{command}' was not found on the build PATH.")
+                continue
+            # Keep the invocation name: resolving a ccache/clang symlink to
+            # ccache itself would report ccache's version instead of Clang's.
+            result = self.runner.capture([executable, "--version"], timeout=10)
+            lines = result.stdout.strip().splitlines()
+            if result.returncode != 0 or not lines:
+                self.logger.warn(f"{label}: unable to read the version from '{executable}'.")
+                continue
+            self.logger.info(f"{label}: '{lines[0]}' ('{executable}').")
+
     def run(self) -> None:
         context = self.context
         for tool in ("apt", "dpkg-query", "readlink"):
@@ -575,6 +592,7 @@ class SystemSetup:
             f"Host setup complete: '{context.operating_system} {context.release_version}' "
             f"('{context.variable_os}')."
         )
+        self.report_compiler_versions()
 
 
 def check_avx512() -> str:

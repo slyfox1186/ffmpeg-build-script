@@ -200,3 +200,21 @@ configuration schema, or dependency versions changed. The registry contract
 check examines raw declarations before dictionary deduplication so duplicate
 keys can actually fail validation. The fixture capture wrapper now declares its
 signature explicitly, removing its former type-ignore suppression.
+
+## Requested compiler reporting and Clang verification
+
+Startup now reports the selected C and C++ compiler version banners and their
+PATH-resolved invocation names after host setup. Probes retain ccache symlink
+names so they invoke the underlying compiler rather than querying ccache itself.
+Tests cover GCC, G++, Clang, Clang++, wrapper symlinks, and failed probes.
+
+The user's real M4 1.4.21 config.log records CC=clang, CXX=clang++ and Ubuntu
+Clang 20.1.2; its generated Makefile uses `clang -std=gnu23`. The repository sets
+CC/CXX in the child environment for Autotools, CMake and Meson; FFmpeg additionally
+receives explicit --cc/--cxx. No recipe overrides to GCC were found. This setting
+controls C/C++ compilation, not Rust, Java, assembly, or NVIDIA's nvcc.
+
+A second isolated native FFmpeg 9.0.1 build with Clang 20.1.2 passed staged
+installation checks and the same ten-frame FFV1 encode/probe/decode test.
+`/tmp/ffmpeg-native-audit-7de6pm5p` retains logs, result.json, and ffbuild/config.mak
+with CC=clang and CXX=clang++. No host installation was performed.

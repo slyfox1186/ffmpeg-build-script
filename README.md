@@ -23,6 +23,8 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   require cleanup. The build-context format remains v2.
 - Native build processes receive a clean environment so Conda's libraries,
   compilers, and package search paths cannot override the build toolchain.
+  After host setup, the log reports the selected C and C++ compiler version
+  banners and executable paths, using the same build environment as the recipes.
 - FFmpeg retains its archive checks, release-dependent Vulkan integration,
   staged installation, and feature validation. Failed promotion or installed
   validation restores the previous programs and preserves recovery files.
