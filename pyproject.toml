@@ -1,0 +1,26 @@
+[project]
+name = "ffmpeg-build-script"
+version = "8.0.0"
+description = "A configurable FFmpeg source builder with a terminal package menu"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.9", "mypy>=1.14"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+include = ["build-ffmpeg.py", "run_linter.py", "ffmpeg_build/**/*.py", "tests/**/*.py", "tools/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["build-ffmpeg.py", "run_linter.py", "ffmpeg_build", "tools", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"

@@ -9,20 +9,23 @@ build complete.
 The project favors static dependency archives, but the final binary can still
 link dynamically to selected operating-system libraries and GPU runtimes.
 
-## Major update: 7.0.0
+## Major update: 8.0.0
 
-- FFmpeg's Vulkan integration follows the selected release's configure options:
-  older releases retain libshaderc support, while current releases use a
-  build-time SPIR-V compiler and verify shader support after configuration.
-- Latest stable dependency discovery stays automatic, including the corrected
-  NASM release lookup; `--latest` refreshes versions without introducing pins.
-- Downloads retain archive safety checks and use curl's real user agent to
-  avoid receiving browser-verification pages in place of source archives.
-- Errors remain visible on the terminal and in the build log, with HTTP
-  response details, archive-rejection reasons, and recorded hardware detection.
-- Compatible 6.0.0 workspaces retain built dependencies. FFmpeg is reconfigured
-  for the updated integration; changed compiler flags or package selections
-  still require a clean workspace.
+- The builder and diagnostic tools are now Python. The entry point is
+  `build-ffmpeg.py`; the Bash scripts have been removed.
+- `--menu` edits all 127 package choices, checks dependencies, saves a TOML
+  configuration, and launches the build. Compiler, jobs, CUDA options, and the
+  build root can be edited for the current session.
+- Python 3.12 or newer is required. The build and menu use only the standard
+  library; pytest, Ruff, and mypy are optional development tools.
+- Compatible 6.0.0 and 7.0.0 workspaces retain their built dependencies and
+  reconfigure FFmpeg. Changed compiler flags or package selections still
+  require cleanup. The build-context format remains v2.
+- Native build processes receive a clean environment so Conda's libraries,
+  compilers, and package search paths cannot override the build toolchain.
+- FFmpeg retains its archive checks, release-dependent Vulkan integration,
+  staged installation, and feature validation. Failed promotion or installed
+  validation restores the previous programs and preserves recovery files.
 
 ## Requirements and supported hosts
 
@@ -33,6 +36,18 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   is `jammy`, `noble`, or `resolute` (Linux Mint and Zorin among them)
 - WSL2 using a supported Debian or Ubuntu userspace (WSL1 is not supported;
   convert with `wsl.exe --set-version <distro> 2`)
+
+**Python 3.12, 3.13, and 3.14 are supported.** Ubuntu 22.04's default
+Python 3.10 and Debian 12's default Python 3.11 cannot run the builder. Install
+Miniconda under `~/miniconda3` to use the launcher-managed environment, or
+launch with an installed Python 3.12 or newer interpreter.
+
+When `~/miniconda3` exists, the launcher prefers its `install-ffmpeg`
+environment. If that environment is missing, it asks before creating it with
+Python 3.12 and installing the optional development tools. Declining, or running
+without an interactive terminal, uses an available compatible Python instead.
+No environment is created without consent. The menu needs a terminal with
+curses support; the CLI build does not need curses.
 
 Run the script as a normal user with working `sudo` access. Do not run the
 entire script as root. The build also requires an internet connection and enough
@@ -52,10 +67,10 @@ cd ffmpeg-build-script
 cp -- example.toml custom.toml
 
 # Default LGPL-compatible build.
-bash build-ffmpeg.sh --build --config ./custom.toml
+python3 build-ffmpeg.py --build --config ./custom.toml
 
 # Or explicitly opt into GPL and non-free components.
-bash build-ffmpeg.sh --build \
+python3 build-ffmpeg.py --build \
   --enable-gpl-and-non-free \
   --config ./custom.toml
 ```
@@ -68,15 +83,20 @@ The first build can take a long time and use substantial CPU, memory, and disk
 space. Restrict parallelism on smaller machines:
 
 ```bash
-bash build-ffmpeg.sh --build --jobs 8 --config ./custom.toml
+python3 build-ffmpeg.py --build --jobs 8 --config ./custom.toml
 ```
 
 ## Command-line interface
 
 ```text
+
+FFmpeg Build Script 8.0.0
+Usage: build-ffmpeg.py [options]
+
 Actions:
   -b, --build                       Build and install FFmpeg
   -c, --cleanup                     Remove this project's build root
+  -m, --menu                        Choose packages in an interactive menu
 
 Options:
   -h, --help                        Show this help without changing the filesystem
@@ -86,7 +106,6 @@ Options:
   -j, --jobs <count>                Set parallel build jobs (default: available CPUs)
   -l, --latest                      Refresh and rebuild outdated dependencies
   -n, --enable-gpl-and-non-free     Enable GPL/non-free components
-  -g, --google-speech               Announce failures if google_speech is installed
 
 Long options also accept --option=value (for example: --jobs=8).
 
@@ -96,6 +115,11 @@ Environment:
   CUDA_ARCH_MODE=native|all|custom  Select CUDA code-generation targets
   CUDA_ARCHITECTURES="86 89"        Targets for CUDA_ARCH_MODE=custom
   FFMPEG_BUILD_DEBUG=ON             Stream commands while also logging them
+
+Example:
+  python3 build-ffmpeg.py --build --compiler clang --jobs 8 --config ./custom.toml
+
+
 ```
 
 `--help` and `--version` are side-effect free: they do not create a build
@@ -106,14 +130,51 @@ The result is tuned for the machine that built it (`-march=native`,
 an illegal instruction on a different CPU. Build on the machine that will run
 it, or remove those flags before building for distribution.
 
-With no action, the script prints help. `--build` and `--cleanup` are mutually
-exclusive. Without `--config`, every registered package is selected; using the
+With no action, the script prints help. `--build`, `--cleanup`, and `--menu`
+are mutually exclusive. Without `--config`, every registered package is selected; using the
 reviewed `custom.toml` allowlist is the recommended path.
 
 Arguments are validated before any config file is read, so an invalid request
 never applies a package selection. A relative `--config` path resolves against
 the directory you ran the script from, never against the script's own
 directory.
+
+## Interactive menu
+
+```bash
+python3 build-ffmpeg.py --menu
+python3 build-ffmpeg.py --menu --config ./custom.toml
+```
+
+Without a config, the menu starts from the portable template. With a config,
+it loads that file's allowlist. Package groups show enabled counts; each row
+shows its purpose and licensing status.
+
+| Key | Action |
+| --- | --- |
+| Up/down or `k`/`j` | Move between groups and packages |
+| Space or Enter | Toggle a package or fold a group |
+| Left/right | Collapse or expand a group |
+| `a` / `d` | Enable or disable the current group |
+| `/` | Search package names and descriptions |
+| `p` | Choose template, all, minimal, or none preset |
+| `g` / `l` | Toggle GPL/non-free authorization or latest mode |
+| `f` / `F` | Enable required dependencies for the current package or all packages |
+| `e` | Edit compiler, jobs, CUDA installation/targets, and build root |
+| `s` | Save the config; Enter accepts the displayed path |
+| `b` | Save and build; mandatory selection problems must be resolved first |
+| `q` | Quit; unsaved package changes require confirmation |
+
+Compiler, jobs, CUDA settings, and build root are **session-only launcher
+options**, not new TOML keys. The saved `[build]` table still contains only
+`latest` and `enable_gpl_and_non_free`. CLI opt-ins initialize the menu;
+subsequent edits determine what its Build action launches.
+
+The menu distinguishes packages waiting for GPL authorization, libraries that
+build but whose FFmpeg integration needs GPL, and the GnuTLS stack suppressed
+when GPL mode selects OpenSSL. Dependencies available from system packages
+are shown as requirements to check, rather than unconditional selection
+errors; the normal build verifies them against the host.
 
 ## Build state and version policy
 
@@ -148,11 +209,11 @@ Use either an absolute or relative path for a separate build root:
 ```bash
 # Absolute path
 BUILD_ROOT=/mnt/fast-disk/ffmpeg-build \
-  bash build-ffmpeg.sh --build --config ./custom.toml
+  python3 build-ffmpeg.py --build --config ./custom.toml
 
 # Relative to the directory where this command is invoked
 BUILD_ROOT=./path/to/ffmpeg-build \
-  bash build-ffmpeg.sh --build --config ./custom.toml
+  python3 build-ffmpeg.py --build --config ./custom.toml
 ```
 
 A relative `BUILD_ROOT` is resolved from the invocation directory, not from the
@@ -196,12 +257,12 @@ flag choices, licensing mode, CUDA targets, and package selections. If any of
 those inputs change for an existing workspace, clean that workspace first:
 
 ```bash
-bash build-ffmpeg.sh --cleanup
+python3 build-ffmpeg.py --cleanup
 ```
 
 Cleanup is interactive and removes only the validated build root. In a
 non-interactive context it leaves files in place. For an alternate root, run
-`BUILD_ROOT=/same/path bash build-ffmpeg.sh --cleanup`.
+`BUILD_ROOT=/same/path python3 build-ffmpeg.py --cleanup`.
 
 The portable template leaves `libjxl` and `libshaderc` disabled because the
 required `libjxl-dev` and `libshaderc-dev` packages are absent from Ubuntu
@@ -242,10 +303,10 @@ Control that explicitly:
 
 ```bash
 # Never modify CUDA packages.
-CUDA_INSTALL=never bash build-ffmpeg.sh --build --config ./custom.toml
+CUDA_INSTALL=never python3 build-ffmpeg.py --build --config ./custom.toml
 
 # Install the toolkit non-interactively if missing (still does not install a driver).
-CUDA_INSTALL=always bash build-ffmpeg.sh --build \
+CUDA_INSTALL=always python3 build-ffmpeg.py --build \
   --enable-gpl-and-non-free \
   --config ./custom.toml
 ```
@@ -255,14 +316,14 @@ capabilities come from `nvidia-smi`.
 
 ```bash
 # Default: all GPUs installed in this host, plus PTX for the highest target.
-CUDA_ARCH_MODE=native bash build-ffmpeg.sh --build ...
+CUDA_ARCH_MODE=native python3 build-ffmpeg.py --build ...
 
 # Every architecture supported by the installed toolkit.
-CUDA_ARCH_MODE=all bash build-ffmpeg.sh --build ...
+CUDA_ARCH_MODE=all python3 build-ffmpeg.py --build ...
 
 # An explicit, validated list.
 CUDA_ARCH_MODE=custom CUDA_ARCHITECTURES="86 89" \
-  bash build-ffmpeg.sh --build ...
+  python3 build-ffmpeg.py --build ...
 ```
 
 CUDA/NVENC integration also requires
@@ -292,17 +353,41 @@ ad hoc linker paths under `/etc`.
 
 ## Validation
 
-Static checks and regression tests:
+Install development tools into the project environment, then run the gates:
 
 ```bash
-python3 run_linter.py
-bash tests/test-scripts.sh
+~/miniconda3/envs/install-ffmpeg/bin/python -m pip install pytest ruff mypy
+~/miniconda3/envs/install-ffmpeg/bin/python run_linter.py
+~/miniconda3/envs/install-ffmpeg/bin/python -m pytest
 ```
 
-The linter requires ShellCheck and validates every project shell script with
-both `bash -n` and ShellCheck. The regression suite covers side-effect-free CLI
-metadata, strict config parsing, bounded deletion, safe transactional archive
-extraction, atomic build markers, and installed-program validation output.
+With a separately managed Python 3.12+ environment, use its interpreter for the
+same commands. No development tool is required for the builder itself.
+
+The static gate runs Ruff checks, Ruff format verification, strict mypy, and
+checks that the generated template, registry, README help, and advertised
+FFmpeg flags agree. It also rejects trailing whitespace and disallowed APT
+command variants. CI runs the gates on Ubuntu 24.04 with Python 3.12, 3.13,
+and 3.14.
+
+The regression suite covers the CLI and config contracts, old-workspace
+adoption, locks and bounded deletion, hostile archives and cache damage,
+logging failures, host-package selection, shader interfaces, recovery after
+installation failures, the menu model and a real terminal session. Fixture
+workspaces exercise the complete stage sequence without compilation, network,
+or sudo. Checked-in Bash baseline fixtures pin host-package sets and ordered
+FFmpeg configure arguments.
+
+Standalone diagnostics:
+
+```bash
+python3 tools/git_repo_version.py https://github.com/FFmpeg/FFmpeg.git n
+python3 tools/compiler_versions.py
+```
+
+The compiler diagnostic searches standard locations, `PATH`, and any extra
+colon-separated directories in `COMPILER_SEARCH_DIRS`. It reports installed
+versions and the highest major version visible to APT without installing them.
 
 After the full build, the script itself verifies:
 
@@ -363,7 +448,7 @@ contain an HTML error or browser-verification page, which is rejected instead
 of being cached as source code. Stream all command output while retaining the log with:
 
 ```bash
-FFMPEG_BUILD_DEBUG=ON bash build-ffmpeg.sh --build --config ./custom.toml
+FFMPEG_BUILD_DEBUG=ON python3 build-ffmpeg.py --build --config ./custom.toml
 ```
 
 Common recovery actions:
@@ -371,13 +456,13 @@ Common recovery actions:
 ```bash
 # Retry only one component.
 rm -f build/packages/<package>.done
-bash build-ffmpeg.sh --build --config ./custom.toml
+python3 build-ffmpeg.py --build --config ./custom.toml
 
 # Re-evaluate all upstream versions.
-bash build-ffmpeg.sh --build --latest --config ./custom.toml
+python3 build-ffmpeg.py --build --latest --config ./custom.toml
 
 # Start with an entirely clean workspace.
-bash build-ffmpeg.sh --cleanup
+python3 build-ffmpeg.py --cleanup
 ```
 
 Do not remove a `.done` marker unless you intend to rebuild that component.

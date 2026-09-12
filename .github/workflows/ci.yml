@@ -16,25 +16,30 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13', '3.14']
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # pkgconf, flock and mkfifo back fixtures in tests/test-scripts.sh; without
-      # them the suite skips silently rather than failing.
-      - name: Install static-analysis tools and test prerequisites
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install fixture prerequisites
         run: |
           sudo apt -o APT::Cmd::Disable-Script-Warning=1 update
           sudo apt -o APT::Cmd::Disable-Script-Warning=1 install \
-            --assume-yes --no-install-recommends shellcheck pkgconf util-linux coreutils
+            --assume-yes --no-install-recommends pkgconf util-linux coreutils
 
-      - name: Install shfmt
-        uses: mfinelli/setup-shfmt@v3
-        with:
-          shfmt-version: 3.8.0
+      - name: Install development tools
+        run: python -m pip install pytest ruff mypy
 
       - name: Run static analysis
-        run: python3 run_linter.py
+        run: python run_linter.py
 
       - name: Run regression tests
-        run: bash tests/test-scripts.sh
+        run: python -m pytest
