@@ -8,6 +8,7 @@ workspace does not support.
 
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 from collections.abc import Callable
@@ -19,7 +20,7 @@ from .logging import Logger
 from .paths import safe_remove_tree
 
 _REPO_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
-_COMMIT = re.compile(r"^[0-9a-fA-F]{40,64}$")
+_COMMIT = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 
 CLONE_MODES = ("shallow", "recurse", "full")
 
@@ -53,7 +54,7 @@ class GitCloner:
         if completed.returncode != 0:
             return None
         commit = completed.stdout.strip()
-        return commit if _COMMIT.match(commit) else None
+        return commit if _COMMIT.fullmatch(commit) else None
 
     def clone(self, repository_url: str, repository_name: str, mode: str = "shallow") -> str | None:
         """Clone and publish a snapshot, returning the checked-out commit."""
@@ -119,9 +120,27 @@ class GitCloner:
             )
             return None
 
-        safe_remove_tree(target_directory, self.packages)
+        if target_directory.is_symlink():
+            raise BuildError(f"Refusing a symlinked Git destination: '{target_directory}'.")
+        previous = clone_parent / ".previous-checkout"
+        had_previous = target_directory.exists()
+        # Once this directory can hold the old source, abort cleanup must leave
+        # it alone. This also covers a signal immediately after the first rename.
+        self._unregister(clone_parent)
         try:
-            clone_directory.rename(target_directory)
+            if had_previous:
+                os.rename(target_directory, previous)
+            try:
+                os.rename(clone_directory, target_directory)
+            except BaseException:
+                if had_previous:
+                    try:
+                        os.rename(previous, target_directory)
+                    except OSError as restore_error:
+                        raise BuildError(
+                            f"Git source restoration failed; recovery files remain at '{previous}'."
+                        ) from restore_error
+                raise
         except OSError as error:
             safe_remove_tree(clone_parent, self.packages)
             self._unregister(clone_parent)

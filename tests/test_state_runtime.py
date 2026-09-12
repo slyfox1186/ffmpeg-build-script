@@ -552,11 +552,12 @@ def test_transport_timeouts_and_failed_clone_preserve_source(
 
 
 @pytest.mark.parametrize("artifacts_ready", [True, False])
+@pytest.mark.parametrize("latest", [True, False])
 def test_latest_git_reuses_only_verified_current_checkout(
-    context: BuildContext, monkeypatch: pytest.MonkeyPatch, artifacts_ready: bool
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, artifacts_ready: bool, latest: bool
 ) -> None:
     commit = "a" * 40
-    context.latest = True
+    context.latest = latest
     context.marker_path("x264").write_text(commit + "\n")
     monkeypatch.setattr(context.resolver, "remote_head_commit", lambda url: commit)
     monkeypatch.setattr(context.cloner, "local_head", lambda path: commit)
@@ -569,4 +570,79 @@ def test_latest_git_reuses_only_verified_current_checkout(
 
     monkeypatch.setattr(context.cloner, "clone", clone)
     assert context.git_snapshot("https://example.org/repo", "x264") == commit
-    assert clones == ([] if artifacts_ready else ["x264"])
+    assert clones == []
+    context.marker_path("ffmpeg").write_text("9.0.1\n")
+    assert context.build("x264", commit) is not artifacts_ready
+    assert context.marker_path("ffmpeg").exists() is artifacts_ready
+
+
+@pytest.mark.parametrize("source_commit", [None, "b" * 40])
+def test_git_resume_refuses_implicit_upgrade_without_pinned_source(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, source_commit: str | None
+) -> None:
+    commit = "a" * 40
+    context.marker_path("av1-git").write_text(commit + "\n")
+    monkeypatch.setattr(context.cloner, "local_head", lambda path: source_commit)
+
+    def forbidden(*args: object) -> str:
+        pytest.fail("A normal resume attempted to replace the pinned Git source")
+
+    monkeypatch.setattr(context.cloner, "clone", forbidden)
+    monkeypatch.setattr(context.resolver, "remote_head_commit", forbidden)
+    with pytest.raises(BuildError, match="Restore that checkout.*--latest"):
+        context.git_snapshot("https://example.org/repo", "av1-git")
+    assert context.marker_path("av1-git").read_text() == commit + "\n"
+
+
+@pytest.mark.parametrize("length", [12, 39, 40, 41, 63, 64, 65])
+def test_local_git_head_requires_complete_object_id(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, length: int
+) -> None:
+    commit = "a" * length
+    monkeypatch.setattr(
+        context.runner,
+        "capture",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, commit + "\n", ""),
+    )
+    assert context.cloner.local_head(context.packages) == (commit if length in (40, 64) else None)
+
+
+@pytest.mark.parametrize("failure", ["publish", "restore", "backup_interrupt"])
+def test_git_publication_retains_previous_source_on_failure(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    source = context.packages / "av1-git"
+    source.mkdir()
+    (source / "keep").write_text("previous checkout")
+
+    def clone(arguments: list[str], **kwargs: object) -> int:
+        new = Path(arguments[-1])
+        new.mkdir()
+        (new / "new").write_text("replacement checkout")
+        return 0
+
+    real_rename = os.rename
+
+    def rename(old: Path, new: Path) -> None:
+        if old == source and failure == "backup_interrupt":
+            real_rename(old, new)
+            raise KeyboardInterrupt
+        if old.name == "repository" or (old.name == ".previous-checkout" and failure == "restore"):
+            raise OSError("injected rename failure")
+        real_rename(old, new)
+
+    monkeypatch.setattr(context.runner, "run_logged", clone)
+    monkeypatch.setattr(context.cloner, "local_head", lambda path: "a" * 40)
+    monkeypatch.setattr("ffmpeg_build.runtime.git.os.rename", rename)
+    if failure == "publish":
+        assert context.cloner.clone("https://example.org/repo", "av1-git") is None
+    else:
+        with pytest.raises(KeyboardInterrupt if failure == "backup_interrupt" else BuildError):
+            context.cloner.clone("https://example.org/repo", "av1-git")
+    context.remove_registered_temporary_paths()
+    recovery = (
+        source
+        if failure == "publish"
+        else next(context.packages.glob(".clone-*/.previous-checkout"))
+    )
+    assert (recovery / "keep").read_text() == "previous checkout"

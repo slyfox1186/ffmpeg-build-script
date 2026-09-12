@@ -381,22 +381,19 @@ class BuildContext:
                 if (
                     remote_commit.startswith(prior_version)
                     and self.cloner.local_head(source_directory) == remote_commit
-                    and self.package_artifacts_ready(key)
                 ):
+                    # build() decides whether installed artifacts need repair;
+                    # a matching source checkout does not need another clone.
                     return remote_commit
             else:
                 source_commit = self.cloner.local_head(source_directory)
-                if (
-                    source_commit
-                    and source_commit.startswith(prior_version)
-                    and self.package_artifacts_ready(key)
-                ):
+                if source_commit and source_commit.startswith(prior_version):
                     return prior_version
-                self.logger.warn(
-                    f"Git marker for '{key}' has no matching source checkout or is missing "
-                    "required artifacts; refreshing the snapshot."
+                raise BuildError(
+                    f"Git marker for '{key}' records '{prior_version}', but its matching "
+                    f"source checkout is unavailable at '{source_directory}'. Restore that "
+                    "checkout to repair the pinned build, or use '--latest' to refresh it."
                 )
-                marker.unlink(missing_ok=True)
         elif prior_version:
             self.logger.warn(f"Replacing legacy non-commit marker for Git snapshot '{key}'.")
             marker.unlink(missing_ok=True)

@@ -228,6 +228,10 @@ Each successful component writes an atomic `.done` marker containing the exact
 release version or Git commit used. A normal rerun reuses those versions and
 does not contact every upstream service. `--latest` refreshes upstream versions
 and rebuilds components whose recorded version changed.
+Missing installed artifacts are repaired from the recorded release or matching
+Git checkout. If a recorded Git checkout is missing or points to another commit,
+a normal rerun stops with recovery instructions; restore that checkout or use
+`--latest` to select a fresh snapshot. It does not silently discard the pin.
 Starting a rebuild invalidates that component's completion marker, the
 registry's declared dependent components, and FFmpeg's marker before any recipe
 writes. A failed upgrade is retried on resume, and FFmpeg is relinked against

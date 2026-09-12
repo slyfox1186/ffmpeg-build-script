@@ -254,3 +254,15 @@ recorded release and queried upstream. It now repairs the pinned version;
 build() remains responsible for artifact checks and consumer invalidation.
 This also removes a redundant artifact probe on every normal version lookup.
 The regression forbids the network fetcher and verifies consumer invalidation.
+
+The same review's Git aside exposed another inconsistency: a matching cached
+checkout was recloned when only its installed artifacts were missing. Git repairs
+now retain that checkout and let build() handle artifacts and invalidation.
+When no matching checkout exists, normal resume preserves the marker and fails
+with restore/--latest guidance instead of silently upgrading. This intentionally
+changes the old refresh behavior to satisfy README's pinned-version contract;
+the code was wrong, not that promise. Local Git object IDs must be exactly 40 or
+64 hex digits. Source publication now retains the old checkout until rename
+succeeds, restores it on failure, and preserves recovery after an interrupt.
+Tests cover missing artifacts, missing/mismatched source, object ID lengths,
+publication/restore failures and interruption immediately after the backup move.
