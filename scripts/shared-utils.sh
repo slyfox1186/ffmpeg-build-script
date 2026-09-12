@@ -46,6 +46,7 @@ readonly BUILD_UID BUILD_GID BUILD_USER BUILD_GROUP
 readonly BUILD_ROOT_MARKER_HEADER="ffmpeg-build-root:v1"
 readonly CLEANUP_COMMAND="build-ffmpeg.sh --cleanup"
 _BUILD_ROOT_LOCK_FD=""
+_PACKAGE_CACHE_LOCK_FD=""
 
 # Debug flag
 debug="${FFMPEG_BUILD_DEBUG:-OFF}"
@@ -1593,13 +1594,69 @@ validate_tar_archive() {
     [[ "$has_payload" == "true" ]]
 }
 
+# Held across both populating the cache and reading it, because validating an
+# archive and then extracting it under a released lock lets a concurrent process
+# replace the file in between. A real build already holds an exclusive lock on
+# the whole build root, so this is skipped there and matters only for concurrent
+# or standalone use of download_try().
+acquire_package_cache_lock() {
+    local timeout="${DOWNLOAD_LOCK_TIMEOUT:-1800}"
+
+    _PACKAGE_CACHE_LOCK_FD=""
+    [[ -z "$_BUILD_ROOT_LOCK_FD" ]] || return 0
+    [[ "$timeout" =~ ^[1-9][0-9]*$ ]] ||
+        fail "'DOWNLOAD_LOCK_TIMEOUT' must be a positive integer. Line: ${LINENO}"
+    if ! command -v flock >/dev/null 2>&1; then
+        warn "'flock' is unavailable; atomic cache writes remain safe, but duplicate concurrent downloads are possible."
+        return 0
+    fi
+    # Lock the already-validated package-cache directory itself. Opening a
+    # separately named lock file would follow a malicious symlink before Bash
+    # gives us a file descriptor to pass to flock.
+    exec {_PACKAGE_CACHE_LOCK_FD}<"$packages" ||
+        fail "Unable to open the package cache for locking. Line: ${LINENO}"
+    if ! flock -w "$timeout" "$_PACKAGE_CACHE_LOCK_FD"; then
+        exec {_PACKAGE_CACHE_LOCK_FD}>&-
+        _PACKAGE_CACHE_LOCK_FD=""
+        return 1
+    fi
+}
+
+release_package_cache_lock() {
+    [[ -n "$_PACKAGE_CACHE_LOCK_FD" ]] || return 0
+    exec {_PACKAGE_CACHE_LOCK_FD}>&-
+    _PACKAGE_CACHE_LOCK_FD=""
+}
+
+# The build-root lock is per build root, so two builds with different
+# BUILD_ROOTs both pass it and then collide on dpkg's own lock, where the
+# failure surfaces only as execute()'s generic "Command failed". This serializes
+# the host-mutating section across every invocation by this user instead.
+#
+# The lock lives in the per-user runtime directory (mode 0700) rather than /tmp,
+# which is world-writable and would let anyone pre-create the path.
+with_host_mutation_lock() {
+    local lock_dir="${XDG_RUNTIME_DIR:-$HOME/.cache}/ffmpeg-build-script"
+    local lock_fd="" status
+
+    if command -v flock >/dev/null 2>&1 && mkdir -p -- "$lock_dir" 2>/dev/null &&
+        exec {lock_fd}<"$lock_dir" 2>/dev/null; then
+        flock -w "${HOST_MUTATION_LOCK_TIMEOUT:-3600}" "$lock_fd" ||
+            warn "Timed out waiting for the host-mutation lock; continuing, so APT may report a lock error of its own."
+    fi
+    "$@"
+    status=$?
+    [[ -z "$lock_fd" ]] || exec {lock_fd}>&-
+    return "$status"
+}
+
 download_archive_to_cache() {
     local download_url="${1:-}"
     local download_file="${2:-}"
     local target_file="${3:-}"
-    local checksum_file lock_fd="" temp_target_file numeric_value downloaded_size
+    local checksum_file temp_target_file numeric_value downloaded_size
     local download_connect_timeout download_max_time download_max_bytes
-    local download_retry download_retry_delay download_lock_timeout
+    local download_retry download_retry_delay
     local -a curl_args=()
 
     [[ "$download_url" == https://* ]] ||
@@ -1613,10 +1670,9 @@ download_archive_to_cache() {
     download_max_bytes="${DOWNLOAD_MAX_BYTES:-1073741824}"
     download_retry="${DOWNLOAD_RETRY:-5}"
     download_retry_delay="${DOWNLOAD_RETRY_DELAY:-5}"
-    download_lock_timeout="${DOWNLOAD_LOCK_TIMEOUT:-1800}"
 
-    for numeric_value in "$download_connect_timeout" "$download_max_time" "$download_max_bytes" \
-        "$download_lock_timeout"; do
+    for numeric_value in "$download_connect_timeout" "$download_max_time" \
+        "$download_max_bytes"; do
         [[ "$numeric_value" =~ ^[1-9][0-9]*$ ]] ||
             fail "Download size limits and timeouts must be positive integers. Line: ${LINENO}"
     done
@@ -1626,27 +1682,10 @@ download_archive_to_cache() {
     done
     require_commands sha256sum
 
-    if [[ -z "$_BUILD_ROOT_LOCK_FD" ]]; then
-        if command -v flock >/dev/null 2>&1; then
-            # Lock the already-validated package-cache directory itself. Opening a
-            # separately named lock file would follow a malicious symlink before
-            # Bash gives us a file descriptor to pass to flock.
-            exec {lock_fd}<"$packages" ||
-                fail "Unable to open the package cache for locking. Line: ${LINENO}"
-            if ! flock -w "$download_lock_timeout" "$lock_fd"; then
-                exec {lock_fd}>&-
-                warn "Timed out waiting for the package-cache download lock: '$download_file'."
-                return 1
-            fi
-        else
-            warn "'flock' is unavailable; atomic cache writes remain safe, but duplicate concurrent downloads are possible."
-        fi
-    fi
-
     # Another process may have populated the cache while this process waited.
     if validate_tar_archive "$target_file"; then
         if archive_checksum_matches "$target_file" "$checksum_file"; then
-            [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
+
             log "'$download_file' already exists and matches its SHA-256 cache record."
             return 0
         fi
@@ -1657,13 +1696,11 @@ download_archive_to_cache() {
         fi
     fi
     rm -f -- "$target_file" "$checksum_file" || {
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         warn "Unable to remove invalid cached archive state: '$target_file'."
         return 1
     }
 
     temp_target_file="$(mktemp --tmpdir="$packages" ".${download_file}.part.XXXXXX")" || {
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         warn "Failed to create a temporary download file for '$download_file'."
         return 1
     }
@@ -1685,7 +1722,6 @@ download_archive_to_cache() {
     if ! curl "${curl_args[@]}" --output "$temp_target_file" "$download_url" \
         2>>"${log_file:-/dev/null}"; then
         rm -f -- "$temp_target_file"
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         warn "Failed to download '$download_file'."
         return 1
     fi
@@ -1694,14 +1730,12 @@ download_archive_to_cache() {
     if [[ ! "$downloaded_size" =~ ^[0-9]+$ ||
         "$downloaded_size" -gt "$download_max_bytes" ]]; then
         rm -f -- "$temp_target_file"
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         warn "Downloaded '$download_file' exceeds the configured size limit."
         return 1
     fi
 
     if ! validate_tar_archive "$temp_target_file"; then
         rm -f -- "$temp_target_file"
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         warn "Downloaded '$download_file', but it is not a safe, valid single-root tar archive."
         return 1
     fi
@@ -1709,20 +1743,15 @@ download_archive_to_cache() {
     if ! mv -f -- "$temp_target_file" "$target_file"; then
         rm -f -- "$temp_target_file"
         unregister_temporary_path "$temp_target_file"
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         return 1
     fi
     unregister_temporary_path "$temp_target_file"
     if ! write_archive_checksum "$target_file" "$checksum_file"; then
         rm -f -- "$target_file" "$checksum_file"
-        [[ -n "$lock_fd" ]] && exec {lock_fd}>&-
         warn "Unable to record the downloaded archive's SHA-256 checksum."
         return 1
     fi
 
-    if [[ -n "$lock_fd" ]]; then
-        exec {lock_fd}>&-
-    fi
     return 0
 }
 
@@ -1821,7 +1850,14 @@ download_try() {
     mkdir -p "$packages" ||
         fail "Unable to create package cache '$packages'. Line: ${LINENO}"
 
-    download_archive_to_cache "$download_url" "$download_file" "$target_file" || return 1
+    acquire_package_cache_lock || {
+        warn "Timed out waiting for the package-cache lock: '$download_file'."
+        return 1
+    }
+    download_archive_to_cache "$download_url" "$download_file" "$target_file" || {
+        release_package_cache_lock
+        return 1
+    }
 
     if ! extract_archive_transactionally "$target_file" "$target_directory"; then
         # The archive was listed and checksum-verified moments ago, so an
@@ -1836,8 +1872,10 @@ download_try() {
                 fail "Unable to remove invalid cached archive '$target_file'. Line: ${LINENO}"
             warn "Failed to extract '$download_file' safely; the cached archive was removed."
         fi
+        release_package_cache_lock
         return 1
     fi
+    release_package_cache_lock
 
     log "File extracted: '$download_file'."
     cd "$target_directory" || return 1

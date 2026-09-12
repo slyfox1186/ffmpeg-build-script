@@ -461,13 +461,13 @@ run_build() {
 
     # shellcheck source=scripts/system-setup.sh
     source "$SCRIPT_DIR/scripts/system-setup.sh"
-    initialize_system_setup
+    with_host_mutation_lock initialize_system_setup
     validate_package_selection
 
     # shellcheck source=scripts/hardware-detection.sh
     source "$SCRIPT_DIR/scripts/hardware-detection.sh"
     initialize_hardware_detection
-    install_cuda
+    with_host_mutation_lock install_cuda
 
     # shellcheck source=scripts/global-tools.sh
     source "$SCRIPT_DIR/scripts/global-tools.sh"
