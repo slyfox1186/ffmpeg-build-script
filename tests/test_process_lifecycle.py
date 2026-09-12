@@ -130,3 +130,41 @@ def test_signal_permission_error_preserves_original_exception(
             raise RuntimeError("original failure")
     assert process.returncode == 0
     assert "credential-changing process" in str(caught.value.__notes__)
+
+
+@pytest.mark.parametrize("interrupt", ["KeyboardInterrupt()", "SignalStop('INT', 130)"])
+def test_repeated_interrupt_cannot_bypass_signal_relay_shutdown(
+    tmp_path: Path, interrupt: str
+) -> None:
+    script = r"""
+import os, pathlib, signal, subprocess, sys
+from ffmpeg_build.main import SignalStop
+from ffmpeg_build.runtime.exec import managed_process
+finished = pathlib.Path(sys.argv[1])
+child = "import signal,time,pathlib; signal.signal(signal.SIGTERM, lambda *args: (time.sleep(.6), pathlib.Path(" + repr(str(finished)) + ").write_text('done'), exit(0))); print('ready',flush=True); time.sleep(30)"
+process = subprocess.Popen([sys.executable,'-c',child],stdout=subprocess.PIPE,process_group=0)
+def again(*args):
+    raise INTERRUPT
+signal.signal(signal.SIGALRM,again)
+try:
+    try:
+        with managed_process(process,signal_relay=True):
+            assert process.stdout.readline() == b'ready\n'
+            signal.setitimer(signal.ITIMER_REAL,.1)
+            raise RuntimeError('original failure')
+    except BaseException as error:
+        assert isinstance(error,RuntimeError), type(error).__name__
+        assert process.returncode == 0 and finished.read_text() == 'done'
+finally:
+    signal.setitimer(signal.ITIMER_REAL,0)
+    if process.poll() is None:
+        os.killpg(process.pid,signal.SIGKILL)
+        process.wait()
+""".replace("INTERRUPT", interrupt)
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(tmp_path / "finished")],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode()

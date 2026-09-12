@@ -24,7 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from . import shellquote
-from .errors import BuildError
+from .errors import BuildError, SignalStop
 from .logging import Logger, format_duration
 
 # Supported hosts provide the bootstrap toolchain in these administrator-
@@ -103,6 +103,35 @@ class CommandFailed(BuildError):
         self.command = command
 
 
+def _terminate_process(
+    process: subprocess.Popen[bytes], signal_relay: bool, original: BaseException
+) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError as error:
+        original.add_note(f"Unable to signal every process in group {process.pid}: {error}")
+    if signal_relay:
+        # sudo relays TERM and waits for its privileged command, but cannot
+        # relay KILL. Killing sudo could orphan an installer and let it race
+        # rollback. Retain locks until sudo confirms command termination.
+        process.wait()
+        return
+    try:
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError as error:
+            original.add_note(f"Unable to kill every process in group {process.pid}: {error}")
+        process.wait()
+
+
 @contextmanager
 def managed_process(
     process: subprocess.Popen[bytes], *, signal_relay: bool = False
@@ -116,30 +145,15 @@ def managed_process(
     try:
         yield process
     except BaseException as original:
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        except PermissionError as error:
-            original.add_note(f"Unable to signal every process in group {process.pid}: {error}")
-        if signal_relay:
-            # sudo relays TERM and waits for its privileged command, but cannot
-            # relay KILL. Killing sudo could orphan an installer and let it race
-            # rollback. Retain locks until sudo confirms command termination.
-            process.wait()
-            raise
-        try:
-            process.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            pass
-        finally:
+        while True:
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except PermissionError as error:
-                original.add_note(f"Unable to kill every process in group {process.pid}: {error}")
-            process.wait()
+                _terminate_process(process, signal_relay, original)
+                break
+            except (KeyboardInterrupt, SignalStop):
+                # A second cancellation must not release locks or start rollback
+                # while the original command can still write. Retry shutdown;
+                # the first exception is reported once termination is confirmed.
+                continue
         raise
     finally:
         for stream in (process.stdin, process.stdout, process.stderr):

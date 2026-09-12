@@ -254,6 +254,13 @@ a privileged command that never terminates can still block shutdown; abandoning
 it and releasing locks would permit concurrent writes, so that is not treated
 as a safe timeout optimization.
 
+A final real-process regression demonstrated that a second KeyboardInterrupt or
+SignalStop could bypass the privileged shutdown wait. Cancellation during cleanup
+now retries termination while keeping the original exception and locks. SignalStop
+lives with the shared runtime errors so the runner can recognize it without an
+orchestrator import cycle. Both repeated-interrupt cases failed before this fix
+and pass afterward; rollback remains behind command termination.
+
 GLM's claimed backup-failure deletion was false: backup_installed_programs is
 outside the promotion try/except. An injected backup failure now explicitly
 tests that neither installation nor rollback runs and old programs survive.
@@ -331,3 +338,22 @@ queries covered all 18 accessible services in six projects, with no source
 repository matching this one. No Railway config/server entry point is tracked.
 GitHub CI is the available release gate; a Railway deployment cannot be claimed
 without a configured service association. No unrelated service was created.
+
+## Final local verification
+
+The full gate passes with 292 tests on Python 3.12.14: `python run_linter.py`
+runs Ruff lint/format checks, strict mypy and repository contracts for all 127
+packages; `python -m pytest -q` passes all regressions. Both commands used the
+absolute install-ffmpeg Conda interpreter, before and after each change commit.
+No lint/type suppressions remain in the Python sources. Native evidence and its
+limits are listed above; fixture success is not substituted for native evidence.
+
+A final keyboard review by Kimi returned no actionable findings for Enter on
+revisited categories, sidebar navigation, returning to categories, Tab wrapping,
+search folds and undo. Its claims were checked against code and real PTY tests.
+Personal inspection had caught and fixed Enter folding a revisited category and
+sidebar arrows entering expanded children. An additional broad menu panel hit
+the MCP client's 600-second deadline and was not counted as a verified review;
+the narrower successful consultation retained complete related source files and
+persisted its answer. The earlier completed two-model core/integration reviews
+and their accepted/rejected claims remain the basis for the audit above.

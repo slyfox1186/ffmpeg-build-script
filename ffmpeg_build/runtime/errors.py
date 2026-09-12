@@ -12,6 +12,15 @@ from __future__ import annotations
 ISSUE_TRACKER_URL = "https://github.com/slyfox1186/ffmpeg-build-script/issues"
 
 
+class SignalStop(BaseException):
+    """A termination signal, carrying the exit status it should produce."""
+
+    def __init__(self, name: str, exit_code: int) -> None:
+        super().__init__(name)
+        self.name = name
+        self.exit_code = exit_code
+
+
 class BuildError(Exception):
     """A fatal, reportable build failure.
 

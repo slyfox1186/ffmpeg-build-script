@@ -21,7 +21,7 @@ from .cli import (
 )
 from .config import CLEANUP_COMMAND, BuildSettings, Selection, load_config
 from .runtime.context import CARGO_C_VERSION, RUST_TOOLCHAIN_VERSION, BuildContext
-from .runtime.errors import BuildError, UsageError
+from .runtime.errors import BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
 from .runtime.logging import Logger
 from .runtime.paths import DirectoryLock, canonicalize, is_exclusive_regular_file
@@ -59,15 +59,6 @@ _POSITIVE_INTEGER_SETTINGS = (
     "FREEDESKTOP_RELEASE_INDEX_MAX_TIME",
 )
 _NON_NEGATIVE_INTEGER_SETTINGS = ("DOWNLOAD_RETRY", "DOWNLOAD_RETRY_DELAY")
-
-
-class SignalStop(BaseException):
-    """A termination signal, carrying the exit status it should produce."""
-
-    def __init__(self, name: str, exit_code: int) -> None:
-        super().__init__(name)
-        self.name = name
-        self.exit_code = exit_code
 
 
 def validate_build_settings(selection: Selection, debug_value: str) -> None:
