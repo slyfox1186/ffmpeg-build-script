@@ -180,7 +180,6 @@ install_video_libraries() {
         path_prepend "$workspace/ant/bin"
     fi
 
-
     # Build zenlib
     fetch_version_if_enabled "zenlib" find_git_repo "MediaArea/ZenLib" "1"
     if build "zenlib" "$repo_version"; then
@@ -235,9 +234,9 @@ install_video_libraries() {
             download "https://code.videolan.org/videolan/x264/-/archive/$repo_version/x264-$repo_version.tar.bz2"
             # Default to a release-style build (debug/profiling can be enabled by users when needed).
             execute sh configure --prefix="$workspace" --bit-depth=all --chroma-format=all \
-                                --enable-pic --enable-static --enable-strip \
-                                --disable-bashcompletion --disable-cli \
-                                --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS"
+                --enable-pic --enable-static --enable-strip \
+                --disable-bashcompletion --disable-cli \
+                --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install-lib-static
             build_done "x264" "$repo_version"
@@ -260,32 +259,32 @@ install_video_libraries() {
             cd 12bit || fail "Failed to cd into '12bit'. Line: $LINENO"
             log "Building x265 12-bit library"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
-                          -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
-                          -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
-                          "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
-                          -G Ninja -Wno-dev
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
+                -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
+                -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
+                "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
+                -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             log "Building x265 10-bit library"
             cd ../10bit || fail "Failed to cd into '../10bit'. Line: $LINENO"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
-                          -DENABLE_HDR10_PLUS=ON -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON \
-                          -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
-                          "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
-                          -G Ninja -Wno-dev
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF,SHARED}=OFF \
+                -DENABLE_HDR10_PLUS=ON -DENABLE_PIC=ON -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON \
+                -DENABLE_LIBNUMA=OFF -DNATIVE_BUILD=ON \
+                "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
+                -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             log "Building x265 8-bit library"
             cd ../8bit || fail "Failed to cd into '../8bit'. Line: $LINENO"
             execute ln -sf "../10bit/libx265.a" "libx265_main10.a"
             execute ln -sf "../12bit/libx265.a" "libx265_main12.a"
             execute cmake ../../../source -DCMAKE_INSTALL_PREFIX="$workspace" -DCMAKE_BUILD_TYPE=Release \
-                          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF}=OFF -DENABLE_PIC=ON \
-                          -DENABLE_SHARED=OFF -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
-                          -DEXTRA_LINK_FLAGS="-L." -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
-                          -DENABLE_LIBNUMA=OFF \
-                          "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
-                          -G Ninja -Wno-dev
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_{CLI,LIBVMAF}=OFF -DENABLE_PIC=ON \
+                -DENABLE_SHARED=OFF -DEXTRA_LIB="x265_main10.a;x265_main12.a" \
+                -DEXTRA_LINK_FLAGS="-L." -DLINKED_{10BIT,12BIT}=ON -DNATIVE_BUILD=ON \
+                -DENABLE_LIBNUMA=OFF \
+                "${CMAKE_NO_PACKAGE_REGISTRY_OPTIONS[@]}" \
+                -G Ninja -Wno-dev
             execute ninja "-j$build_threads"
             # Install headers and metadata while Ninja's declared 8-bit archive
             # still exists, then replace only the installed archive with the
@@ -318,7 +317,7 @@ EOF
             selected_version="$repo_version"
             if build "nv-codec-headers" "$selected_version"; then
                 download "https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n${selected_version}.tar.gz" \
-                         "nv-codec-headers-${selected_version}.tar.gz"
+                    "nv-codec-headers-${selected_version}.tar.gz"
                 execute make "-j$build_threads"
                 execute make PREFIX="$workspace" install
                 build_done "nv-codec-headers" "$selected_version"

@@ -190,7 +190,7 @@ read_installed_gpu_architectures() {
     while IFS= read -r capability; do
         capability="$(trim_whitespace "$capability")"
         [[ "$capability" =~ ^[0-9]+\.[0-9]+$ ]] || continue
-        architecture="${capability/.}"
+        architecture="${capability/./}"
         if [[ -z "${seen_architectures[$architecture]+x}" ]]; then
             seen_architectures["$architecture"]=1
             CUDA_INSTALLED_GPU_ARCHITECTURES+=("$architecture")
@@ -284,7 +284,7 @@ install_cuda() {
     local answer local_version
 
     case "$install_mode" in
-        ask|always|never) ;;
+        ask | always | never) ;;
         *) fail "Invalid 'CUDA_INSTALL' value '$install_mode'; expected 'ask', 'always', or 'never'." ;;
     esac
     [[ "$is_nvidia_gpu_present" == "NVIDIA GPU detected" ]] || return 0

@@ -74,10 +74,10 @@ compiler_version() {
 
     [[ -x "$binary" ]] || return 1
     case "$compiler_name" in
-        gcc|g++)
+        gcc | g++)
             version="$("$binary" -dumpfullversion -dumpversion 2>/dev/null | sed -n '1p')"
             ;;
-        clang|clang++)
+        clang | clang++)
             version="$(
                 "$binary" --version 2>/dev/null |
                     sed -n '1p' |
@@ -110,8 +110,8 @@ discover_installed_highest() {
             version="$(compiler_version "$compiler_name" "$candidate" || true)"
             [[ -n "$version" ]] || continue
             if [[ -z "$best_version" ||
-                ( "$version" != "$best_version" &&
-                  "$(printf '%s\n%s\n' "$best_version" "$version" | sort -V | tail -n1)" == "$version" ) ]]; then
+                ("$version" != "$best_version" &&
+                "$(printf '%s\n%s\n' "$best_version" "$version" | sort -V | tail -n1)" == "$version") ]]; then
                 best_version="$version"
                 best_path="$candidate"
             fi
@@ -135,7 +135,7 @@ highest_repository_major() {
             package_glob='g++-*'
             package_regex='^g\+\+-[0-9]+$'
             ;;
-        clang|clang++)
+        clang | clang++)
             package_glob='clang-*'
             package_regex='^clang-[0-9]+$'
             ;;

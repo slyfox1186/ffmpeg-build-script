@@ -49,6 +49,21 @@ python3 -c \
     run_linter.py
 printf 'Python syntax: OK\n'
 
+# Optional so the gate still runs without it, but CI installs it so formatting
+# drift cannot land. shfmt parses the shell rather than matching text, so treat
+# a reported diff as a formatting fix, never as a semantic one: check the result
+# before committing it.
+if command -v shfmt >/dev/null 2>&1; then
+    if ! shfmt -d -i 4 -ci "${shell_files[@]}"; then
+        printf "Run 'shfmt -w -i 4 -ci %s' to apply the formatting above.\n" \
+            "${shell_files[*]}" >&2
+        exit 1
+    fi
+    printf 'shfmt: OK (%s)\n' "$(shfmt --version)"
+else
+    printf 'shfmt: not installed; formatting not checked\n'
+fi
+
 # example.toml is the tracked template and the only listing of every supported
 # key. A new [packages] key needs matching edits in SUPPORTED_PACKAGE_NAMES and
 # in the template, and an unknown key is fatal at runtime, so check statically
@@ -114,7 +129,10 @@ actual_help_block="$(
         '
 )"
 [[ -n "$readme_help_block" ]] ||
-    { printf "No '## Command-line interface' code block was found in README.md.\n" >&2; exit 1; }
+    {
+        printf "No '## Command-line interface' code block was found in README.md.\n" >&2
+        exit 1
+    }
 if [[ "$readme_help_block" != "$actual_help_block" ]]; then
     printf "README.md's command-line interface block no longer matches 'build-ffmpeg.sh --help'.\n" >&2
     diff -u \

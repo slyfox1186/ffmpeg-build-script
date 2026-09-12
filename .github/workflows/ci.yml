@@ -28,6 +28,11 @@ jobs:
           sudo apt -o APT::Cmd::Disable-Script-Warning=1 install \
             --assume-yes --no-install-recommends shellcheck pkgconf util-linux coreutils
 
+      - name: Install shfmt
+        uses: mfinelli/setup-shfmt@v3
+        with:
+          shfmt-version: 3.8.0
+
       - name: Run static analysis
         run: python3 run_linter.py
 

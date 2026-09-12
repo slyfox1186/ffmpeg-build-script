@@ -232,8 +232,8 @@ build_ffmpeg() {
     recorded_version="$(read_marker_version "$marker_file" || true)"
     if [[ "$recorded_version" == "n$ffmpeg_version" ]] &&
         { [[ "$installed_version" != "$ffmpeg_version" ]] ||
-          [[ ! -x /usr/local/bin/ffprobe ]] ||
-          { is_true "$ffplay_enabled" && [[ ! -x /usr/local/bin/ffplay ]]; }; }; then
+            [[ ! -x /usr/local/bin/ffprobe ]] ||
+            { is_true "$ffplay_enabled" && [[ ! -x /usr/local/bin/ffplay ]]; }; }; then
         warn "FFmpeg's build marker exists, but its required installed programs are incomplete; rebuilding."
         execute rm -f -- "$marker_file"
     fi

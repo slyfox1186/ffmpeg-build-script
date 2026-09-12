@@ -487,7 +487,11 @@ assert_contains "$selection_output" \
 assert_not_contains "$selection_output" "run --cleanup" \
     "config guidance does not present an option as a command"
 assert_equal "true" "$LATEST" "config loads build.latest"
-assert_equal "false" "${PACKAGE_SELECTION[vulkan-headers-git]}" "legacy config key maps canonically"
+# Held in a variable because shfmt 3.8.0 parses a hyphenated literal subscript
+# as arithmetic and rewrites it to [vulkan - headers - git].
+legacy_package_key="vulkan-headers-git"
+assert_equal "false" "${PACKAGE_SELECTION[$legacy_package_key]}" \
+    "legacy config key maps canonically"
 assert_command_fails "an explicit config disables omitted package keys" \
     package_enabled libopus
 

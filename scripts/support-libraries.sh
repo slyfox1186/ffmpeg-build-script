@@ -36,8 +36,8 @@ install_miscellaneous_libraries() {
         if build "nettle" "$repo_version"; then
             download_with_fallback "$GNU_PRIMARY_MIRROR/nettle/nettle-$repo_version.tar.gz" "$GNU_FALLBACK_MIRROR/nettle/nettle-$repo_version.tar.gz"
             execute sh configure --prefix="$workspace" --enable-static --disable-{documentation,openssl,shared} \
-                                --libdir="$workspace/lib" \
-                                CPPFLAGS="${CPPFLAGS:-} -fno-lto" LDFLAGS="$LDFLAGS"
+                --libdir="$workspace/lib" \
+                CPPFLAGS="${CPPFLAGS:-} -fno-lto" LDFLAGS="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install
             build_done "nettle" "$repo_version"
@@ -47,8 +47,8 @@ install_miscellaneous_libraries() {
         if build "gnutls" "$repo_version"; then
             download "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-$repo_version.tar.xz"
             execute sh configure --prefix="$workspace" --disable-{cxx,doc,gtk-doc-html,guile,libdane,nls,shared,tests,tools} \
-                                --enable-{local-libopts,static} --with-included-{libtasn1,unistring} --without-p11-kit \
-                                CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS"
+                --enable-{local-libopts,static} --with-included-{libtasn1,unistring} --without-p11-kit \
+                CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS"
             execute make "-j$build_threads"
             execute make install
             build_done "gnutls" "$repo_version"
@@ -74,13 +74,13 @@ install_miscellaneous_libraries() {
         if [[ "${freetype_version_source:-}" == "gitlab" ]]; then
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
                 download_with_fallback \
-                    "$(freetype_gitlab_archive_url "${repo_version//./-}")" \
-                    "$(freetype_release_archive_url "$repo_version_1")"
+                "$(freetype_gitlab_archive_url "${repo_version//./-}")" \
+                "$(freetype_release_archive_url "$repo_version_1")"
         else
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
                 download_with_fallback \
-                    "$(freetype_release_archive_url "$repo_version_1")" \
-                    "$(freetype_sourceforge_archive_url "$repo_version_1")"
+                "$(freetype_release_archive_url "$repo_version_1")" \
+                "$(freetype_sourceforge_archive_url "$repo_version_1")"
         fi
         extracmds=("-D"{harfbuzz,png,bzip2,brotli,zlib,tests}"=disabled")
         meson_ninja_install "build" --buildtype=release --default-library=static --strip "${extracmds[@]}"
@@ -100,8 +100,8 @@ install_miscellaneous_libraries() {
         if [[ "${fontconfig_version_source:-}" == "gitlab" ]]; then
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
                 download_with_fallback \
-                    "$(fontconfig_gitlab_archive_url "$repo_version")" \
-                    "$(fontconfig_release_archive_url "$repo_version")"
+                "$(fontconfig_gitlab_archive_url "$repo_version")" \
+                "$(fontconfig_release_archive_url "$repo_version")"
         else
             DOWNLOAD_CONNECT_TIMEOUT=3 DOWNLOAD_MAX_TIME=45 DOWNLOAD_RETRY=0 DOWNLOAD_RETRY_DELAY=3 \
                 download "$(fontconfig_release_archive_url "$repo_version")" "fontconfig-$repo_version.tar.xz"
@@ -386,7 +386,6 @@ install_miscellaneous_libraries() {
         build_done "lilv" "$lilv_version"
     fi
     append_configure_options_if_enabled "lilv" "--enable-lv2"
-
 
     # Build jemalloc
     fetch_version_if_enabled "jemalloc" find_git_repo "jemalloc/jemalloc" "1"

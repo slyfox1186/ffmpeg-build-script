@@ -149,9 +149,9 @@ install_audio_libraries() {
             lame_iconv_options=(--with-libiconv-prefix="$workspace")
         fi
         execute sh configure --prefix="$workspace" \
-                             --disable-{gtktest,shared} \
-                             --enable-nasm \
-                             "${lame_iconv_options[@]}"
+            --disable-{gtktest,shared} \
+            --enable-nasm \
+            "${lame_iconv_options[@]}"
         execute make "-j$build_threads"
         execute make install
         build_done "liblame" "$lame_version"

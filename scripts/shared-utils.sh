@@ -270,7 +270,7 @@ build_root_is_adoptable() {
     [[ -n "$root" && -d "$root" ]] || return 1
     while IFS= read -r -d '' entry; do
         case "${entry##*/}" in
-            packages|workspace)
+            packages | workspace)
                 [[ -d "$entry" && ! -L "$entry" ]] || return 1
                 [[ -z "$(find "$entry" -mindepth 1 -print -quit 2>/dev/null)" ]] || return 1
                 ;;
@@ -304,7 +304,7 @@ assert_safe_build_root() {
     [[ "$candidate_resolved" != *[[:space:]]* ]] ||
         fail "The build root may not contain whitespace because several upstream build systems cannot represent it safely: '$candidate_resolved'."
     case "$candidate_resolved" in
-        /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/usr/local|/var)
+        / | /bin | /boot | /dev | /etc | /home | /lib | /lib64 | /opt | /proc | /root | /run | /sbin | /srv | /sys | /tmp | /usr | /usr/local | /var)
             fail "Refusing unsafe build root '$candidate_resolved'."
             ;;
     esac
@@ -718,7 +718,7 @@ load_package_selection_config() {
         if [[ "$line" =~ ^\[([A-Za-z0-9._-]+)\]$ ]]; then
             current_table="${BASH_REMATCH[1]}"
             case "$current_table" in
-                build|packages) ;;
+                build | packages) ;;
                 *) fail "Unsupported TOML table '$current_table' at '$config_file:$line_no'." ;;
             esac
             [[ -z "${seen_tables[$current_table]+x}" ]] ||
@@ -776,7 +776,7 @@ load_package_selection_config() {
         fi
 
         fail "Unsupported config syntax at '$config_file:$line_no': '$raw_line'."
-    done < "$config_file"
+    done <"$config_file"
 
     log "Loaded package selection config: '$config_file'"
     log "If you are changing package selections on an existing workspace, run '$CLEANUP_COMMAND' first to avoid reusing old build artifacts."
@@ -1265,11 +1265,11 @@ package_artifacts_ready() {
             [[ -f "$workspace/lib/libgav1.a" || -f "$workspace/lib64/libgav1.a" ]]
             ;;
         avisynth) [[ -f "$workspace/include/avisynth/avisynth_c.h" ||
-                      -f "$workspace/include/avisynth_c.h" ]] ;;
+            -f "$workspace/include/avisynth_c.h" ]] ;;
         xvidcore) [[ -f "$workspace/lib/libxvidcore.a" && -f "$workspace/include/xvid.h" ]] ;;
         vapoursynth) vapoursynth_sdk_ready_for_ffmpeg ;;
         ffmpeg) [[ -x /usr/local/bin/ffmpeg && -x /usr/local/bin/ffprobe ]] ;;
-        libzstd|librist|zlib|openssl|libxml2|libpng|libtiff|gnutls|freetype|fontconfig|harfbuzz|fribidi|libass|libwebp-git|libhwy|lcms2|gflags|libjpeg-turbo|rubberband-git|c-ares|serd|pcre2|zix|sord|sratom|jemalloc|libsoxr|sdl2|libsndfile|libogg|libfdk-aac|libopus|libmysofa|avif|kvazaar|libdvdread|udfread|zenlib|mediainfo-lib|vid-stab|srt|svt-av1|libheif|openjpeg)
+        libzstd | librist | zlib | openssl | libxml2 | libpng | libtiff | gnutls | freetype | fontconfig | harfbuzz | fribidi | libass | libwebp-git | libhwy | lcms2 | gflags | libjpeg-turbo | rubberband-git | c-ares | serd | pcre2 | zix | sord | sratom | jemalloc | libsoxr | sdl2 | libsndfile | libogg | libfdk-aac | libopus | libmysofa | avif | kvazaar | libdvdread | udfread | zenlib | mediainfo-lib | vid-stab | srt | svt-av1 | libheif | openjpeg)
             module_name="$package_name"
             case "$package_name" in
                 libxml2) module_name=libxml-2.0 ;;
@@ -1489,8 +1489,8 @@ header_exists() {
 # condition FFmpeg's own configure uses; most distros ship older headers, so the
 # workspace gets newer ones from the Vulkan-Headers build.
 vulkan_headers_recent() {
-    printf '#include <vulkan/vulkan.h>\n#if !(defined(VK_VERSION_1_4) || (defined(VK_VERSION_1_3) && VK_HEADER_VERSION >= 277))\n#error vulkan headers too old\n#endif\n' \
-        | "${CC:-cc}" -I"${workspace:-/nonexistent}/include" -E -x c - >/dev/null 2>&1
+    printf '#include <vulkan/vulkan.h>\n#if !(defined(VK_VERSION_1_4) || (defined(VK_VERSION_1_3) && VK_HEADER_VERSION >= 277))\n#error vulkan headers too old\n#endif\n' |
+        "${CC:-cc}" -I"${workspace:-/nonexistent}/include" -E -x c - >/dev/null 2>&1
 }
 
 # True if the installed libplacebo provides PL_ALPHA_NONE. FFmpeg 8.1+'s
@@ -1505,8 +1505,8 @@ libplacebo_has_pl_alpha_none() {
     cflags="$(pkgconf --cflags libplacebo 2>/dev/null)" || return 1
     # Split without globbing; see resolve_pkgconf_include_dir().
     read -r -a cflag_tokens <<<"${cflags//$'\n'/ }"
-    printf '#include <libplacebo/colorspace.h>\nint chk(void){ return (int) PL_ALPHA_NONE; }\n' \
-        | "${CC:-cc}" "${cflag_tokens[@]}" -fsyntax-only -x c - >/dev/null 2>&1
+    printf '#include <libplacebo/colorspace.h>\nint chk(void){ return (int) PL_ALPHA_NONE; }\n' |
+        "${CC:-cc}" "${cflag_tokens[@]}" -fsyntax-only -x c - >/dev/null 2>&1
 }
 
 # Append $2 (e.g. "-lstdc++") to the Libs.private of the workspace pkg-config file
@@ -1525,7 +1525,7 @@ pkgconfig_add_private_lib() {
     require_vars workspace
 
     for dir in "$workspace/lib/pkgconfig" "$workspace/lib64/pkgconfig" \
-               "$workspace/lib/x86_64-linux-gnu/pkgconfig" "$workspace/share/pkgconfig"; do
+        "$workspace/lib/x86_64-linux-gnu/pkgconfig" "$workspace/share/pkgconfig"; do
         if [[ -f "$dir/$pc_name.pc" ]]; then
             pc_file="$dir/$pc_name.pc"
             break
@@ -1551,7 +1551,7 @@ pkgconfig_add_private_lib() {
 # File download and extraction
 archive_filename_supported() {
     case "${1:-}" in
-        *.tar|*.tar.bz2|*.tar.gz|*.tar.xz) return 0 ;;
+        *.tar | *.tar.bz2 | *.tar.gz | *.tar.xz) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -1560,7 +1560,7 @@ archive_output_directory() {
     local filename="${1:-}"
 
     case "$filename" in
-        *.tar.bz2|*.tar.gz|*.tar.xz) printf '%s\n' "${filename%.tar.*}" ;;
+        *.tar.bz2 | *.tar.gz | *.tar.xz) printf '%s\n' "${filename%.tar.*}" ;;
         *.tar) printf '%s\n' "${filename%.tar}" ;;
         *) return 1 ;;
     esac
@@ -1989,7 +1989,7 @@ git_caller() {
     [[ "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] ||
         fail "git_caller() received an invalid repository name: '$repo_name'. Line: ${LINENO}"
     case "$clone_mode" in
-        shallow|recurse|full) ;;
+        shallow | recurse | full) ;;
         *) fail "Unsupported git clone mode '$clone_mode' for '$repo_name'. Line: ${LINENO}" ;;
     esac
 
@@ -2096,8 +2096,7 @@ git_clone() {
         recurse)
             clone_args+=(--depth 1 --recurse-submodules --shallow-submodules)
             ;;
-        full)
-            ;;
+        full) ;;
         *)
             safe_remove_tree "$clone_parent" "$packages"
             warn "Unsupported git clone mode '$clone_mode'. Line: ${LINENO}"
@@ -2252,15 +2251,15 @@ github_repo() {
     fi
 
     case "$url" in
-        tags|releases) ;;
+        tags | releases) ;;
         *) fail "Unsupported GitHub ref source '$url'. Line: ${LINENO}" ;;
     esac
 
     tag_names="$(git_remote_tag_names "https://github.com/$repo.git")" ||
         fail "Failed to fetch tags for GitHub repository '$repo'. Line: ${LINENO}"
     selected_version="$(run_github_version_helper "$repo" "$url" "v" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" "$tag_names" ||
-                        run_github_version_helper "$repo" "$url" "" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" "$tag_names" ||
-                        true)"
+        run_github_version_helper "$repo" "$url" "" "" '^[0-9]+(\.[0-9]+){1,3}$' "$index" "$tag_names" ||
+        true)"
     if [[ -z "${selected_version//[[:space:]]/}" ]]; then
         fail "Failed to detect a usable version for GitHub repo '$repo' ('url=$url'). Line: ${LINENO}"
     fi
@@ -2308,7 +2307,7 @@ run_github_version_helper() {
     fi
 
     case "$url_type" in
-        tags|releases) ;;
+        tags | releases) ;;
         *)
             return 1
             ;;
@@ -2501,7 +2500,7 @@ github_version() {
     fi
 
     case "$url_type" in
-        tags|releases) ;;
+        tags | releases) ;;
         *)
             warn "github_version: unsupported ref source '$url_type' for '$repo'."
             return 1
@@ -2639,10 +2638,10 @@ freetype_release_version() {
 
     version=$(
         printf '%s' "$releases_html" |
-        grep -oE 'freetype-[0-9]+\.[0-9]+\.[0-9]+\.tar\.(xz|gz|bz2)' |
-        sed -E 's/^freetype-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(xz|gz|bz2)$/\1/' |
-        sort -ruV |
-        sed -n '1p'
+            grep -oE 'freetype-[0-9]+\.[0-9]+\.[0-9]+\.tar\.(xz|gz|bz2)' |
+            sed -E 's/^freetype-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(xz|gz|bz2)$/\1/' |
+            sort -ruV |
+            sed -n '1p'
     )
 
     if [[ -z "$version" ]]; then
@@ -2712,10 +2711,10 @@ fontconfig_release_version() {
 
     version=$(
         printf '%s' "$releases_html" |
-        grep -oE 'fontconfig-[0-9]+\.[0-9]+\.[0-9]+\.tar\.(xz|gz|bz2)' |
-        sed -E 's/^fontconfig-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(xz|gz|bz2)$/\1/' |
-        sort -ruV |
-        sed -n '1p'
+            grep -oE 'fontconfig-[0-9]+\.[0-9]+\.[0-9]+\.tar\.(xz|gz|bz2)' |
+            sed -E 's/^fontconfig-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.(xz|gz|bz2)$/\1/' |
+            sort -ruV |
+            sed -n '1p'
     )
 
     if [[ -z "$version" ]]; then
@@ -2803,17 +2802,17 @@ sdl2_repo_version() {
     repo_version=""
 
     release_page=$(curl_https -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
-                        "https://www.libsdl.org/release/") || {
+        "https://www.libsdl.org/release/") || {
         warn "sdl2_repo_version: failed to fetch the SDL release archive."
         return 1
     }
 
     version=$(
         printf '%s' "$release_page" |
-        grep -oE 'SDL2-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' |
-        sed -E 's/^SDL2-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.gz$/\1/' |
-        sort -uV |
-        tail -n1
+            grep -oE 'SDL2-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' |
+            sed -E 's/^SDL2-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.gz$/\1/' |
+            sort -uV |
+            tail -n1
     )
 
     if [[ -z "$version" ]]; then
@@ -2901,15 +2900,15 @@ giflib_repo_version() {
     repo_version=""
 
     rss_feed=$(curl_https -fsSL --max-time "$max_time" --connect-timeout "$connect_timeout" \
-                    "https://sourceforge.net/projects/giflib/rss?path=/") || {
+        "https://sourceforge.net/projects/giflib/rss?path=/") || {
         warn "giflib_repo_version: failed to fetch the SourceForge RSS feed."
         return 1
     }
 
     version=$(
         printf '%s' "$rss_feed" |
-        grep -oP 'giflib-\K[0-9]+\.[0-9]+(?:\.[0-9]+)?(?=\.tar\.gz)' |
-        sort -ruV | sed -n '1p'
+            grep -oP 'giflib-\K[0-9]+\.[0-9]+(?:\.[0-9]+)?(?=\.tar\.gz)' |
+            sort -ruV | sed -n '1p'
     )
 
     if [[ -z "$version" ]]; then
@@ -3027,44 +3026,47 @@ find_git_repo() {
 
     case "$repo_name" in
         # Special version detection (non-standard methods)
-        FFmpeg/FFmpeg)        ffmpeg_repo_version ;;
-        xiph/rav1e)           rav1e_repo_version ;;
-        536)                  x264_version ;;
+        FFmpeg/FFmpeg) ffmpeg_repo_version ;;
+        xiph/rav1e) rav1e_repo_version ;;
+        536) x264_version ;;
         GPUOpen-LibrariesAndSDKs/AMF) amf_version ;;
-        avisynth/avisynthplus|AviSynth/AviSynthPlus) avisynth_version ;;
+        avisynth/avisynthplus | AviSynth/AviSynthPlus) avisynth_version ;;
         vapoursynth/vapoursynth) vapoursynth_version ;;
-        MediaArea/ZenLib|MediaArea/MediaInfoLib|MediaArea/MediaInfo) mediaarea_version "$repo_name" ;;
-        24327400)             svt_av1_version "$url_choice" ;;
+        MediaArea/ZenLib | MediaArea/MediaInfoLib | MediaArea/MediaInfo) mediaarea_version "$repo_name" ;;
+        24327400) svt_av1_version "$url_choice" ;;
 
         # VideoLAN projects that do not use GitHub-style release tags.
-        76)                   videolan_repo "76" "$url_choice" ;;
-        206)                  videolan_repo "206" "$url_choice" ;;
-        363)                  videolan_repo "363" "$url_choice" ;;
+        76) videolan_repo "76" "$url_choice" ;;
+        206) videolan_repo "206" "$url_choice" ;;
+        363) videolan_repo "363" "$url_choice" ;;
 
         # GitHub repos with custom prefix or exclude patterns (inlined from one-liner wrappers)
-        Kitware/CMake)        github_version "Kitware/CMake" "v" "rc" ;;
-        mesonbuild/meson)     github_version "mesonbuild/meson" "" "rc" ;;
-        madler/zlib)          github_version "madler/zlib" "v" "" "releases" ;;
-        mm2/Little-CMS)       github_version "mm2/Little-CMS" "lcms" ;;
-        libass/libass|harfbuzz/harfbuzz|google/highway|jemalloc/jemalloc)
-                              github_version "$repo_name" "" ;;
-        libjpeg-turbo/libjpeg-turbo|libsndfile/libsndfile|chirlu/soxr)
-                              github_version "$repo_name" "" ;;
+        Kitware/CMake) github_version "Kitware/CMake" "v" "rc" ;;
+        mesonbuild/meson) github_version "mesonbuild/meson" "" "rc" ;;
+        madler/zlib) github_version "madler/zlib" "v" "" "releases" ;;
+        mm2/Little-CMS) github_version "mm2/Little-CMS" "lcms" ;;
+        libass/libass | harfbuzz/harfbuzz | google/highway | jemalloc/jemalloc)
+            github_version "$repo_name" ""
+            ;;
+        libjpeg-turbo/libjpeg-turbo | libsndfile/libsndfile | chirlu/soxr)
+            github_version "$repo_name" ""
+            ;;
 
         # GitLab repos (inlined from one-liner wrappers)
-        drobilla/zix)         gitlab_version "https://gitlab.com" "drobilla/zix" ;;
-        libtiff/libtiff)      gitlab_version "https://gitlab.com" "libtiff/libtiff" ;;
-        GNOME/libxml2)        gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" ;;
-        freetype/freetype)    freetype_version ;;
+        drobilla/zix) gitlab_version "https://gitlab.com" "drobilla/zix" ;;
+        libtiff/libtiff) gitlab_version "https://gitlab.com" "libtiff/libtiff" ;;
+        GNOME/libxml2) gitlab_version "https://gitlab.gnome.org" "GNOME/libxml2" ;;
+        freetype/freetype) freetype_version ;;
         fontconfig/fontconfig) fontconfig_version ;;
-        rist/librist)         gitlab_version "https://code.videolan.org" "rist/librist" ;;
+        rist/librist) gitlab_version "https://code.videolan.org" "rist/librist" ;;
 
         # GitHub repos with default "v" prefix (inlined from one-liner wrappers)
-        ninja-build/ninja|facebook/zstd|yasm/yasm|xiph/ogg|xiph/opus|xiph/vorbis|freeglut/freeglut|fribidi/fribidi|google/brotli|gflags/gflags|c-ares/c-ares|akheron/jansson|pnggroup/libpng|strukturag/libheif|uclouvain/openjpeg|ultravideo/kvazaar|AOMediaCodec/libavif|Haivision/srt|georgmartius/vid.stab|mstorsjo/fdk-aac|hoene/libmysofa|dyne/frei0r|nkoriyama/aribb24)
-                              github_version "$repo_name" ;;
+        ninja-build/ninja | facebook/zstd | yasm/yasm | xiph/ogg | xiph/opus | xiph/vorbis | freeglut/freeglut | fribidi/fribidi | google/brotli | gflags/gflags | c-ares/c-ares | akheron/jansson | pnggroup/libpng | strukturag/libheif | uclouvain/openjpeg | ultravideo/kvazaar | AOMediaCodec/libavif | Haivision/srt | georgmartius/vid.stab | mstorsjo/fdk-aac | hoene/libmysofa | dyne/frei0r | nkoriyama/aribb24)
+            github_version "$repo_name"
+            ;;
 
         # Default fallback
-        *)                    github_repo "$repo_name" "releases" "$url_choice" ;;
+        *) github_repo "$repo_name" "releases" "$url_choice" ;;
     esac
 
     if [[ -z "${repo_version//[[:space:]]/}" ]]; then
@@ -3120,14 +3122,14 @@ cleanup() {
         fi
 
         case "$choice" in
-            y|Y|yes|YES|Yes)
+            y | Y | yes | YES | Yes)
                 if ! rm -rf --one-file-system -- "$cwd_resolved"; then
                     fail "Failed to remove build root '$cwd_resolved'."
                 fi
                 log "Removed build root: '$cwd_resolved'."
                 return 0
                 ;;
-            n|N|no|NO|No)
+            n | N | no | NO | No)
                 return 0
                 ;;
             *)
@@ -3184,7 +3186,7 @@ strip_workspace_entries() {
     for part in "${parts[@]}"; do
         [[ -n "$part" ]] || continue
         case "$part" in
-            "$workspace"/*|"$workspace"|-I"$workspace"|-I"$workspace"/*|-L"$workspace"|-L"$workspace"/*) continue ;;
+            "$workspace"/* | "$workspace" | -I"$workspace" | -I"$workspace"/* | -L"$workspace" | -L"$workspace"/*) continue ;;
         esac
         result="${result:+$result$sep}$part"
     done
@@ -3263,7 +3265,10 @@ remove_duplicate_paths() {
             fi
         done
 
-        PATH="$(IFS=:; printf '%s' "${unique_parts[*]}")"
+        PATH="$(
+            IFS=:
+            printf '%s' "${unique_parts[*]}"
+        )"
         export PATH
     fi
 }

@@ -199,17 +199,17 @@ install_global_tools() {
                 fail "OpenSSL needs the zlib library; enable 'packages.zlib' or install a system zlib development package. Line: ${LINENO}"
             download "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
             execute ./Configure --prefix="$workspace" \
-                                        --openssldir="$workspace/ssl" \
-                                        no-shared \
-                                        no-pinshared \
-                                        no-apps \
-                                        no-docs \
-                                        no-tests \
-                                        threads \
-                                        zlib \
-                                        --with-rand-seed=os \
-                                        --with-zlib-include="$zlib_include_dir" \
-                                        --with-zlib-lib="$zlib_library_dir"
+                --openssldir="$workspace/ssl" \
+                no-shared \
+                no-pinshared \
+                no-apps \
+                no-docs \
+                no-tests \
+                threads \
+                zlib \
+                --with-rand-seed=os \
+                --with-zlib-include="$zlib_include_dir" \
+                --with-zlib-lib="$zlib_library_dir"
             execute make "-j$build_threads"
             execute make install_sw
             build_done "openssl" "$openssl_version"

@@ -201,7 +201,7 @@ read_os_release_fields() {
         [[ "$line" == *=* && "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
         value="${line#*=}"
         if [[ ${#value} -ge 2 &&
-            ( "$value" == \"*\" || "$value" == \'*\' ) ]]; then
+            ("$value" == \"*\" || "$value" == \'*\') ]]; then
             value="${value:1:${#value}-2}"
         fi
         OS_RELEASE_FIELDS["$key"]="$value"
@@ -235,9 +235,9 @@ detect_operating_system() {
         debian)
             OS=Debian
             case "${detected_codename:-${detected_version%%.*}}" in
-                bookworm|12) VER=12 OS_CODENAME=bookworm ;;
-                trixie|13) VER=13 OS_CODENAME=trixie ;;
-                forky|sid)
+                bookworm | 12) VER=12 OS_CODENAME=bookworm ;;
+                trixie | 13) VER=13 OS_CODENAME=trixie ;;
+                forky | sid)
                     fail "Debian testing/unstable ('${detected_codename:-$detected_version}') is unsupported; use Debian 12 'bookworm' or 13 'trixie'."
                     ;;
                 *)

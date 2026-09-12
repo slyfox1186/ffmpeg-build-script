@@ -109,11 +109,11 @@ show_requested_metadata_and_exit() {
             --)
                 break
                 ;;
-            -h|--help)
+            -h | --help)
                 usage
                 exit 0
                 ;;
-            -v|--version)
+            -v | --version)
                 printf '%s\n' "$SCRIPT_VERSION"
                 exit 0
                 ;;
@@ -175,23 +175,23 @@ set_build_threads() {
 parse_arguments() {
     while (($# > 0)); do
         case "$1" in
-            -b|--build)
+            -b | --build)
                 DO_BUILD=true
                 shift
                 ;;
-            -c|--cleanup)
+            -c | --cleanup)
                 DO_CLEANUP=true
                 shift
                 ;;
-            -g|--google-speech)
+            -g | --google-speech)
                 GOOGLE_SPEECH=true
                 shift
                 ;;
-            -l|--latest)
+            -l | --latest)
                 LATEST=true
                 shift
                 ;;
-            -n|--enable-gpl-and-non-free)
+            -n | --enable-gpl-and-non-free)
                 enable_gpl_and_non_free
                 shift
                 ;;
@@ -204,7 +204,7 @@ parse_arguments() {
                 COMPILER_FLAG="${1#*=}"
                 shift
                 ;;
-            -j|--jobs)
+            -j | --jobs)
                 (($# >= 2)) || fail "Missing value for '$1'."
                 set_build_threads "$2"
                 shift 2
@@ -220,7 +220,7 @@ parse_arguments() {
             --config=*)
                 shift
                 ;;
-            -h|--help|-v|--version)
+            -h | --help | -v | --version)
                 # Handled before config loading so these options remain side-effect free.
                 shift
                 ;;
