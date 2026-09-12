@@ -15,6 +15,22 @@ from ffmpeg_build.stages.helpers import pkgconf_include_dir, pkgconf_library_dir
 from ffmpeg_build.stages.system_setup import HostPackages, SystemSetup, release_unavailable_packages
 
 
+def test_new_workspace_discovers_tools_installed_after_path_setup(context: BuildContext) -> None:
+    bin_dir = context.workspace / "bin"
+    assert not bin_dir.exists()
+    setup = SystemSetup(context)
+    setup.source_path()
+    # This is the first-run order: PATH is set before global tools are built.
+    for name in ("m4", "autoconf", "automake", "libtoolize", "pkgconf", "cmake", "ninja"):
+        tool = bin_dir / name
+        tool.write_text("#!/bin/sh\nprintf 'workspace-tool\\n'\n")
+        tool.chmod(0o755)
+        assert context.runner.which(name) == str(tool)
+        assert context.runner.capture([name]).stdout == "workspace-tool\n"
+    setup.source_path()
+    assert context.env["PATH"].split(":").count(str(bin_dir)) == 1
+
+
 @pytest.mark.parametrize(
     ("fields", "expected"),
     [

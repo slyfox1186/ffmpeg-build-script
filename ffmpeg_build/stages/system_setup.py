@@ -539,6 +539,11 @@ class SystemSetup:
                 ccache_directory = candidate
                 break
         context.env["ccache_dir"] = ccache_directory
+        # PATH must include this directory before the first tool is installed.
+        # path_prepend intentionally ignores missing directories; otherwise a
+        # fresh build runs system libtoolize with workspace aclocal macros,
+        # while a rerun uses the matching workspace tools.
+        (context.workspace / "bin").mkdir(parents=True, exist_ok=True)
         context.path_prepend(context.workspace / "bin")
         context.path_prepend("/opt/cuda/bin")
         context.path_prepend("/usr/local/cuda/bin")
