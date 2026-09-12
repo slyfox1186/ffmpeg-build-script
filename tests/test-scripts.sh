@@ -71,11 +71,24 @@ assert_not_exists() {
     pass "$description"
 }
 
+# Rejects 127 as well as success. Every one of these drives a project function,
+# so "command not found" means the function was renamed or its script failed to
+# source, and accepting any non-zero status let that pass as a green assertion.
 assert_command_fails() {
     local description="${1:-command fails}"
+    local status
     shift
 
     if "$@" >/dev/null 2>&1; then
+        status=0
+    else
+        status=$?
+    fi
+    if ((status == 0)); then
+        fail_test "$description"
+    fi
+    if ((status == 127)); then
+        printf 'command or function not found (exit 127): %q\n' "$1" >&2
         fail_test "$description"
     fi
     pass "$description"
@@ -1177,6 +1190,11 @@ for ffmpeg_test_tool in ffmpeg ffprobe ffplay; do
         "$ffmpeg_test_tool validation does not display a raw command trace"
     assert_contains "$(<"$log_file")" "configuration: --fake-$ffmpeg_test_tool" \
         "$ffmpeg_test_tool validation retains full output in the build log"
+    # Pairs with the assertion above: the trace has to exist somewhere, or
+    # "absent from stdout" would hold even if validation never ran the command.
+    assert_contains "$(<"$log_file")" \
+        "$ $ffmpeg_test_prefix/bin/$ffmpeg_test_tool -hide_banner -version" \
+        "$ffmpeg_test_tool validation records the command trace in the build log"
 done
 
 sed -i 's/version 8\.1\.2/version 8.1.1/' "$ffmpeg_test_prefix/bin/ffprobe"
