@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154,SC2178 source=/dev/null
+# SC2178: shellcheck misreads the nameref assignments in
+# append_unique_configure_options() as clobbering an array.
+# shellcheck disable=SC2178 source=scripts/shared-utils.sh
 
 ################################################################################
 # Configure, compile, install, and validate FFmpeg.

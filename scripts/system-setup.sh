@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154 source=/dev/null
+# shellcheck source=scripts/shared-utils.sh
 
 ################################################################################
 # Host validation, package installation, and toolchain environment setup.

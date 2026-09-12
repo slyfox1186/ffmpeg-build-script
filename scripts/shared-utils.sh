@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154,SC2317 source=/dev/null
+# SC2317: command_not_found_handle and the trap handlers are invoked by bash
+# itself, so shellcheck sees no call site and reports them as unreachable.
+# shellcheck disable=SC2317 source=/dev/null
 
 ####################################################################################
 ##
@@ -47,6 +49,20 @@ readonly BUILD_ROOT_MARKER_HEADER="ffmpeg-build-root:v1"
 readonly CLEANUP_COMMAND="build-ffmpeg.sh --cleanup"
 _BUILD_ROOT_LOCK_FD=""
 _PACKAGE_CACHE_LOCK_FD=""
+
+# Cross-script state, assigned at runtime by build-ffmpeg.sh and the stage
+# scripts. Declared here because the stage scripts source only this file, so
+# without it SC2154 has to be disabled across all ten of them. With `set -u`
+# deliberately off, that suppression is what let a misspelled read stay silently
+# empty with no static warning and no runtime error.
+cwd="${cwd:-}"
+packages="${packages:-}"
+workspace="${workspace:-}"
+log_file="${log_file:-}"
+build_threads="${build_threads:-}"
+repo_version="${repo_version:-}"
+repo_name="${repo_name:-}"
+version="${version:-}"
 
 # Debug flag
 debug="${FFMPEG_BUILD_DEBUG:-OFF}"
