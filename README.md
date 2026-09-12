@@ -195,6 +195,7 @@ scroll beneath it. Counts include packages only.
 | `f` / `F` | Enable requirements for the current package or all packages |
 | `e` | Edit jobs, CUDA installation/targets and build root for this session |
 | `s` | Save as; subsequent edits auto-save to the chosen file |
+| `o` | Import a TOML file into the current configuration; undo with `u` |
 | `b` | Validate, save and build using the current configuration |
 | `q` | Quit immediately; changes are already saved |
 | Ctrl+C / Ctrl+D / Ctrl+Q | Exit from any screen |
@@ -210,8 +211,23 @@ Search updates while typing. Enter or Escape returns focus to categories and
 keeps the filter; clear the text to show all packages. Arrow and Backspace keys
 edit text normally inside input fields. Dialogs close with Escape, and launch
 settings are validated before Apply accepts them. Invalid jobs, CUDA targets or
-unsafe build roots retain the last accepted launch settings. Relative save paths
-resolve from the invocation directory, and `~` expands in save and build paths.
+unsafe build roots retain the last accepted launch settings. Relative save/import
+paths resolve from the invocation directory, and `~` expands in file and build paths.
+
+In Save as, Up/Down switches between the path field and the Cancel/Save buttons.
+Left/Right moves the text cursor in the path field or selects a button in the
+button row. Returning to the buttons restores the last focused button; Enter
+activates it. Tab and Shift+Tab also move between controls.
+
+The Import button or `o` opens a file-path dialog with the same keyboard controls.
+Import replaces all package selections and persistent build settings (compiler,
+GPL/non-free and latest), then saves to the current autosave destination. Omitted
+packages are disabled, just as with `--config`. Session-only launch settings stay
+in place. Import validates the complete file before applying anything; read or
+validation errors leave the current configuration untouched, and a failed autosave
+rolls back the import. Press `u` to undo a successful import. The source file does
+not become the autosave destination; use Save as to change that destination.
+
 The minimal preset includes build tools and FFmpeg.
 
 Textual handles terminal input and restores keyboard modes on exit. On terminals

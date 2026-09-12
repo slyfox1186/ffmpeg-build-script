@@ -6,8 +6,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..config import BuildSettings, render_config
+from ..config import BuildSettings, load_config, render_config
 from ..runtime.errors import BuildError, UsageError
+from ..runtime.logging import Logger
 from ..runtime.state import publish_atomically
 from .model import LaunchSettings, MenuModel
 
@@ -23,6 +24,20 @@ class MenuResult:
 
 
 Snapshot = tuple[dict[str, bool], bool, bool, str]
+
+
+class _ConfigMessages(Logger):
+    """Keep parser diagnostics in the menu instead of printing over its screen."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    def info(self, message: str) -> None:
+        self.messages.append(message)
+
+    def warn(self, message: str) -> None:
+        self.messages.append(message)
 
 
 class MenuSession:
@@ -101,6 +116,31 @@ class MenuSession:
             return False
         self.result.saved_path = self.default_path = target
         self.message, self.failed = f"Saved '{target}'.", False
+        return True
+
+    def import_config(self, path: str | Path) -> bool:
+        """Validate a source file, then apply it as one atomic, undoable edit."""
+        messages = _ConfigMessages()
+        try:
+            source = Path(path).expanduser().absolute()
+            loaded = load_config(source, messages)
+            loaded.settings.validate()
+        except (OSError, UsageError, ValueError, RuntimeError) as error:
+            self.message, self.failed = f"Import failed: {error}", True
+            return False
+        imported: Snapshot = (
+            loaded.selection.states(),
+            loaded.settings.enable_gpl_and_non_free,
+            loaded.settings.latest,
+            loaded.settings.compiler,
+        )
+        if imported == self.snapshot():
+            if not self.save(self.default_path):
+                return False
+            self.message = f"Imported '{source}'. Saved; settings were already identical."
+        elif not self.change(lambda: self.restore(imported), f"Imported '{source}'."):
+            return False
+        self.message += "\n" + "\n".join(messages.messages)
         return True
 
     def prepare_build(self) -> bool:

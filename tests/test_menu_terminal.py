@@ -201,6 +201,36 @@ def test_physical_keys_single_escape_autosave_and_build_handoff(
         terminal.close()
 
 
+def test_save_dialog_physical_arrows_cancel_and_save(tmp_path: Path) -> None:
+    terminal = Terminal(tmp_path, (80, 24))
+    target = tmp_path / "saved.toml"
+    try:
+        terminal.expect(focus="compiler-category")
+        terminal.send(b"s")
+        terminal.expect(focus="save-path", screen="SaveScreen")
+        terminal.send(os.fsencode(target) + b"\x1b[D\x1b[C\x1b[B")
+        terminal.expect(focus="cancel")
+        terminal.send(b"\x1b[C")
+        terminal.expect(focus="save")
+        terminal.send(b"\x1b[A")
+        terminal.expect(focus="save-path")
+        terminal.send(b"\x1b[B")
+        terminal.expect(focus="save")
+        terminal.send(b"\x1b[D\r")
+        terminal.expect(screen="Screen")
+        assert not target.exists()
+
+        terminal.send(b"s")
+        terminal.expect(focus="save-path", screen="SaveScreen")
+        terminal.send(os.fsencode(target) + b"\x1b[B\x1b[C\r")
+        terminal.expect(screen="Screen")
+        assert load_config(target, Logger()).selection.states() == default_states()
+        terminal.send(b"q")
+        terminal.finish()
+    finally:
+        terminal.close()
+
+
 @pytest.mark.parametrize(
     "action",
     [

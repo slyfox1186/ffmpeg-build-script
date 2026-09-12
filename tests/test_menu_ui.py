@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from textual.widgets import Input, OptionList, RadioSet, SelectionList, Switch
+from textual.widgets import Button, Input, OptionList, RadioSet, SelectionList, Switch
 
 from ffmpeg_build import registry
 from ffmpeg_build.config import BuildSettings, load_config
@@ -200,6 +200,89 @@ def test_dialogs_text_editing_and_build_validation(tmp_path: Path) -> None:
             assert app.session.result.start_build
             assert app.session.result.saved_path == target
             assert load_config(target, Logger()).selection.enabled("zenlib")
+
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize("size", [(120, 36), (80, 24), (40, 10)])
+def test_save_dialog_arrow_focus_and_text_editing(tmp_path: Path, size: tuple[int, int]) -> None:
+    async def check() -> None:
+        original = tmp_path / "custom.toml"
+        target = tmp_path / "saved [draft].toml"
+        app = MenuApp(MenuModel({}, BuildSettings()), original)
+        async with app.run_test(size=size) as pilot:
+            await pilot.press("s")
+            path = app.screen.query_one("#save-path", Input)
+            path.value = str(target)
+            await pilot.press("end", "left", "left", "right")
+            assert app.focused is path
+            assert path.cursor_position == len(str(target)) - 1
+            assert path.value == str(target)
+            for key, expected in (
+                ("down", "cancel"),
+                ("left", "cancel"),
+                ("right", "save"),
+                ("right", "save"),
+                ("up", "save-path"),
+                ("down", "save"),
+                ("down", "save-path"),
+                ("up", "save"),
+                ("left", "cancel"),
+                ("up", "save-path"),
+                ("tab", "cancel"),
+                ("tab", "save"),
+                ("tab", "save-path"),
+                ("shift+tab", "save"),
+                ("left", "cancel"),
+            ):
+                await pilot.press(key)
+                assert app.focused is app.screen.query_one(f"#{expected}")
+            assert path.value == str(target)
+            assert not target.exists() and not original.exists()
+            await pilot.press("enter")
+            assert not isinstance(app.screen, SaveScreen)
+            assert app.session.default_path == original
+            assert not target.exists()
+
+            await pilot.press("s")
+            app.screen.query_one("#save-path", Input).value = str(target)
+            await pilot.press("down", "right", "enter")
+            assert not isinstance(app.screen, SaveScreen)
+            assert app.session.default_path == target
+            assert load_config(target, Logger()).settings.compiler == "gcc"
+
+    asyncio.run(check())
+
+
+def test_save_dialog_arrows_allow_recovery_after_save_errors(tmp_path: Path) -> None:
+    async def check() -> None:
+        original = tmp_path / "custom.toml"
+        app = MenuApp(MenuModel({}, BuildSettings()), original)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.press("s")
+            path = app.screen.query_one("#save-path", Input)
+            for invalid_path in ("", str(tmp_path)):
+                path.value = invalid_path
+                await pilot.press("down")
+                if app.focused is app.screen.query_one("#cancel"):
+                    await pilot.press("right")
+                await pilot.press("enter")
+                assert isinstance(app.screen, SaveScreen)
+                assert app.focused is app.screen.query_one("#save")
+                assert app.session.default_path == original
+                error = app.screen.query_one("#save-error").render_line(0).text.strip()
+                assert error.startswith(
+                    "Enter a file path." if not invalid_path else "Save failed:"
+                )
+                # Button ignores repeat presses during its active animation.
+                await pilot.pause(app.screen.query_one("#save", Button).active_effect_duration)
+                await pilot.press("up")
+                assert app.focused is path
+            path.value = str(tmp_path / "recovered.toml")
+            await pilot.press("down", "enter")
+            assert not isinstance(app.screen, SaveScreen)
+            assert app.session.default_path == tmp_path / "recovered.toml"
+            assert app.session.default_path.is_file()
 
     asyncio.run(check())
 

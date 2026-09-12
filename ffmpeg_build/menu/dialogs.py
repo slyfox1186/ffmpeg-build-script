@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Callable
+from pathlib import Path
 
 from rich.text import Text
 from textual import on
@@ -84,39 +86,127 @@ class PresetScreen(ModalScreen[str | None]):
         self.dismiss(None)
 
 
-class SaveScreen(ModalScreen[None]):
-    AUTO_FOCUS = "#save-path"
+class FileForm(VerticalScroll, can_focus=False):
+    """Route arrows through the focused control before navigating the form."""
+
+    BINDINGS = [
+        Binding("up,down", "screen.switch_row", "Change row", show=False),
+        Binding("left", "screen.focus_button('cancel')", "Cancel button", show=False),
+        Binding("right", "screen.focus_button('confirm')", "Confirm button", show=False),
+    ]
+
+
+class FileScreen(ModalScreen[None]):
+    """A shared path field and action row for saving and importing configuration."""
+
+    AUTO_FOCUS = "Input"
     CSS = DIALOG_CSS
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel", show=False)]
 
-    def __init__(self, session: MenuSession) -> None:
+    def __init__(
+        self,
+        session: MenuSession,
+        *,
+        operation: str,
+        heading: str,
+        hint: str,
+        initial_path: str,
+        submit: Callable[[str], bool],
+    ) -> None:
         super().__init__()
         self.session = session
+        self.operation = operation
+        self.heading = heading
+        self.hint = hint
+        self.initial_path = initial_path
+        self.submit_path = submit
+        self._last_button = "cancel"
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="dialog"):
-            yield Label("Save configuration as", classes="title")
-            yield Static("Future changes will automatically save to this file.", classes="hint")
-            yield Input(str(self.session.default_path), id="save-path", select_on_focus=True)
-            yield Static(classes="error", id="save-error", markup=False)
+        with FileForm(classes="dialog"):
+            yield Label(self.heading, classes="title")
+            yield Static(plain(self.hint), classes="hint")
+            yield Input(
+                self.initial_path,
+                id=f"{self.operation}-path",
+                placeholder="Relative or full path (~/... also works)",
+                select_on_focus=True,
+            )
+            yield Static(
+                plain(f"Relative paths use: {Path.cwd()}"),
+                classes="hint",
+                id="file-path-base",
+            )
+            yield Static(
+                "Up/Down: path/buttons · Left/Right: cursor/buttons",
+                classes="hint",
+            )
+            yield Static(classes="error", id=f"{self.operation}-error", markup=False)
             with Horizontal(classes="buttons"):
                 yield Button("Cancel", id="cancel")
-                yield Button("Save", id="save", variant="primary")
+                yield Button(self.operation.title(), id=self.operation, variant="primary")
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "focus_button":
+            return isinstance(self.focused, Button)
+        return super().check_action(action, parameters)
+
+    def action_switch_row(self) -> None:
+        if isinstance(self.focused, Button):
+            self._last_button = self.focused.id or "cancel"
+            self.set_focus(self.query_one(Input))
+        else:
+            self.set_focus(self.query_one(f"#{self._last_button}", Button))
+
+    def action_focus_button(self, button_id: str) -> None:
+        if button_id == "confirm":
+            button_id = self.operation
+        self.set_focus(self.query_one(f"#{button_id}", Button))
 
     @on(Input.Submitted)
-    @on(Button.Pressed, "#save")
-    def save(self) -> None:
-        path = self.query_one("#save-path", Input).value
-        if path and self.session.save(path):
+    def submit(self) -> None:
+        path = self.query_one(Input).value
+        if path and self.submit_path(path):
             self.dismiss(None)
         else:
-            self.query_one("#save-error", Static).update(
+            self.query_one(f"#{self.operation}-error", Static).update(
                 plain(self.session.message if path else "Enter a file path.")
             )
 
-    @on(Button.Pressed, "#cancel")
-    def cancel(self) -> None:
-        self.dismiss(None)
+    @on(Button.Pressed)
+    def button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id == "cancel":
+            self.dismiss(None)
+        elif event.button.id == self.operation:
+            self.submit()
+
+
+class SaveScreen(FileScreen):
+    def __init__(self, session: MenuSession) -> None:
+        super().__init__(
+            session,
+            operation="save",
+            heading="Save configuration as",
+            hint="Future changes will automatically save to this file.",
+            initial_path=str(session.default_path),
+            submit=session.save,
+        )
+
+
+class ImportScreen(FileScreen):
+    def __init__(self, session: MenuSession) -> None:
+        super().__init__(
+            session,
+            operation="import",
+            heading="Import TOML configuration",
+            hint=(
+                "Replace packages, compiler, GPL/non-free and latest.\n"
+                f"Press u afterwards to undo. Saves to: {session.default_path}"
+            ),
+            initial_path="",
+            submit=session.import_config,
+        )
 
 
 class SettingsScreen(ModalScreen[LaunchSettings | None]):
@@ -203,6 +293,7 @@ e edits jobs, CUDA and build root for this session.
 
 Every package, compiler, licence, latest-version, preset and undo change saves immediately. A failed save reverts the change and shows an error.
 s saves to another file and makes it the new autosave destination.
+o imports a TOML file into the current configuration; u undoes the import.
 b validates the configuration, saves it and starts the build.
 q quits immediately. Ctrl+C, Ctrl+D or Ctrl+Q exits from any screen.
 The terminal is restored and cleared when the menu closes.

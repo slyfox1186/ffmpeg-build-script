@@ -28,7 +28,7 @@ from textual.widgets.option_list import Option
 from .. import registry
 from ..config import COMPILERS
 from ..registry import Package
-from .dialogs import HelpScreen, PresetScreen, SaveScreen, SettingsScreen, plain
+from .dialogs import HelpScreen, ImportScreen, PresetScreen, SaveScreen, SettingsScreen, plain
 from .model import LaunchSettings, MenuModel
 from .session import MenuResult, MenuSession
 
@@ -95,9 +95,13 @@ class MenuApp(App[MenuResult]):
     #workspace { height: 1fr; margin: 0 2; }
     #sidebar { width: 32; border: round $primary-lighten-1; padding: 0 1; }
     #sidebar:focus-within { border: round $accent; }
-    #compiler-category { width: 1fr; height: 1; min-height: 1; border: none; text-align: left; padding: 0 1; }
+    .sidebar-heading { height: 1; color: $text-muted; }
+    #compiler-category {
+        width: 1fr; height: 1; min-height: 1; border: none;
+        text-align: left; content-align: left middle; padding: 0;
+    }
     #compiler-category.active { background: $primary; color: $text; text-style: bold; }
-    #package-heading { height: 2; border-top: solid $primary-lighten-1; color: $text-muted; margin-top: 1; }
+    #package-heading { height: 2; border-top: solid $primary-lighten-1; margin-top: 1; }
     #categories { height: 1fr; padding: 0; border: none; background: $surface; }
     #no-categories { height: auto; color: $text-muted; }
     #options { width: 1fr; margin-left: 1; border: round $primary-lighten-1; padding: 0 1; }
@@ -113,6 +117,7 @@ class MenuApp(App[MenuResult]):
     #status.error { color: $error; text-style: bold; }
     #navigation { height: 1; margin: 0 2; color: $text-muted; }
     .narrow #launch-summary { display: none; }
+    .narrow #import-button { display: none; }
     .short #masthead { height: 1; padding: 0 2; }
     .short #search { height: 1; border: none; padding: 0; margin: 1 2 0 2; }
     .short #details { height: 2; }
@@ -123,11 +128,11 @@ class MenuApp(App[MenuResult]):
     .compact #toolbar, .compact #details { display: none; }
     .compact #search { height: 1; border: none; margin: 0 1; padding: 0; }
     .compact #workspace { margin: 0; }
-    .compact #sidebar { width: 1fr; }
+    .compact #sidebar { width: 1fr; border: none; }
     .compact #options { display: none; margin-left: 0; }
     .compact.options-focused #sidebar { display: none; }
     .compact.options-focused #options { display: block; }
-    .compact #package-heading { height: 1; margin-top: 0; }
+    .compact #package-heading { height: 1; margin-top: 0; border-top: none; }
     .compact #compiler-options { margin-top: 0; }
     .compact #compiler-options RadioButton { height: 1; padding: 0; }
     .compact #compiler-note { display: none; }
@@ -136,6 +141,7 @@ class MenuApp(App[MenuResult]):
     BINDINGS = [
         Binding("b", "build", "Build"),
         Binding("q", "quit_menu", "Quit"),
+        Binding("o", "import_config", "Import"),
         Binding("e", "settings", "Settings"),
         Binding("p", "presets", "Presets"),
         Binding("s", "save_as", "Save as"),
@@ -180,12 +186,17 @@ class MenuApp(App[MenuResult]):
             yield Static(id="launch-summary")
             yield Button("Settings", id="settings-button")
             yield Button("Presets", id="presets-button")
+            yield Button("Import", id="import-button")
             yield Button("Build", variant="primary", id="build-button")
         yield Input(placeholder="Search packages by name, description or category  /", id="search")
         with Horizontal(id="workspace"):
             with Vertical(id="sidebar"):
-                yield Button("Compilers", id="compiler-category", classes="active")
-                yield Static("PACKAGES", id="package-heading")
+                yield Static("BUILD", id="build-heading", classes="sidebar-heading")
+                compiler_category = Button("Compilers", id="compiler-category", classes="active")
+                # Textual 8.2 rejects zero line-pad in CSS; the style API accepts it.
+                compiler_category.styles.line_pad = 0
+                yield compiler_category
+                yield Static("PACKAGES", id="package-heading", classes="sidebar-heading")
                 yield OptionList(id="categories")
                 yield Static(
                     "No packages match.\n/ change search · c compilers", id="no-categories"
@@ -223,7 +234,7 @@ class MenuApp(App[MenuResult]):
         return self._exception
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "quit_menu":
+        if action in ("quit_menu", "focus_next", "focus_previous"):
             return True
         if len(self.screen_stack) > 1:
             return False
@@ -582,6 +593,10 @@ class MenuApp(App[MenuResult]):
 
     def action_save_as(self) -> None:
         self.push_screen(SaveScreen(self.session), lambda _: self._refresh_state())
+
+    @on(Button.Pressed, "#import-button")
+    def action_import_config(self) -> None:
+        self.push_screen(ImportScreen(self.session), lambda _: self._refresh_state())
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())

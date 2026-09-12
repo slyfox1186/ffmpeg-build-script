@@ -1,0 +1,197 @@
+# Copy this template to custom.toml, edit it, and then run:
+# python3 build-ffmpeg.py --build --config ./custom.toml
+#
+# The interactive menu writes this file for you:
+# python3 build-ffmpeg.py --menu
+#
+# This project accepts a deliberately small TOML subset:
+#   [build]
+#   [packages]
+#   key = true|false
+#   compiler = "gcc"|"clang" (only in [build])
+#
+# Package entries are an explicit allowlist: an omitted key is disabled. A true
+# value either builds the component from source or requests its supported system
+# development package, depending on the integration. Some source-built
+# dependencies can fall back to compatible system libraries when disabled.
+#
+# The groups below are for readability, with package keys alphabetized inside
+# each group. They do not control build order; the stages resolve dependencies
+# and build order independently of TOML ordering.
+# GPL/non-free authorization does not turn disabled packages on. Conversely,
+# packages that require that authorization remain inactive until
+# enable_gpl_and_non_free is true or --enable-gpl-and-non-free is passed.
+#
+# The build context records these choices. After changing this file for an
+# existing workspace, clean that same build root before rebuilding:
+# python3 build-ffmpeg.py --cleanup
+
+[build]
+# C/C++ compiler family. CLI --compiler (or --gcc/--clang) overrides this value.
+# Omitted compiler keys default to gcc for compatibility with older configs.
+compiler = "clang"
+
+# Recheck upstream releases and rebuild components whose recorded versions differ.
+latest = false
+
+# Authorize GPL and non-free FFmpeg components; review licensing before enabling.
+enable_gpl_and_non_free = false
+
+[packages]
+
+# Build systems, code generators, assemblers, and packaging tools
+ant-git = false  # Apache Ant Java build tool
+autoconf = true  # Generates portable configure scripts
+automake = true  # Generates portable Makefile templates
+cmake = true  # Cross-platform build-system generator
+libtool = true  # Portable library build and linking helper
+m4 = true  # Macro processor used by Autotools
+meson = true  # High-level build-system generator
+nasm = true  # Netwide x86/x86-64 assembler
+ninja = true  # Fast low-level build executor
+pkgconf = true  # pkg-config-compatible dependency resolver
+yasm = true  # Modular x86/x86-64 assembler
+
+# Compression, parsing, allocation, and other foundational libraries
+brotli = true  # Brotli compression; the freetype build here disables its only use
+gflags = true  # C++ command-line flag processing; nothing built here links it
+jemalloc = true  # Allocator reachable only via FFmpeg's --custom-allocator, which this build never passes
+libiconv = true  # Character-encoding conversion
+libxml2 = true  # XML parsing and processing
+libzstd = true  # Zstandard compression and decompression
+pcre2 = true  # Perl-compatible regular expressions; nothing built here links it
+zlib = true  # DEFLATE compression and decompression
+
+# Cryptography, TLS, name resolution, and network protocols
+c-ares = true  # Asynchronous DNS resolution; nothing built here links it
+gmp = true  # Arbitrary-precision arithmetic used by Nettle and GnuTLS
+gnutls = true  # TLS and cryptographic protocol support
+librist = true  # Reliable Internet Stream Transport
+librtmp = true  # RTMP and RTMPE streaming protocols
+libsmbclient = true  # SMB/CIFS access; enabled only in GPL/non-free mode
+libssh = true  # SSH and SFTP protocol support
+nettle = true  # Low-level cryptographic primitives used by GnuTLS
+openssl = true  # Alternative TLS and cryptography implementation
+srt = true  # Secure Reliable Transport for low-latency streaming
+
+# Fonts, subtitles, captions, teletext, and text recognition
+fontconfig = true  # Font discovery and configuration
+freetype = true  # Font loading and rasterization
+fribidi = true  # Unicode bidirectional-text processing
+harfbuzz = true  # Complex text shaping
+libaribb24 = true  # ARIB STD-B24 caption decoding
+libass = true  # ASS and SSA subtitle rendering
+libtesseract = true  # Optical character recognition for video filters
+libzvbi = true  # Teletext and vertical-blanking-interval decoding
+
+# Still-image codecs, color management, and image containers
+avif = true  # AV1 Image File Format encoding and decoding
+giflib = true  # GIF codec; FFmpeg carries its own and no component here links this one
+lcms2 = true  # ICC color management with Little CMS
+libheif = true  # HEIF and AVIF image container support
+libhwy = true  # SIMD primitives for JPEG XL, which arrives as the system libjxl-dev package
+libjpeg-turbo = true  # SIMD-accelerated JPEG; gpac probes for -ljpeg and links it
+libjxl = true  # System libjxl-dev integration; unavailable on Ubuntu 22.04
+libpng = true  # PNG codec; gpac probes for -lpng and links it
+librsvg = true  # SVG rasterization
+libtiff = true  # TIFF codec; nothing built here links it, and the system copy serves leptonica
+libwebp-git = true  # WebP image encoding and decoding
+openjpeg = true  # JPEG 2000 encoding and decoding
+
+# Audio codecs and audio container formats
+libfdk-aac = true  # Fraunhofer AAC codec; requires non-free authorization
+libgsm = true  # GSM 06.10 speech codec
+liblame = true  # MP3 audio encoding
+libogg = true  # Ogg bitstream framing and container support
+libopus = true  # Opus audio encoding and decoding
+libshine = true  # Fixed-point MP3 audio encoding
+libspeex = true  # Speex speech encoding and decoding
+libtwolame = true  # MPEG Layer II audio encoding
+libvo-amrwbenc = true  # AMR-WB speech encoding
+opencore-amr = true  # AMR-NB and AMR-WB speech codecs
+vorbis = true  # Vorbis audio encoding and decoding
+
+# Audio resampling, analysis, effects, and synthesis
+chromaprint = true  # Acoustic fingerprint generation
+libbs2b = true  # Bauer stereo-to-binaural audio processing
+libflite = true  # Flite text-to-speech synthesis
+libgme = true  # Video-game music emulation
+libmodplug = true  # Tracker-module audio decoding
+libmysofa = true  # SOFA HRTF data for spatial audio
+libopenmpt = true  # Tracker-module audio decoding and rendering
+libsndfile = true  # Sampled-audio file I/O; rubberband builds with auto_features disabled
+libsoxr = true  # High-quality audio sample-rate conversion
+rubberband-git = true  # Time stretching and pitch shifting
+
+# Audio plugin standards and the LV2 dependency stack
+ladspa = true  # LADSPA audio plugin API and filters
+lilv = true  # LV2 plugin discovery, loading, and hosting
+lv2-git = true  # LV2 audio plugin specification and headers
+serd = true  # Lightweight RDF syntax library used by LV2
+sord = true  # In-memory RDF store used by LV2
+sratom = true  # LV2 Atom serialization to and from RDF
+zix = true  # Portability utilities used by LV2; system libzix-dev is absent on Ubuntu 22.04 and Debian 12
+
+# Audio devices and sound servers
+alsa = true  # Linux ALSA audio input and output
+libjack = true  # Low-latency JACK audio input and output
+libpulse = true  # PulseAudio input and output
+sndio = true  # sndio audio input and output
+
+# Video codecs and codec support libraries
+av1-git = true  # AOMedia AV1 encoding and decoding with libaom
+kvazaar = true  # HEVC/H.265 video encoding
+libdav1d = true  # High-performance AV1 video decoding
+libgav1-git = true  # Standalone AV1 decoder; not used by FFmpeg
+libopenh264 = true  # Cisco H.264 encoding and decoding
+libsnappy = true  # Snappy compression required by the HAP decoder
+libtheora = true  # Theora video encoding and decoding
+libvpx = true  # VP8 and VP9 video encoding and decoding
+rav1e = true  # Rust-based AV1 video encoding
+svt-av1 = true  # Scalable Video Technology AV1 encoding
+x264 = true  # GPL H.264 video encoding; requires GPL/non-free mode
+x265 = true  # GPL HEVC/H.265 video encoding; requires GPL/non-free mode
+xvidcore = true  # MPEG-4 Part 2 video encoding and decoding
+
+# Video processing, quality analysis, and scripting frameworks
+avisynth = true  # AviSynth script and frame-server input
+frei0r = true  # Video-effects plugin API; enabled only in GPL/non-free mode
+libvmaf = true  # Perceptual video quality measurement
+vapoursynth = true  # VapourSynth script and frame-server input
+vid-stab = true  # Video stabilization and transform filters
+zimg-git = true  # Scaling, colorspace conversion, and dithering
+
+# Optical media, containers, packaging, and metadata tools
+gpac-git = true  # GPAC and MP4Box multimedia packaging tools
+libbluray = true  # Blu-ray disc navigation and access
+libcdio = true  # Audio CD input; enabled only in GPL/non-free mode
+libdvdnav = true  # DVD navigation; with libdvdread it enables FFmpeg's dvdvideo demuxer (GPL)
+libdvdread = true  # DVD disc structure and data access
+mediainfo-cli = true  # Command-line technical metadata inspector
+mediainfo-lib = true  # Library for reading technical media metadata
+udfread = true  # Universal Disk Format filesystem reader
+zenlib = true  # Utility library required by MediaInfoLib
+
+# Playback, capture, window systems, and visual output
+freeglut = true  # GLUT toolkit; FFmpeg's OpenGL device needs GL/GLX instead
+libcaca = true  # Color text and ASCII-art video output
+libv4l2 = true  # Video4Linux2 capture and device access
+opengl = true  # OpenGL video output
+sdl2 = true  # Window, audio, and input support required by ffplay
+xlib = true  # X11 and XCB screen capture
+
+# GPU APIs, codec SDK headers, and hardware acceleration
+amf-headers = true  # AMD Advanced Media Framework SDK headers
+libdrm = true  # Userspace Direct Rendering Manager interface
+libplacebo = true  # Vulkan-based GPU scaling and tone mapping
+libshaderc = true  # System libshaderc-dev integration; unavailable on Ubuntu 22.04
+libvpl = true  # oneVPL API for Intel Quick Sync acceleration
+nv-codec-headers = true  # NVIDIA codec SDK headers; requires GPL/non-free mode
+opencl-sdk-git = true  # Khronos OpenCL headers, bindings, loader, and utilities
+vaapi = true  # VA-API hardware-accelerated video processing
+vdpau = true  # VDPAU hardware-accelerated video decoding and presentation
+vulkan = true  # Vulkan loader for hardware acceleration and GPU filters
+vulkan-headers-git = true  # Khronos Vulkan API headers
+
+# Final application
+ffmpeg = true  # FFmpeg command-line tools and multimedia libraries
