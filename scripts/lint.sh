@@ -36,6 +36,11 @@ for shell_file in "${shell_files[@]}"; do
 done
 printf 'bash syntax: OK (%d files)\n' "${#shell_files[@]}"
 
+shellcheck --version | sed -n 's/^version: /ShellCheck version: /p'
+# Deliberately not --enable=check-extra-masked-returns: it reports 48 sites here,
+# almost all benign ($(uname -m) inside a comparison), and silencing them would
+# mean 48 suppressions. The masked-status case that actually loses a helper's
+# failure is caught precisely by the unchecked-capture rule further down.
 shellcheck --external-sources --severity=style "${shell_files[@]}"
 printf 'ShellCheck: OK\n'
 
@@ -43,6 +48,46 @@ python3 -c \
     'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' \
     run_linter.py
 printf 'Python syntax: OK\n'
+
+# example.toml is the tracked template and the only listing of every supported
+# key. A new [packages] key needs matching edits in SUPPORTED_PACKAGE_NAMES and
+# in the template, and an unknown key is fatal at runtime, so check statically
+# that the two agree instead of finding out during a build.
+python3 - <<'PYTHON'
+import pathlib
+import re
+import sys
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    print("python3 lacks tomllib (3.11+); skipping the example.toml parse.", file=sys.stderr)
+    raise SystemExit(0)
+
+try:
+    config = tomllib.loads(pathlib.Path("example.toml").read_text(encoding="utf-8"))
+except tomllib.TOMLDecodeError as error:
+    raise SystemExit(f"example.toml is not valid TOML: {error}")
+
+template_keys = set(config.get("packages", {}))
+
+source = pathlib.Path("scripts/shared-utils.sh").read_text(encoding="utf-8")
+match = re.search(r"readonly -a SUPPORTED_PACKAGE_NAMES=\(\n(.*?)\n\)", source, re.S)
+if match is None:
+    raise SystemExit("Could not locate SUPPORTED_PACKAGE_NAMES in scripts/shared-utils.sh.")
+registry_keys = set(match.group(1).split())
+
+missing_from_template = sorted(registry_keys - template_keys)
+missing_from_registry = sorted(template_keys - registry_keys)
+if missing_from_template or missing_from_registry:
+    if missing_from_template:
+        print("Registered but absent from example.toml:", ", ".join(missing_from_template), file=sys.stderr)
+    if missing_from_registry:
+        print("In example.toml but not registered:", ", ".join(missing_from_registry), file=sys.stderr)
+    raise SystemExit(1)
+
+print(f"example.toml: OK ({len(template_keys)} package keys match the registry)")
+PYTHON
 
 # README reproduces usage() verbatim as the CLI contract. Nothing enforced that,
 # so the two drifted (column widths and one option description). Neither awk

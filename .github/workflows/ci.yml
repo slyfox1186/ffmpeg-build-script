@@ -20,11 +20,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install static-analysis tools
+      # pkgconf, flock and mkfifo back fixtures in tests/test-scripts.sh; without
+      # them the suite skips silently rather than failing.
+      - name: Install static-analysis tools and test prerequisites
         run: |
           sudo apt -o APT::Cmd::Disable-Script-Warning=1 update
           sudo apt -o APT::Cmd::Disable-Script-Warning=1 install \
-            --assume-yes --no-install-recommends shellcheck
+            --assume-yes --no-install-recommends shellcheck pkgconf util-linux coreutils
 
       - name: Run static analysis
         run: python3 run_linter.py
