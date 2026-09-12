@@ -59,6 +59,42 @@ def test_build_markers_and_messages(
         context.build_done("jemalloc", "1.2.3")
 
 
+def test_failed_upgrade_invalidates_consumer_markers_before_writes(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A version marker cannot certify artifacts modified by a failed install.
+    for key in ("zenlib", "mediainfo-lib", "mediainfo-cli", "ffmpeg", "nasm"):
+        context.marker_path(key).write_text("1.0\n")
+    monkeypatch.setattr(context, "package_artifacts_ready", lambda key: True)
+    context.latest = True
+    assert context.build("zenlib", "2.0")
+    for key in ("zenlib", "mediainfo-lib", "mediainfo-cli", "ffmpeg"):
+        assert not context.marker_path(key).exists()
+    assert context.marker_path("nasm").exists()
+    # Model interruption before build_done: a normal resume must retry even
+    # when a .pc file still exists from a partly overwritten installation.
+    context.latest = False
+    assert context.build("zenlib", "2.0")
+    context.build_done("zenlib", "2.0")
+    assert context.build("ffmpeg", "1.0")
+
+
+def test_dependency_only_success_does_not_probe_system_ffmpeg(
+    context: BuildContext, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ffmpeg_build.stages.ffmpeg_build import report_success
+
+    context.logger._out = sys.stdout
+    context.selection = Selection({"zenlib": True}, Path("fixture.toml"))
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("A dependencies-only summary probed an unrelated installed program")
+
+    monkeypatch.setattr("ffmpeg_build.stages.ffmpeg_build.os.access", forbidden)
+    report_success(context)
+    assert "Dependency build completed successfully" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("version", [None, "", "../escape", "bad version"])
 def test_invalid_build_versions(context: BuildContext, version: str | None) -> None:
     with pytest.raises(BuildError, match="invalid version"):

@@ -203,6 +203,12 @@ Each successful component writes an atomic `.done` marker containing the exact
 release version or Git commit used. A normal rerun reuses those versions and
 does not contact every upstream service. `--latest` refreshes upstream versions
 and rebuilds components whose recorded version changed.
+Starting a rebuild invalidates that component's completion marker, the
+registry's declared dependent components, and FFmpeg's marker before any recipe
+writes. A failed upgrade is retried on resume, and FFmpeg is relinked against
+rebuilt static dependencies. For changes to optional dependencies detected by
+upstream build systems outside the registry's dependency rules, use a clean
+workspace to guarantee every optional integration is reconfigured.
 
 Use either an absolute or relative path for a separate build root:
 

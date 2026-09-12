@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
-from ..runtime.exec import base_environment
+from ..runtime.exec import Runner, base_environment
 from ..runtime.paths import DirectoryLock, safe_remove_tree
 from ..runtime.state import read_marker_version
 from .hardware import HardwareDetection
@@ -651,23 +651,22 @@ class FFmpegStage:
 
 def report_success(context: BuildContext) -> None:
     """Print the closing summary from the installed binary's own capabilities."""
-    import subprocess
+    if not context.package_enabled("ffmpeg"):
+        context.logger.banner("Dependency build completed successfully")
+        _report_package_summary(context)
+        return
 
     ffmpeg_path = Path("/usr/local/bin/ffmpeg")
     if not os.access(ffmpeg_path, os.X_OK):
         raise BuildError(f"The build completed, but '{ffmpeg_path}' is missing or not executable.")
 
     def ask(*arguments: str) -> str:
-        try:
-            return subprocess.run(
-                [str(ffmpeg_path), *arguments],
-                capture_output=True,
-                text=True,
-                check=False,
-                env=base_environment(),
-            ).stdout
-        except OSError:
-            return ""
+        result = Runner(context.logger, base_environment()).capture(
+            [str(ffmpeg_path), *arguments], timeout=20
+        )
+        if result.returncode != 0:
+            raise BuildError(f"Unable to read installed FFmpeg capabilities: {result.stderr}")
+        return result.stdout
 
     version_line = ask("-version").split("\n", 1)[0] or "unknown"
     counts = {}
@@ -690,8 +689,6 @@ def report_success(context: BuildContext) -> None:
         if os.access(f"/usr/local/bin/{tool}", os.X_OK)
     ]
 
-    from ..runtime.logging import format_duration
-
     palette = context.logger.out_palette
     green, cyan, nc = palette.green, palette.cyan, palette.nc
     print()
@@ -707,6 +704,14 @@ def report_success(context: BuildContext) -> None:
         f"{green}✓ Reported hardware accelerators:{nc} "
         f"{cyan}{', '.join(accelerators) or 'none reported'}{nc}"
     )
+    _report_package_summary(context)
+
+
+def _report_package_summary(context: BuildContext) -> None:
+    from ..runtime.logging import format_duration
+
+    palette = context.logger.out_palette
+    green, cyan, nc = palette.green, palette.cyan, palette.nc
     print(
         f"{green}✓ Packages:{nc} {cyan}{context.packages_built}{nc} built, "
         f"{cyan}{context.packages_already_built}{nc} already current, "

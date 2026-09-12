@@ -75,3 +75,25 @@ prefix inode across users/workspaces for the entire backup/promote/validate/
 restore transaction. Restoration attempts the remaining programs after an
 individual command or logging error. Contention and partial restoration are
 covered by regressions. Real privileged installation/rollback is unverified.
+
+## High severity: failed upgrades and static relinking
+
+Remove completion markers before recipes can replace artifacts; also invalidate
+FFmpeg and the transitive consumers declared in registry.REQUIREMENTS. Regression
+coverage verifies a failed ZenLib upgrade forces MediaInfoLib, MediaInfo CLI and
+FFmpeg to rebuild while preserving unrelated NASM state. This deliberately
+corrects the incomplete documentation that described only changed versions.
+Kimi's suggestion to preserve old markers was rejected: make install writes in
+place and does not guarantee old artifacts survive failure. GLM identified this
+failure path correctly. Unknown optional upstream dependency detection is not
+modeled as a complete dependency graph; a clean workspace remains necessary for
+guaranteed reconfiguration of those integrations.
+
+## Medium severity: dependency-only completion
+
+Selecting ffmpeg=false now produces a dependency-build summary without probing
+an unrelated /usr/local/bin/ffmpeg. Success reporting precedes interactive
+cleanup so it reads capabilities and the log while the workspace still exists.
+Capability probes use bounded managed subprocesses and report failures instead
+of silently displaying zero capabilities. Regression coverage forbids system
+binary probes for a dependencies-only selection.

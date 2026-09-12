@@ -567,8 +567,8 @@ class Orchestrator:
         install_image_libraries(context)
         FFmpegStage(context, hardware).run()
 
-        self.cleanup()
         report_success(context)
+        self.cleanup()
 
     def host_mutation_lock(self) -> DirectoryLock:
         """Serialize the host-mutating sections across every run by this user.

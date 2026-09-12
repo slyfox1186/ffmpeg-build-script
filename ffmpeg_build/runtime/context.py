@@ -489,6 +489,20 @@ class BuildContext:
         Split out because three branches of `build` reach this point and the
         counter must advance exactly once per package that actually builds.
         """
+        # Recipes install in place. Invalidate before any write, including on
+        # --latest: a failed upgrade may leave new artifacts beside old ones.
+        # Consumers must also rebuild when a dependency's static archive changes.
+        invalidated = {key, "ffmpeg"}
+        while True:
+            consumers = {
+                rule.package for rule in registry.REQUIREMENTS if rule.needs in invalidated
+            }
+            expanded = invalidated | consumers
+            if expanded == invalidated:
+                break
+            invalidated = expanded
+        for package in sorted(invalidated):
+            self.marker_path(package).unlink(missing_ok=True)
         self.packages_built += 1
         self._package_started = self.logger.elapsed_seconds
         self._package_in_progress = key
