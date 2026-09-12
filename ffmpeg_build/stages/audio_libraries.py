@@ -253,8 +253,9 @@ def install_audio_libraries(context: BuildContext) -> None:
         configure_make_install(
             context,
             source,
-            # FFmpeg needs libmp3lame, not the optional standalone encoder.
-            *[f"--disable-{feature}" for feature in ("gtktest", "shared", "frontend")],
+            # FFmpeg uses the encoder and supplies its own MP3 decoder. LAME's
+            # optional decoder otherwise adds an external mpg123 link dependency.
+            *[f"--disable-{feature}" for feature in ("gtktest", "shared", "frontend", "decoder")],
             "--enable-nasm",
             *iconv_options,
         )

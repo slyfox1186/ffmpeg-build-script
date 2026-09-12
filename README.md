@@ -308,7 +308,11 @@ System integrations use the distribution's APT packages; their versions follow
 the configured distribution repositories. `All` selects every package and
 reuses completed builds; `SKIP ... already built` means reuse, not deselection.
 Missing installed artifacts are repaired from the recorded release or matching
-Git checkout. If a recorded Git checkout is missing or points to another commit,
+Git checkout. LAME and SVT-AV1 archives must also pass a static link check before
+reuse, so incomplete dependencies or incompatible LTO objects trigger a repair.
+LAME builds its encoder without the optional mpg123 decoder; SVT-AV1 builds
+native objects compatible with FFmpeg's host linker.
+If a recorded Git checkout is missing or points to another commit,
 a normal rerun stops with recovery instructions; restore that checkout or use
 `--latest` to select a fresh snapshot. It does not silently discard the pin.
 Starting a rebuild invalidates that component's completion marker, the

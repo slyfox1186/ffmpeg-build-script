@@ -299,6 +299,9 @@ def install_video_libraries(context: BuildContext) -> None:
             "-DBUILD_APPS=OFF",
             "-DBUILD_SHARED_LIBS=OFF",
             "-DBUILD_TESTING=OFF",
+            # FFmpeg links with the host linker; LLVM bitcode from SVT's
+            # default LTO cannot be consumed by a normal GNU ld link.
+            "-DSVT_AV1_LTO=OFF",
             f"-DENABLE_AVX512={check_avx512()}",
             "-DEXCLUDE_HASH=ON",
             "-DNATIVE=ON",

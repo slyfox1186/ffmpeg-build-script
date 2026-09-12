@@ -114,7 +114,9 @@ def isolate(context: BuildContext, monkeypatch: pytest.MonkeyPatch) -> None:
         # pkgconf's executable is the host tool; all other artifacts are fixtures.
         if key == "pkgconf":
             return context.pkgconf_uses_system_default_path(Path("/usr/bin/pkgconf"))
-        if key == "ffmpeg":
+        if key in ("ffmpeg", "liblame", "svt-av1"):
+            # Inert archive fixtures cannot satisfy the real static link probe;
+            # its broken-dependency and repair paths have compiler-backed tests.
             return True
         return real_artifacts(key)
 

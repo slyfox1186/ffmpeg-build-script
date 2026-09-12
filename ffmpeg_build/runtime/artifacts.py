@@ -108,7 +108,6 @@ FILE_ARTIFACTS: dict[str, Callable[[Path], bool]] = {
     "giflib": lambda workspace: _any_file(workspace, "lib/libgif.a"),
     "libiconv": lambda workspace: _any_file(workspace, "lib/libiconv.a", "lib64/libiconv.a"),
     "gmp": lambda workspace: _any_file(workspace, "lib/libgmp.a", "lib64/libgmp.a"),
-    "liblame": lambda workspace: _any_file(workspace, "lib/libmp3lame.a", "lib64/libmp3lame.a"),
     "libtheora": lambda workspace: _any_file(
         workspace, "lib/libtheoraenc.a", "lib64/libtheoraenc.a"
     ),

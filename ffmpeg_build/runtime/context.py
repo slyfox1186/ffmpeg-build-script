@@ -293,6 +293,21 @@ class BuildContext:
         """True when the workspace still holds what this package installed."""
         if key == "pkgconf":
             return self.pkgconf_uses_system_default_path(self.workspace / "bin/pkgconf")
+        if key == "liblame":
+            return self.workspace_static_library_links(
+                "mp3lame",
+                "#include <lame/lame.h>\n"
+                "int main(void) { return lame_set_VBR_quality(lame_init(), 2.0f); }\n",
+            )
+        if key == "svt-av1":
+            return self.workspace_pkgconf_modules_ready(
+                "SvtAv1Enc"
+            ) and self.workspace_static_library_links(
+                "SvtAv1Enc",
+                "#include <svt-av1/EbSvtAv1Enc.h>\n"
+                "int main(void) { void (*volatile entry)(void) = "
+                "(void (*)(void))svt_av1_enc_init_handle; return entry == 0; }\n",
+            )
         if key == "vapoursynth":
             return artifacts.vapoursynth_sdk_ready(self.workspace)
         if key == "ffmpeg":
@@ -313,6 +328,46 @@ class BuildContext:
         # Ancillary tools and system packages have no stable workspace artifact
         # contract, so their atomic version marker is the whole story.
         return True
+
+    def workspace_static_library_links(self, library: str, source: str) -> bool:
+        """Validate static encoder archives with FFmpeg's C linker on reuse.
+
+        Existing archives can contain incompatible LTO objects or unresolved
+        decoder dependencies. An absolute archive path prevents a system
+        library from accidentally satisfying the probe.
+        """
+        archive = next(
+            (
+                self.workspace / name
+                for name in (f"lib64/lib{library}.a", f"lib/lib{library}.a")
+                if (self.workspace / name).is_file()
+            ),
+            None,
+        )
+        compiler = self.env.get("CC", "cc")
+        if archive is None or self.runner.which(compiler) is None:
+            return False
+        return (
+            self.runner.capture(
+                [
+                    compiler,
+                    f"-I{self.workspace}/include",
+                    "-x",
+                    "c",
+                    "-",
+                    "-x",
+                    "none",
+                    str(archive),
+                    "-lm",
+                    "-pthread",
+                    "-o",
+                    os.devnull,
+                ],
+                stdin_text=source,
+                timeout=30,
+            ).returncode
+            == 0
+        )
 
     # -- build bookkeeping -----------------------------------------------
 

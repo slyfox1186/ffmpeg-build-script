@@ -541,3 +541,120 @@ def test_xvid_preserves_legacy_bool_and_scopes_c_dialect(
     monkeypatch.setattr(context, "execute", execute)
     with pytest.raises(Configured):
         _install_gpl_video(context)
+
+
+def test_lame_marker_rejects_unresolved_decoder_dependency(
+    context: BuildContext, tmp_path: Path
+) -> None:
+    import shutil
+    import subprocess
+
+    compiler = shutil.which(context.env["CC"])
+    archiver = shutil.which("ar")
+    if compiler is None or archiver is None:
+        pytest.skip("A C compiler and ar are needed for static archive validation")
+    include = context.workspace / "include/lame"
+    include.mkdir(parents=True)
+    (include / "lame.h").write_text(
+        "void *lame_init(void);\nint lame_set_VBR_quality(void *, float);\n"
+    )
+    archive = context.workspace / "lib/libmp3lame.a"
+    archive.parent.mkdir()
+    source, obj = tmp_path / "lame.c", tmp_path / "lame.o"
+
+    def compile_archive(decoder: bool) -> None:
+        source.write_text(
+            "extern void missing_mpg123_decoder(void);\n"
+            "void *lame_init(void) { "
+            + ("missing_mpg123_decoder(); " if decoder else "")
+            + "return 0; }\nint lame_set_VBR_quality(void *p, float q) { return 0; }\n"
+        )
+        subprocess.run(
+            [compiler, "-c", str(source), "-o", str(obj)], check=True, capture_output=True
+        )
+        subprocess.run([archiver, "rcs", str(archive), str(obj)], check=True, capture_output=True)
+
+    compile_archive(decoder=True)
+    context.marker_path("liblame").write_text("4.0\n")
+    context.marker_path("ffmpeg").write_text("9.0.1\n")
+    assert not context.package_artifacts_ready("liblame")
+    assert context.build("liblame", "4.0")
+    assert not context.marker_path("liblame").exists()
+    assert not context.marker_path("ffmpeg").exists()
+    compile_archive(decoder=False)
+    context.build_done("liblame", "4.0")
+    assert not context.build("liblame", "4.0")
+
+
+def test_lame_recipe_builds_encoder_without_external_decoder(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from ffmpeg_build.stages.audio_libraries import install_audio_libraries
+
+    context.selection = Selection({"liblame": True}, Path("fixture.toml"))
+    monkeypatch.setattr(context.versions, "lame", lambda: "9.8.7")
+    monkeypatch.setattr(context, "download", lambda *args: tmp_path)
+
+    class Configured(Exception):
+        pass
+
+    def configure(ctx: BuildContext, source: Path, *options: str) -> None:
+        assert "--disable-decoder" in options
+        assert "--disable-frontend" in options
+        assert "--disable-shared" in options
+        raise Configured
+
+    monkeypatch.setattr("ffmpeg_build.stages.audio_libraries.configure_make_install", configure)
+    with pytest.raises(Configured):
+        install_audio_libraries(context)
+
+
+def test_svt_recipe_keeps_static_archive_compatible_with_host_linker(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from ffmpeg_build.stages.video_libraries import install_video_libraries
+
+    context.selection = Selection({"svt-av1": True}, Path("fixture.toml"))
+    monkeypatch.setattr("ffmpeg_build.stages.video_libraries.find_git_repo", lambda *args: "9.8.7")
+    monkeypatch.setattr(context, "download", lambda *args: tmp_path)
+
+    class Configured(Exception):
+        pass
+
+    def configure(ctx: BuildContext, source: Path, build: str, *options: str) -> None:
+        assert "-DSVT_AV1_LTO=OFF" in options
+        assert "-DBUILD_SHARED_LIBS=OFF" in options
+        raise Configured
+
+    monkeypatch.setattr("ffmpeg_build.stages.video_libraries.cmake_ninja_install", configure)
+    with pytest.raises(Configured):
+        install_video_libraries(context)
+
+
+def test_svt_marker_requires_a_linkable_archive_even_with_valid_metadata(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import shutil
+    import subprocess
+
+    compiler = shutil.which(context.env["CC"])
+    archiver = shutil.which("ar")
+    if compiler is None or archiver is None:
+        pytest.skip("A C compiler and ar are needed for static archive validation")
+    monkeypatch.setattr(context, "workspace_pkgconf_modules_ready", lambda *args: True)
+    header = context.workspace / "include/svt-av1/EbSvtAv1Enc.h"
+    header.parent.mkdir(parents=True)
+    header.write_text("int svt_av1_enc_init_handle(void);\n")
+    archive = context.workspace / "lib/libSvtAv1Enc.a"
+    archive.parent.mkdir()
+    archive.write_bytes(b"incompatible archive")
+    context.marker_path("svt-av1").write_text("4.2.0\n")
+    assert not context.package_artifacts_ready("svt-av1")
+    assert context.build("svt-av1", "4.2.0")
+    archive.unlink()
+    source, obj = tmp_path / "svt.c", tmp_path / "svt.o"
+    source.write_text("int svt_av1_enc_init_handle(void) { return 0; }\n")
+    subprocess.run([compiler, "-c", str(source), "-o", str(obj)], check=True, capture_output=True)
+    subprocess.run([archiver, "rcs", str(archive), str(obj)], check=True, capture_output=True)
+    context.build_done("svt-av1", "4.2.0")
+    assert not context.build("svt-av1", "4.2.0")
