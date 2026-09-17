@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import signal
 import time
@@ -10,6 +11,31 @@ from dataclasses import dataclass
 from .errors import BuildError
 from .logging import Logger
 from .paths import DirectoryLock
+
+# Linux's syscall number for pidfd_send_signal on x86_64. Some CPython builds,
+# including conda-forge's and python-build-standalone's, omit
+# `signal.pidfd_send_signal` although the kernel provides the call.
+_PIDFD_SEND_SIGNAL_SYSCALL = 424
+
+
+def pidfd_send_signal(fd: int, signum: int) -> None:
+    """Signal the process behind a pidfd or /proc/<pid> descriptor."""
+    wrapper = getattr(signal, "pidfd_send_signal", None)
+    if wrapper is not None:
+        wrapper(fd, signum)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    result = libc.syscall(
+        ctypes.c_long(_PIDFD_SEND_SIGNAL_SYSCALL),
+        ctypes.c_int(fd),
+        ctypes.c_int(signum),
+        None,
+        ctypes.c_uint(0),
+    )
+    if result != 0:
+        error = ctypes.get_errno()
+        # OSError maps ESRCH to ProcessLookupError, matching the wrapper.
+        raise OSError(error, os.strerror(error))
 
 
 @dataclass
@@ -31,7 +57,7 @@ class _Process:
     def send(self, signum: signal.Signals) -> None:
         try:
             # A pinned /proc descriptor prevents a reused PID being signalled.
-            signal.pidfd_send_signal(self.fd, signum)
+            pidfd_send_signal(self.fd, signum)
         except ProcessLookupError:
             pass
 

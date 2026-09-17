@@ -21,7 +21,7 @@ def test_metadata_has_no_side_effects(tmp_path: Path, argv: tuple[str, ...]) -> 
     root = tmp_path / "absent"
     result = invoke(root, *argv, FFMPEG_BUILD_DEBUG="on", DOWNLOAD_MAX_TIME="garbage")
     assert result.returncode == 0, result.stdout
-    assert result.stdout == ("8.0.0\n" if argv == ("--version",) else usage_text())
+    assert result.stdout == ("8.1.0\n" if argv == ("--version",) else usage_text())
     assert not root.exists()
     assert "--config ./custom.toml" in usage_text()
     assert "local.toml" not in usage_text()

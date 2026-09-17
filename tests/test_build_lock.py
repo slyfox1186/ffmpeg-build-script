@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from ffmpeg_build.runtime.build_lock import take_over_build_lock
+from ffmpeg_build.runtime.build_lock import pidfd_send_signal, take_over_build_lock
 from ffmpeg_build.runtime.errors import BuildError
 from ffmpeg_build.runtime.logging import Logger
 from ffmpeg_build.runtime.paths import DirectoryLock
@@ -62,10 +62,28 @@ def test_force_takeover_kills_only_the_lock_holder_and_its_workers(tmp_path: Pat
             competitor.stdout.close()
         if worker_fd is not None:
             try:
-                signal.pidfd_send_signal(worker_fd, signal.SIGKILL)
+                pidfd_send_signal(worker_fd, signal.SIGKILL)
             except ProcessLookupError:
                 pass
             os.close(worker_fd)
+
+
+def test_signal_falls_back_to_syscall_without_python_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delattr(signal, "pidfd_send_signal", raising=False)
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    fd = os.open(f"/proc/{child.pid}", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        pidfd_send_signal(fd, signal.SIGKILL)
+        assert child.wait(timeout=5) == -signal.SIGKILL
+        with pytest.raises(ProcessLookupError):
+            pidfd_send_signal(fd, signal.SIGKILL)
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait(timeout=5)
+        os.close(fd)
 
 
 def test_takeover_does_not_signal_its_own_process(tmp_path: Path) -> None:

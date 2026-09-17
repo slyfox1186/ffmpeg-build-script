@@ -243,7 +243,7 @@ def test_context_mismatch_is_before_sudo_and_log_truncation(
         orchestrator.teardown()
 
 
-@pytest.mark.parametrize("version", ["6.0.0", "7.0.0"])
+@pytest.mark.parametrize("version", ["6.0.0", "7.0.0", "8.0.0"])
 @pytest.mark.parametrize("change", ["compatible", "flags", "selection"])
 def test_workspace_upgrade(
     context: BuildContext, version: str, change: str, capsys: pytest.CaptureFixture[str]
@@ -251,7 +251,7 @@ def test_workspace_upgrade(
     orchestrator = Orchestrator(REPO, [])
     path = context.cwd / BUILD_CONTEXT_NAME
     previous = orchestrator.current_build_context(context).replace(
-        "script_version=8.0.0", f"script_version={version}"
+        "script_version=8.1.0", f"script_version={version}"
     )
     if change == "flags":
         previous = (
@@ -269,7 +269,7 @@ def test_workspace_upgrade(
     if change == "compatible":
         orchestrator.ensure_build_context(context)
         assert "Adopted this workspace" in capsys.readouterr().out
-        assert "script_version=8.0.0" in path.read_text()
+        assert "script_version=8.1.0" in path.read_text()
         assert not context.marker_path("ffmpeg").exists()
     else:
         with pytest.raises(BuildError, match="before rebuilding"):

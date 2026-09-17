@@ -13,7 +13,7 @@ below are what put them there.
 
 from __future__ import annotations
 
-SCRIPT_VERSION = "8.0.0"
+SCRIPT_VERSION = "8.1.0"
 SCRIPT_NAME = "build-ffmpeg.py"
 
 LABEL_WIDTH = 33
