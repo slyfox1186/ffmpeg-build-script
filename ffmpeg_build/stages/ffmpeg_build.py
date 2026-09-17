@@ -187,12 +187,9 @@ class FFmpegStage:
                 raise BuildError(f"Installed FFmpeg did not report any {capability}.")
 
         if display_results:
-            palette = self.logger.out_palette
-            print(
-                f"\n{palette.bold}{palette.text}FFmpeg installation verified{palette.nc} ({install_prefix}/bin):"
-            )
+            self.logger.banner(f"FFmpeg installation verified ({install_prefix}/bin)")
             for version_line in version_lines:
-                print(f"  {version_line}")
+                self.logger.hint(version_line)
 
     def backup_installed_programs(self, backup_dir: Path, install_prefix: Path) -> None:
         """Copy the three programs aside before `/usr/local` is touched.
@@ -677,19 +674,17 @@ def report_success(context: BuildContext) -> None:
         if os.access(f"/usr/local/bin/{tool}", os.X_OK)
     ]
 
-    palette = context.logger.out_palette
-    check = f"{palette.success}✓{palette.nc}{palette.text}"
     print()
     context.logger.banner("FFmpeg build completed successfully")
-    print(f"\n{check} Version: {version_line}{palette.nc}")
-    print(f"{check} Installation: /usr/local/bin{palette.nc}")
-    print(f"{check} Installed tools: {' '.join(installed_tools) or 'none'}{palette.nc}")
-    print(
-        f"{check} Encoders / decoders / filters: "
-        f"{counts['encoders']} / {counts['decoders']} / {counts['filters']}{palette.nc}"
+    context.logger.info(f"Version: {version_line}")
+    context.logger.info("Installation: /usr/local/bin")
+    context.logger.info(f"Installed tools: {' '.join(installed_tools) or 'none'}")
+    context.logger.info(
+        "Encoders / decoders / filters: "
+        f"{counts['encoders']} / {counts['decoders']} / {counts['filters']}"
     )
-    print(
-        f"{check} Reported hardware accelerators: {', '.join(accelerators) or 'none reported'}{palette.nc}"
+    context.logger.info(
+        f"Reported hardware accelerators: {', '.join(accelerators) or 'none reported'}"
     )
     _report_package_summary(context)
 
@@ -711,12 +706,13 @@ def _report_package_summary(context: BuildContext) -> None:
                 + ", ".join(inactive)
             )
 
-    palette = context.logger.out_palette
-    check = f"{palette.success}✓{palette.nc}{palette.text}"
-    print(
-        f"{check} Packages: {context.packages_built} built, "
-        f"{context.packages_already_built} already current, "
-        f"{context.packages_disabled} disabled{palette.nc}"
+    logger = context.logger
+    if context.packages_disabled:
+        logger.info(f"Disabled packages: {context.packages_disabled}")
+    logger.hint(f"build log  {context.log_file}")
+    logger.summary(
+        built=context.packages_built,
+        reused=context.packages_already_built,
+        failed=0,
+        elapsed=format_duration(logger.elapsed_seconds),
     )
-    print(f"{check} Total time: {format_duration(context.logger.elapsed_seconds)}{palette.nc}")
-    print(f"{check} Build log: {context.log_file}{palette.nc}\n")

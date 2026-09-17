@@ -120,7 +120,7 @@ Usage: build-ffmpeg.py [options]
 
 Actions:
   -b, --build                       Build and install FFmpeg
-  -c, --cleanup                     Remove this project's build root
+  -c, --cleanup                     Remove this project's build root and build leftovers
   -m, --menu                        Choose packages in an interactive menu
 
 Options:
@@ -359,7 +359,12 @@ script's directory.
 
 A successful build ends by calling cleanup, which interactively offers to
 delete the build root. Answer no to keep the sources and workspace for a later
-incremental build.
+incremental build. Accepting also removes the build leftovers inside the
+checkout: `ffbuild/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`,
+`.ruff_cache/`, `*.egg-info/`, and the legacy `packages/`, `workspace/` and
+`ffmpeg-build-script/` roots when they are this project's own. `--cleanup`
+performs the same sweep. Tracked files, `.git/` and anything symlinked are
+never touched.
 
 A custom, non-empty directory must already contain this project's
 `.ffmpeg-build-root` marker. This prevents a typo from turning an unrelated
