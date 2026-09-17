@@ -39,7 +39,7 @@ BUILD_CONTEXT_LEGACY_UNRECORDED_FIELDS = ("cflags", "cxxflags", "cppflags", "ldf
 # changed discovery, diagnostics and FFmpeg integration; dependency ABI and
 # build flags did not move, so the existing dependency builds stay valid and
 # only FFmpeg is reconfigured.
-MIGRATABLE_SCRIPT_VERSIONS = frozenset({"6.0.0", "7.0.0"})
+MIGRATABLE_SCRIPT_VERSIONS = frozenset({"6.0.0", "7.0.0", "8.0.0"})
 
 # Cap on the differing fields listed in the mismatch message. A changed config
 # can move a hundred of them, and a wall of those buries the one line the reader

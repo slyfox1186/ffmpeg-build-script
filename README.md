@@ -9,6 +9,20 @@ build complete.
 The project favors static dependency archives, but the final binary can still
 link dynamically to selected operating-system libraries and GPU runtimes.
 
+## Update: 8.1.0
+
+- When Conda is available, builds always run in its `install-ffmpeg`
+  environment; a system Python is used only on hosts without Conda. New
+  environments use Python 3.14 from conda-forge, so no Anaconda Terms of
+  Service acceptance is needed. Conda is found through `CONDA_EXE`, `PATH`,
+  `~/miniconda3`, `~/miniforge3`, or `~/anaconda3`.
+- Without Conda, the launcher picks the newest stable `python3` or `python3.N`
+  that is Python 3.12 or newer, ignoring empty and relative `PATH` entries.
+- Forced build-lock takeover works on Python builds that omit
+  `signal.pidfd_send_signal`, including conda-forge's.
+- The `dev` extra pins exact tool versions. Compatible 8.0.0 workspaces retain
+  their built dependencies and reconfigure FFmpeg.
+
 ## Major update: 8.0.0
 
 - The builder and diagnostic tools are now Python. The entry point is
@@ -40,17 +54,23 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   convert with `wsl.exe --set-version <distro> 2`)
 
 **Python 3.12, 3.13, and 3.14 are supported.** Ubuntu 22.04's default
-Python 3.10 and Debian 12's default Python 3.11 cannot run the builder. Install
-Miniconda under `~/miniconda3` to use the launcher-managed environment, or
-launch with an installed Python 3.12 or newer interpreter.
+Python 3.10 and Debian 12's default Python 3.11 cannot run the builder.
 
-When `~/miniconda3` exists, the launcher prefers its `install-ffmpeg`
-environment. If that environment is missing, it asks before creating it with
-Python 3.12, Textual and the optional development tools. Declining, or running
-without an interactive terminal, uses an available compatible Python instead.
-No environment is created without consent. The menu needs an interactive
+When Conda is available, the build always runs in its `install-ffmpeg`
+environment. The launcher finds Conda through `CONDA_EXE`, a `conda` command on
+`PATH`, or an installation at `~/miniconda3`, `~/miniforge3`, or `~/anaconda3`.
+If the environment is missing, it asks before creating it with Python 3.14
+from conda-forge, which needs no Anaconda Terms of Service acceptance, and
+installs Textual. Declining, or running without an interactive terminal, stops
+with the exact `conda create` command to run; no environment is created without
+consent. An existing environment older than Python 3.12 is reported with the
+command that removes it so the launcher can recreate it.
+
+Only when no Conda installation exists does the launcher use a system
+interpreter: the newest stable `python3` or `python3.N` on `PATH` or in
+`/usr/bin` that is Python 3.12 or newer. The menu needs an interactive
 terminal and Textual 8.2.8 or newer. Existing environments can install the menu
-dependency with `~/miniconda3/envs/install-ffmpeg/bin/python -m pip install '.[menu]'`
+dependency with `~/miniconda3/envs/install-ffmpeg/bin/python -m pip install -e '.[menu]'`
 from this checkout. A missing dependency produces an installation command for
 the selected interpreter; ordinary builds do not import or require Textual.
 
@@ -95,7 +115,7 @@ python3 build-ffmpeg.py --build --jobs 8 --config ./custom.toml
 
 ```text
 
-FFmpeg Build Script 8.0.0
+FFmpeg Build Script 8.1.0
 Usage: build-ffmpeg.py [options]
 
 Actions:
@@ -499,13 +519,15 @@ ad hoc linker paths under `/etc`.
 Install development tools into the project environment, then run the gates:
 
 ```bash
-~/miniconda3/envs/install-ffmpeg/bin/python -m pip install pytest ruff mypy
+~/miniconda3/envs/install-ffmpeg/bin/python -m pip install -e '.[menu,dev]'
 ~/miniconda3/envs/install-ffmpeg/bin/python run_linter.py
 ~/miniconda3/envs/install-ffmpeg/bin/python -m pytest
 ```
 
 With a separately managed Python 3.12+ environment, use its interpreter for the
-same commands. No development tool is required for the builder itself.
+same commands. No development tool is required for the builder itself. The
+`dev` extra pins exact Ruff, mypy, pytest, and pyte versions so lint and type
+results change only when a pin is bumped deliberately.
 
 The static gate runs Ruff checks, Ruff format verification, strict mypy, and
 checks that the generated template, registry, README help, and advertised

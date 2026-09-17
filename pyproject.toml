@@ -1,13 +1,13 @@
 [project]
 name = "ffmpeg-build-script"
-version = "8.0.0"
+version = "8.1.0"
 description = "A configurable FFmpeg source builder with a terminal package menu"
 requires-python = ">=3.12"
 dependencies = []
 
 [project.optional-dependencies]
 menu = ["textual>=8.2.8"]
-dev = ["pytest>=8", "ruff>=0.9", "mypy>=1.14", "pyte>=0.8"]
+dev = ["pytest==9.1.1", "ruff==0.16.8", "mypy==2.3.1", "pyte==0.8.2"]
 
 [build-system]
 requires = ["setuptools"]

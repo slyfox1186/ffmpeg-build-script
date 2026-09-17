@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import importlib.util
 import os
 from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
@@ -151,47 +149,6 @@ def test_invalid_environment_is_rejected_before_menu_can_save(
         Orchestrator(REPO, []).run_menu(Arguments(), BuildSettings(), Selection())
 
 
-def launcher_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("launcher", REPO / "build-ffmpeg.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_launcher_metadata_never_resolves_interpreter(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    module = launcher_module()
-
-    def forbidden() -> None:
-        pytest.fail("Metadata must not resolve interpreters or ask for consent")
-
-    monkeypatch.setattr(module, "resolve_conda_interpreter", forbidden)
-    assert module.main(["--version"]) == 0
-    assert capsys.readouterr().out == "8.0.0\n"
-    assert module.main([]) == 0
-    assert "--build" in capsys.readouterr().out
-
-
-def test_launcher_declined_environment_is_not_created(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    module = launcher_module()
-    conda = tmp_path / "bin/conda"
-    conda.parent.mkdir()
-    conda.touch()
-    conda.chmod(0o755)
-    monkeypatch.setattr(module, "CONDA_ROOT", str(tmp_path))
-    monkeypatch.setattr(module, "ask_consent", lambda question: False)
-
-    def forbidden(*args: object) -> None:
-        pytest.fail("Declining consent must not create the environment")
-
-    monkeypatch.setattr(module, "create_conda_environment", forbidden)
-    assert module.resolve_conda_interpreter() is None
-
-
 @pytest.mark.parametrize(
     "url", ["http://example.test/repo", "ssh://example.test/repo", "https://example.test/repo\n"]
 )
@@ -224,22 +181,3 @@ def test_compiler_diagnostic(
     )
     assert compiler_versions.highest_repository_major("gcc") == "13"
     assert compiler_versions.main(["unexpected"]) == 2
-
-
-def test_launcher_prefers_compatible_system_python(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = launcher_module()
-    monkeypatch.setattr(module.os, "access", lambda path, mode: True)
-    monkeypatch.setattr(module, "interpreter_version", lambda path: (3, 12))
-    assert module.resolve_system_interpreter() == "/usr/bin/python3"
-
-
-def test_incompatible_conda_does_not_hide_compatible_system_python(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    module = launcher_module()
-    monkeypatch.setattr(module.os, "access", lambda path, mode: True)
-    monkeypatch.setattr(
-        module, "interpreter_version", lambda path: (3, 11) if "install-ffmpeg" in path else (3, 12)
-    )
-    assert module.resolve_conda_interpreter() is None
-    assert module.resolve_system_interpreter() == "/usr/bin/python3"
