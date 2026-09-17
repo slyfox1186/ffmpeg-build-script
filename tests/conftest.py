@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -81,3 +82,18 @@ def invoke(
         check=False,
         timeout=20,
     )
+
+
+def flatten(output: str) -> str:
+    """Rejoin the logger's hanging-indent continuations into whole records.
+
+    The terminal wraps long records under a fixed text column; assertions care
+    about the message, not where the width happened to fold it.
+    """
+    lines: list[str] = []
+    for line in output.splitlines():
+        if lines and re.fullmatch(r" {17}\S.*", line):
+            lines[-1] = lines[-1].rstrip() + " " + line.strip()
+            continue
+        lines.append(line)
+    return "\n".join(lines) + ("\n" if output.endswith("\n") else "")

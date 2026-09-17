@@ -14,6 +14,7 @@ from ffmpeg_build.runtime.errors import BuildError
 from ffmpeg_build.stages.hardware import HardwareDetection
 from ffmpeg_build.stages.helpers import pkgconf_include_dir, pkgconf_library_dir
 from ffmpeg_build.stages.system_setup import HostPackages, SystemSetup, release_unavailable_packages
+from tests.conftest import flatten
 
 
 @pytest.mark.parametrize("family,names", [("gcc", ("gcc", "g++")), ("clang", ("clang", "clang++"))])
@@ -38,7 +39,7 @@ def test_report_selected_compilers_through_build_path(
         (driver.parent / name).symlink_to(driver)
     context.env["PATH"] = str(driver.parent)
     SystemSetup(context).report_compiler_versions()
-    output = capsys.readouterr().out
+    output = flatten(capsys.readouterr().out)
     for label, name in zip(("C compiler", "C++ compiler"), names, strict=True):
         assert f"{label}: '{name} version 25.1.0' ('{driver.parent / name}')." in output
 
@@ -53,7 +54,7 @@ def test_compiler_version_failure_is_visible(
     binary = stub("gcc", "print('unusable banner'); raise SystemExit(1)")
     context.env["PATH"] = str(binary.parent)
     SystemSetup(context).report_compiler_versions()
-    output = capsys.readouterr().err
+    output = flatten(capsys.readouterr().err)
     assert "unable to read the version" in output and "was not found" in output
     assert "unusable banner" not in output
 
@@ -296,10 +297,13 @@ def test_hardware_summary(
     hardware = HardwareDetection(context, SystemSetup(context))
     monkeypatch.setattr(hardware, "detect_gpu_vendors", lambda: None)
     hardware.run()
-    output = capsys.readouterr().out
-    assert "── Hardware Detection ──\n\n[" in output
+    captured = capsys.readouterr().out
+    output = flatten(captured)
+    assert "── Hardware Detection ──\n\n[" in captured
     assert " --------------------\n\n\n" not in output
-    assert "INFO  NVIDIA: NVIDIA GPU detected\n                 AMD:    AMD GPU detected" in output
+    assert (
+        "INFO  NVIDIA: NVIDIA GPU detected\n                 AMD:    AMD GPU detected" in captured
+    )
 
 
 def test_vulkan_host_requirements(context: BuildContext) -> None:

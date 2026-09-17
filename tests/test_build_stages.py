@@ -19,6 +19,7 @@ from ffmpeg_build.stages.ffmpeg_build import (
 from ffmpeg_build.stages.hardware import HardwareDetection
 from ffmpeg_build.stages.support_libraries import install_support_libraries
 from ffmpeg_build.stages.system_setup import SystemSetup
+from tests.conftest import flatten
 
 
 def stage_for(context: BuildContext) -> FFmpegStage:
@@ -66,19 +67,19 @@ def test_build_markers_and_messages(
     assert read_marker_version(context.marker_path("jemalloc")) == "1.2.3"
     capsys.readouterr()
     assert not context.build("jemalloc", "1.2.3")
-    output = capsys.readouterr().out
+    output = flatten(capsys.readouterr().out)
     assert "SKIP  jemalloc 1.2.3 is already built." in output
     for unexpected in ("STEP", "rm -f", "lockfile"):
         assert unexpected not in output
     context.logger.debug_enabled = True
     assert not context.build("jemalloc", "1.2.3")
-    assert (
-        f"Force a rebuild with: rm -f -- {context.packages}/jemalloc.done"
-        in capsys.readouterr().out
+    assert f"Force a rebuild with: rm -f -- {context.packages}/jemalloc.done" in flatten(
+        capsys.readouterr().out
     )
     context.marker_path("jemalloc").write_text("1.2.2\n")
     assert not context.build("jemalloc", "1.2.3")
     output = capsys.readouterr().out
+    output = flatten(output)
     assert "jemalloc 1.2.2 -> 1.2.3 is outdated; keeping the existing build." in output
     assert f"Rebuild with '--latest', or: rm -f -- {context.packages}/jemalloc.done" in output
     context.latest = True
@@ -249,7 +250,7 @@ def test_core_stage_continues_after_nasm(
     else:
         with pytest.raises(ReachedGiflib):
             install_core_libraries(context)
-    assert "yasm 1.3.0 is already built." in capsys.readouterr().out
+    assert "yasm 1.3.0 is already built." in flatten(capsys.readouterr().out)
 
 
 @pytest.mark.parametrize("mode", ["current", "legacy", "missing", "unknown"])
@@ -342,9 +343,9 @@ else: sys.exit(64)
     prefix = binary.parent.parent
     stage = stage_for(context)
     stage.validate_installation("8.1.2", True, prefix)
-    output = capsys.readouterr().out
+    output = flatten(capsys.readouterr().out)
     log = context.log_file.read_text()
-    assert f"FFmpeg installation verified ({prefix}/bin):" in output
+    assert f"FFmpeg installation verified ({prefix}/bin)" in output
     for program in ("ffmpeg", "ffprobe", "ffplay"):
         assert f"{program} version 8.1.2 Copyright test fixture" in output
         command = f"$ {prefix}/bin/{program} -hide_banner -version"

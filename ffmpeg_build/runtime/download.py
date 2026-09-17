@@ -325,9 +325,7 @@ class Downloader:
         # Another process may have populated the cache while this one waited.
         if self.validate_tar_archive(target):
             if archive_checksum_matches(target, checksum_file):
-                self.logger.info(
-                    f"'{filename}' already exists and matches its SHA-256 cache record."
-                )
+                self.logger.get(url, note="already exists and matches its SHA-256 cache record")
                 return True
             if checksum_file.exists() or checksum_file.is_symlink():
                 self.logger.warn(
@@ -379,7 +377,7 @@ class Downloader:
             "bytes: %{size_download}; URL: %{url_effective}\n",
             url,
         ]
-        self.logger.info(f"Downloading '{url}' as '{filename}'.")
+        self.logger.get(url, filename)
         if self.runner.run_logged(arguments) != 0:
             temporary.unlink(missing_ok=True)
             self._unregister(temporary)
@@ -553,7 +551,7 @@ class Downloader:
             if lock is not None:
                 lock.release()
 
-        self.logger.info(f"File extracted: '{name}'.")
+        self.logger.extracted(name)
         return target_directory
 
     def download(self, url: str, filename: str | None = None) -> Path:
@@ -571,7 +569,7 @@ class Downloader:
         different archive.
         """
         archive_file = primary_url.rsplit("/", 1)[-1].split("?", 1)[0]
-        self.logger.info(f"Attempting download from primary mirror: '{primary_url}'.")
+        self.logger.debug(f"Attempting download from primary mirror: '{primary_url}'.")
         source = self.try_download(primary_url, archive_file)
         if source is not None:
             return source

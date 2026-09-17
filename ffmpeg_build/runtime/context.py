@@ -83,6 +83,7 @@ class BuildContext:
         self.packages_disabled = 0
         self._package_started = 0
         self._package_in_progress = ""
+        self._package_version = ""
         self._temporary_paths: list[Path] = []
         self._saved_flags: dict[str, str] = {}
 
@@ -512,7 +513,7 @@ class BuildContext:
                 return True
             if prior_version == version:
                 self.packages_already_built += 1
-                self.logger.skip(f"{key} {version} is already built.")
+                self.logger.package_reused(key, version)
                 self.logger.debug(
                     "Force a rebuild with: " + shellquote.join(["rm", "-f", "--", str(marker)])
                 )
@@ -521,8 +522,8 @@ class BuildContext:
                 self._start_package_build(key, version, prior_version)
                 return True
             self.packages_already_built += 1
-            self.logger.skip(
-                f"{key} {prior_version} -> {version} is outdated; keeping the existing build."
+            self.logger.package_reused(
+                key, prior_version, note=f"-> {version} is outdated; keeping the existing build."
             )
             self.logger.debug(
                 "Rebuild with '--latest', or: " + shellquote.join(["rm", "-f", "--", str(marker)])
@@ -555,11 +556,8 @@ class BuildContext:
         self.packages_built += 1
         self._package_started = self.logger.elapsed_seconds
         self._package_in_progress = key
-        print()
-        if prior_version:
-            self.logger.step(f"{key} {version} (replacing {prior_version})")
-        else:
-            self.logger.step(f"{key} {version}")
+        self._package_version = version
+        self.logger.package_start(key, version, prior_version)
 
     def build_done(self, key: str, version: str | None) -> None:
         """Publish the marker, but only once the artifact is actually there."""
@@ -579,10 +577,10 @@ class BuildContext:
         # whichever package ran before it.
         if self._package_in_progress == key:
             duration = format_duration(self.logger.elapsed_seconds - self._package_started)
-            self.logger.ok(f"{key} {version} in {duration}")
+            self.logger.package_done(key, version, duration)
             self._package_in_progress = ""
         else:
-            self.logger.ok(f"{key} {version}")
+            self.logger.package_done(key, version)
 
     # -- convenience -----------------------------------------------------
 

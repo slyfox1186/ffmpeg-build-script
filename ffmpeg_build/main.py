@@ -23,8 +23,13 @@ from .runtime.build_lock import take_over_build_lock
 from .runtime.context import BuildContext
 from .runtime.errors import BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
-from .runtime.logging import Logger
-from .runtime.paths import DirectoryLock, canonicalize, is_exclusive_regular_file
+from .runtime.logging import Logger, format_duration
+from .runtime.paths import (
+    DirectoryLock,
+    canonicalize,
+    is_exclusive_regular_file,
+    safe_remove_tree,
+)
 from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 from .runtime.state import (
     BUILD_CONTEXT_NAME,
@@ -60,6 +65,19 @@ _POSITIVE_INTEGER_SETTINGS = (
     "FREEDESKTOP_RELEASE_INDEX_MAX_TIME",
 )
 _NON_NEGATIVE_INTEGER_SETTINGS = ("DOWNLOAD_RETRY", "DOWNLOAD_RETRY_DELAY")
+
+# Directories that running this project creates in a checkout, beside the build
+# root: FFmpeg's configure output, Python bytecode, packaging metadata and the
+# development tools' caches. None of them are tracked by the repository.
+LEFTOVER_ARTIFACT_NAMES = (
+    "ffbuild",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+)
+# Build roots used by releases before the current layout.
+LEGACY_BUILD_ROOT_NAMES = ("packages", "workspace", "ffmpeg-build-script")
 
 
 def validate_build_settings(selection: Selection, debug_value: str) -> None:
@@ -428,10 +446,48 @@ class Orchestrator:
 
     # -- actions ---------------------------------------------------------
 
+    def _leftover_artifacts(self) -> list[Path]:
+        """Directories a build and its tooling leave in the checkout.
+
+        The build root is removed separately. Everything named here is produced
+        by running this project or is a regenerable tool cache, and none of it
+        is tracked by the repository. Only the checkout is swept: the directory
+        the user happened to run from may be full of files that are not ours.
+        """
+        repository = canonicalize(self.repo_root)
+        candidates = [repository / name for name in LEFTOVER_ARTIFACT_NAMES]
+        candidates.extend(sorted(repository.glob("*.egg-info")))
+        # Bytecode caches appear beside every package that has been imported.
+        candidates.extend(
+            path
+            for path in sorted(repository.rglob("__pycache__"))
+            if ".git" not in path.relative_to(repository).parts
+        )
+        for legacy in LEGACY_BUILD_ROOT_NAMES:
+            path = repository / legacy
+            # A legacy root is only ours while it still carries a marker or is
+            # an empty shell; a user directory sharing the name is not.
+            if path.is_dir() and not path.is_symlink():
+                if (path / BUILD_ROOT_MARKER_NAME).exists() or not any(path.iterdir()):
+                    candidates.append(path)
+        targets: list[Path] = []
+        for candidate in candidates:
+            if not candidate.is_dir() or candidate.is_symlink() or candidate in targets:
+                continue
+            targets.append(candidate)
+        return targets
+
+    def _remove_leftover_artifacts(self, targets: list[Path]) -> None:
+        repository = canonicalize(self.repo_root)
+        for target in targets:
+            safe_remove_tree(target, repository)
+            self.logger.info(f"Removed build leftover: '{target}'.")
+
     def cleanup(self) -> None:
         root = self.build_root
         if not root.exists():
             self.logger.info(f"Build root does not exist; nothing to clean: '{root}'.")
+            self._clean_leftovers_only()
             return
         resolved = canonicalize(root)
         repository = canonicalize(self.repo_root)
@@ -468,10 +524,14 @@ class Orchestrator:
                     f"'{resolved}'."
                 )
                 return
+            leftovers = self._leftover_artifacts()
             while True:
                 print()
+                question = f"Remove all build files under '{resolved}'"
+                if leftovers:
+                    question += f" and {len(leftovers)} build leftover(s) in the checkout"
                 try:
-                    choice = input(f"Remove all build files under '{resolved}'? (yes/no): ")
+                    choice = input(f"{question}? (yes/no): ")
                 except EOFError:
                     print()
                     self.logger.info("No cleanup response received; leaving build files in place.")
@@ -489,6 +549,8 @@ class Orchestrator:
                         self.logger.log_file = None
                     self.runner.log_file = None
                     self.logger.info(f"Removed build root: '{resolved}'.")
+                    # Re-read: removing the build root can itself clear entries.
+                    self._remove_leftover_artifacts(self._leftover_artifacts())
                     return
                 if choice.strip().lower() in ("n", "no"):
                     return
@@ -496,6 +558,34 @@ class Orchestrator:
         finally:
             if owns_lock:
                 lock.release()
+
+    def _clean_leftovers_only(self) -> None:
+        """Offer the leftover sweep when there is no build root to remove."""
+        leftovers = self._leftover_artifacts()
+        if not leftovers:
+            return
+        if not sys.stdin.isatty():
+            self.logger.info(
+                f"Standard input is not interactive; leaving {len(leftovers)} build leftover(s) "
+                "in the checkout."
+            )
+            return
+        while True:
+            print()
+            try:
+                choice = input(
+                    f"Remove {len(leftovers)} build leftover(s) in the checkout? (yes/no): "
+                )
+            except EOFError:
+                print()
+                self.logger.info("No cleanup response received; leaving build leftovers in place.")
+                return
+            if choice.strip().lower() in ("y", "yes"):
+                self._remove_leftover_artifacts(leftovers)
+                return
+            if choice.strip().lower() in ("n", "no"):
+                return
+            self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
 
     def run_build(self, context: BuildContext) -> None:
         machine = os.uname().machine
@@ -524,6 +614,9 @@ class Orchestrator:
         self.logger.log_file = context.log_file
         self.runner.log_file = context.log_file
 
+        # The palette is tuned against one background; commands inherit the
+        # terminal untouched because only this process writes the escape.
+        self.logger.force_background()
         print()
         self.logger.banner(f"FFmpeg Build Script {SCRIPT_VERSION}")
         print()
@@ -726,6 +819,7 @@ class Orchestrator:
         return 0
 
     def teardown(self) -> None:
+        self.logger.restore_background()
         self.runner.stop_sudo_keepalive()
         if self.context is not None:
             self.context.remove_registered_temporary_paths()
@@ -774,6 +868,8 @@ def _report_failure(orchestrator: Orchestrator, error: BuildError) -> None:
     """
     from .runtime.errors import ISSUE_TRACKER_URL
 
+    context = orchestrator.context
+    in_progress = getattr(context, "_package_in_progress", "") if context is not None else ""
     detail = [str(error)]
     traceback = error.__traceback__
     frames = []
@@ -789,12 +885,25 @@ def _report_failure(orchestrator: Orchestrator, error: BuildError) -> None:
             detail.append(f"Raised from: {caller_name}:{caller.tb_lineno} (check at {origin})")
         else:
             detail.append(f"Raised from: {origin}")
-    context = orchestrator.context
     if context is not None and context.log_file.is_file():
         detail.append(f"Build log: {context.log_file}")
     detail.append(f"Report a bug: {ISSUE_TRACKER_URL}")
 
     print(file=sys.stderr)
-    orchestrator.logger.error("\n".join(detail))
+    if in_progress:
+        orchestrator.logger.package_failed(
+            in_progress, getattr(context, "_package_version", ""), detail[0]
+        )
+        for line in detail[1:]:
+            orchestrator.logger.hint(line)
+    else:
+        orchestrator.logger.error("\n".join(detail))
+    if context is not None:
+        orchestrator.logger.summary(
+            built=context.packages_built,
+            reused=context.packages_already_built,
+            failed=1 if in_progress else 0,
+            elapsed=format_duration(orchestrator.logger.elapsed_seconds),
+        )
     print(file=sys.stderr)
     notify_failure(str(error))

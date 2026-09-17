@@ -20,7 +20,7 @@ LABEL_WIDTH = 33
 
 ACTIONS = (
     ("-b, --build", "Build and install FFmpeg"),
-    ("-c, --cleanup", "Remove this project's build root"),
+    ("-c, --cleanup", "Remove this project's build root and build leftovers"),
     ("-m, --menu", "Choose packages in an interactive menu"),
 )
 OPTIONS = (
