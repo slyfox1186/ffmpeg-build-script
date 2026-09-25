@@ -359,9 +359,10 @@ script's directory.
 
 A successful build ends by calling cleanup, which interactively offers to
 delete the build root. Answer no to keep the sources and workspace for a later
-incremental build. Accepting also removes the build leftovers inside the
-checkout: `ffbuild/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`,
-`.ruff_cache/`, `*.egg-info/`, and the legacy `packages/`, `workspace/` and
+incremental build; either answer ends with a pointer to the project
+repository. Accepting also removes the build leftovers inside the checkout:
+`ffbuild/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
+`*.egg-info/`, and the legacy `packages/`, `workspace/` and
 `ffmpeg-build-script/` roots when they are this project's own. `--cleanup`
 performs the same sweep. Tracked files, `.git/` and anything symlinked are
 never touched.
@@ -574,22 +575,50 @@ Successful validation prints the actual first `-version` result for every
 installed program instead of printing command traces with hidden output:
 
 ```text
-FFmpeg installation verified (/usr/local/bin):
-  ffmpeg version 8.1.2 ...
-  ffprobe version 8.1.2 ...
-  ffplay version 8.1.2 ...
+┌─────────────────────────────────────────────────┐
+│  FFmpeg installation verified (/usr/local/bin)  │
+└─────────────────────────────────────────────────┘
+
+[INFO] ffmpeg version 8.1.2 ...
+[INFO] ffprobe version 8.1.2 ...
+[INFO] ffplay version 8.1.2 ...
 ```
 
 The complete version output for each program is retained in the build log.
 
-The logging palette uses bright white message text on dark terminals, neutral
-gray timestamps, blue progress and information labels, green success labels,
-amber warnings, and rose-red errors. Package names use bold white text in step
-headings and package versions share one yellow accent; section headings use
-compact blue rules. Commands and arguments use one uniform
-white foreground without syntax highlighting. Redirected output, dumb terminals,
-and a nonempty `NO_COLOR` setting stay plain; the saved build log never receives
-these presentation codes. Shell quoting is preserved exactly.
+The terminal output reads like a shell session:
+
+```text
+┌──────────────────────────┐
+│  Installing Image Tools  │
+└──────────────────────────┘
+
+[SKIP] openjpeg 2.5.4 is already built.
+
+Building libheif - version 1.23.5 (replacing 1.23.4)
+====================================================
+[INFO] Downloading https://github.com/strukturag/libheif/archive/refs/tags/v1.23.5.tar.gz as
+       'libheif-1.23.5.tar.gz'.
+[INFO] File extracted: 'libheif-1.23.5.tar.gz'.
+$ cmake -DBUILD_DEVELOPMENT_TOOLS=OFF -DBUILD_DOCUMENTATION=OFF -DBUILD_SHARED_LIBS=OFF
+    -DCMAKE_BUILD_TYPE=Release -G Ninja -Wno-dev
+$ ninja -j24 -C build
+$ ninja -C build install
+[DONE] libheif 1.23.5 built in 10s
+```
+
+Sections are boxed, each package opens with an underlined `Building` heading,
+commands echo after `$`, questions wait under `[PROMPT]`, and every other
+record carries a bracketed tag. Colors
+come from the standard ANSI set, so they follow the terminal's theme: green
+headings and `[INFO]`, yellow package names and versions, cyan URLs, yellow
+`[WARNING]` and red `[ERROR]`/`[FAILED]`. Long records wrap at the terminal
+width under a hanging indent, breaking between command arguments; redirected
+output is never wrapped. Redirected output, dumb terminals, and a nonempty
+`NO_COLOR` setting stay plain. The download transport command appears only with
+`FFMPEG_BUILD_DEBUG=ON`. The saved build log never receives presentation codes
+and stamps every record, commands included, with wall-clock and elapsed time.
+Shell quoting is preserved exactly.
 
 Useful manual checks:
 

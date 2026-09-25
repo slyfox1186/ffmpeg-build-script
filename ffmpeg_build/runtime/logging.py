@@ -1,16 +1,18 @@
 """Terminal and build-log output.
 
-Every structured record goes through `_emit`, so the terminal and the build log
-cannot drift. The terminal gets elapsed time, which is the useful clock while
-watching a long build; the log file additionally gets a wall-clock stamp so it
-can be lined up with system logs after the fact.
+Every structured record goes through `_emit` and `_record`, so the terminal
+and the build log cannot drift. The terminal reads like a shell session: each
+package opens with an underlined heading, commands echo after `$`, and short
+bracketed tags mark everything else. The log file carries the timeline
+instead, a wall-clock and elapsed stamp on every record.
 
-Brightness tracks importance: package names and outcomes are bright, the wall
-of command flags is dim, and red means failure and nothing else.
+    Building libfdk-aac - version 2.0.3
+    ===================================
+    [INFO] Downloading https://example.test/fdk-aac-2.0.3.tar.gz as 'fdk-aac-2.0.3.tar.gz'.
+    $ make -j24
+    [DONE] libfdk-aac 2.0.3 built in 8s
 
-    [00:01:15] STEP  libfdk-aac 2.0.3
-    [00:01:15] RUN   curl --fail --silent --output /path/to/archive.tar.gz
-    [00:01:23] OK    libfdk-aac 2.0.3                                in 8s
+Colors are the standard ANSI set so they follow the terminal's own theme.
 """
 
 from __future__ import annotations
@@ -26,19 +28,45 @@ from typing import TextIO
 
 from . import shellquote
 
-# Width of "[HH:MM:SS] LEVEL ", used to indent continuation lines so a wrapped
-# or multi-line message stays in one visual column.
-LOG_PREFIX_WIDTH = 17
-TAG_WIDTH = 5
-MAX_WIDTH = 120
+# Wrapped command arguments hang this far in, clear of the `$ ` prompt, so a
+# continuation never reads as a new command.
+COMMAND_INDENT = 4
+MIN_WRAP_WIDTH = 20
 
-# Background the palette was tuned against. Forced with OSC 11 so the ramp from
-# bright package names to dim flags holds whatever theme the terminal starts in.
-BACKGROUND = "#14161b"
+# Terminal tag per record level. The log file keeps the level names.
+_TAGS = {
+    "STEP": "[STEP]",
+    "OK": "[DONE]",
+    "INFO": "[INFO]",
+    "SKIP": "[SKIP]",
+    "TIME": "[TIME]",
+    "DEBUG": "[DEBUG]",
+    "WARN": "[WARNING]",
+    "FAIL": "[FAILED]",
+    "ERROR": "[ERROR]",
+    "PROMPT": "[PROMPT]",
+}
+_TAG_COLOR = {
+    "STEP": "blue",
+    "OK": "green",
+    "INFO": "green",
+    "SKIP": "cyan",
+    "TIME": "dim",
+    "DEBUG": "dim",
+    "WARN": "yellow",
+    "FAIL": "red",
+    "ERROR": "red",
+    "PROMPT": "magenta",
+}
+_BOLD_TAGS = ("OK", "WARN", "FAIL", "ERROR", "PROMPT")
+_URL = re.compile(r"(https?://[^\s'\"]+)")
 
-_PACKAGE_VERSION = re.compile(
-    r"(?<!\S)(?:[nRv]?[0-9]+(?:\.[0-9]+)*(?:[+.-][A-Za-z0-9.-]+)?|[0-9a-fA-F]{12,64})(?=[\s)]|$)"
-)
+
+def _is_terminal(stream: TextIO) -> bool:
+    try:
+        return stream.isatty()
+    except (AttributeError, ValueError):
+        return False
 
 
 def _color_enabled(stream: TextIO) -> bool:
@@ -48,107 +76,45 @@ def _color_enabled(stream: TextIO) -> bool:
         return True
     if os.environ.get("TERM", "dumb") == "dumb":
         return False
-    try:
-        return stream.isatty()
-    except (AttributeError, ValueError):
-        return False
-
-
-def _to_256(red: int, green: int, blue: int) -> int:
-    if abs(red - green) < 8 and abs(green - blue) < 8:
-        return 232 + min(23, max(0, (red - 8) // 10))
-
-    def level(value: int) -> int:
-        if value < 48:
-            return 0
-        if value < 115:
-            return 1
-        return min(4, (value - 35) // 40) + 1
-
-    return 16 + 36 * level(red) + 6 * level(green) + level(blue)
+    return _is_terminal(stream)
 
 
 class Palette:
-    """The build log's ramp, resolved once per stream.
-
-    Color describes the role of a fragment, not the syntax of its arguments.
-    Truecolor terminals get the exact values; the rest get the 256-color cube.
-    """
+    """ANSI styles for one stream; every style is empty when color is off."""
 
     __slots__ = (
-        "timestamp",
-        "step",
-        "package",
-        "version",
-        "info",
-        "run",
-        "binary",
-        "flag",
-        "value",
-        "url",
-        "ok",
-        "ok_package",
-        "duration",
-        "warning",
-        "error",
-        "rail",
+        "enabled",
+        "green",
+        "yellow",
+        "red",
+        "cyan",
+        "blue",
+        "magenta",
+        "dim",
         "bold",
         "nc",
-        "enabled",
     )
 
     def __init__(self, enabled: bool) -> None:
         self.enabled = enabled
-        truecolor = os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
 
-        def color(value: str) -> str:
-            if not enabled:
-                return ""
-            red, green, blue = (int(value[index : index + 2], 16) for index in (1, 3, 5))
-            if truecolor:
-                return f"\033[38;2;{red};{green};{blue}m"
-            return f"\033[38;5;{_to_256(red, green, blue)}m"
+        def sgr(code: str) -> str:
+            return f"\033[{code}m" if enabled else ""
 
-        self.timestamp = color("#4a5262")
-        self.step = color("#7aa2f7")
-        self.package = color("#e6edf5")
-        self.version = color("#6d7a8c")
-        self.info = color("#4f6d7f")
-        self.run = color("#49515f")
-        self.binary = color("#98a7b8")
-        self.flag = color("#5b6472")
-        self.value = color("#75808f")
-        self.url = color("#5f87a0")
-        self.ok = color("#3fb984")
-        self.ok_package = color("#c3cedb")
-        self.duration = color("#5c6675")
-        self.warning = color("#d3a04a")
-        self.error = color("#f0616e")
-        self.rail = color("#2b323f")
-        self.bold = "\033[1m" if enabled else ""
-        self.nc = "\033[0m" if enabled else ""
+        self.green = sgr("32")
+        self.yellow = sgr("33")
+        self.red = sgr("31")
+        self.cyan = sgr("36")
+        self.blue = sgr("34")
+        self.magenta = sgr("35")
+        self.dim = sgr("2")
+        self.bold = sgr("1")
+        self.nc = sgr("0")
 
-    def paint(self, color: str, text: str, *, bold: bool = False) -> str:
-        if not self.enabled or not text:
+    def paint(self, style: str, text: str, *, bold: bool = False) -> str:
+        if not self.enabled or not text or not (style or bold):
             return text
-        return f"{self.nc}{self.bold if bold else ''}{color}{text}{self.nc}"
-
-
-# Each record's tag keeps one column and one color, so a scroll reads as a
-# ladder of outcomes rather than a wall of equally loud lines.
-_TAG_COLOR = {
-    "STEP": "step",
-    "OK": "ok",
-    "INFO": "info",
-    "RUN": "run",
-    "SKIP": "info",
-    "TIME": "run",
-    "DEBUG": "run",
-    "WARN": "warning",
-    "FAIL": "error",
-    "ERROR": "error",
-}
-_BOLD_TAGS = ("STEP", "OK", "WARN", "FAIL", "ERROR")
+        return f"{self.bold if bold else ''}{style}{text}{self.nc}"
 
 
 def format_elapsed(total: int) -> str:
@@ -164,6 +130,23 @@ def format_duration(total: int) -> str:
     return f"{total}s"
 
 
+# A fragment is (text, style name, bold); style names index the Palette.
+# Fragments render back to back; `_spaced` puts a separator between words.
+Fragment = tuple[str, str, bool]
+# The separator `_spaced` inserts. Wrapping prefers these breaks, so a command
+# folds between arguments rather than inside a quoted one.
+_SEPARATOR: Fragment = (" ", "separator", False)
+
+
+def _spaced(words: Sequence[Fragment]) -> list[Fragment]:
+    parts: list[Fragment] = []
+    for word in words:
+        if parts:
+            parts.append(_SEPARATOR)
+        parts.append(word)
+    return parts
+
+
 class Logger:
     """Formats and duplicates every build message."""
 
@@ -175,106 +158,112 @@ class Logger:
         self._err = sys.stderr
         self.out_palette = Palette(_color_enabled(sys.stdout))
         self.err_palette = Palette(_color_enabled(sys.stderr))
-        self._background_set = False
+        # Both streams share one screen, so one flag tracks whether the last
+        # visible line was blank; separators never stack into double gaps.
+        self._after_blank = True
+        # Text column of the last tagged record, so a follow-up hint lines up.
+        self._text_column = len(_TAGS["INFO"]) + 1
 
     @property
     def elapsed_seconds(self) -> int:
         return int(time.monotonic() - self._started)
 
-    # -- terminal ---------------------------------------------------------
-
-    def force_background(self) -> None:
-        """Set the terminal background the palette was tuned against."""
-        if not self.out_palette.enabled or self._background_set:
-            return
-        self._out.write(f"\033]11;{BACKGROUND}\033\\")
-        self._out.flush()
-        self._background_set = True
-
-    def restore_background(self) -> None:
-        if not self._background_set:
-            return
-        self._background_set = False
-        try:
-            self._out.write("\033]111\033\\")
-            self._out.flush()
-        except (OSError, ValueError):
-            pass
-
-    def _width(self) -> int:
-        return min(shutil.get_terminal_size((MAX_WIDTH, 40)).columns, MAX_WIDTH)
-
     # -- rendering --------------------------------------------------------
 
-    def _wrap(self, parts: list[tuple[str, str]], available: int) -> list[list[tuple[str, str]]]:
-        """Fold coloured fragments into lines, breaking at spaces where possible."""
-        lines: list[list[tuple[str, str]]] = []
-        current: list[tuple[str, str]] = []
-        used = 0
-        for text, color in parts:
-            while len(text) > available:
-                cut = text.rfind(" ", 0, available + 1)
-                if cut <= 0:
-                    cut = available
-                    remainder = text[cut:]
-                else:
-                    remainder = text[cut + 1 :]
-                if current:
-                    lines.append(current)
-                    current, used = [], 0
-                lines.append([(text[:cut], color)])
-                text = remainder
-            if used and used + 1 + len(text) > available:
-                lines.append(current)
-                current, used = [(text, color)], len(text)
+    def _blank(self) -> None:
+        if not self._after_blank:
+            print(file=self._out, flush=True)
+            self._after_blank = True
+
+    def _width(self, stream: TextIO) -> int | None:
+        """Wrap only on a terminal; redirected output keeps one record per line."""
+        if not _is_terminal(stream):
+            return None
+        return shutil.get_terminal_size((80, 24)).columns
+
+    @staticmethod
+    def _wrap(parts: list[Fragment], available: int | None) -> list[list[Fragment]]:
+        """Fold fragments into lines of at most `available` columns.
+
+        Breaks at a word separator when one fits, then at any space, and only
+        then mid-word. The space a line breaks at is dropped; every other
+        space, including alignment padding, is kept.
+        """
+        text = "".join(fragment[0] for fragment in parts)
+        if available is None or len(text) <= available:
+            return [parts]
+        separators: set[int] = set()
+        position = 0
+        for fragment in parts:
+            if fragment is _SEPARATOR:
+                separators.add(position)
+            position += len(fragment[0])
+
+        ranges: list[tuple[int, int]] = []
+        start = 0
+        while len(text) - start > available:
+            limit = start + available
+            cut = max((index for index in separators if start < index <= limit), default=-1)
+            if cut < 0:
+                cut = text.rfind(" ", start + 1, limit + 1)
+            if cut < 0:
+                ranges.append((start, limit))
+                start = limit
                 continue
-            if used:
-                current.append((" ", ""))
-                used += 1
-            current.append((text, color))
-            used += len(text)
-        if current:
-            lines.append(current)
-        return lines or [[]]
+            ranges.append((start, cut))
+            start = cut + 1
+        ranges.append((start, len(text)))
+
+        lines: list[list[Fragment]] = []
+        for low, high in ranges:
+            line: list[Fragment] = []
+            position = 0
+            for fragment_text, style, bold in parts:
+                end = position + len(fragment_text)
+                if position < high and end > low:
+                    piece = fragment_text[max(low, position) - position : min(high, end) - position]
+                    line.append((piece, style, bold))
+                position = end
+            lines.append(line)
+        return lines
 
     def _emit(
         self,
-        level: str | None,
-        parts: list[tuple[str, str]],
+        lead: Fragment | None,
+        parts: list[Fragment],
         *,
         stream: TextIO | None = None,
-        bold_first: bool = False,
-        right: str = "",
+        indent: int | None = None,
     ) -> None:
+        """Print one record: an optional lead such as a tag, then wrapped parts.
+
+        Continuation lines hang at `indent`, by default under the first word
+        after the lead. Without a lead every line starts at `indent`.
+        """
         target = stream if stream is not None else self._out
         palette = self.err_palette if target is self._err else self.out_palette
-        width = self._width()
-        elapsed = format_elapsed(self.elapsed_seconds)
-        tag_color = getattr(palette, _TAG_COLOR.get(level or "", "info"))
-        lines = self._wrap(parts, max(width - LOG_PREFIX_WIDTH, 20))
+        lead_width = len(lead[0]) + 1 if lead is not None else 0
+        hang = lead_width if indent is None else indent
+        width = self._width(target)
+        available = None if width is None else max(width - max(hang, lead_width), MIN_WRAP_WIDTH)
 
-        for index, line in enumerate(lines):
-            if index == 0 and level is not None:
-                rendered = (
-                    palette.paint(palette.timestamp, f"[{elapsed}]")
-                    + " "
-                    + palette.paint(tag_color, f"{level:<{TAG_WIDTH}}", bold=level in _BOLD_TAGS)
-                    + " "
-                )
+        for index, line in enumerate(self._wrap(parts, available)):
+            if index == 0 and lead is not None:
+                text, style, bold = lead
+                rendered = palette.paint(getattr(palette, style, ""), text, bold=bold) + " "
             else:
-                rendered = " " * LOG_PREFIX_WIDTH
+                rendered = " " * hang
             rendered += "".join(
-                palette.paint(color, text, bold=bold_first and index == 0 and position == 0)
-                if color
-                else text
-                for position, (text, color) in enumerate(line)
+                palette.paint(getattr(palette, style, ""), text, bold=bold)
+                for text, style, bold in line
             )
-            if right and index == len(lines) - 1:
-                used = LOG_PREFIX_WIDTH + sum(len(text) for text, _ in line)
-                if used + len(right) + 2 <= width:
-                    rendered += " " * (width - used - len(right) - 1)
-                    rendered += palette.paint(palette.duration, right)
             print(rendered, file=target, flush=True)
+        self._after_blank = False
+        if lead is not None:
+            self._text_column = lead_width
+
+    def _tag(self, level: str) -> Fragment:
+        return (_TAGS.get(level, f"[{level}]"), _TAG_COLOR.get(level, ""), level in _BOLD_TAGS)
 
     def write_log_records(self, level: str, lines: list[str], elapsed: str) -> None:
         if self.log_file is None or not self.log_file.is_file():
@@ -294,21 +283,18 @@ class Logger:
             level, message.splitlines() or [""], format_elapsed(self.elapsed_seconds)
         )
 
-    def _text_parts(self, message: str, color: str) -> list[tuple[str, str]]:
+    @staticmethod
+    def _text_parts(message: str, style: str = "") -> list[Fragment]:
         """Split only around URLs, so a message's own spacing survives verbatim.
 
         Aligned records such as the hardware summary pad with runs of spaces,
-        and re-joining split words would collapse those columns.
+        and a URL inside quotes stays against its quotes.
         """
-        parts: list[tuple[str, str]] = []
-        for index, fragment in enumerate(re.split(r"(https?://[^\s'\"]+)", message)):
-            # The renderer rejoins fragments with one space, so only the space
-            # at a URL boundary is dropped; internal padding is untouched.
-            fragment = fragment if index % 2 else fragment.strip(" ")
-            if not fragment:
-                continue
-            parts.append((fragment, self.out_palette.url if index % 2 else color))
-        return parts
+        return [
+            (fragment, "cyan" if index % 2 else style, False)
+            for index, fragment in enumerate(_URL.split(message))
+            if fragment
+        ]
 
     def line(
         self,
@@ -318,92 +304,121 @@ class Logger:
         stream: TextIO | None = None,
         command_arguments: Sequence[str] | None = None,
     ) -> None:
-        """Render one record, colouring the fragments that carry meaning."""
-        if level == "RUN" and command_arguments is not None:
-            message = shellquote.join(list(command_arguments))
-        palette = self.err_palette if stream is self._err else self.out_palette
-        body = palette.value
-        parts: list[tuple[str, str]] = []
+        """Render one record and append it to the build log."""
         if level == "RUN":
-            words = list(command_arguments) if command_arguments is not None else message.split(" ")
-            for position, word in enumerate(words):
-                shown = shellquote.quote(word) if command_arguments is not None else word
-                if word.startswith(("http://", "https://")):
-                    parts.append((shown, palette.url))
-                elif position == 0:
-                    parts.append((shown, palette.binary))
-                elif word.startswith(("-", "+")):
-                    parts.append((shown, palette.flag))
-                else:
-                    parts.append((shown, palette.value))
-            self._emit(level, parts, stream=stream)
-            self._record(level, message)
+            self._command(message, command_arguments, stream=stream)
             return
         for index, text in enumerate(message.splitlines() or [""]):
-            self._emit(level if index == 0 else None, self._text_parts(text, body), stream=stream)
+            if index == 0:
+                self._emit(self._tag(level), self._text_parts(text), stream=stream)
+            else:
+                self._emit(
+                    None,
+                    self._text_parts(text),
+                    stream=stream,
+                    indent=len(self._tag(level)[0]) + 1,
+                )
         self._record(level, message)
+
+    def _command(
+        self,
+        message: str,
+        arguments: Sequence[str] | None,
+        *,
+        stream: TextIO | None = None,
+        quiet: bool = False,
+    ) -> None:
+        if arguments is not None:
+            message = shellquote.join(list(arguments))
+            words = [shellquote.quote(word) for word in arguments]
+            raw = list(arguments)
+        else:
+            words = raw = message.split(" ")
+        if not quiet or self.debug_enabled:
+            parts: list[Fragment] = []
+            for position, (word, shown) in enumerate(zip(raw, words, strict=True)):
+                if word.startswith(("http://", "https://")):
+                    parts.append((shown, "cyan", False))
+                else:
+                    parts.append((shown, "", position == 0))
+            self._emit(("$", "dim", False), _spaced(parts), stream=stream, indent=COMMAND_INDENT)
+        self._record("RUN", message)
 
     # -- package lifecycle ------------------------------------------------
 
-    def _package_parts(
-        self, key: str, version: str, name_color: str, extra: str = ""
-    ) -> list[tuple[str, str]]:
-        parts = [(key, name_color), (version, self.out_palette.version)]
-        if extra:
-            parts.append((extra, self.out_palette.version))
-        return parts
-
     def package_start(self, key: str, version: str, replacing: str = "") -> None:
-        print(file=self._out)
+        heading: list[Fragment] = [
+            ("Building", "green", False),
+            (key, "yellow", True),
+            ("- version", "green", False),
+            (version, "yellow", False),
+        ]
         extra = f"(replacing {replacing})" if replacing else ""
-        self._emit(
-            "STEP",
-            self._package_parts(key, version, self.out_palette.package, extra),
-            bold_first=True,
-        )
+        if extra:
+            heading.append((extra, "dim", False))
+        plain = " ".join(text for text, _, _ in heading)
+        self._blank()
+        self._emit(None, _spaced(heading))
+        width = self._width(self._out)
+        self._emit(None, [("=" * min(len(plain), width or len(plain)), "", False)])
         self._record("STEP", f"{key} {version}" + (f" {extra}" if extra else ""))
 
     def package_done(self, key: str, version: str, duration: str = "") -> None:
-        self._emit(
-            "OK",
-            self._package_parts(key, version, self.out_palette.ok_package),
-            bold_first=True,
-            right=f"in {duration}" if duration else "",
-        )
+        parts: list[Fragment] = [(key, "yellow", True), (version, "yellow", False)]
+        if duration:
+            parts.append((f"built in {duration}", "", False))
+        self._emit(self._tag("OK"), _spaced(parts))
+        self._blank()
         self._record("OK", f"{key} {version}" + (f" in {duration}" if duration else ""))
 
     def package_reused(
         self, key: str, version: str, note: str = "is already built.", record: str = ""
     ) -> None:
         self._emit(
-            "SKIP",
-            self._package_parts(key, version, self.out_palette.ok_package)
-            + [(note, self.out_palette.value)],
-            bold_first=True,
+            self._tag("SKIP"),
+            _spaced([(key, "yellow", True), (version, "yellow", False), (note, "", False)]),
         )
         self._record("SKIP", record or f"{key} {version} {note}")
 
     def package_failed(self, key: str, version: str, reason: str) -> None:
-        parts: list[tuple[str, str]] = [(f"{key} {version}", self.err_palette.error)]
-        parts += self._text_parts(reason, self.err_palette.value)
-        self._emit("FAIL", parts, stream=self._err, bold_first=True)
-        self._record("ERROR", f"{key} {version} {reason}")
+        name = f"{key} {version}".strip()
+        self._emit(
+            self._tag("FAIL"),
+            [(f"{name}:", "red", True), (" ", "", False), *self._text_parts(reason)],
+            stream=self._err,
+        )
+        self._record("ERROR", f"{name} {reason}")
 
     def summary(self, built: int, reused: int, failed: int, elapsed: str) -> None:
-        palette = self.out_palette
-        segments = [(f"{built} built", palette.ok)]
+        segments: list[Fragment] = [(f"{built} built", "green", True)]
         if reused:
-            segments.append((f"{reused} reused", palette.value))
+            segments.append((f"{reused} already built", "", False))
         if failed:
-            segments.append((f"{failed} failed", palette.error))
-        segments.append((f"{elapsed} elapsed", palette.timestamp))
-        parts: list[tuple[str, str]] = []
-        for position, (text, color) in enumerate(segments):
-            if position:
-                parts.append(("·", palette.timestamp))
-            parts.append((text, color))
-        self._emit("OK", parts, bold_first=True)
+            segments.append((f"{failed} failed", "red", True))
+        counts: list[Fragment] = [("Packages:", "", False)]
+        for position, (text, style, bold) in enumerate(segments):
+            comma = "," if position < len(segments) - 1 else ""
+            counts.append((text + comma, style, bold))
+        self._emit(self._tag("INFO"), _spaced(counts))
+        self._emit(self._tag("INFO"), _spaced([("Total time:", "", False), (elapsed, "", True)]))
         self._record("INFO", f"{built} built, {reused} reused, {failed} failed, {elapsed} elapsed")
+
+    def farewell(self, url: str) -> None:
+        """The closing lines of a successful run, after any cleanup prompt."""
+        self._blank()
+        self._emit(
+            self._tag("INFO"),
+            _spaced(
+                [
+                    ("Make sure to", "", False),
+                    ("star", "yellow", True),
+                    ("this repository to show your support!", "", False),
+                ]
+            ),
+        )
+        self._emit(self._tag("INFO"), self._text_parts(url))
+        self._blank()
+        self._record("INFO", f"Make sure to star this repository to show your support! {url}")
 
     # -- records ----------------------------------------------------------
 
@@ -422,7 +437,6 @@ class Logger:
         self.line("INFO", f"File extracted: '{name}'.")
 
     def step(self, message: str) -> None:
-        """A stage or package heading, bold enough to find in a long scroll."""
         self.line("STEP", message)
 
     def ok(self, message: str) -> None:
@@ -431,10 +445,21 @@ class Logger:
     def skip(self, message: str) -> None:
         self.line("SKIP", message)
 
-    def run(self, message: str, *, arguments: Sequence[str] | None = None) -> None:
-        self.line("RUN", message, command_arguments=arguments)
+    def run(
+        self, message: str, *, arguments: Sequence[str] | None = None, quiet: bool = False
+    ) -> None:
+        """Echo a command as `$ command`.
 
-    def time(self, message: str) -> None:
+        A quiet command, such as the download transport already announced by
+        its own record, reaches the terminal only with --debug; the log file
+        records it either way.
+        """
+        self._command(message, arguments, quiet=quiet)
+
+    def time(self, message: str, *, quiet: bool = False) -> None:
+        if quiet and not self.debug_enabled:
+            self._record("TIME", message)
+            return
         self.line("TIME", message)
 
     def debug(self, message: str) -> None:
@@ -442,9 +467,22 @@ class Logger:
         if self.debug_enabled:
             self.line("DEBUG", message)
 
+    def prompt(self, question: str) -> str:
+        """Ask on the terminal under a `[PROMPT]` tag and record the answer.
+
+        EOFError propagates so each caller keeps its own no-answer policy.
+        """
+        palette = self.out_palette
+        text, style, bold = self._tag("PROMPT")
+        self._blank()
+        answer = input(f"{palette.paint(getattr(palette, style), text, bold=bold)} {question}")
+        self._after_blank = False
+        self._record("PROMPT", f"{question}{answer}")
+        return answer
+
     def hint(self, message: str) -> None:
-        """A dim follow-up under a record, such as a log location."""
-        self._emit("", [(message, self.out_palette.timestamp)])
+        """A dim follow-up under the previous record's text, such as a log location."""
+        self._emit(None, [(message, "dim", False)], indent=self._text_column)
         self._record("INFO", message)
 
     def warn(self, message: str) -> None:
@@ -457,14 +495,27 @@ class Logger:
 
     def error(self, message: str) -> None:
         lines = message.splitlines() or [""]
-        self._emit("ERROR", self._text_parts(lines[0], self.err_palette.error), stream=self._err)
+        tag = self._tag("ERROR")
+        self._emit(tag, self._text_parts(lines[0], "red"), stream=self._err)
         for text in lines[1:]:
-            self._emit(None, self._text_parts(text, self.err_palette.timestamp), stream=self._err)
+            self._emit(
+                None, self._text_parts(text, "dim"), stream=self._err, indent=len(tag[0]) + 1
+            )
         self._record("ERROR", message)
 
     def banner(self, text: str) -> None:
-        """A compact section heading, dim rules around a bright title."""
+        """A boxed section heading that stands out in a long scroll."""
         palette = self.out_palette
-        rule = palette.paint(palette.rail, "──")
-        print(f"{rule} {palette.paint(palette.package, text, bold=True)} {rule}", file=self._out)
+        rule = "─" * (len(text) + 4)
+        self._blank()
+        print(palette.paint(palette.dim, f"┌{rule}┐"), file=self._out)
+        print(
+            palette.paint(palette.dim, "│  ")
+            + palette.paint(palette.cyan, text, bold=True)
+            + palette.paint(palette.dim, "  │"),
+            file=self._out,
+        )
+        print(palette.paint(palette.dim, f"└{rule}┘"), file=self._out, flush=True)
+        self._after_blank = False
+        self._blank()
         self._record("INFO", text)

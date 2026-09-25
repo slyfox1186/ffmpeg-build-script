@@ -80,12 +80,40 @@ def test_cleanup_removes_build_root_and_every_leftover(
     assert "Removed build leftover" in capsys.readouterr().out
 
 
-def test_declining_keeps_every_leftover(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_declining_keeps_every_leftover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     build_root = make_checkout(tmp_path)
-    answer(monkeypatch, "no")
+    asked: list[str] = []
+
+    def reply(prompt: str = "") -> str:
+        asked.append(prompt)
+        return "no"
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", reply)
     orchestrator_for(tmp_path, build_root).cleanup()
+    assert asked == [
+        f"[PROMPT] Remove all build files under '{build_root}' and 8 build leftover(s) "
+        "in the checkout? (yes/no): "
+    ]
     assert "build" in leftovers_remaining(tmp_path)
     assert (tmp_path / "ffbuild/junk").is_file()
+    assert f"[INFO] Keeping build files in '{build_root}'." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("reply", ["yes", "no"])
+def test_finished_build_closes_after_the_cleanup_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], reply: str
+) -> None:
+    build_root = make_checkout(tmp_path)
+    answer(monkeypatch, reply)
+    orchestrator_for(tmp_path, build_root).finish()
+    output = capsys.readouterr().out
+    assert output.endswith(
+        "[INFO] Make sure to star this repository to show your support!\n"
+        "[INFO] https://github.com/slyfox1186/ffmpeg-build-script\n\n"
+    )
 
 
 def test_leftovers_are_swept_without_a_build_root(

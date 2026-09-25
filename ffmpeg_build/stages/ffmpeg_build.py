@@ -189,7 +189,7 @@ class FFmpegStage:
         if display_results:
             self.logger.banner(f"FFmpeg installation verified ({install_prefix}/bin)")
             for version_line in version_lines:
-                self.logger.hint(version_line)
+                self.logger.info(version_line)
 
     def backup_installed_programs(self, backup_dir: Path, install_prefix: Path) -> None:
         """Copy the three programs aside before `/usr/local` is touched.
@@ -285,11 +285,9 @@ class FFmpegStage:
 
     def run(self) -> None:
         context = self.context
-        print()
         self.logger.banner("Building FFmpeg")
 
         if not context.package_enabled("ffmpeg"):
-            print()
             self.logger.info("FFmpeg is disabled by config; dependency build is complete.")
             return
 
@@ -674,7 +672,6 @@ def report_success(context: BuildContext) -> None:
         if os.access(f"/usr/local/bin/{tool}", os.X_OK)
     ]
 
-    print()
     context.logger.banner("FFmpeg build completed successfully")
     context.logger.info(f"Version: {version_line}")
     context.logger.info("Installation: /usr/local/bin")
@@ -709,7 +706,7 @@ def _report_package_summary(context: BuildContext) -> None:
     logger = context.logger
     if context.packages_disabled:
         logger.info(f"Disabled packages: {context.packages_disabled}")
-    logger.hint(f"build log  {context.log_file}")
+    logger.info(f"Build log: {context.log_file}")
     logger.summary(
         built=context.packages_built,
         reused=context.packages_already_built,

@@ -9,7 +9,8 @@ to check.
 
 from __future__ import annotations
 
-ISSUE_TRACKER_URL = "https://github.com/slyfox1186/ffmpeg-build-script/issues"
+REPOSITORY_URL = "https://github.com/slyfox1186/ffmpeg-build-script"
+ISSUE_TRACKER_URL = f"{REPOSITORY_URL}/issues"
 
 
 class SignalStop(BaseException):

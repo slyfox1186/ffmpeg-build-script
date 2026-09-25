@@ -378,7 +378,8 @@ class Downloader:
             url,
         ]
         self.logger.get(url, filename)
-        if self.runner.run_logged(arguments) != 0:
+        # The record above names the URL; the transport flags only matter in --debug.
+        if self.runner.run_logged(arguments, quiet=True) != 0:
             temporary.unlink(missing_ok=True)
             self._unregister(temporary)
             self.logger.warn(f"Failed to download '{filename}'.")

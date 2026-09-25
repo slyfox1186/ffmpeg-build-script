@@ -42,7 +42,6 @@ def use_vapoursynth_python_environment(context: BuildContext) -> None:
 
 
 def install_video_libraries(context: BuildContext) -> None:
-    print()
     context.logger.banner("Installing Video Tools")
     workspace = context.workspace
     packages = context.packages

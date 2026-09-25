@@ -13,7 +13,7 @@ from ffmpeg_build.main import Orchestrator, validate_build_settings
 from ffmpeg_build.runtime.errors import UsageError
 from ffmpeg_build.runtime.logging import Logger
 from ffmpeg_build.usage import ACTIONS, ENVIRONMENT, OPTIONS, usage_text
-from tests.conftest import REPO, flatten, invoke
+from tests.conftest import REPO, invoke
 
 
 @pytest.mark.parametrize("argv", [("--help",), ("--version",), (), ("--bad", "--help")])
@@ -71,7 +71,7 @@ def test_invalid_jobs(tmp_path: Path, value: str) -> None:
     root = tmp_path / "absent"
     result = invoke(root, "--cleanup", f"--jobs={value}")
     assert result.returncode == 1
-    reported = flatten(result.stdout)
+    reported = result.stdout
     assert f"Invalid jobs value '{value.strip()}" in reported
     assert "expected a positive integer." in reported
     assert not root.exists()
@@ -104,7 +104,7 @@ def test_config_allowlist_and_alias(tmp_path: Path, capsys: pytest.CaptureFixtur
         "[build]\nlatest = true\nenable_gpl_and_non_free = false\n[packages]\nffmpeg = true\njemalloc = true\nvulkan-headers = false\n"
     )
     loaded = load_config(path, Logger())
-    output = flatten(capsys.readouterr().out)
+    output = capsys.readouterr().out
     assert f"Loaded package selection config: '{path}'" in output
     assert "run 'build-ffmpeg.py --cleanup' first" in output
     assert "run --cleanup" not in output

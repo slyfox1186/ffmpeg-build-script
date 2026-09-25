@@ -8,7 +8,6 @@ from .helpers import cmake_ninja_install
 
 
 def install_image_libraries(context: BuildContext) -> None:
-    print()
     context.logger.banner("Installing Image Tools")
     workspace = context.workspace
 

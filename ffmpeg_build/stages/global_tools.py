@@ -39,7 +39,6 @@ def resolve_tool_path(context: BuildContext, tool: str, preferred: Path) -> str 
 
 
 def install_global_tools(context: BuildContext) -> None:
-    print()
     context.logger.banner("Installing Global Tools")
     workspace = context.workspace
 
