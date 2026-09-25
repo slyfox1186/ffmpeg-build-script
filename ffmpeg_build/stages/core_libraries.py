@@ -10,7 +10,6 @@ from .helpers import cmake_ninja_install, configure_make_install, ensure_autotoo
 
 
 def install_core_libraries(context: BuildContext) -> None:
-    print()
     context.logger.banner("Installing Core Libraries")
     workspace = context.workspace
 

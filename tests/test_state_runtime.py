@@ -24,7 +24,7 @@ from ffmpeg_build.runtime.state import (
     write_build_root_marker,
 )
 from ffmpeg_build.runtime.versioncmp import version_sort
-from tests.conftest import REPO, flatten, invoke
+from tests.conftest import REPO, invoke
 
 
 def test_empty_timeout_overrides_use_defaults(
@@ -80,7 +80,7 @@ def test_cleanup_boundaries(tmp_path: Path, mode: str) -> None:
     result = invoke(root, "--cleanup")
     assert result.returncode == (0 if mode == "scaffold" else 1), result.stdout
     if mode == "scaffold":
-        assert "empty scaffolding from an interrupted run" in flatten(result.stdout)
+        assert "empty scaffolding from an interrupted run" in result.stdout
     if mode == "spaces":
         assert "may not contain whitespace" in result.stdout
     if mode in ("foreign", "unmarked"):
@@ -208,7 +208,7 @@ def test_failure_names_calling_recipe(
         recipe()
     except BuildError as error:
         _report_failure(orchestrator, error)
-    output = flatten(capsys.readouterr().err)
+    output = capsys.readouterr().err
     assert "helper rejected its input" in output
     assert "Raised from: test_state_runtime.py:" in output
     assert f"Build log: {context.log_file}" in output

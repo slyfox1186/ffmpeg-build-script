@@ -300,8 +300,9 @@ class HardwareDetection:
                     "skipping CUDA toolkit installation."
                 )
                 return
-            print()
-            answer = input("Install the CUDA toolkit from NVIDIA's signed APT repository? [y/N]: ")
+            answer = self.logger.prompt(
+                "Install the CUDA toolkit from NVIDIA's signed APT repository? [y/N]: "
+            )
             if answer.strip().lower() not in ("y", "yes"):
                 return
 
@@ -320,9 +321,7 @@ class HardwareDetection:
     def run(self) -> None:
         context = self.context
         self.detect_gpu_vendors()
-        print()
         self.logger.banner("Hardware Detection")
-        print()
         # One record rather than three bare prints: these results belong in the
         # build log a bug report will quote, and routing them through the logger
         # is what puts them there on the same timeline as everything around them.

@@ -42,7 +42,6 @@ def fix_sdl2_alsa_signatures(context: BuildContext, source: Path) -> None:
 
 
 def install_audio_libraries(context: BuildContext) -> None:
-    print()
     context.logger.banner("Installing Audio Tools")
     workspace = context.workspace
 

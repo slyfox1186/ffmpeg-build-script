@@ -34,7 +34,6 @@ _FONT_MIRROR_SETTINGS = {
 
 
 def install_support_libraries(context: BuildContext) -> None:
-    print()
     context.logger.banner("Installing Miscellaneous Libraries")
 
     # GnuTLS is the free TLS stack. It stays available in GPL/non-free builds

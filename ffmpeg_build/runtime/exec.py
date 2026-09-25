@@ -240,10 +240,11 @@ class Runner:
         cwd: Path | None = None,
         env_overrides: Mapping[str, str] | None = None,
         stdin_text: str | None = None,
+        quiet: bool = False,
     ) -> int:
         try:
             return self._run_logged(
-                arguments, cwd=cwd, env_overrides=env_overrides, stdin_text=stdin_text
+                arguments, cwd=cwd, env_overrides=env_overrides, stdin_text=stdin_text, quiet=quiet
             )
         except FileNotFoundError as error:
             self.logger.error(f"Unable to run command: {error}")
@@ -258,6 +259,7 @@ class Runner:
         cwd: Path | None = None,
         env_overrides: Mapping[str, str] | None = None,
         stdin_text: str | None = None,
+        quiet: bool = False,
     ) -> int:
         """Run a command, log it, and return its status instead of raising.
 
@@ -268,7 +270,7 @@ class Runner:
         if not arguments:
             raise BuildError("run_logged() called without a command.")
         command_display = shellquote.join(list(arguments))
-        self.logger.run(command_display, arguments=arguments)
+        self.logger.run(command_display, arguments=arguments, quiet=quiet)
         started = self.logger.elapsed_seconds
         environment = self.child_environment(env_overrides)
         working_directory = str(cwd) if cwd is not None else None
@@ -313,7 +315,7 @@ class Runner:
         # measurable time would push the useful output off the screen.
         duration = self.logger.elapsed_seconds - started
         if exit_code == 0 and duration >= 30:
-            self.logger.time(f"finished in {format_duration(duration)}")
+            self.logger.time(f"finished in {format_duration(duration)}", quiet=quiet)
         return exit_code
 
     def _run_teed(

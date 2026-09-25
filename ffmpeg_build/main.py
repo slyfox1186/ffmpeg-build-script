@@ -21,7 +21,7 @@ from .cli import (
 from .config import CLEANUP_COMMAND, BuildSettings, Selection, load_config
 from .runtime.build_lock import take_over_build_lock
 from .runtime.context import BuildContext
-from .runtime.errors import BuildError, SignalStop, UsageError
+from .runtime.errors import REPOSITORY_URL, BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
 from .runtime.logging import Logger, format_duration
 from .runtime.paths import (
@@ -526,12 +526,11 @@ class Orchestrator:
                 return
             leftovers = self._leftover_artifacts()
             while True:
-                print()
                 question = f"Remove all build files under '{resolved}'"
                 if leftovers:
                     question += f" and {len(leftovers)} build leftover(s) in the checkout"
                 try:
-                    choice = input(f"{question}? (yes/no): ")
+                    choice = self.logger.prompt(f"{question}? (yes/no): ")
                 except EOFError:
                     print()
                     self.logger.info("No cleanup response received; leaving build files in place.")
@@ -553,6 +552,7 @@ class Orchestrator:
                     self._remove_leftover_artifacts(self._leftover_artifacts())
                     return
                 if choice.strip().lower() in ("n", "no"):
+                    self.logger.info(f"Keeping build files in '{resolved}'.")
                     return
                 self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
         finally:
@@ -571,9 +571,8 @@ class Orchestrator:
             )
             return
         while True:
-            print()
             try:
-                choice = input(
+                choice = self.logger.prompt(
                     f"Remove {len(leftovers)} build leftover(s) in the checkout? (yes/no): "
                 )
             except EOFError:
@@ -584,6 +583,7 @@ class Orchestrator:
                 self._remove_leftover_artifacts(leftovers)
                 return
             if choice.strip().lower() in ("n", "no"):
+                self.logger.info(f"Keeping {len(leftovers)} build leftover(s) in the checkout.")
                 return
             self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
 
@@ -614,12 +614,7 @@ class Orchestrator:
         self.logger.log_file = context.log_file
         self.runner.log_file = context.log_file
 
-        # The palette is tuned against one background; commands inherit the
-        # terminal untouched because only this process writes the escape.
-        self.logger.force_background()
-        print()
         self.logger.banner(f"FFmpeg Build Script {SCRIPT_VERSION}")
-        print()
         self.logger.info(f"Build root: {context.cwd}")
         self.logger.info(f"Parallel jobs: {context.build_threads}")
         self.logger.info(f"Compiler family: {context.compiler}")
@@ -655,7 +650,12 @@ class Orchestrator:
         FFmpegStage(context, hardware).run()
 
         report_success(context)
+        self.finish()
+
+    def finish(self) -> None:
+        """Offer cleanup, then close the run whichever way the user answered."""
         self.cleanup()
+        self.logger.farewell(REPOSITORY_URL)
 
     def host_mutation_lock(self) -> DirectoryLock:
         """Serialize the host-mutating sections across every run by this user.
@@ -819,7 +819,6 @@ class Orchestrator:
         return 0
 
     def teardown(self) -> None:
-        self.logger.restore_background()
         self.runner.stop_sudo_keepalive()
         if self.context is not None:
             self.context.remove_registered_temporary_paths()
