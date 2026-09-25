@@ -286,3 +286,28 @@ def test_cuda_keyring_is_discovered_before_any_host_install(
         HardwareDetection(context, SystemSetup(context)).install_cuda_toolkit()
     assert len(calls) == bool(listing)
     assert not list(context.packages.glob(".cuda-keyring.*"))
+
+
+@pytest.mark.parametrize(
+    "index_url",
+    [
+        "https://ftp.gnu.org/gnu/m4/",
+        "https://mirror.team-cymru.com/gnu/m4/",
+        "https://mirror.csclub.uwaterloo.ca/gnu/m4/",
+    ],
+)
+def test_gnu_versions_use_only_responsive_mirrors_in_order(
+    context: BuildContext, monkeypatch: pytest.MonkeyPatch, index_url: str
+) -> None:
+    requested: list[str] = []
+
+    def fetch(url: str, **kwargs: object) -> str | None:
+        requested.append(url)
+        return None if "team-cymru" in url else "m4-1.4.20.tar.xz m4-1.4.21.tar.xz m4-2.0.tar.gz"
+
+    monkeypatch.setattr(context.resolver, "fetch_text", fetch)
+    assert context.resolver.gnu_version(index_url) == "1.4.21"
+    assert requested == [
+        "https://mirror.team-cymru.com/gnu/m4/",
+        "https://mirror.csclub.uwaterloo.ca/gnu/m4/",
+    ]
