@@ -16,8 +16,18 @@ from .exec import Runner
 from .logging import Logger
 from .versioncmp import version_sort
 
-GNU_PRIMARY_MIRROR = "https://mirrors.ibiblio.org/gnu"
-GNU_FALLBACK_MIRROR = "https://mirror.team-cymru.com/gnu"
+# mirrors.ibiblio.org is deliberately absent: its HTTPS listener stalls TCP
+# accept and the TLS handshake for 5-15 seconds while plain HTTP answers at once.
+GNU_PRIMARY_MIRROR = "https://mirror.team-cymru.com/gnu"
+GNU_FALLBACK_MIRROR = "https://mirror.csclub.uwaterloo.ca/gnu"
+_GNU_INDEX = re.compile(
+    "^(?:"
+    + "|".join(
+        re.escape(base)
+        for base in ("https://ftp.gnu.org/gnu", GNU_PRIMARY_MIRROR, GNU_FALLBACK_MIRROR)
+    )
+    + ")/(.*)$"
+)
 
 DEFAULT_VERSION_PATTERN = re.compile(r"^[0-9]+(\.[0-9]+){1,3}$")
 _REPO_NAME = re.compile(r"^[a-zA-Z0-9._/-]+$")
@@ -243,31 +253,21 @@ class VersionResolver:
     def gnu_version(self, index_url: str) -> str | None:
         """Scrape a GNU mirror directory listing for the newest release.
 
-        Mirrors are tried in a fixed order and ftp.gnu.org is used only when it
-        was named explicitly: it rate-limits aggressively enough that a build
+        GNU paths are always read from the primary mirror and then the fallback,
+        never from ftp.gnu.org: it rate-limits aggressively enough that a build
         touching four GNU packages regularly failed on it.
         """
         if not re.match(r"^https://[a-zA-Z0-9._/-]+\.[a-zA-Z0-9._/-]*$", index_url):
             raise BuildError(f"Invalid repository URL format: '{index_url}'.")
 
-        candidates: list[str] = []
-        if re.match(
-            r"^https?://(ftp\.gnu\.org|mirror\.team-cymru\.com|mirrors\.ibiblio\.org)/gnu/",
-            index_url,
-        ):
-            ibiblio = index_url.replace("ftp.gnu.org/gnu", "mirrors.ibiblio.org/gnu").replace(
-                "mirror.team-cymru.com/gnu", "mirrors.ibiblio.org/gnu"
-            )
-            cymru = index_url.replace("ftp.gnu.org/gnu", "mirror.team-cymru.com/gnu").replace(
-                "mirrors.ibiblio.org/gnu", "mirror.team-cymru.com/gnu"
-            )
-            candidates = [ibiblio, cymru]
-            if not index_url.startswith("https://ftp.gnu.org/gnu/") and index_url not in candidates:
-                candidates.append(index_url)
+        gnu_path = _GNU_INDEX.match(index_url)
+        if gnu_path:
+            ordered_candidates = [
+                f"{GNU_PRIMARY_MIRROR}/{gnu_path.group(1)}",
+                f"{GNU_FALLBACK_MIRROR}/{gnu_path.group(1)}",
+            ]
         else:
-            candidates = [index_url]
-
-        ordered_candidates = list(dict.fromkeys(candidates))
+            ordered_candidates = [index_url]
         for url in ordered_candidates:
             listing = self.fetch_text(url, max_time=10)
             if listing is None:
