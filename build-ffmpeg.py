@@ -282,9 +282,9 @@ def main(argv: list[str]) -> int:
     if REPOSITORY_ROOT not in sys.path:
         sys.path.insert(0, REPOSITORY_ROOT)
 
-    from ffmpeg_build.usage import metadata_response
+    from ffmpeg_build.usage import color_enabled, metadata_response
 
-    answer = metadata_response(argv or ["--help"])
+    answer = metadata_response(argv or ["--help"], color_enabled(sys.stdout))
     if answer is not None:
         sys.stdout.write(answer)
         return 0

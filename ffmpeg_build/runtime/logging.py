@@ -17,7 +17,6 @@ Colors are the standard ANSI set so they follow the terminal's own theme.
 
 from __future__ import annotations
 
-import os
 import re
 import shutil
 import sys
@@ -26,6 +25,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
 
+from ..usage import color_enabled
 from . import shellquote
 
 # Wrapped command arguments hang this far in, clear of the `$ ` prompt, so a
@@ -67,16 +67,6 @@ def _is_terminal(stream: TextIO) -> bool:
         return stream.isatty()
     except (AttributeError, ValueError):
         return False
-
-
-def _color_enabled(stream: TextIO) -> bool:
-    if os.environ.get("NO_COLOR"):
-        return False
-    if os.environ.get("FORCE_COLOR"):
-        return True
-    if os.environ.get("TERM", "dumb") == "dumb":
-        return False
-    return _is_terminal(stream)
 
 
 class Palette:
@@ -156,8 +146,8 @@ class Logger:
         self._started = time.monotonic()
         self._out = sys.stdout
         self._err = sys.stderr
-        self.out_palette = Palette(_color_enabled(sys.stdout))
-        self.err_palette = Palette(_color_enabled(sys.stderr))
+        self.out_palette = Palette(color_enabled(sys.stdout))
+        self.err_palette = Palette(color_enabled(sys.stderr))
         # Both streams share one screen, so one flag tracks whether the last
         # visible line was blank; separators never stack into double gaps.
         self._after_blank = True

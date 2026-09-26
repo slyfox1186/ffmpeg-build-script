@@ -13,6 +13,7 @@ from .cli import (
     SCRIPT_NAME,
     SCRIPT_VERSION,
     Arguments,
+    color_enabled,
     parse_arguments,
     requested_metadata,
     resolve_config_path,
@@ -711,7 +712,7 @@ class Orchestrator:
         return context
 
     def run(self) -> int:
-        metadata = requested_metadata(self.argv)
+        metadata = requested_metadata(self.argv, color_enabled(sys.stdout))
         if metadata is not None:
             sys.stdout.write(metadata)
             return 0
@@ -746,7 +747,7 @@ class Orchestrator:
         if arguments.menu:
             return self.run_menu(arguments, settings, selection)
         if not arguments.build:
-            sys.stdout.write(usage_text())
+            sys.stdout.write(usage_text(color_enabled(sys.stdout)))
             return 0
 
         validate_build_settings(selection, self.debug_value)

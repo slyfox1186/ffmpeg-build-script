@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,17 @@ from ffmpeg_build.config import BuildSettings, Selection, default_states, load_c
 from ffmpeg_build.main import Orchestrator, validate_build_settings
 from ffmpeg_build.runtime.errors import UsageError
 from ffmpeg_build.runtime.logging import Logger
-from ffmpeg_build.usage import ACTIONS, ENVIRONMENT, OPTIONS, usage_text
+from ffmpeg_build.usage import (
+    ACTIONS,
+    BUILD_OPTIONS,
+    DESCRIPTION_COLUMN,
+    ENVIRONMENT,
+    GENERAL_OPTIONS,
+    INDENT,
+    WIDTH,
+    color_enabled,
+    usage_text,
+)
 from tests.conftest import REPO, invoke
 
 
@@ -28,9 +39,68 @@ def test_metadata_has_no_side_effects(tmp_path: Path, argv: tuple[str, ...]) -> 
 
 
 def test_help_layout() -> None:
-    for _label, description in (*ACTIONS, *OPTIONS, *ENVIRONMENT):
-        line = next(line for line in usage_text().splitlines() if description in line)
-        assert line.index(description) == 36
+    lines = usage_text().splitlines()
+    assert all(len(line) <= WIDTH for line in lines)
+    for label, description in (*ACTIONS, *BUILD_OPTIONS, *GENERAL_OPTIONS, *ENVIRONMENT):
+        index = next(i for i, line in enumerate(lines) if line.startswith(INDENT + label + " "))
+        assert lines[index][:DESCRIPTION_COLUMN].rstrip() == INDENT + label
+        wrapped = [lines[index][DESCRIPTION_COLUMN:]]
+        for line in lines[index + 1 :]:
+            if line[:DESCRIPTION_COLUMN].strip() or not line.strip():
+                break
+            wrapped.append(line[DESCRIPTION_COLUMN:])
+        assert " ".join(wrapped) == description
+    # A default note wraps whole so it reads, and is colored, as one unit.
+    assert all(line.count("(default:") == line.count(")") for line in lines if "(default:" in line)
+
+
+ANSI = re.compile(r"\033\[[0-9;]*m")
+
+
+def test_colored_help_only_adds_escape_codes() -> None:
+    colored = usage_text(color=True)
+    assert "\033[" not in usage_text()
+    assert ANSI.sub("", colored) == usage_text()
+    assert "\033[1;36m--build\033[0m" in colored
+    assert "\033[35m<file>\033[0m" in colored
+    assert "build-ffmpeg.py" in colored
+    assert "\033[1;36m-free" not in colored
+
+
+class _Stream:
+    def __init__(self, tty: bool) -> None:
+        self.tty = tty
+
+    def isatty(self) -> bool:
+        return self.tty
+
+
+@pytest.mark.parametrize(
+    ("environment", "tty", "expected"),
+    [
+        ({"TERM": "xterm"}, True, True),
+        ({"TERM": "xterm"}, False, False),
+        ({"TERM": "dumb"}, True, False),
+        ({}, True, False),
+        ({"TERM": "dumb", "FORCE_COLOR": "1"}, False, True),
+        ({"TERM": "xterm", "NO_COLOR": "1", "FORCE_COLOR": "1"}, True, False),
+    ],
+)
+def test_color_policy(
+    monkeypatch: pytest.MonkeyPatch, environment: dict[str, str], tty: bool, expected: bool
+) -> None:
+    for name in ("NO_COLOR", "FORCE_COLOR", "TERM"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    assert color_enabled(_Stream(tty)) is expected  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("argv", [("--help",), ()])
+def test_forced_color_help(tmp_path: Path, argv: tuple[str, ...]) -> None:
+    result = invoke(tmp_path / "absent", *argv, NO_COLOR="", FORCE_COLOR="1")
+    assert result.returncode == 0
+    assert result.stdout == usage_text(color=True)
 
 
 @pytest.mark.parametrize(

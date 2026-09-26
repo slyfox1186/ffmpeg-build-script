@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -34,6 +35,7 @@ def contract_errors(root: Path) -> list[str]:
     completed = subprocess.run(
         [sys.executable, "-B", str(root / "build-ffmpeg.py"), "--help"],
         cwd=root,
+        env={**os.environ, "NO_COLOR": "1"},
         capture_output=True,
         text=True,
         check=False,
@@ -42,7 +44,7 @@ def contract_errors(root: Path) -> list[str]:
     blocks = [
         block
         for block in re.findall(r"```text\n(.*?)\n```", readme, re.S)
-        if "Usage: build-ffmpeg.py" in block
+        if "Usage: python3 build-ffmpeg.py" in block
     ]
     if completed.returncode != 0 or blocks != [completed.stdout]:
         errors.append("README.md CLI block must match live --help byte for byte.")
