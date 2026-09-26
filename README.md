@@ -116,41 +116,76 @@ python3 build-ffmpeg.py --build --jobs 8 --config ./custom.toml
 ```text
 
 FFmpeg Build Script 8.1.0
-Usage: build-ffmpeg.py [options]
+
+Usage: python3 build-ffmpeg.py <action> [options]
+
+  Builds FFmpeg and its libraries from source and installs FFmpeg under
+  /usr/local. Run it as a normal user with sudo access. Choose exactly one
+  action; with none, this help is shown.
 
 Actions:
-  -b, --build                       Build and install FFmpeg
-  -c, --cleanup                     Remove this project's build root and build leftovers
-  -m, --menu                        Choose packages in an interactive menu
+  -b, --build                     Build and install FFmpeg
+  -m, --menu                      Pick packages in a menu, then build
+  -c, --cleanup                   Delete the build root and build leftovers
 
-Options:
-  -h, --help                        Show this help without changing the filesystem
-  -v, --version                     Show the script version
-      --compiler <gcc|clang>        Override the config compiler (default: gcc)
-      --gcc / --clang               Aliases for --compiler gcc / --compiler clang
-      --config <path>               Load build/package choices from TOML
-  -j, --jobs <count>                Set parallel build jobs (default: available CPUs)
-  -l, --latest                      Refresh and rebuild outdated dependencies
-  -n, --enable-gpl-and-non-free     Enable GPL/non-free components
+Build options:
+      --config <file>             Build only the packages this TOML file
+                                  enables; start from example.toml
+                                  (default: every package)
+      --compiler <gcc|clang>      Compiler to use (default: gcc)
+      --gcc, --clang              Same as --compiler gcc / --compiler clang
+  -j, --jobs <count>              Parallel build jobs (default: available CPUs)
+  -l, --latest                    Check upstream for newer releases and rebuild
+                                  outdated dependencies
+  -n, --enable-gpl-and-non-free   Allow GPL and non-free components, required
+                                  for x264, x265, fdk-aac and CUDA/NVENC; the
+                                  result may not be redistributable
 
-Long options also accept --option=value (for example: --jobs=8).
+General options:
+  -h, --help                      Show this help; changes nothing on disk
+  -v, --version                   Show the script version
 
-Environment:
-  BUILD_ROOT=/path                  Override the default ./build directory
-  CUDA_INSTALL=ask|always|never     Control CUDA toolkit installation (default: ask)
-  CUDA_ARCH_MODE=native|all|custom  Select CUDA code-generation targets
-  CUDA_ARCHITECTURES="86 89"        Targets for CUDA_ARCH_MODE=custom
-  FFMPEG_BUILD_DEBUG=ON             Stream commands while also logging them
+  Options that take a value also accept --option=value, for example --jobs=8.
 
-Example:
-  python3 build-ffmpeg.py --build --compiler clang --jobs 8 --config ./custom.toml
-  python3 build-ffmpeg.py --build --latest --enable-gpl-and-non-free
+Environment variables:
+  BUILD_ROOT=<dir>                Build workspace
+                                  (default: build/ in this checkout)
+  CUDA_INSTALL=<mode>             Install a missing CUDA toolkit: ask, always or
+                                  never (default: ask)
+  CUDA_ARCH_MODE=<mode>           GPU code targets: native, all or custom
+                                  (default: native)
+  CUDA_ARCHITECTURES="<list>"     Targets for custom mode, for example "86 89"
+  FFMPEG_BUILD_DEBUG=ON           Stream all command output to the terminal; the
+                                  build log is still written (default: OFF)
+
+Examples:
+  # Build the packages enabled in your config (copy example.toml first)
+  python3 build-ffmpeg.py --build --config ./custom.toml
+
+  # Pick packages interactively, then build
+  python3 build-ffmpeg.py --menu
+
+  # Build with clang on 8 cores, including GPL and non-free components
+  python3 build-ffmpeg.py --build --clang --jobs 8 --enable-gpl-and-non-free
+
+  # Update outdated dependencies to their newest upstream releases
+  python3 build-ffmpeg.py --build --latest --config ./custom.toml
+
+  # Never install or modify CUDA packages
+  CUDA_INSTALL=never python3 build-ffmpeg.py --build --config ./custom.toml
+
+  # Start over with an empty workspace
+  python3 build-ffmpeg.py --cleanup
+
+Build log: $BUILD_ROOT/build.log    Full guide: README.md
 
 
 ```
 
 `--help` and `--version` are side-effect free: they do not create a build
 directory, truncate a log, request sudo, or load a config file.
+On a terminal the help is colored; `NO_COLOR=1` turns color off, and piped or
+redirected output stays plain unless `FORCE_COLOR=1` is set.
 
 The result is tuned for the machine that built it (`-march=native`,
 `--cpu=native`, and AVX-512 detection), so the installed binaries may fault with

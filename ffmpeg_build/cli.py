@@ -19,12 +19,13 @@ from pathlib import Path
 from .config import COMPILERS
 from .runtime.errors import UsageError
 from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
-from .usage import SCRIPT_NAME, SCRIPT_VERSION, metadata_response, usage_text
+from .usage import SCRIPT_NAME, SCRIPT_VERSION, color_enabled, metadata_response, usage_text
 
 __all__ = [
     "Arguments",
     "SCRIPT_NAME",
     "SCRIPT_VERSION",
+    "color_enabled",
     "parse_arguments",
     "requested_metadata",
     "resolve_config_path",
@@ -46,9 +47,9 @@ class Arguments:
         self.config_path: str | None = None
 
 
-def requested_metadata(argv: list[str]) -> str | None:
+def requested_metadata(argv: list[str], color: bool = False) -> str | None:
     """Answer `--help`/`--version` before any other work happens."""
-    return metadata_response(argv)
+    return metadata_response(argv, color)
 
 
 def parse_arguments(argv: list[str]) -> Arguments:
