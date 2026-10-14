@@ -20,6 +20,8 @@ include = ["ffmpeg_build*"]
 target-version = "py312"
 line-length = 100
 include = ["build-ffmpeg.py", "run_linter.py", "ffmpeg_build/**/*.py", "tests/**/*.py", "tools/**/*.py"]
+# tests/ and tools/ are gitignored developer directories that must still be linted.
+respect-gitignore = false
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B"]

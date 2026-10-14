@@ -14,6 +14,25 @@ from ffmpeg_build import registry
 from ffmpeg_build.config import BuildSettings, default_states, render_config
 
 REPO_ROOT = Path(__file__).resolve().parent
+# Developer directories that .gitignore keeps out of the published repository.
+# They are still checked whenever they exist in the checkout.
+LOCAL_ONLY_DIRECTORIES = ("tests", "tools")
+
+
+def checked_files(root: Path) -> set[bytes]:
+    published = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    local_only = ["git", "ls-files", "-z", "--others", "--ignored", "--exclude-standard"]
+    names: set[bytes] = set()
+    for command in (published, [*local_only, "--", *LOCAL_ONLY_DIRECTORIES]):
+        listing = subprocess.run(command, cwd=root, capture_output=True, check=True)
+        names.update(listing.stdout.split(b"\0"))
+    return names - {b""}
+
+
+def mypy_targets(root: Path) -> list[str]:
+    with (root / "pyproject.toml").open("rb") as handle:
+        configured: list[str] = tomllib.load(handle)["tool"]["mypy"]["files"]
+    return [name for name in configured if (root / name).exists()]
 
 
 def contract_errors(root: Path) -> list[str]:
@@ -59,15 +78,9 @@ def contract_errors(root: Path) -> list[str]:
                     f"{package.key} advertises {flag}, which is absent from build stages."
                 )
 
-    files = subprocess.run(
-        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        cwd=root,
-        capture_output=True,
-        check=True,
-    )
     # Assembling the tokens keeps this checker from flagging its own source.
     forbidden = ("apt" + "-get", "apt" + "-cache")
-    for raw_name in sorted(set(files.stdout.split(b"\0")) - {b""}):
+    for raw_name in sorted(checked_files(root)):
         path = root / raw_name.decode("utf-8", "surrogateescape")
         if not path.is_file() or path.is_symlink():
             continue
@@ -92,7 +105,12 @@ def contract_errors(root: Path) -> list[str]:
 
 def main() -> int:
     failed = False
-    for command in (("ruff", "check", "."), ("ruff", "format", "--check", "."), ("mypy",)):
+    commands = (
+        ("ruff", "check", "."),
+        ("ruff", "format", "--check", "."),
+        ("mypy", *mypy_targets(REPO_ROOT)),
+    )
+    for command in commands:
         result = subprocess.run([sys.executable, "-m", *command], cwd=REPO_ROOT, check=False)
         failed |= result.returncode != 0
     try:
