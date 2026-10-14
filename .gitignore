@@ -45,6 +45,7 @@
 
 # Local configuration
 /custom.toml
+/custom1.toml
 
 # Developer-only directories kept out of the published repository
 /.github/
