@@ -573,27 +573,16 @@ results change only when a pin is bumped deliberately.
 The static gate runs Ruff checks, Ruff format verification, strict mypy, and
 checks that the generated template, registry, README help, and advertised
 FFmpeg flags agree. It also rejects trailing whitespace and disallowed APT
-command variants. CI runs the gates on Ubuntu 24.04 with Python 3.12, 3.13,
-and 3.14.
+command variants.
 
-The regression suite covers the CLI and config contracts, old-workspace
-adoption, locks and bounded deletion, hostile archives and cache damage,
-logging failures, host-package selection, shader interfaces, recovery after
-installation failures, the menu model and a real terminal session. Fixture
-workspaces exercise the complete stage sequence without compilation, network,
-or sudo. Checked-in Bash baseline fixtures pin host-package sets and ordered
-FFmpeg configure arguments.
-
-Standalone diagnostics:
-
-```bash
-python3 tools/git_repo_version.py https://github.com/FFmpeg/FFmpeg.git n
-python3 tools/compiler_versions.py
-```
-
-The compiler diagnostic searches standard locations, `PATH`, and any extra
-colon-separated directories in `COMPILER_SEARCH_DIRS`. It reports installed
-versions and the highest major version visible to APT without installing them.
+The regression suite (`tests/`) and the maintainer diagnostics (`tools/`) are
+kept out of the published repository, so `pytest` applies only to checkouts that
+have them; the static gate checks them whenever they are present. The suite
+covers the CLI and config contracts, old-workspace adoption, locks and bounded
+deletion, hostile archives and cache damage, logging failures, host-package
+selection, shader interfaces, recovery after installation failures, the menu
+model and a real terminal session. Fixture workspaces exercise the complete
+stage sequence without compilation, network, or sudo.
 
 After the full build, the script itself verifies:
 

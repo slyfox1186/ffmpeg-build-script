@@ -46,6 +46,11 @@
 # Local configuration
 /custom.toml
 
+# Developer-only directories kept out of the published repository
+/.github/
+/tests/
+/tools/
+
 # Editors and operating systems
 .DS_Store
 .idea/
