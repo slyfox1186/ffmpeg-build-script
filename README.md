@@ -9,6 +9,31 @@ build complete.
 The project favors static dependency archives, but the final binary can still
 link dynamically to selected operating-system libraries and GPU runtimes.
 
+## Latest changes (since 8.1.0)
+
+- **Existing workspaces rebuild FFmpeg once.** The build now records a SHA-256
+  fingerprint of the programs it installs in `/usr/local/bin` and reuses a
+  finished FFmpeg build only while they still match, so a different FFmpeg
+  installed over them, even of the same version, is rebuilt instead of being
+  reported as verified. Workspaces from before this change have no fingerprint
+  yet; dependency builds are still reused.
+- **VapourSynth and AviSynth build only their headers.** FFmpeg loads
+  `libvapoursynth-script.so` and `libavisynth.so` when a `.vpy` or `.avs` file
+  is opened, so those inputs work only after you install that library on the
+  system. The closing summary names the library for each integration enabled.
+  These builds are now much shorter and no longer need Cython.
+- **sudo never waits at a hidden password prompt.** Privileged commands run as
+  `sudo -n`. If the cached password expires during a long build, you are asked
+  again before FFmpeg is installed; a policy requiring a password for every
+  command fails promptly instead of hanging.
+- Pressing Ctrl-C again during a failed installation's rollback no longer
+  leaves programs half-restored.
+- `--cleanup` no longer reaches into other build directories inside the
+  checkout, and deletes an old `packages/`, `workspace/` or
+  `ffmpeg-build-script/` directory only when it is verifiably this project's
+  and not in use.
+- Building Nettle without GnuTLS now asks for GMP, which Nettle needs.
+
 ## Update: 8.1.0
 
 - When Conda is available, builds always run in its `install-ffmpeg`
