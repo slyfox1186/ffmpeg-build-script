@@ -58,7 +58,10 @@ GENERAL_OPTIONS = (
     ("-h, --help", "Show this help; changes nothing on disk"),
     ("-v, --version", "Show the script version"),
 )
-VALUE_NOTE = "Options that take a value also accept --option=value, for example --jobs=8."
+VALUE_NOTE = (
+    "Options that take a value also accept --option=value, for example --jobs=8. "
+    "Single-letter options can be grouped: -bln is -b -l -n, and -bj8 is -b -j 8."
+)
 ENVIRONMENT = (
     ("BUILD_ROOT=<dir>", "Build workspace (default: build/ in this checkout)"),
     (
@@ -98,6 +101,10 @@ FOOTER = "Build log: $BUILD_ROOT/build.log    Full guide: README.md"
 # that argument and stops at `--`, so an option's value is never mistaken for an
 # option: `--compiler -h` means a compiler named '-h', not a request for help.
 TAKES_VALUE = frozenset(["--compiler", "--config", "-j", "--jobs"])
+# Single-letter flags that can share one dash, as in `-bln`. `-j` takes a value,
+# so it ends a group: the rest of the group, or else the next argument, is its
+# value (`-bj8`, `-bj 8`).
+GROUPABLE_FLAGS = frozenset("bmclnhv")
 
 # Line kinds. BODY lines are colored token by token; the others as a whole.
 TITLE, HEADING, BODY, COMMENT = "title", "heading", "body", "comment"
@@ -217,12 +224,56 @@ def usage_text(color: bool = False) -> str:
     return "".join((_paint(kind, text) if color else text) + "\n" for kind, text in help_lines())
 
 
+def expand_short_options(argv: list[str]) -> list[str]:
+    """Split grouped single-letter options: `-bln` becomes `-b -l -n`.
+
+    Every walk over the command line expands first, so `-bh` shows help just as
+    `-b -h` does. An option's value is never split, `--` ends expansion, and a
+    group holding an unknown letter stays whole so its error names what was
+    typed.
+    """
+    expanded: list[str] = []
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        index += 1
+        if argument == "--":
+            expanded.extend(argv[index - 1 :])
+            break
+        if argument in TAKES_VALUE:
+            expanded.extend(argv[index - 1 : index + 1])
+            index += 1
+            continue
+        if len(argument) < 3 or argument[0] != "-" or argument[1] == "-":
+            expanded.append(argument)
+            continue
+        group: list[str] = []
+        for position, letter in enumerate(argument[1:], start=1):
+            if letter == "j":
+                # The rest of the group is the value; with none, the next
+                # argument is, and it must not be expanded in turn.
+                value = argument[position + 1 :]
+                if value:
+                    group += ["-j", value]
+                else:
+                    group += ["-j", *argv[index : index + 1]]
+                    index += 1
+                break
+            if letter not in GROUPABLE_FLAGS:
+                group = [argument]
+                break
+            group.append("-" + letter)
+        expanded.extend(group)
+    return expanded
+
+
 def metadata_response(argv: list[str], color: bool = False) -> str | None:
     """Answer `--help`/`--version`, or return None when neither was requested.
 
     This walk runs before the interpreter is resolved, so on that path it is
     the only thing standing between `-- -h` and a help screen.
     """
+    argv = expand_short_options(argv)
     index = 0
     while index < len(argv):
         argument = argv[index]
