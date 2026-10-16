@@ -309,8 +309,6 @@ class BuildContext:
                 "int main(void) { void (*volatile entry)(void) = "
                 "(void (*)(void))svt_av1_enc_init_handle; return entry == 0; }\n",
             )
-        if key == "vapoursynth":
-            return artifacts.vapoursynth_sdk_ready(self.workspace)
         if key == "ffmpeg":
             return os.access("/usr/local/bin/ffmpeg", os.X_OK) and os.access(
                 "/usr/local/bin/ffprobe", os.X_OK

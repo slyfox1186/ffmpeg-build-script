@@ -5,8 +5,9 @@ Downloads still go through `curl` rather than `urllib`. That is deliberate:
 `--max-filesize` bounds the transfer before it lands, and the `--write-out`
 line keeps the HTTP status and content type in the build log, which is what
 makes an HTML "verify your browser" page diagnosable instead of a mysterious
-tar error. Retrieval commands share the project-selected HTTP user agent;
-successful HTTP responses still require archive validation.
+tar error. curl keeps its native user agent, because a browser identity makes
+some hosts serve HTML pages instead of archives; successful HTTP responses
+still require archive validation.
 """
 
 from __future__ import annotations

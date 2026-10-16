@@ -81,6 +81,24 @@ LEFTOVER_ARTIFACT_NAMES = (
 LEGACY_BUILD_ROOT_NAMES = ("packages", "workspace", "ffmpeg-build-script")
 
 
+def _legacy_root_is_ours(path: Path) -> bool:
+    """A legacy root is ours only with this project's marker or as an empty shell.
+
+    The marker must pass the same checks as the selected build root's: a user
+    directory that merely shares the name, or holds a copied or arbitrary
+    `.ffmpeg-build-root` entry, is not ours to delete.
+    """
+    if not path.is_dir() or path.is_symlink():
+        return False
+    marker = path / BUILD_ROOT_MARKER_NAME
+    if build_root_marker_matches(marker, path) or legacy_build_root_marker(marker):
+        return True
+    try:
+        return not any(path.iterdir())
+    except OSError:
+        return False
+
+
 def validate_build_settings(selection: Selection, debug_value: str) -> None:
     """Check everything derivable from the request alone.
 
@@ -456,21 +474,32 @@ class Orchestrator:
         the user happened to run from may be full of files that are not ours.
         """
         repository = canonicalize(self.repo_root)
+        selected_root = canonicalize(self.build_root)
         candidates = [repository / name for name in LEFTOVER_ARTIFACT_NAMES]
         candidates.extend(sorted(repository.glob("*.egg-info")))
         # Bytecode caches appear beside every package that has been imported.
-        candidates.extend(
-            path
-            for path in sorted(repository.rglob("__pycache__"))
-            if ".git" not in path.relative_to(repository).parts
-        )
-        for legacy in LEGACY_BUILD_ROOT_NAMES:
-            path = repository / legacy
-            # A legacy root is only ours while it still carries a marker or is
-            # an empty shell; a user directory sharing the name is not.
-            if path.is_dir() and not path.is_symlink():
-                if (path / BUILD_ROOT_MARKER_NAME).exists() or not any(path.iterdir()):
+        # The walk never enters a build root: the selected one is removed
+        # separately, and any other belongs to a build whose lock this cleanup
+        # does not hold. os.walk does not follow symlinked directories.
+        for directory, subdirectories, _files in os.walk(repository):
+            parent = Path(directory)
+            descend: list[str] = []
+            for name in sorted(subdirectories):
+                path = parent / name
+                if name == "__pycache__":
                     candidates.append(path)
+                elif not (
+                    name == ".git"
+                    or path == selected_root
+                    or os.path.lexists(path / BUILD_ROOT_MARKER_NAME)
+                ):
+                    descend.append(name)
+            subdirectories[:] = descend
+        candidates.extend(
+            repository / legacy
+            for legacy in LEGACY_BUILD_ROOT_NAMES
+            if repository / legacy != selected_root and _legacy_root_is_ours(repository / legacy)
+        )
         targets: list[Path] = []
         for candidate in candidates:
             if not candidate.is_dir() or candidate.is_symlink() or candidate in targets:
@@ -480,8 +509,22 @@ class Orchestrator:
 
     def _remove_leftover_artifacts(self, targets: list[Path]) -> None:
         repository = canonicalize(self.repo_root)
+        legacy_roots = {repository / legacy for legacy in LEGACY_BUILD_ROOT_NAMES}
         for target in targets:
-            safe_remove_tree(target, repository)
+            if target not in legacy_roots:
+                safe_remove_tree(target, repository)
+            elif target.is_dir():
+                # A legacy root may be another build's BUILD_ROOT. Remove it
+                # only under its lock, and only if it is still ours.
+                with DirectoryLock(target) as lock:
+                    if not lock.acquire():
+                        self.logger.warn(f"Leaving '{target}' in place: another build is using it.")
+                        continue
+                    if not _legacy_root_is_ours(target):
+                        continue
+                    safe_remove_tree(target, repository)
+            else:
+                continue
             self.logger.info(f"Removed build leftover: '{target}'.")
 
     def cleanup(self) -> None:

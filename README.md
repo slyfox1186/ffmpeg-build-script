@@ -197,8 +197,9 @@ are mutually exclusive. A build without `--config` selects every registered
 package; using the reviewed `custom.toml` allowlist is the recommended path.
 
 Bare invocation, help and version reporting do not resolve or create an
-interpreter environment. An incompatible existing Conda interpreter falls back
-to the compatible system-interpreter search. Numeric settings accept ASCII
+interpreter environment. An existing Conda environment older than Python 3.12
+stops the launcher with its removal command; while Conda exists, the launcher
+never falls back to a system interpreter. Numeric settings accept ASCII
 decimal digits; jobs, timeouts and counters are bounded to 2,147,483,647, while
 byte limits may use the host's signed integer range. Empty environment timeout
 overrides use the documented defaults.
@@ -356,8 +357,8 @@ Every source recipe discovers releases from upstream tags or release indexes;
 there are no fixed release-version fallbacks. Git packages select stable release
 tags and verify the checked-out commit, including annotated tags. x264 uses
 upstream's `stable` branch because it does not publish ordinary release tags;
-SDL2 stays within the SDL2 API family. Rust, cargo-c, Cython, and NVIDIA's CUDA
-keyring also resolve their current releases dynamically. Adopting dynamic Rust
+SDL2 stays within the SDL2 API family. Rust, cargo-c, and NVIDIA's CUDA keyring
+also resolve their current releases dynamically. Adopting dynamic Rust
 tools rebuilds rav1e and FFmpeg while preserving other compatible dependencies.
 System integrations use the distribution's APT packages; their versions follow
 the configured distribution repositories. `All` selects every package and
@@ -367,6 +368,11 @@ Git checkout. LAME and SVT-AV1 archives must also pass a static link check befor
 reuse, so incomplete dependencies or incompatible LTO objects trigger a repair.
 LAME builds its encoder without the optional mpg123 decoder; SVT-AV1 builds
 native objects compatible with FFmpeg's host linker.
+A completed FFmpeg build is reused only while the programs in `/usr/local/bin`
+match the SHA-256 receipt (`packages/ffmpeg.installed`) written when this
+workspace installed them. Programs replaced by another build, even one of the
+same version, trigger an FFmpeg rebuild; workspaces from earlier releases have
+no receipt and rebuild FFmpeg once.
 If a recorded Git checkout is missing or points to another commit,
 a normal rerun stops with recovery instructions; restore that checkout or use
 `--latest` to select a fresh snapshot. It does not silently discard the pin.
@@ -467,6 +473,12 @@ Because an omitted key is disabled and an unknown key is a fatal error, these
 keys remain supported rather than removed, so configs that list them keep
 working.
 
+`vapoursynth` and `avisynth` install only the headers FFmpeg compiles against.
+FFmpeg loads `libvapoursynth-script.so` or `libavisynth.so` when a `.vpy` or
+`.avs` input is opened, so those inputs work only on a host that provides that
+library on the system library search path; the closing summary names the
+library for each integration the installed FFmpeg was configured with.
+
 ## CUDA and hardware acceleration
 
 GPU discovery is advisory for compile-time feature selection. The script:
@@ -520,6 +532,11 @@ The build performs unavoidable system changes only in narrowly defined places:
 - An opted-in CUDA setup installs NVIDIA's repository keyring and the
   `cuda-toolkit` package, not a display driver.
 - FFmpeg's final `make install` writes under `/usr/local`.
+
+These commands run as `sudo -n`, so they never wait at a password prompt they
+cannot display. sudo is validated interactively before the first of them and
+again before FFmpeg's installation; a sudo policy that requires a password for
+every command makes them fail promptly instead.
 
 All third-party archives must use HTTPS, pass a tar listing check, contain one
 top-level source tree, and extract into a temporary directory before being

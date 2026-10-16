@@ -842,6 +842,10 @@ REQUIREMENTS: tuple[Requirement, ...] = (
         "a system nettle development package",
         condition="not-gpl-openssl",
     ),
+    # Nettle's libhogweed, part of its required artifact, links against GMP.
+    Requirement(
+        "nettle", "gmp", "gmp", "a system GMP development package", condition="not-gpl-openssl"
+    ),
     Requirement(
         "srt", "openssl", "openssl", "a system OpenSSL development package", condition="gpl"
     ),

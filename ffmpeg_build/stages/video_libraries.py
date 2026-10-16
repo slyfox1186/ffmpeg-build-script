@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import os
-import shutil
-import tempfile
-from pathlib import Path
 
-from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS, meson_project_option_exists
+from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.fetchers import find_git_repo, rav1e_download_url
 from ..runtime.paths import safe_remove_tree
-from ..runtime.versioncmp import version_sort
 from .helpers import (
     check_and_install_cargo_c,
     cmake_ninja_install,
@@ -21,24 +17,8 @@ from .helpers import (
     install_rustup,
     meson_ninja_install,
     pkgconfig_add_private_lib,
-    require_release,
-    setup_python_venv,
 )
 from .system_setup import check_avx512, set_ant_path
-
-
-def use_vapoursynth_python_environment(context: BuildContext) -> None:
-    """Put VapourSynth's virtual environment on PATH.
-
-    Both branches of its build need this: one to build it, the other because
-    FFmpeg's configure still has to find it on a rerun that skips the build.
-    """
-    venv_bin = context.workspace / "python_virtual_environment/vapoursynth/bin"
-    context.env["PYTHON"] = str(venv_bin / "python")
-    context.path_prepend(venv_bin)
-    ccache_directory = context.env.get("ccache_dir", "")
-    if ccache_directory:
-        context.path_prepend(ccache_directory)
 
 
 def install_video_libraries(context: BuildContext) -> None:
@@ -537,10 +517,9 @@ def _install_gpl_video(context: BuildContext) -> None:
                 "-B",
                 "build",
                 f"-DCMAKE_INSTALL_PREFIX={workspace}",
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_SHARED_LIBS=OFF",
-                "-DHEADERS_ONLY=OFF",
-                "-DENABLE_PLUGINS=OFF",
+                # FFmpeg loads the AviSynth+ library with dlopen at run time and
+                # needs only its headers, including the generated avs/version.h.
+                "-DHEADERS_ONLY=ON",
                 *CMAKE_NO_PACKAGE_REGISTRY_OPTIONS,
                 "-Wno-dev",
             ],
@@ -685,7 +664,12 @@ def _build_x265(context: BuildContext, release: str) -> None:
 
 
 def _install_vapoursynth(context: BuildContext) -> None:
-    workspace = context.workspace
+    """Install VapourSynth's public headers, which are all FFmpeg's build needs.
+
+    FFmpeg's demuxer loads `libvapoursynth-script` with dlopen when a `.vpy`
+    input is opened, so a library built into the workspace could never be found
+    by the installed program; the runtime must come from the host.
+    """
     version = context.fetch_version_if_enabled(
         "vapoursynth", lambda: find_git_repo(context.versions, "vapoursynth/vapoursynth", 1)
     )
@@ -695,153 +679,9 @@ def _install_vapoursynth(context: BuildContext) -> None:
             f"https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R{version}.tar.gz",
             f"vapoursynth-R{version}.tar.gz",
         )
-        setup_python_venv(
-            context,
-            workspace / "python_virtual_environment/vapoursynth",
-            [f"Cython=={require_release(context.versions.cython(), 'Cython')}"],
-        )
-        use_vapoursynth_python_environment(context)
-
-        # Meson's Python dependency detection reads these.
-        cflags = context.runner.capture(["python3-config", "--cflags"])
-        if cflags.returncode != 0:
-            raise BuildError("'python3-config --cflags' failed.")
-        context.env["PYTHON3_CFLAGS"] = cflags.stdout.strip()
-        ldflags = context.runner.capture(["python3-config", "--ldflags", "--embed"])
-        if ldflags.returncode != 0:
-            ldflags = context.runner.capture(["python3-config", "--ldflags"])
-        if ldflags.returncode != 0:
-            raise BuildError("'python3-config --ldflags' failed.")
-        context.env["PYTHON3_LIBS"] = ldflags.stdout.strip()
-
-        options: list[str] = []
-        for option_name in ("enable_python_module", "enable_vspipe"):
-            if meson_project_option_exists(source, option_name):
-                options.append(f"-D{option_name}=false")
-
-        meson_ninja_install(
-            context,
-            source,
-            "build",
-            "--buildtype=release",
-            "--default-library=both",
-            "--strip",
-            *options,
-        )
-        if not normalize_vapoursynth_sdk(context):
-            raise BuildError(
-                "VapourSynth built, but its FFmpeg SDK files could not be exposed from the "
-                "Python site-packages install."
-            )
+        headers = sorted(header.name for header in (source / "include").glob("*.h"))
+        destination = context.workspace / "include/vapoursynth"
+        destination.mkdir(parents=True, exist_ok=True)
+        context.execute(["cp", "-f", "--", *headers, str(destination)], cwd=source / "include")
         context.build_done("vapoursynth", marker_version)
-    else:
-        if context.package_enabled("vapoursynth"):
-            if not normalize_vapoursynth_sdk(context):
-                raise BuildError(
-                    "VapourSynth is enabled but its FFmpeg SDK files are missing. Run "
-                    f"'rm -f -- {context.packages}/vapoursynth.done' to rebuild it."
-                )
-            use_vapoursynth_python_environment(context)
     context.append_configure_options_if_enabled("vapoursynth", "--enable-vapoursynth")
-
-
-def find_vapoursynth_sdk_dir(workspace: Path) -> Path | None:
-    """Locate the SDK VapourSynth installs under its Python site-packages."""
-    candidates: list[Path] = []
-    for directory, _directories, files in os.walk(workspace):
-        if "VSScript4.h" not in files:
-            continue
-        header = Path(directory) / "VSScript4.h"
-        if header.parent.name != "include" or header.parent.parent.name != "vapoursynth":
-            continue
-        sdk_dir = header.parent.parent
-        if (sdk_dir / "include/VapourSynth4.h").is_file():
-            candidates.append(sdk_dir)
-    if not candidates:
-        return None
-    ordered = version_sort([str(candidate) for candidate in candidates])
-    return Path(ordered[0])
-
-
-def normalize_vapoursynth_sdk(context: BuildContext) -> bool:
-    """Expose VapourSynth's headers, library and metadata where FFmpeg looks.
-
-    Upstream installs the SDK beside its Python module rather than under the
-    prefix, and publishes no usable `.pc`, so this copies the pieces into the
-    workspace and writes the metadata FFmpeg's configure expects.
-    """
-    workspace = context.workspace
-    sdk_dir = find_vapoursynth_sdk_dir(workspace)
-    if sdk_dir is None:
-        return False
-    sdk_include = sdk_dir / "include"
-    if (
-        not (sdk_include / "VSScript4.h").is_file()
-        or not (sdk_include / "VapourSynth4.h").is_file()
-    ):
-        return False
-
-    (workspace / "include/vapoursynth").mkdir(parents=True, exist_ok=True)
-    (workspace / "lib/pkgconfig").mkdir(parents=True, exist_ok=True)
-    for header in sdk_include.glob("*.h"):
-        shutil.copy2(header, workspace / "include/vapoursynth" / header.name)
-
-    libraries = [
-        entry
-        for entry in sdk_dir.iterdir()
-        if entry.name.startswith(("libvsscript.so", "libvapoursynth.so"))
-    ]
-    for entry in sorted(libraries, key=lambda item: item.name):
-        destination = workspace / "lib" / entry.name
-        if destination.exists() or destination.is_symlink():
-            destination.unlink()
-        if entry.is_symlink():
-            os.symlink(os.readlink(entry), destination)
-        else:
-            shutil.copy2(entry, destination)
-
-    script_libraries = version_sort(
-        [
-            entry.name
-            for entry in (workspace / "lib").iterdir()
-            if entry.name.startswith("libvsscript.so")
-        ]
-    )
-    if not script_libraries:
-        return False
-    link_path = workspace / "lib/libvapoursynth-script.so"
-    if link_path.exists() or link_path.is_symlink():
-        link_path.unlink()
-    os.symlink(script_libraries[0], link_path)
-
-    pc_version = "unknown"
-    sdk_pc = sdk_dir / "pkgconfig/vapoursynth.pc"
-    if sdk_pc.is_file():
-        for line in sdk_pc.read_text(encoding="utf-8", errors="replace").splitlines():
-            if line.startswith("Version:"):
-                pc_version = line.split(":", 1)[1].strip() or "unknown"
-                break
-
-    payload = (
-        "\n".join(
-            [
-                f"prefix={workspace}",
-                "includedir=${prefix}/include",
-                "libdir=${prefix}/lib",
-                "",
-                "Name: vapoursynth",
-                "Description: A frameserver for the 21st century",
-                f"Version: {pc_version}",
-                "Cflags: -I${includedir}",
-                "Libs: -L${libdir} -lvapoursynth-script",
-            ]
-        )
-        + "\n"
-    )
-    pc_directory = workspace / "lib/pkgconfig"
-    handle, temporary_name = tempfile.mkstemp(prefix=".vapoursynth.pc.", dir=pc_directory)
-    with os.fdopen(handle, "w", encoding="utf-8") as stream:
-        stream.write(payload)
-    os.chmod(temporary_name, 0o644)
-    os.replace(temporary_name, pc_directory / "vapoursynth.pc")
-    return True

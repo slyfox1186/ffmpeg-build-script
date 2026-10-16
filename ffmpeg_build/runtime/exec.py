@@ -429,6 +429,13 @@ class Runner:
     # -- sudo ------------------------------------------------------------
 
     def require_sudo(self) -> None:
+        """Validate sudo credentials in the foreground, prompting if needed.
+
+        Logged commands run in their own process group, where a sudo password
+        prompt would be stopped by the terminal (SIGTTOU) and hang the build.
+        They therefore pass `-n` and rely on this call, made before the first
+        privileged command and again before FFmpeg's final installation.
+        """
         if self.which("sudo") is None:
             raise BuildError("This script requires 'sudo' (run on a system with sudo configured).")
         # Prompt once up front; failing mid-build after an hour of compiling is
@@ -445,7 +452,9 @@ class Runner:
         `timestamp_timeout`, 15 minutes by default) and every later step
         prompts again in the middle of a compile.
         """
-        if self._keepalive_thread is not None:
+        # A refresh that failed (after a suspend, say) ended its thread; a later
+        # successful validation starts a new one.
+        if self._keepalive_thread is not None and self._keepalive_thread.is_alive():
             return
 
         def refresh() -> None:

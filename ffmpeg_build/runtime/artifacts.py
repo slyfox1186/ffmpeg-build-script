@@ -121,8 +121,15 @@ FILE_ARTIFACTS: dict[str, Callable[[Path], bool]] = {
     ),
     "amf-headers": lambda workspace: _any_file(workspace, "include/AMF/core/Version.h"),
     "libgav1-git": lambda workspace: _any_file(workspace, "lib/libgav1.a", "lib64/libgav1.a"),
-    "avisynth": lambda workspace: _any_file(
-        workspace, "include/avisynth/avisynth_c.h", "include/avisynth_c.h"
+    # FFmpeg's configure requires exactly these headers; both integrations load
+    # their libraries at run time.
+    "avisynth": lambda workspace: (
+        _any_file(workspace, "include/avisynth/avisynth_c.h")
+        and _any_file(workspace, "include/avisynth/avs/version.h")
+    ),
+    "vapoursynth": lambda workspace: (
+        _any_file(workspace, "include/vapoursynth/VSScript4.h")
+        and _any_file(workspace, "include/vapoursynth/VapourSynth4.h")
     ),
     "xvidcore": lambda workspace: (
         _any_file(workspace, "lib/libxvidcore.a") and _any_file(workspace, "include/xvid.h")
@@ -132,12 +139,3 @@ FILE_ARTIFACTS: dict[str, Callable[[Path], bool]] = {
 
 # freeglut installs its metadata under either name depending on the release.
 FREEGLUT_MODULE_ALTERNATIVES = (("glut",), ("freeglut",))
-
-
-def vapoursynth_sdk_ready(workspace: Path) -> bool:
-    """The three files FFmpeg's configure needs from a VapourSynth install."""
-    return (
-        (workspace / "include/vapoursynth/VSScript4.h").is_file()
-        and (workspace / "include/vapoursynth/VapourSynth4.h").is_file()
-        and (workspace / "lib/libvapoursynth-script.so").exists()
-    )
