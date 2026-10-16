@@ -104,10 +104,6 @@ def _counted(count: int, noun: str) -> str:
     return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
-def _listed(names: list[str]) -> str:
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
-
-
 def _combined_size(paths: list[Path]) -> int | None:
     total = 0
     for path in paths:
@@ -118,11 +114,15 @@ def _combined_size(paths: list[Path]) -> int | None:
     return total
 
 
-def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[Path]) -> str:
-    """Say in plain words what a yes to the cleanup prompt deletes and keeps.
+def _folder_label(path: Path, repository: Path) -> str:
+    return f"{path.relative_to(repository) if path.is_relative_to(repository) else path}/"
 
-    A bare count would hide that an old build folder can hold gigabytes while
-    a cache folder holds kilobytes, so each kind is named and sized apart.
+
+def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[Path]) -> str:
+    """A short table of what a yes to the cleanup prompt deletes.
+
+    One row per kind, so an old build folder holding gigabytes never hides
+    behind a count of kilobyte caches.
     """
     old_roots = [
         path
@@ -130,59 +130,45 @@ def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[P
         if path.parent == repository and path.name in LEGACY_BUILD_ROOT_NAMES
     ]
     caches = [path for path in leftovers if path not in old_roots]
-    groups: list[tuple[str, list[Path], list[str]]] = []
+    rows: list[tuple[str, list[Path], str]] = []
     if build_root is not None:
-        groups.append(
+        rows.append(
             (
-                f"The build folder '{build_root}'",
+                _folder_label(build_root, repository),
                 [build_root],
-                [
-                    "Downloaded sources, compiled libraries and the build log. Answer no to "
-                    "keep them so the next build can reuse this work instead of starting over."
-                ],
+                "Downloaded sources and compiled libraries",
             )
         )
-    if old_roots:
-        groups.append(
-            (
-                f"{_counted(len(old_roots), 'old build folder')} left by an earlier version of "
-                "this script: " + _listed([f"'{path}'" for path in old_roots]),
-                old_roots,
-                ["This version does not use " + ("it." if len(old_roots) == 1 else "them.")],
-            )
-        )
+    rows.extend(
+        (_folder_label(path, repository), [path], "Old build folder from an earlier version")
+        for path in old_roots
+    )
     if caches:
-        # Bytecode caches sit beside every imported package; a count reads
-        # better than a list of them.
-        pycache = sum(path.name == "__pycache__" for path in caches)
-        names = [str(path.relative_to(repository)) for path in caches if path.name != "__pycache__"]
-        if pycache:
-            names.append(_counted(pycache, "__pycache__ folder"))
-        groups.append(
-            (
-                f"{_counted(len(caches), 'temporary cache folder')} in the script folder "
-                f"'{repository}'",
-                caches,
-                [
-                    _listed(names),
-                    "Safe to delete: nothing needs "
-                    + ("it, and it is" if len(caches) == 1 else "them, and they are")
-                    + " recreated automatically when needed.",
-                ],
-            )
+        rows.append(
+            (_counted(len(caches), "cache folder"), caches, "Temporary files, safe to delete")
         )
 
-    lines: list[str] = []
-    total: int | None = 0
-    for title, paths, details in groups:
-        size = _combined_size(paths)
-        lines.append(f"  - {title}" + ("" if size is None else f" ({format_size(size)})"))
-        lines.extend("    " + detail for detail in details)
-        total = None if total is None or size is None else total + size
-    header = "Cleanup will permanently delete the following"
-    header += ":" if total is None else f", freeing {format_size(total)}:"
-    footer = "Your installed FFmpeg (under /usr/local) and your config files are not touched."
-    return "\n".join([header, *lines, footer])
+    sizes = [_combined_size(paths) for _label, paths, _description in rows]
+    shown = ["" if size is None else format_size(size) for size in sizes]
+    label_width = max(len(label) for label, _paths, _description in rows)
+    size_width = max(len(text) for text in shown)
+    lines = [
+        f"  {label:<{label_width}}  {text:>{size_width}}  {description}"
+        for (label, _paths, description), text in zip(rows, shown, strict=True)
+    ]
+    known = [size for size in sizes if size is not None]
+    header = (
+        f"Cleanup will free {format_size(sum(known))} by deleting:"
+        if len(known) == len(sizes)
+        else "Cleanup will delete:"
+    )
+    lines.append("Your installed FFmpeg and settings are not affected.")
+    if build_root is not None:
+        lines.append(
+            f'Answer "no" to keep {_folder_label(build_root, repository)} and make the next '
+            "build faster."
+        )
+    return "\n".join([header, *lines])
 
 
 def validate_build_settings(selection: Selection, debug_value: str) -> None:
@@ -614,7 +600,7 @@ class Orchestrator:
                     safe_remove_tree(target, repository)
                 self.logger.info(f"Deleted the old build folder '{target}'.")
         if caches:
-            self.logger.info(f"Deleted {_counted(caches, 'temporary cache folder')}.")
+            self.logger.info(f"Deleted {_counted(caches, 'cache folder')}.")
 
     def cleanup(self) -> None:
         root = self.build_root
@@ -682,9 +668,7 @@ class Orchestrator:
                     self._remove_leftover_artifacts(self._leftover_artifacts())
                     return
                 if choice.strip().lower() in ("n", "no"):
-                    self.logger.info(
-                        f"Nothing was deleted; the build folder stays at '{resolved}'."
-                    )
+                    self.logger.info("Nothing was deleted.")
                     return
                 self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
         finally:

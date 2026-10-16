@@ -236,30 +236,25 @@ class Logger:
         *,
         stream: TextIO | None = None,
         indent: int | None = None,
-        first_indent: int | None = None,
     ) -> None:
         """Print one record: an optional lead such as a tag, then wrapped parts.
 
         Continuation lines hang at `indent`, by default under the first word
-        after the lead. Without a lead the first line starts at `first_indent`,
-        by default at `indent` like the rest.
+        after the lead. Without a lead every line starts at `indent`.
         """
         target = stream if stream is not None else self._out
         palette = self.err_palette if target is self._err else self.out_palette
         lead_width = len(lead[0]) + 1 if lead is not None else 0
         hang = lead_width if indent is None else indent
-        start = hang if first_indent is None else first_indent
         width = self._width(target)
-        available = (
-            None if width is None else max(width - max(hang, start, lead_width), MIN_WRAP_WIDTH)
-        )
+        available = None if width is None else max(width - max(hang, lead_width), MIN_WRAP_WIDTH)
 
         for index, line in enumerate(self._wrap(parts, available)):
             if index == 0 and lead is not None:
                 text, style, bold = lead
                 rendered = palette.paint(getattr(palette, style, ""), text, bold=bold) + " "
             else:
-                rendered = " " * (start if index == 0 else hang)
+                rendered = " " * hang
             rendered += "".join(
                 palette.paint(getattr(palette, style, ""), text, bold=bold)
                 for text, style, bold in line
@@ -319,16 +314,14 @@ class Logger:
             if index == 0:
                 self._emit(self._tag(level), self._text_parts(text), stream=stream)
                 continue
-            # A wrapped follow-up line hangs under its own text, past its
-            # indentation and any "- " bullet, so an itemized list stays one.
+            # A wrapped follow-up line hangs under its own indented text, so
+            # an indented row reads as one.
             body = text.lstrip(" ")
-            column = len(self._tag(level)[0]) + 1 + len(text) - len(body)
             self._emit(
                 None,
                 self._text_parts(body),
                 stream=stream,
-                indent=column + 2 if body.startswith("- ") else column,
-                first_indent=column,
+                indent=len(self._tag(level)[0]) + 1 + len(text) - len(body),
             )
         self._record(level, message)
 
