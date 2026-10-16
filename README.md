@@ -33,6 +33,8 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   `ffmpeg-build-script/` directory only when it is verifiably this project's
   and not in use.
 - Building Nettle without GnuTLS now asks for GMP, which Nettle needs.
+- Single-letter options can be grouped: `python3 build-ffmpeg.py -bln` is the
+  same as `-b -l -n`, and `-bj8` the same as `-b -j 8`.
 
 ## Update: 8.1.0
 
@@ -171,6 +173,7 @@ General options:
   -v, --version                   Show the script version
 
   Options that take a value also accept --option=value, for example --jobs=8.
+  Single-letter options can be grouped: -bln is -b -l -n, and -bj8 is -b -j 8.
 
 Environment variables:
   BUILD_ROOT=<dir>                Build workspace
