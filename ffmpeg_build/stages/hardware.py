@@ -162,7 +162,7 @@ class HardwareDetection:
             context.unregister_temporary_path(temp_directory)
             raise BuildError("Unable to download NVIDIA's CUDA repository keyring.")
 
-        context.execute(["sudo", "dpkg", "-i", str(keyring_file)])
+        context.execute(["sudo", "-n", "dpkg", "-i", str(keyring_file)])
         safe_remove_tree(temp_directory, context.packages)
         context.unregister_temporary_path(temp_directory)
         self.setup.apt_index_updated = False
@@ -170,6 +170,7 @@ class HardwareDetection:
         context.execute(
             [
                 "sudo",
+                "-n",
                 "env",
                 "DEBIAN_FRONTEND=noninteractive",
                 "apt",

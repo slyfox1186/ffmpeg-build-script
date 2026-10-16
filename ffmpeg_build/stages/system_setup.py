@@ -162,7 +162,7 @@ class SystemSetup:
         if self.apt_index_updated:
             return
         self.logger.info("Refreshing APT package metadata...")
-        self.context.execute(["sudo", "apt", *APT_SCRIPT_OPTIONS, "update"])
+        self.context.execute(["sudo", "-n", "apt", *APT_SCRIPT_OPTIONS, "update"])
         self.apt_index_updated = True
 
     def apt_package_available(self, package_name: str) -> bool:
@@ -246,6 +246,7 @@ class SystemSetup:
         self.context.execute(
             [
                 "sudo",
+                "-n",
                 "env",
                 "DEBIAN_FRONTEND=noninteractive",
                 "apt",
@@ -418,7 +419,7 @@ class SystemSetup:
             request.require("libaom-dev")
         if not enabled("libogg") and (enabled("vorbis") or enabled("libtheora")):
             request.require("libogg-dev")
-        if not enabled("gmp") and enabled("gnutls"):
+        if not enabled("gmp") and (enabled("gnutls") or enabled("nettle")):
             request.require("libgmp-dev")
         if not enabled("nettle") and enabled("gnutls"):
             request.require("nettle-dev")

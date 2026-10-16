@@ -7,21 +7,44 @@ installed are copied aside first so a failed promotion is recoverable.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import tempfile
 from pathlib import Path
 
 from ..runtime.context import BuildContext
-from ..runtime.errors import BuildError
+from ..runtime.errors import BuildError, SignalStop
 from ..runtime.exec import Runner, base_environment
 from ..runtime.logging import Logger
 from ..runtime.paths import DirectoryLock, safe_remove_tree
-from ..runtime.state import read_marker_version
+from ..runtime.state import publish_atomically, read_marker_version
 from .hardware import HardwareDetection
 
 _VERSION_LINE = re.compile(r"^(?P<tool>\w+) version n?(?P<version>[0-9]+(?:\.[0-9]+){1,3})")
 _CODEC_ROW = re.compile(r"^ [A-Z.]{6} ")
+# Beside the FFmpeg marker: what this workspace's last promotion installed.
+INSTALL_RECEIPT_NAME = "ffmpeg.installed"
+
+
+def installed_program_digests(install_prefix: Path = Path("/usr/local")) -> str:
+    """Identify the installed programs by content, one `name sha256` line each.
+
+    A matching version does not mean a matching build: another workspace or a
+    manual install can replace these programs with a different configuration.
+    """
+    lines: list[str] = []
+    for program in ("ffmpeg", "ffprobe", "ffplay"):
+        path = install_prefix / "bin" / program
+        try:
+            with path.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise BuildError(f"Unable to read installed program '{path}': {error}") from error
+        lines.append(f"{program} {digest}\n")
+    return "".join(lines)
 
 
 class ConfigureOptions:
@@ -215,6 +238,7 @@ class FFmpegStage:
             if backup_path.exists() or backup_path.is_symlink():
                 command = [
                     "sudo",
+                    "-n",
                     "cp",
                     "-a",
                     "--remove-destination",
@@ -223,11 +247,17 @@ class FFmpegStage:
                     str(target),
                 ]
             else:
-                command = ["sudo", "rm", "-f", "--", str(target)]
+                command = ["sudo", "-n", "rm", "-f", "--", str(target)]
             try:
                 status = self.context.runner.run_logged(command)
             except (BuildError, OSError) as error:
                 self.logger.warn(f"Restoring '{target}' failed: {error}")
+                status = 1
+            except (KeyboardInterrupt, SignalStop):
+                # A repeated cancellation has already stopped this command;
+                # still restore the other programs. The caller re-raises the
+                # original failure.
+                self.logger.warn(f"Restoring '{target}' was interrupted.")
                 status = 1
             if status == 0:
                 self.logger.warn(f"Restored the previous state of '{target}'.")
@@ -253,6 +283,9 @@ class FFmpegStage:
             timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT") or "3600")
             if not lock.acquire(timeout=timeout):
                 raise BuildError(f"Timed out waiting to install into '{install_prefix}'.")
+            # The compile and the lock wait can outlast the cached credential;
+            # refresh it in the foreground before the noninteractive install.
+            self.context.runner.require_sudo()
             backup_dir = staging_root / "previous-install"
             backup_dir.mkdir(parents=True, exist_ok=True)
             self.backup_installed_programs(backup_dir, install_prefix)
@@ -261,7 +294,7 @@ class FFmpegStage:
             self.context.unregister_temporary_path(staging_root)
             try:
                 status = self.context.runner.run_logged(
-                    ["sudo", "make", "install"], cwd=build_directory
+                    ["sudo", "-n", "make", "install"], cwd=build_directory
                 )
                 if status != 0:
                     raise BuildError(
@@ -280,6 +313,21 @@ class FFmpegStage:
                     raise BuildError(f"{error} {detail}") from error
                 self.logger.warn(detail)
                 raise
+            # Recorded while the prefix is still locked, so a later run can tell
+            # whether another build has since replaced these programs.
+            publish_atomically(
+                self.context.packages / INSTALL_RECEIPT_NAME,
+                installed_program_digests(install_prefix),
+                mode=0o644,
+            )
+
+    def installed_programs_match_receipt(self) -> bool:
+        receipt = self.context.packages / INSTALL_RECEIPT_NAME
+        try:
+            recorded = receipt.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+        return recorded == installed_program_digests()
 
     # -- the stage -------------------------------------------------------
 
@@ -314,6 +362,14 @@ class FFmpegStage:
             self.logger.warn(
                 "FFmpeg's build marker exists, but its required installed programs are "
                 "incomplete; rebuilding."
+            )
+            context.execute(["rm", "-f", "--", str(marker_file)])
+        elif (
+            recorded_version == f"n{ffmpeg_version}" and not self.installed_programs_match_receipt()
+        ):
+            self.logger.warn(
+                "The FFmpeg programs in '/usr/local/bin' do not match this workspace's install "
+                "receipt; rebuilding."
             )
             context.execute(["rm", "-f", "--", str(marker_file)])
 
@@ -671,6 +727,7 @@ def report_success(context: BuildContext) -> None:
         for tool in ("ffmpeg", "ffprobe", "ffplay")
         if os.access(f"/usr/local/bin/{tool}", os.X_OK)
     ]
+    configuration = ask("-hide_banner", "-buildconf").split()
 
     context.logger.banner("FFmpeg build completed successfully")
     context.logger.info(f"Version: {version_line}")
@@ -683,6 +740,17 @@ def report_success(context: BuildContext) -> None:
     context.logger.info(
         f"Reported hardware accelerators: {', '.join(accelerators) or 'none reported'}"
     )
+    # This build supplies only the headers for these; FFmpeg loads the library
+    # with dlopen when such an input is opened.
+    for option, name, library in (
+        ("--enable-vapoursynth", "VapourSynth (.vpy)", "libvapoursynth-script.so"),
+        ("--enable-avisynth", "AviSynth (.avs)", "libavisynth.so"),
+    ):
+        if option in configuration:
+            context.logger.info(
+                f"{name} input loads '{library}' at run time; install it on the system "
+                "library search path to use it."
+            )
     _report_package_summary(context)
 
 

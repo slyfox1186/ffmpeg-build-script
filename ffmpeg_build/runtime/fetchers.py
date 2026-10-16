@@ -172,26 +172,6 @@ class PackageVersions:
         ordered = version_sort(versions, reverse=True, unique=True)
         return ordered[0] if ordered else None
 
-    def cython(self) -> str | None:
-        text = self.resolver.fetch_text("https://pypi.org/pypi/Cython/json")
-        if text is None:
-            return None
-        try:
-            releases = json.loads(text)["releases"]
-            if not isinstance(releases, dict):
-                return None
-            versions = [
-                version
-                for version, files in releases.items()
-                if _THREE_PART.fullmatch(version)
-                and isinstance(files, list)
-                and any(isinstance(file, dict) and file.get("yanked") is False for file in files)
-            ]
-        except (json.JSONDecodeError, KeyError, TypeError):
-            return None
-        ordered = version_sort(versions, reverse=True, unique=True)
-        return ordered[0] if ordered else None
-
     def opencore_amr(self) -> str | None:
         version = self.resolver.scrape_highest(
             "https://sourceforge.net/projects/opencore-amr/files/opencore-amr/",
