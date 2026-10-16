@@ -33,6 +33,8 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   `ffmpeg-build-script/` directory only when it is verifiably this project's
   and not in use.
 - Building Nettle without GnuTLS now asks for GMP, which Nettle needs.
+- The cleanup prompt now lists what it deletes, with sizes and a plain
+  description of each item, instead of a bare count of "build leftovers".
 - Single-letter options can be grouped: `python3 build-ffmpeg.py -bln` is the
   same as `-b -l -n`, and `-bj8` the same as `-b -j 8`.
 
@@ -153,7 +155,7 @@ Usage: python3 build-ffmpeg.py <action> [options]
 Actions:
   -b, --build                     Build and install FFmpeg
   -m, --menu                      Pick packages in a menu, then build
-  -c, --cleanup                   Delete the build root and build leftovers
+  -c, --cleanup                   Delete the build root and temporary caches
 
 Build options:
       --config <file>             Build only the packages this TOML file
@@ -429,12 +431,14 @@ script's directory.
 A successful build ends by calling cleanup, which interactively offers to
 delete the build root. Answer no to keep the sources and workspace for a later
 incremental build; either answer ends with a pointer to the project
-repository. Accepting also removes the build leftovers inside the checkout:
-`ffbuild/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
-`*.egg-info/`, and the legacy `packages/`, `workspace/` and
-`ffmpeg-build-script/` roots when they are this project's own. `--cleanup`
-performs the same sweep. Tracked files, `.git/` and anything symlinked are
-never touched.
+repository. Before asking, cleanup lists what a yes deletes, with sizes and
+what each item is: the build root; old `packages/`, `workspace/` and
+`ffmpeg-build-script/` build folders from earlier versions of this script when
+they are this project's own; and temporary cache folders inside the checkout
+(`ffbuild/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
+`*.egg-info/`), which are recreated automatically when needed. `--cleanup`
+asks the same question. The FFmpeg installed under `/usr/local`, tracked files,
+config files, `.git/` and anything symlinked are never touched.
 
 A custom, non-empty directory must already contain this project's
 `.ffmpeg-build-root` marker. This prevents a typo from turning an unrelated

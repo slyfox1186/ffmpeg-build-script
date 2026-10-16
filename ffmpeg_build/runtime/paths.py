@@ -148,6 +148,37 @@ def remove_tree_one_filesystem(target: Path) -> None:
         os.close(parent_fd)
 
 
+def tree_size(target: Path) -> int | None:
+    """Disk space held by the tree at `target`, or None when it cannot be read.
+
+    Counts what remove_tree_one_filesystem deletes: symlinks are never
+    followed, other filesystems mounted below `target` are skipped, and a file
+    hard-linked within the tree is counted once.
+    """
+    try:
+        inspected = os.lstat(target)
+        device = inspected.st_dev
+        total = inspected.st_blocks * 512
+        linked: set[int] = set()
+        pending = [os.fspath(target)]
+        while pending:
+            with os.scandir(pending.pop()) as entries:
+                for entry in entries:
+                    inspected = entry.stat(follow_symlinks=False)
+                    if inspected.st_dev != device:
+                        continue
+                    if stat.S_ISDIR(inspected.st_mode):
+                        pending.append(entry.path)
+                    elif inspected.st_nlink > 1:
+                        if inspected.st_ino in linked:
+                            continue
+                        linked.add(inspected.st_ino)
+                    total += inspected.st_blocks * 512
+        return total
+    except OSError:
+        return None
+
+
 def safe_remove_tree(target: str | os.PathLike[str], allowed_root: str | os.PathLike[str]) -> None:
     """Remove one path only when it is a strict descendant of `allowed_root`."""
     target_path = Path(target)

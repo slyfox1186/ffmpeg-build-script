@@ -120,6 +120,18 @@ def format_duration(total: int) -> str:
     return f"{total}s"
 
 
+def format_size(total: int) -> str:
+    """Bytes in decimal units, as desktop file managers report them."""
+    if total < 1000:
+        return f"{total} B"
+    value = float(total)
+    for unit in ("kB", "MB", "GB"):
+        value /= 1000
+        if value < 999.95:
+            return f"{value:.1f} {unit}"
+    return f"{value / 1000:.1f} TB"
+
+
 # A fragment is (text, style name, bold); style names index the Palette.
 # Fragments render back to back; `_spaced` puts a separator between words.
 Fragment = tuple[str, str, bool]
@@ -224,25 +236,30 @@ class Logger:
         *,
         stream: TextIO | None = None,
         indent: int | None = None,
+        first_indent: int | None = None,
     ) -> None:
         """Print one record: an optional lead such as a tag, then wrapped parts.
 
         Continuation lines hang at `indent`, by default under the first word
-        after the lead. Without a lead every line starts at `indent`.
+        after the lead. Without a lead the first line starts at `first_indent`,
+        by default at `indent` like the rest.
         """
         target = stream if stream is not None else self._out
         palette = self.err_palette if target is self._err else self.out_palette
         lead_width = len(lead[0]) + 1 if lead is not None else 0
         hang = lead_width if indent is None else indent
+        start = hang if first_indent is None else first_indent
         width = self._width(target)
-        available = None if width is None else max(width - max(hang, lead_width), MIN_WRAP_WIDTH)
+        available = (
+            None if width is None else max(width - max(hang, start, lead_width), MIN_WRAP_WIDTH)
+        )
 
         for index, line in enumerate(self._wrap(parts, available)):
             if index == 0 and lead is not None:
                 text, style, bold = lead
                 rendered = palette.paint(getattr(palette, style, ""), text, bold=bold) + " "
             else:
-                rendered = " " * hang
+                rendered = " " * (start if index == 0 else hang)
             rendered += "".join(
                 palette.paint(getattr(palette, style, ""), text, bold=bold)
                 for text, style, bold in line
@@ -301,13 +318,18 @@ class Logger:
         for index, text in enumerate(message.splitlines() or [""]):
             if index == 0:
                 self._emit(self._tag(level), self._text_parts(text), stream=stream)
-            else:
-                self._emit(
-                    None,
-                    self._text_parts(text),
-                    stream=stream,
-                    indent=len(self._tag(level)[0]) + 1,
-                )
+                continue
+            # A wrapped follow-up line hangs under its own text, past its
+            # indentation and any "- " bullet, so an itemized list stays one.
+            body = text.lstrip(" ")
+            column = len(self._tag(level)[0]) + 1 + len(text) - len(body)
+            self._emit(
+                None,
+                self._text_parts(body),
+                stream=stream,
+                indent=column + 2 if body.startswith("- ") else column,
+                first_indent=column,
+            )
         self._record(level, message)
 
     def _command(

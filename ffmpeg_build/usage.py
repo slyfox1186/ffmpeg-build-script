@@ -36,7 +36,7 @@ SUMMARY = (
 ACTIONS = (
     ("-b, --build", "Build and install FFmpeg"),
     ("-m, --menu", "Pick packages in a menu, then build"),
-    ("-c, --cleanup", "Delete the build root and build leftovers"),
+    ("-c, --cleanup", "Delete the build root and temporary caches"),
 )
 BUILD_OPTIONS = (
     (
