@@ -165,8 +165,8 @@ def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[P
     lines.append("Your installed FFmpeg and settings are not affected.")
     if build_root is not None:
         lines.append(
-            f'Answer "no" to keep {_folder_label(build_root, repository)} and make the next '
-            "build faster."
+            f'Answering "no" keeps the {_folder_label(build_root, repository)} folder and makes '
+            "the next build faster."
         )
     return "\n".join([header, *lines])
 
