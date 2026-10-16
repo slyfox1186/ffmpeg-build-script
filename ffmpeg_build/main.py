@@ -24,12 +24,13 @@ from .runtime.build_lock import take_over_build_lock
 from .runtime.context import BuildContext
 from .runtime.errors import REPOSITORY_URL, BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
-from .runtime.logging import Logger, format_duration
+from .runtime.logging import Logger, format_duration, format_size
 from .runtime.paths import (
     DirectoryLock,
     canonicalize,
     is_exclusive_regular_file,
     safe_remove_tree,
+    tree_size,
 )
 from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 from .runtime.state import (
@@ -97,6 +98,91 @@ def _legacy_root_is_ours(path: Path) -> bool:
         return not any(path.iterdir())
     except OSError:
         return False
+
+
+def _counted(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def _listed(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _combined_size(paths: list[Path]) -> int | None:
+    total = 0
+    for path in paths:
+        size = tree_size(path)
+        if size is None:
+            return None
+        total += size
+    return total
+
+
+def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[Path]) -> str:
+    """Say in plain words what a yes to the cleanup prompt deletes and keeps.
+
+    A bare count would hide that an old build folder can hold gigabytes while
+    a cache folder holds kilobytes, so each kind is named and sized apart.
+    """
+    old_roots = [
+        path
+        for path in leftovers
+        if path.parent == repository and path.name in LEGACY_BUILD_ROOT_NAMES
+    ]
+    caches = [path for path in leftovers if path not in old_roots]
+    groups: list[tuple[str, list[Path], list[str]]] = []
+    if build_root is not None:
+        groups.append(
+            (
+                f"The build folder '{build_root}'",
+                [build_root],
+                [
+                    "Downloaded sources, compiled libraries and the build log. Answer no to "
+                    "keep them so the next build can reuse this work instead of starting over."
+                ],
+            )
+        )
+    if old_roots:
+        groups.append(
+            (
+                f"{_counted(len(old_roots), 'old build folder')} left by an earlier version of "
+                "this script: " + _listed([f"'{path}'" for path in old_roots]),
+                old_roots,
+                ["This version does not use " + ("it." if len(old_roots) == 1 else "them.")],
+            )
+        )
+    if caches:
+        # Bytecode caches sit beside every imported package; a count reads
+        # better than a list of them.
+        pycache = sum(path.name == "__pycache__" for path in caches)
+        names = [str(path.relative_to(repository)) for path in caches if path.name != "__pycache__"]
+        if pycache:
+            names.append(_counted(pycache, "__pycache__ folder"))
+        groups.append(
+            (
+                f"{_counted(len(caches), 'temporary cache folder')} in the script folder "
+                f"'{repository}'",
+                caches,
+                [
+                    _listed(names),
+                    "Safe to delete: nothing needs "
+                    + ("it, and it is" if len(caches) == 1 else "them, and they are")
+                    + " recreated automatically when needed.",
+                ],
+            )
+        )
+
+    lines: list[str] = []
+    total: int | None = 0
+    for title, paths, details in groups:
+        size = _combined_size(paths)
+        lines.append(f"  - {title}" + ("" if size is None else f" ({format_size(size)})"))
+        lines.extend("    " + detail for detail in details)
+        total = None if total is None or size is None else total + size
+    header = "Cleanup will permanently delete the following"
+    header += ":" if total is None else f", freeing {format_size(total)}:"
+    footer = "Your installed FFmpeg (under /usr/local) and your config files are not touched."
+    return "\n".join([header, *lines, footer])
 
 
 def validate_build_settings(selection: Selection, debug_value: str) -> None:
@@ -510,9 +596,12 @@ class Orchestrator:
     def _remove_leftover_artifacts(self, targets: list[Path]) -> None:
         repository = canonicalize(self.repo_root)
         legacy_roots = {repository / legacy for legacy in LEGACY_BUILD_ROOT_NAMES}
+        caches = 0
         for target in targets:
             if target not in legacy_roots:
                 safe_remove_tree(target, repository)
+                self.logger.debug(f"Deleted '{target}'.")
+                caches += 1
             elif target.is_dir():
                 # A legacy root may be another build's BUILD_ROOT. Remove it
                 # only under its lock, and only if it is still ours.
@@ -523,14 +612,14 @@ class Orchestrator:
                     if not _legacy_root_is_ours(target):
                         continue
                     safe_remove_tree(target, repository)
-            else:
-                continue
-            self.logger.info(f"Removed build leftover: '{target}'.")
+                self.logger.info(f"Deleted the old build folder '{target}'.")
+        if caches:
+            self.logger.info(f"Deleted {_counted(caches, 'temporary cache folder')}.")
 
     def cleanup(self) -> None:
         root = self.build_root
         if not root.exists():
-            self.logger.info(f"Build root does not exist; nothing to clean: '{root}'.")
+            self.logger.info(f"There is no build folder to delete at '{root}'.")
             self._clean_leftovers_only()
             return
         resolved = canonicalize(root)
@@ -568,16 +657,13 @@ class Orchestrator:
                     f"'{resolved}'."
                 )
                 return
-            leftovers = self._leftover_artifacts()
+            self.logger.info(cleanup_summary(repository, resolved, self._leftover_artifacts()))
             while True:
-                question = f"Remove all build files under '{resolved}'"
-                if leftovers:
-                    question += f" and {len(leftovers)} build leftover(s) in the checkout"
                 try:
-                    choice = self.logger.prompt(f"{question}? (yes/no): ")
+                    choice = self.logger.prompt("Delete these folders? (yes/no): ")
                 except EOFError:
                     print()
-                    self.logger.info("No cleanup response received; leaving build files in place.")
+                    self.logger.info("No cleanup response received; nothing was deleted.")
                     return
                 if choice.strip().lower() in ("y", "yes"):
                     from .runtime.paths import remove_tree_one_filesystem
@@ -591,12 +677,14 @@ class Orchestrator:
                     if self.logger.log_file is not None:
                         self.logger.log_file = None
                     self.runner.log_file = None
-                    self.logger.info(f"Removed build root: '{resolved}'.")
+                    self.logger.info(f"Deleted the build folder '{resolved}'.")
                     # Re-read: removing the build root can itself clear entries.
                     self._remove_leftover_artifacts(self._leftover_artifacts())
                     return
                 if choice.strip().lower() in ("n", "no"):
-                    self.logger.info(f"Keeping build files in '{resolved}'.")
+                    self.logger.info(
+                        f"Nothing was deleted; the build folder stays at '{resolved}'."
+                    )
                     return
                 self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
         finally:
@@ -610,24 +698,23 @@ class Orchestrator:
             return
         if not sys.stdin.isatty():
             self.logger.info(
-                f"Standard input is not interactive; leaving {len(leftovers)} build leftover(s) "
-                "in the checkout."
+                "Standard input is not interactive; nothing was deleted. Run --cleanup from a "
+                "terminal to choose."
             )
             return
+        self.logger.info(cleanup_summary(canonicalize(self.repo_root), None, leftovers))
         while True:
             try:
-                choice = self.logger.prompt(
-                    f"Remove {len(leftovers)} build leftover(s) in the checkout? (yes/no): "
-                )
+                choice = self.logger.prompt("Delete these folders? (yes/no): ")
             except EOFError:
                 print()
-                self.logger.info("No cleanup response received; leaving build leftovers in place.")
+                self.logger.info("No cleanup response received; nothing was deleted.")
                 return
             if choice.strip().lower() in ("y", "yes"):
                 self._remove_leftover_artifacts(leftovers)
                 return
             if choice.strip().lower() in ("n", "no"):
-                self.logger.info(f"Keeping {len(leftovers)} build leftover(s) in the checkout.")
+                self.logger.info("Nothing was deleted.")
                 return
             self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
 
