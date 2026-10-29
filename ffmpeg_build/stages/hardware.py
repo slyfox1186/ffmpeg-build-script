@@ -237,8 +237,6 @@ class HardwareDetection:
             )
 
         available_display = " ".join(str(value) for value in self.available_architectures)
-        flags: list[str] = []
-        highest = 0
         seen: set[int] = set()
         for architecture in selected:
             if architecture in seen:
@@ -255,14 +253,16 @@ class HardwareDetection:
                     f"CUDA toolkit does not support 'sm_{architecture}' "
                     f"(available: '{available_display}')."
                 )
-            flags.append(f"-gencode arch=compute_{architecture},code=sm_{architecture}")
-            highest = max(highest, architecture)
-        if not highest:
+        if not seen:
             return False
-        flags.append(f"-gencode arch=compute_{highest},code=compute_{highest}")
-        context.nvidia_arch_flags = " ".join(flags)
+        # FFmpeg compiles its CUDA filters with `nvcc -ptx`, which rejects more
+        # than one target, and the driver JIT-compiles that PTX for the GPU at
+        # load time. PTX runs only on its own or a newer architecture, so the
+        # lowest selected target is the one that covers every selected GPU.
+        lowest = min(seen)
+        context.nvidia_arch_flags = f"-gencode arch=compute_{lowest},code=compute_{lowest}"
         selected_display = " ".join(str(value) for value in selected)
-        self.logger.info(f"CUDA targets: '{selected_display}' (PTX fallback: 'compute_{highest}').")
+        self.logger.info(f"CUDA targets: '{selected_display}' (PTX: 'compute_{lowest}').")
         return True
 
     def install_cuda(self) -> None:

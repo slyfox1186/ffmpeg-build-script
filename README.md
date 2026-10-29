@@ -537,10 +537,12 @@ CUDA_INSTALL=always python3 build-ffmpeg.py --build \
 ```
 
 CUDA code targets come directly from `nvcc --list-gpu-code`, while native GPU
-capabilities come from `nvidia-smi`.
+capabilities come from `nvidia-smi`. FFmpeg embeds its CUDA filters as PTX,
+which `nvcc` emits for one architecture only, so the build compiles for the
+lowest selected target and the driver JIT-compiles it for each GPU at load time.
 
 ```bash
-# Default: all GPUs installed in this host, plus PTX for the highest target.
+# Default: all GPUs installed in this host.
 CUDA_ARCH_MODE=native python3 build-ffmpeg.py --build ...
 
 # Every architecture supported by the installed toolkit.
