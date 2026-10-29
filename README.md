@@ -396,6 +396,8 @@ reuses completed builds; `SKIP ... already built` means reuse, not deselection.
 Missing installed artifacts are repaired from the recorded release or matching
 Git checkout. LAME and SVT-AV1 archives must also pass a static link check before
 reuse, so incomplete dependencies or incompatible LTO objects trigger a repair.
+Meson is reused only while its launcher still runs, so a host Python upgrade
+that strands its virtual environment rebuilds it in a fresh one.
 LAME builds its encoder without the optional mpg123 decoder; SVT-AV1 builds
 native objects compatible with FFmpeg's host linker.
 A completed FFmpeg build is reused only while the programs in `/usr/local/bin`

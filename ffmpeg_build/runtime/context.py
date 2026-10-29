@@ -309,6 +309,17 @@ class BuildContext:
                 "int main(void) { void (*volatile entry)(void) = "
                 "(void (*)(void))svt_av1_enc_init_handle; return entry == 0; }\n",
             )
+        if key == "meson":
+            # The venv links the host python3, so a host Python upgrade leaves
+            # the launcher executable while its interpreter no longer sees the
+            # site-packages meson was installed into. Only running it proves
+            # the install still works.
+            return self.runner.probe(
+                [
+                    str(self.workspace / "python_virtual_environment/build-tools/bin/meson"),
+                    "--version",
+                ]
+            )
         if key == "ffmpeg":
             return os.access("/usr/local/bin/ffmpeg", os.X_OK) and os.access(
                 "/usr/local/bin/ffprobe", os.X_OK

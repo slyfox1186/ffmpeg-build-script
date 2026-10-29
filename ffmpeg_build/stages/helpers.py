@@ -10,6 +10,7 @@ from pathlib import Path
 from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
+from ..runtime.paths import safe_remove_tree
 
 _PC_NAME = re.compile(r"^[A-Za-z0-9_.+-]+$")
 _LINKER_FLAG = re.compile(r"^-l[A-Za-z0-9_+.-]+$")
@@ -207,7 +208,11 @@ def workspace_or_pkgconf_library_file(
 
 
 def setup_python_venv(context: BuildContext, venv_path: Path, requirements: list[str]) -> None:
-    """Create an isolated virtual environment and install into it.
+    """Create a fresh isolated virtual environment and install into it.
+
+    An existing venv is replaced, not reused: its `python` links the host
+    python3, so after a host Python upgrade it runs a newer interpreter that
+    sees neither its pip nor the packages installed under the old version.
 
     The pip invocation drops every index-redirecting variable and pins PyPI, so
     a user's global pip configuration cannot substitute a different package into
@@ -215,9 +220,9 @@ def setup_python_venv(context: BuildContext, venv_path: Path, requirements: list
     """
     if not requirements:
         raise BuildError("At least one Python package is required.")
-    if not os.access(venv_path / "bin/python", os.X_OK):
-        context.logger.info(f"Creating a Python virtual environment at '{venv_path}'...")
-        context.execute(["python3", "-m", "venv", str(venv_path)])
+    safe_remove_tree(venv_path, context.workspace)
+    context.logger.info(f"Creating a Python virtual environment at '{venv_path}'...")
+    context.execute(["python3", "-m", "venv", str(venv_path)])
     cache_dir = context.workspace / "python-package-cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
 

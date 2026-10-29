@@ -94,9 +94,6 @@ FILE_ARTIFACTS: dict[str, Callable[[Path], bool]] = {
     "automake": lambda workspace: _executable(workspace, "bin/automake"),
     "libtool": lambda workspace: _executable(workspace, "bin/libtoolize"),
     "cmake": lambda workspace: _executable(workspace, "bin/cmake"),
-    "meson": lambda workspace: _executable(
-        workspace, "python_virtual_environment/build-tools/bin/meson"
-    ),
     "ninja": lambda workspace: _executable(workspace, "bin/ninja"),
     "ant-git": lambda workspace: _executable(workspace, "ant/bin/ant"),
     "mediainfo-cli": lambda workspace: _executable(workspace, "bin/mediainfo"),
