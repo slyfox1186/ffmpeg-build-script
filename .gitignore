@@ -1,4 +1,4 @@
-# Project build root and alternate legacy roots
+# Project build root (default BUILD_ROOT) and legacy root names
 /build/
 /packages/
 /workspace/
@@ -27,25 +27,32 @@
 *.o
 *.so
 *.so.*
-**/.deps/
-**/.libs/
-**/CMakeCache.txt
-**/CMakeFiles/
-**/autom4te.cache/
-**/build/
+.deps/
+.libs/
+CMakeCache.txt
+CMakeFiles/
+autom4te.cache/
 
-# Python environments and bytecode
-**/__pycache__/
-**/python_virtual_environment/
+# Python environments, packaging output, bytecode and tool caches
+__pycache__/
 *.py[cod]
+python_virtual_environment/
+.venv/
+venv/
+dist/
+*.egg-info/
+.eggs/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-*.egg-info/
+.coverage
+coverage.xml
+htmlcov/
 
-# Local configuration
-/custom.toml
-/custom1.toml
+# Secrets and local configuration
+.env
+.env.*
+/custom*.toml
 
 # Developer-only directories kept out of the published repository
 /.github/
@@ -54,6 +61,7 @@
 
 # Editors and operating systems
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.sw?
