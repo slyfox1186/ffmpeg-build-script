@@ -705,11 +705,6 @@ class Orchestrator:
         if machine != "x86_64":
             raise BuildError(f"This build currently supports 'x86_64' only; detected '{machine}'.")
         os.umask(0o022)
-        # Everything checkable from the request alone is checked before the
-        # first host mutation, so an unsatisfiable build fails without having
-        # installed packages or prompted for sudo first.
-        validate_build_settings(context.selection, self.debug_value)
-
         self.initialize_build_root()
         self.configure_toolchain(context)
         # Before the context check: the record has to hold the flags the build
@@ -800,6 +795,11 @@ class Orchestrator:
     def build_context(
         self, arguments: Arguments, settings: BuildSettings, selection: Selection
     ) -> BuildContext:
+        # Everything checkable from the request alone is checked here, before
+        # the context parses the environment and long before the first host
+        # mutation, so an unsatisfiable build fails without a traceback and
+        # without having installed packages or prompted for sudo.
+        validate_build_settings(selection, self.debug_value)
         # The affinity mask, not the CPU count: under `taskset -c 0,1` a host
         # with 24 cores must launch 2 compile jobs, not 24.
         threads = arguments.jobs or len(os.sched_getaffinity(0))
@@ -860,7 +860,6 @@ class Orchestrator:
             sys.stdout.write(usage_text(color_enabled(sys.stdout)))
             return 0
 
-        validate_build_settings(selection, self.debug_value)
         context = self.build_context(arguments, settings, selection)
         self.run_build(context)
         return 0
@@ -924,7 +923,6 @@ class Orchestrator:
             }
         )
         self.resolve_build_root()
-        validate_build_settings(loaded.selection, self.debug_value)
         context = self.build_context(arguments, loaded.settings, loaded.selection)
         self.run_build(context)
         return 0

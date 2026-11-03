@@ -1,8 +1,8 @@
 """The build context every stage receives.
 
-The Bash stages communicated through a dozen globals. Passing one object
-instead is what makes a stage testable in isolation and what lets the
-fixture-workspace dry run exercise stage ordering without touching the host.
+Stages share state through this one object rather than module globals, which
+is what makes a stage testable in isolation and lets the fixture-workspace dry
+run exercise stage ordering without touching the host.
 """
 
 from __future__ import annotations

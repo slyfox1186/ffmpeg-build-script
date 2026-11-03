@@ -498,10 +498,9 @@ class Downloader:
     def try_download(self, url: str, filename: str | None = None) -> Path | None:
         """Fetch and extract one archive, returning its source directory.
 
-        The Bash original ended by `cd`-ing into the extracted tree and every
-        recipe relied on that. Returning the path instead means an exception
-        mid-recipe cannot leave the interpreter sitting in a directory a later
-        deletion removes.
+        The path is returned rather than made the working directory: an
+        exception mid-recipe must not leave the interpreter sitting in a
+        directory a later deletion removes.
         """
         name = filename or url.rsplit("/", 1)[-1]
         name = name.split("?", 1)[0]

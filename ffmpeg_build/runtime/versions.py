@@ -203,8 +203,8 @@ class VersionResolver:
     def github_version_any_prefix(self, repository: str) -> str | None:
         """Try the `v` prefix first, then no prefix.
 
-        This is the fallback dispatch the Bash `github_repo` used for
-        repositories whose tagging convention is not recorded anywhere.
+        The fallback for repositories whose tagging convention is not recorded
+        in `find_git_repo`.
         """
         if not _REPO_NAME.fullmatch(repository):
             raise BuildError(f"Invalid repository name format: '{repository}'.")

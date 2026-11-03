@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+from typing import Literal
 
 
 class Kind(Enum):
@@ -815,9 +816,9 @@ class Requirement:
     alternative: str = ""
     """How the system fallback is described in the diagnostic."""
 
-    condition: str = "always"
-    """`always`, `gpl-openssl` (GPL mode with OpenSSL selected), `not-gpl-openssl`
-    (the GnuTLS stack's window), or `gpl`."""
+    condition: Literal["always", "gpl-openssl", "not-gpl-openssl", "gpl"] = "always"
+    """`gpl-openssl` is GPL mode with OpenSSL selected, `not-gpl-openssl` the
+    GnuTLS stack's window, and `gpl` any GPL mode."""
 
     def message(self) -> str:
         text = f"'packages.{self.package}=true' requires 'packages.{self.needs}=true'"

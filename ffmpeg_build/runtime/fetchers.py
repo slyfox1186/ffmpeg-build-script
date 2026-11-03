@@ -2,9 +2,8 @@
 
 Most packages resolve through `github_version` or `gitlab_version`. The rest
 publish no tag list this project can read and need a dedicated index scraper,
-which is what the functions below are. `find_git_repo` reproduces the Bash
-dispatch table, including the opaque numeric project identifiers that stand in
-for VideoLAN and SVT-AV1 repositories.
+which is what the functions below are. `find_git_repo` is the dispatch table
+that maps a recipe's upstream identifier onto the right resolver.
 """
 
 from __future__ import annotations
@@ -20,6 +19,9 @@ from .versioncmp import version_sort
 from .versions import DEFAULT_VERSION_PATTERN, VersionResolver
 
 _THREE_PART = re.compile(r"^[0-9]+(\.[0-9]+){2}$")
+
+# VideoLAN projects whose release tags carry no prefix.
+VIDEOLAN_PROJECTS = frozenset({"videolan/libdvdread", "videolan/libdvdnav", "videolan/libudfread"})
 
 # These are upstream tag naming conventions, never fixed release versions.
 GIT_RELEASE_PREFIXES = {
@@ -259,19 +261,9 @@ class PackageVersions:
             raise BuildError("Failed to detect x264 stable commit.")
         return commit
 
-    def videolan(self, project_id: str, count: int = 1) -> str | None:
-        """Resolve one of VideoLAN's numeric project identifiers.
-
-        These identifiers are opaque keys carried over from the original
-        script's dispatch table, not repository names.
-        """
-        projects = {
-            "76": "videolan/libdvdread",
-            "206": "videolan/libdvdnav",
-            "363": "videolan/libudfread",
-        }
-        project = projects.get(project_id)
-        if project is None:
+    def videolan(self, project: str, count: int = 1) -> str | None:
+        """Resolve the newest unprefixed release tag of a VideoLAN project."""
+        if project not in VIDEOLAN_PROJECTS:
             return None
         tags = self.resolver.remote_tag_names(f"https://code.videolan.org/{project}.git")
         if not tags:
@@ -407,7 +399,7 @@ def find_git_repo(
         return versions.ffmpeg()
     if repository == "xiph/rav1e":
         return versions.rav1e()
-    if repository == "536":
+    if repository == "videolan/x264":
         return versions.x264()
     if repository == "GPUOpen-LibrariesAndSDKs/AMF":
         return resolver.github_version("GPUOpen-LibrariesAndSDKs/AMF", "v")
@@ -417,9 +409,9 @@ def find_git_repo(
         return versions.vapoursynth()
     if repository in ("MediaArea/ZenLib", "MediaArea/MediaInfoLib", "MediaArea/MediaInfo"):
         return resolver.github_version(repository, "v")
-    if repository == "24327400":
+    if repository == "AOMediaCodec/SVT-AV1":
         return versions.svt_av1(choice)
-    if repository in ("76", "206", "363"):
+    if repository in VIDEOLAN_PROJECTS:
         return versions.videolan(repository, choice)
     if repository == "Kitware/CMake":
         return resolver.github_version("Kitware/CMake", "v", "rc")

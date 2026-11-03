@@ -1,13 +1,12 @@
 """Subprocess execution, child environments, and the sudo credential cache.
 
 Child environments are composed from an allowlist rather than scrubbed of named
-variables. A denylist is whack-a-mole: beyond the five variables the Bash build
-removed before FFmpeg's `configure`, a Conda environment reaches a native build
-through `LD_LIBRARY_PATH`, `CMAKE_PREFIX_PATH`, `PKG_CONFIG_PATH`,
+variables. A denylist is whack-a-mole: a Conda environment reaches a native
+build through `LD_LIBRARY_PATH`, `CMAKE_PREFIX_PATH`, `PKG_CONFIG_PATH`,
 `CONDA_BUILD_SYSROOT`, `SSL_CERT_FILE` and activation-set `CC`/`CFLAGS`/
 `LDFLAGS`. Starting from a curated base makes that leakage structurally
-impossible instead of enumerably unlikely, and it generalizes the instinct the
-Bash `source_path` already had when it reset `PATH` rather than filtering it.
+impossible instead of enumerably unlikely, and `PATH` is reset to a fixed base
+for the same reason.
 """
 
 from __future__ import annotations
@@ -273,7 +272,9 @@ class Runner:
         working_directory = str(cwd) if cwd is not None else None
 
         if self.debug and self.log_file is not None:
-            exit_code = self._run_teed(arguments, working_directory, environment, stdin_text)
+            exit_code = self._run_teed(
+                self.log_file, arguments, working_directory, environment, stdin_text
+            )
         elif self.log_file is not None:
             start = self._log_size()
             with self.log_file.open("ab") as sink:
@@ -317,21 +318,21 @@ class Runner:
 
     def _run_teed(
         self,
+        log_file: Path,
         arguments: Sequence[str],
         cwd: str | None,
         environment: Mapping[str, str],
         stdin_text: str | None,
     ) -> int:
-        """Stream a command's output while also recording it.
+        """Stream a command's output while also recording it in `log_file`.
 
         A log write that fails here takes the command down with it: under the
         debug flag the log is the artifact the user asked for, and silently
         producing a partial one would make a bug report misleading.
         """
-        assert self.log_file is not None
         # A file-backed input avoids a pipe deadlock when a child produces
         # output before reading all its input. Output remains bounded chunks.
-        with self.log_file.open("ab") as sink, tempfile.TemporaryFile() as source:
+        with log_file.open("ab") as sink, tempfile.TemporaryFile() as source:
             if stdin_text is not None:
                 source.write(stdin_text.encode())
                 source.seek(0)

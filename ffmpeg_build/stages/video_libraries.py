@@ -173,7 +173,7 @@ def install_video_libraries(context: BuildContext) -> None:
     # libdvdread and libdvdnav build in every configuration. Only their FFmpeg
     # integration waits for the licence flag, which the FFmpeg stage applies.
     dvdread_version = context.fetch_version_if_enabled(
-        "libdvdread", lambda: find_git_repo(context.versions, "76", 1)
+        "libdvdread", lambda: find_git_repo(context.versions, "videolan/libdvdread", 1)
     )
     if context.build("libdvdread", dvdread_version):
         source = context.download(
@@ -192,7 +192,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("libdvdread", dvdread_version)
 
     dvdnav_version = context.fetch_version_if_enabled(
-        "libdvdnav", lambda: find_git_repo(context.versions, "206", 1)
+        "libdvdnav", lambda: find_git_repo(context.versions, "videolan/libdvdnav", 1)
     )
     if context.build("libdvdnav", dvdnav_version):
         source = context.download(
@@ -205,7 +205,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("libdvdnav", dvdnav_version)
 
     udfread_version = context.fetch_version_if_enabled(
-        "udfread", lambda: find_git_repo(context.versions, "363", 1)
+        "udfread", lambda: find_git_repo(context.versions, "videolan/libudfread", 1)
     )
     if context.build("udfread", udfread_version):
         source = context.download(
@@ -261,7 +261,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("gpac-git", gpac_commit)
 
     svt_version = context.fetch_version_if_enabled(
-        "svt-av1", lambda: find_git_repo(context.versions, "24327400", 1)
+        "svt-av1", lambda: find_git_repo(context.versions, "AOMediaCodec/SVT-AV1", 1)
     )
     if context.build("svt-av1", svt_version):
         source = context.download(
@@ -374,7 +374,7 @@ def _install_gpl_video(context: BuildContext) -> None:
     # x264's "version" is the 40-character commit on its stable branch; it has
     # no release tags.
     x264_version = context.fetch_version_if_enabled(
-        "x264", lambda: find_git_repo(context.versions, "536", 1)
+        "x264", lambda: find_git_repo(context.versions, "videolan/x264", 1)
     )
     if context.build("x264", x264_version):
         source = context.download(

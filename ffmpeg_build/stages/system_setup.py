@@ -352,7 +352,7 @@ class SystemSetup:
         """Translate the package selection into an APT request.
 
         A pure function of the selection, the compiler choice and the licence
-        mode, so it can be diffed directly against the Bash implementation.
+        mode; it probes nothing on the host.
         """
         context = self.context
         enabled = context.package_enabled
