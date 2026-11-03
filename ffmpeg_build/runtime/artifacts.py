@@ -131,7 +131,6 @@ FILE_ARTIFACTS: dict[str, Callable[[Path], bool]] = {
     "xvidcore": lambda workspace: (
         _any_file(workspace, "lib/libxvidcore.a") and _any_file(workspace, "include/xvid.h")
     ),
-    "freeglut": lambda _workspace: False,
 }
 
 # freeglut installs its metadata under either name depending on the release.

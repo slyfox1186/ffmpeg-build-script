@@ -78,12 +78,6 @@ class GitCloner:
             raise BuildError(f"Unsupported git clone mode '{mode}' for '{repository_name}'.")
 
         target_directory = self.packages / repository_name
-        clone_parent = Path(
-            tempfile.mkdtemp(prefix=f".clone-{repository_name}.", dir=self.packages)
-        )
-        self._register(clone_parent)
-        clone_directory = clone_parent / "repository"
-
         arguments = [
             "timeout",
             "--foreground",
@@ -102,31 +96,35 @@ class GitCloner:
             arguments += ["--depth", "1", "--recurse-submodules", "--shallow-submodules"]
         if reference is not None:
             arguments += ["--branch", reference]
-        arguments += ["--", repository_url, str(clone_directory)]
+        arguments += ["--", repository_url]
 
         environment = {"GIT_TERMINAL_PROMPT": "0"}
-        if self.runner.run_logged(arguments, env_overrides=environment) != 0:
-            safe_remove_tree(clone_parent, self.packages)
-            self._unregister(clone_parent)
-            self.logger.warn(f"Failed to clone '{repository_url}'; retrying once.")
+        attempts = 2
+        for attempt in range(1, attempts + 1):
+            # A fresh staging directory per attempt: a failed clone can leave a
+            # partial tree that git refuses to clone into again.
             clone_parent = Path(
                 tempfile.mkdtemp(prefix=f".clone-{repository_name}.", dir=self.packages)
             )
             self._register(clone_parent)
             clone_directory = clone_parent / "repository"
-            arguments[-1] = str(clone_directory)
-            if self.runner.run_logged(arguments, env_overrides=environment) != 0:
-                safe_remove_tree(clone_parent, self.packages)
-                self._unregister(clone_parent)
-                self.logger.warn(f"Failed to clone '{repository_url}' after two attempts.")
-                return None
+            status = self.runner.run_logged(
+                [*arguments, str(clone_directory)], env_overrides=environment
+            )
+            if status == 0:
+                break
+            self._discard(clone_parent)
+            if attempt < attempts:
+                self.logger.warn(f"Failed to clone '{repository_url}'; retrying once.")
+        else:
+            self.logger.warn(f"Failed to clone '{repository_url}' after {attempts} attempts.")
+            return None
 
         actual_commit = self.local_head(clone_directory)
         if actual_commit is None or (
             expected_commit is not None and actual_commit != expected_commit
         ):
-            safe_remove_tree(clone_parent, self.packages)
-            self._unregister(clone_parent)
+            self._discard(clone_parent)
             self.logger.warn(
                 f"Cloned '{repository_url}', but its checked-out commit did not match the requested release."
             )
@@ -154,12 +152,15 @@ class GitCloner:
                         ) from restore_error
                 raise
         except OSError as error:
-            safe_remove_tree(clone_parent, self.packages)
-            self._unregister(clone_parent)
+            self._discard(clone_parent)
             self.logger.warn(
                 f"Failed to publish the completed clone for '{repository_name}': {error}"
             )
             return None
+        self._discard(clone_parent)
+        return actual_commit
+
+    def _discard(self, clone_parent: Path) -> None:
+        """Remove a staging directory that will not be published."""
         safe_remove_tree(clone_parent, self.packages)
         self._unregister(clone_parent)
-        return actual_commit

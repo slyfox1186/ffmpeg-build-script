@@ -45,7 +45,7 @@ def install_global_tools(context: BuildContext) -> None:
     # `nvidia_gpu_present` being false also covers Intel-only and GPU-less
     # machines, so an actual AMD detection is required before saying this.
     if not context.nvidia_gpu_present and context.amd_gpu_present:
-        print("\nAn AMD GPU was detected without an NVIDIA GPU present.\n")
+        context.logger.info("An AMD GPU was detected without an NVIDIA GPU present.")
 
     # Build m4 from a versioned release. "m4-latest" is mutable and cannot be
     # represented truthfully by a durable build marker.

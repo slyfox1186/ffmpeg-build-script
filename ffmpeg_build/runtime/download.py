@@ -47,18 +47,18 @@ class DownloadSettings:
     def __init__(self, environment: dict[str, str] | None = None) -> None:
         source = environment if environment is not None else dict(os.environ)
 
-        def positive(name: str, default: int) -> int:
+        def integer(name: str, default: int) -> int:
             value = source.get(name, "")
             return int(value) if value else default
 
-        self.connect_timeout = positive("DOWNLOAD_CONNECT_TIMEOUT", 5)
-        self.max_time = positive("DOWNLOAD_MAX_TIME", 1800)
-        self.max_bytes = positive("DOWNLOAD_MAX_BYTES", 1073741824)
-        self.max_extracted_bytes = positive("DOWNLOAD_MAX_EXTRACTED_BYTES", 8 * 1024**3)
-        self.max_members = positive("DOWNLOAD_MAX_MEMBERS", 100000)
-        self.retry = positive("DOWNLOAD_RETRY", 5)
-        self.retry_delay = positive("DOWNLOAD_RETRY_DELAY", 5)
-        self.lock_timeout = positive("DOWNLOAD_LOCK_TIMEOUT", 1800)
+        self.connect_timeout = integer("DOWNLOAD_CONNECT_TIMEOUT", 5)
+        self.max_time = integer("DOWNLOAD_MAX_TIME", 1800)
+        self.max_bytes = integer("DOWNLOAD_MAX_BYTES", 1073741824)
+        self.max_extracted_bytes = integer("DOWNLOAD_MAX_EXTRACTED_BYTES", 8 * 1024**3)
+        self.max_members = integer("DOWNLOAD_MAX_MEMBERS", 100000)
+        self.retry = integer("DOWNLOAD_RETRY", 5)
+        self.retry_delay = integer("DOWNLOAD_RETRY_DELAY", 5)
+        self.lock_timeout = integer("DOWNLOAD_LOCK_TIMEOUT", 1800)
 
     def replace(self, **overrides: int) -> DownloadSettings:
         clone = DownloadSettings({})
@@ -277,8 +277,8 @@ class Downloader:
         symlinks resolve accurately.
         """
         resolved_root = canonicalize(tree)
-        for directory, _directories, files in os.walk(tree):
-            for name in list(files) + list(_directories):
+        for directory, directories, files in os.walk(tree):
+            for name in list(files) + list(directories):
                 path = Path(directory) / name
                 if _has_control_characters(str(path)):
                     self.logger.warn(
@@ -313,6 +313,18 @@ class Downloader:
                     )
                     return False
         return True
+
+    # -- cleanup ---------------------------------------------------------
+
+    def _discard_partial(self, temporary: Path) -> None:
+        """Drop an incomplete transfer and stop tracking it."""
+        temporary.unlink(missing_ok=True)
+        self._unregister(temporary)
+
+    def _discard_staging(self, staging: Path) -> None:
+        """Remove an extraction tree that will not be published."""
+        safe_remove_tree(staging, self.packages)
+        self._unregister(staging)
 
     # -- transfer --------------------------------------------------------
 
@@ -381,8 +393,7 @@ class Downloader:
         self.logger.get(url, filename)
         # The record above names the URL; the transport flags only matter in --debug.
         if self.runner.run_logged(arguments, quiet=True) != 0:
-            temporary.unlink(missing_ok=True)
-            self._unregister(temporary)
+            self._discard_partial(temporary)
             self.logger.warn(f"Failed to download '{filename}'.")
             return False
 
@@ -391,14 +402,12 @@ class Downloader:
         except OSError:
             downloaded_size = settings.max_bytes + 1
         if downloaded_size > settings.max_bytes:
-            temporary.unlink(missing_ok=True)
-            self._unregister(temporary)
+            self._discard_partial(temporary)
             self.logger.warn(f"Downloaded '{filename}' exceeds the configured size limit.")
             return False
 
         if not self.validate_tar_archive(temporary):
-            temporary.unlink(missing_ok=True)
-            self._unregister(temporary)
+            self._discard_partial(temporary)
             self.logger.warn(
                 f"Downloaded '{filename}', but it is not a safe, valid single-root tar archive."
             )
@@ -407,8 +416,7 @@ class Downloader:
         try:
             os.replace(temporary, target)
         except OSError:
-            temporary.unlink(missing_ok=True)
-            self._unregister(temporary)
+            self._discard_partial(temporary)
             return False
         self._unregister(temporary)
 
@@ -437,8 +445,7 @@ class Downloader:
                 bundle.extractall(path=staging, filter="data")
         except (tarfile.TarError, OSError, EOFError, KeyError) as error:
             self.logger.warn(f"Failed to extract '{archive}': {error}")
-            safe_remove_tree(staging, self.packages)
-            self._unregister(staging)
+            self._discard_staging(staging)
             return (
                 ExtractionResult.LOCAL_FAILURE
                 if isinstance(error, OSError)
@@ -448,19 +455,16 @@ class Downloader:
         roots = list(staging.iterdir())
         if len(roots) != 1 or not roots[0].is_dir():
             self.logger.warn(f"Archive '{archive}' extracted no source files.")
-            safe_remove_tree(staging, self.packages)
-            self._unregister(staging)
+            self._discard_staging(staging)
             return ExtractionResult.INVALID_ARCHIVE
         stripped = roots[0]
 
         if not self._validate_extracted_tree(archive, stripped):
-            safe_remove_tree(staging, self.packages)
-            self._unregister(staging)
+            self._discard_staging(staging)
             return ExtractionResult.INVALID_ARCHIVE
 
         if target_directory.is_symlink() or not path_is_within(target_directory, self.packages):
-            safe_remove_tree(staging, self.packages)
-            self._unregister(staging)
+            self._discard_staging(staging)
             raise BuildError(f"Refusing unsafe extraction destination: '{target_directory}'.")
         previous = staging / ".previous-source"
         had_previous = target_directory.exists()
@@ -478,18 +482,15 @@ class Downloader:
                     try:
                         os.rename(previous, target_directory)
                     except OSError as restore_error:
-                        self._unregister(staging)
                         raise BuildError(
                             f"Source restoration failed; recovery files remain at '{previous}'."
                         ) from restore_error
                 raise
         except OSError as error:
             self.logger.warn(f"Failed to publish the extracted source for '{archive}': {error}")
-            safe_remove_tree(staging, self.packages)
-            self._unregister(staging)
+            self._discard_staging(staging)
             return ExtractionResult.LOCAL_FAILURE
-        safe_remove_tree(staging, self.packages)
-        self._unregister(staging)
+        self._discard_staging(staging)
         return ExtractionResult.SUCCESS
 
     # -- public entry points ---------------------------------------------

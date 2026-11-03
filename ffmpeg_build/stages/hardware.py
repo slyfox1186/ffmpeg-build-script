@@ -232,7 +232,7 @@ class HardwareDetection:
         elif mode == "all":
             selected = list(self.available_architectures)
         elif mode == "custom":
-            raw = os.environ.get("CUDA_ARCHITECTURES", "").replace(",", " ").split()
+            raw = os.environ.get("CUDA_ARCHITECTURES", "").split()
             if not raw:
                 raise BuildError(
                     "'CUDA_ARCH_MODE=custom' requires 'CUDA_ARCHITECTURES' (for example: '86 89')."

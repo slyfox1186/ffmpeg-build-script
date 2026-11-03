@@ -298,18 +298,8 @@ class Logger:
             if fragment
         ]
 
-    def line(
-        self,
-        level: str,
-        message: str,
-        *,
-        stream: TextIO | None = None,
-        command_arguments: Sequence[str] | None = None,
-    ) -> None:
+    def line(self, level: str, message: str, *, stream: TextIO | None = None) -> None:
         """Render one record and append it to the build log."""
-        if level == "RUN":
-            self._command(message, command_arguments, stream=stream)
-            return
         for index, text in enumerate(message.splitlines() or [""]):
             if index == 0:
                 self._emit(self._tag(level), self._text_parts(text), stream=stream)

@@ -196,11 +196,7 @@ class Runner:
     def child_environment(self, overrides: Mapping[str, str] | None = None) -> dict[str, str]:
         environment = dict(self.environment)
         if overrides:
-            for name, value in overrides.items():
-                if value is None:
-                    environment.pop(name, None)
-                else:
-                    environment[name] = value
+            environment.update(overrides)
         return environment
 
     # -- logging helpers -------------------------------------------------
@@ -224,10 +220,11 @@ class Runner:
         try:
             with self.log_file.open("rb") as handle:
                 handle.seek(start)
-                sys.stderr.write("\n")
+                sys.stderr.flush()
+                sys.stderr.buffer.write(b"\n")
                 for payload in iter(lambda: handle.read(65536), b""):
                     sys.stderr.buffer.write(payload)
-                sys.stderr.flush()
+                sys.stderr.buffer.flush()
         except OSError:
             return
 
@@ -456,6 +453,8 @@ class Runner:
         # successful validation starts a new one.
         if self._keepalive_thread is not None and self._keepalive_thread.is_alive():
             return
+        # A stop request from an earlier thread must not end the new one at once.
+        self._keepalive_stop.clear()
 
         def refresh() -> None:
             while not self._keepalive_stop.wait(50):

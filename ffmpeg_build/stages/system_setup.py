@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from ..registry import PACKAGES, Kind
+from ..registry import PACKAGES, Gate, Kind
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.exec import BASE_PATH, Runner
@@ -367,7 +367,7 @@ class SystemSetup:
         for package in PACKAGES.values():
             if package.kind is not Kind.SYSTEM or not package.apt_packages:
                 continue
-            if package.gate.name == "REQUIRES_GPL" and not context.nonfree_and_gpl:
+            if package.gate is Gate.REQUIRES_GPL and not context.nonfree_and_gpl:
                 continue
             if not enabled(package.key):
                 continue
@@ -534,7 +534,6 @@ class SystemSetup:
             if Path(candidate).is_dir():
                 ccache_directory = candidate
                 break
-        context.env["ccache_dir"] = ccache_directory
         # PATH must include this directory before the first tool is installed.
         # path_prepend intentionally ignores missing directories; otherwise a
         # fresh build runs system libtoolize with workspace aclocal macros,
@@ -610,5 +609,6 @@ def check_avx512() -> str:
 def set_ant_path(context: BuildContext) -> Path:
     ant_home = context.workspace / "ant"
     context.env["ANT_HOME"] = str(ant_home)
-    context.execute(["mkdir", "-p", str(ant_home / "bin"), str(ant_home / "lib")])
+    for directory in ("bin", "lib"):
+        (ant_home / directory).mkdir(parents=True, exist_ok=True)
     return ant_home

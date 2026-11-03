@@ -25,15 +25,13 @@ class SignalStop(BaseException):
 class BuildError(Exception):
     """A fatal, reportable build failure.
 
-    `origin` names the frame that raised it, reproducing what Bash derived from
-    `BASH_SOURCE[2]`: a helper called from thirty recipe sites otherwise reports
-    the same location every time and never names the recipe that invoked it.
+    The failure report derives the raising location from the traceback, so a
+    helper called from many recipe sites still names the recipe that invoked it.
     """
 
-    def __init__(self, message: str, origin: str | None = None) -> None:
+    def __init__(self, message: str) -> None:
         super().__init__(message)
         self.message = message
-        self.origin = origin
 
 
 class UsageError(BuildError):

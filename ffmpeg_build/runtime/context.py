@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from .. import registry
-from ..config import CLEANUP_COMMAND, Selection
+from ..config import Selection
 from . import artifacts, shellquote
 from .download import Downloader, DownloadSettings
 from .errors import BuildError
@@ -85,8 +85,8 @@ class BuildContext:
         self.packages_already_built = 0
         self.packages_disabled = 0
         self._package_started = 0
-        self._package_in_progress = ""
-        self._package_version = ""
+        self.package_in_progress = ""
+        self.package_version = ""
         self._temporary_paths: list[Path] = []
         self._saved_flags: dict[str, str] = {}
 
@@ -567,8 +567,8 @@ class BuildContext:
             self.marker_path(package).unlink(missing_ok=True)
         self.packages_built += 1
         self._package_started = self.logger.elapsed_seconds
-        self._package_in_progress = key
-        self._package_version = version
+        self.package_in_progress = key
+        self.package_version = version
         self.logger.package_start(key, version, prior_version)
 
     def build_done(self, key: str, version: str | None) -> None:
@@ -587,10 +587,10 @@ class BuildContext:
         # Only time packages this run actually started. A recipe that finishes
         # outside a `build` branch would otherwise report the elapsed time of
         # whichever package ran before it.
-        if self._package_in_progress == key:
+        if self.package_in_progress == key:
             duration = format_duration(self.logger.elapsed_seconds - self._package_started)
             self.logger.package_done(key, version, duration)
-            self._package_in_progress = ""
+            self.package_in_progress = ""
         else:
             self.logger.package_done(key, version)
 
@@ -616,9 +616,6 @@ class BuildContext:
 
     def download(self, url: str, filename: str | None = None) -> Path:
         return self.downloader.download(url, filename)
-
-    def cleanup_command(self) -> str:
-        return CLEANUP_COMMAND
 
 
 def is_valid_version(version: str) -> bool:

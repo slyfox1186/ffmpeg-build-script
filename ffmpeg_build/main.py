@@ -29,6 +29,7 @@ from .runtime.paths import (
     DirectoryLock,
     canonicalize,
     is_exclusive_regular_file,
+    remove_tree_one_filesystem,
     safe_remove_tree,
     tree_size,
 )
@@ -652,16 +653,13 @@ class Orchestrator:
                     self.logger.info("No cleanup response received; nothing was deleted.")
                     return
                 if choice.strip().lower() in ("y", "yes"):
-                    from .runtime.paths import remove_tree_one_filesystem
-
                     try:
                         lock.assert_current()
                         remove_tree_one_filesystem(resolved)
                     except OSError as error:
                         raise BuildError(f"Failed to remove build root '{resolved}'.") from error
                     lock.release()
-                    if self.logger.log_file is not None:
-                        self.logger.log_file = None
+                    self.logger.log_file = None
                     self.runner.log_file = None
                     self.logger.info(f"Deleted the build folder '{resolved}'.")
                     # Re-read: removing the build root can itself clear entries.
@@ -783,9 +781,7 @@ class Orchestrator:
         """
         lock_dir = (
             canonicalize(
-                Path(
-                    os.environ.get("XDG_RUNTIME_DIR") or f"{os.environ.get('HOME', '/tmp')}/.cache"
-                )
+                os.environ.get("XDG_RUNTIME_DIR") or os.path.join(os.path.expanduser("~"), ".cache")
             )
             / "ffmpeg-build-script"
         )
@@ -983,7 +979,7 @@ def _report_failure(orchestrator: Orchestrator, error: BuildError) -> None:
     from .runtime.errors import ISSUE_TRACKER_URL
 
     context = orchestrator.context
-    in_progress = getattr(context, "_package_in_progress", "") if context is not None else ""
+    in_progress = context.package_in_progress if context is not None else ""
     detail = [str(error)]
     traceback = error.__traceback__
     frames = []
@@ -1004,10 +1000,8 @@ def _report_failure(orchestrator: Orchestrator, error: BuildError) -> None:
     detail.append(f"Report a bug: {ISSUE_TRACKER_URL}")
 
     print(file=sys.stderr)
-    if in_progress:
-        orchestrator.logger.package_failed(
-            in_progress, getattr(context, "_package_version", ""), detail[0]
-        )
+    if context is not None and in_progress:
+        orchestrator.logger.package_failed(in_progress, context.package_version, detail[0])
         for line in detail[1:]:
             orchestrator.logger.hint(line)
     else:

@@ -10,13 +10,15 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import sys
 import tempfile
 from pathlib import Path
 
+from ..registry import PACKAGES, Gate
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError, SignalStop
 from ..runtime.exec import Runner, base_environment
-from ..runtime.logging import Logger
+from ..runtime.logging import Logger, format_duration
 from ..runtime.paths import DirectoryLock, safe_remove_tree
 from ..runtime.state import publish_atomically, read_marker_version
 
@@ -134,7 +136,7 @@ class FFmpegStage:
         if not config_file.is_file():
             raise BuildError(f"FFmpeg configuration file is missing: '{config_file}'.")
         text = config_file.read_text(encoding="utf-8", errors="replace")
-        present = {line for line in text.splitlines()}
+        present = set(text.splitlines())
         missing = [
             f"'{option}' ('{symbol}')"
             for symbol, option in self.context.required_symbols.items()
@@ -178,7 +180,7 @@ class FFmpegStage:
                         handle.write(f"{output}\n")
             if completed.returncode != 0:
                 if output:
-                    print(f"\n{output}")
+                    print(f"\n{output}", file=sys.stderr)
                 raise BuildError(
                     f"'{binary}' version check failed with exit code {completed.returncode}: "
                     f"'{command_display}'."
@@ -356,20 +358,19 @@ class FFmpegStage:
             or not os.access("/usr/local/bin/ffprobe", os.X_OK)
             or (ffplay_enabled and not os.access("/usr/local/bin/ffplay", os.X_OK))
         )
-        if recorded_version == f"n{ffmpeg_version}" and programs_incomplete:
-            self.logger.warn(
-                "FFmpeg's build marker exists, but its required installed programs are "
-                "incomplete; rebuilding."
-            )
-            context.execute(["rm", "-f", "--", str(marker_file)])
-        elif (
-            recorded_version == f"n{ffmpeg_version}" and not self.installed_programs_match_receipt()
-        ):
-            self.logger.warn(
-                "The FFmpeg programs in '/usr/local/bin' do not match this workspace's install "
-                "receipt; rebuilding."
-            )
-            context.execute(["rm", "-f", "--", str(marker_file)])
+        if recorded_version == f"n{ffmpeg_version}":
+            if programs_incomplete:
+                self.logger.warn(
+                    "FFmpeg's build marker exists, but its required installed programs are "
+                    "incomplete; rebuilding."
+                )
+                marker_file.unlink(missing_ok=True)
+            elif not self.installed_programs_match_receipt():
+                self.logger.warn(
+                    "The FFmpeg programs in '/usr/local/bin' do not match this workspace's "
+                    "install receipt; rebuilding."
+                )
+                marker_file.unlink(missing_ok=True)
 
         if context.build("ffmpeg", f"n{ffmpeg_version}"):
             self._configure_build_install(ffmpeg_version, ffplay_enabled)
@@ -742,9 +743,6 @@ def report_success(context: BuildContext) -> None:
 
 
 def _report_package_summary(context: BuildContext) -> None:
-    from ..registry import PACKAGES, Gate
-    from ..runtime.logging import format_duration
-
     if not context.nonfree_and_gpl:
         inactive = [
             package.key

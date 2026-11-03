@@ -12,7 +12,7 @@ misspelled entry must not silently build an unintended default.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 
@@ -884,16 +884,7 @@ KEY_ALIASES = {"vulkan-headers": "vulkan-headers-git"}
 PACKAGES: dict[str, Package] = {}
 for _group in GROUPS:
     for _package in _group.packages:
-        PACKAGES[_package.key] = Package(
-            key=_package.key,
-            summary=_package.summary,
-            default_enabled=_package.default_enabled,
-            kind=_package.kind,
-            gate=_package.gate,
-            apt_packages=_package.apt_packages,
-            ffmpeg_flags=_package.ffmpeg_flags,
-            group=_group.name,
-        )
+        PACKAGES[_package.key] = replace(_package, group=_group.name)
 
 PACKAGE_NAMES: tuple[str, ...] = tuple(PACKAGES)
 

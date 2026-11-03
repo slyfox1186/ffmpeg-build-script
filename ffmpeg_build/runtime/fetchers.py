@@ -101,8 +101,6 @@ class PackageVersions:
         if listing is None:
             self.logger.warn("sdl2_repo_version: failed to fetch the SDL release archive.")
             return None
-        from .versioncmp import version_sort
-
         matches = re.findall(r"SDL2-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.gz", listing)
         ordered = version_sort(list(matches), unique=True)
         if not ordered:
@@ -208,8 +206,6 @@ class PackageVersions:
         if listing is None:
             self.logger.warn(f"Failed to fetch the NASM release index '{index_url}'.")
             return None
-        from .versioncmp import version_sort
-
         matches = re.findall(r'href="([0-9]+(?:\.[0-9]+){1,2})/"', listing)
         ordered = version_sort(list(matches), reverse=True, unique=True)
         if not ordered:
