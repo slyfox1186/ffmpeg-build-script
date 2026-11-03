@@ -28,6 +28,9 @@ from ..runtime.state import publish_atomically, read_marker_version
 
 _VERSION_LINE = re.compile(r"^(?P<tool>\w+) version n?(?P<version>[0-9]+(?:\.[0-9]+){1,3})")
 _CODEC_ROW = re.compile(r"^ [A-Z.]{6} ")
+# FFmpeg 9 prints two filter flags (timeline, slice threading); older releases
+# add a third for command support. Legend lines start with two spaces.
+_FILTER_ROW = re.compile(r"^ [.TSC]{2,3} ")
 # Beside the FFmpeg marker: what this workspace's last promotion installed,
 # and the exact configure arguments that build was made with.
 INSTALL_RECEIPT_NAME = "ffmpeg.installed"
@@ -848,9 +851,8 @@ def report_success(context: BuildContext) -> None:
             for line in ask("-hide_banner", f"-{capability}").splitlines()
             if _CODEC_ROW.match(line)
         )
-    filter_row = re.compile(r"^ [.A-Z|]{3} ")
     counts["filters"] = sum(
-        1 for line in ask("-hide_banner", "-filters").splitlines() if filter_row.match(line)
+        1 for line in ask("-hide_banner", "-filters").splitlines() if _FILTER_ROW.match(line)
     )
     accelerators = [
         line.strip() for line in ask("-hide_banner", "-hwaccels").splitlines()[1:] if line.strip()

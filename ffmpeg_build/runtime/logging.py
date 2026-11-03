@@ -155,6 +155,9 @@ class Logger:
     def __init__(self, *, debug: bool = False) -> None:
         self.debug_enabled = debug
         self.log_file: Path | None = None
+        # Records from before `attach_log`: the context check runs before the
+        # old log may be truncated, and what it reports belongs in the new one.
+        self._pending: list[str] = []
         self._started = time.monotonic()
         self._out = sys.stdout
         self._err = sys.stderr
@@ -267,14 +270,26 @@ class Logger:
     def _tag(self, level: str) -> Fragment:
         return (_TAGS.get(level, f"[{level}]"), _TAG_COLOR.get(level, ""), level in _BOLD_TAGS)
 
+    def attach_log(self, path: Path) -> None:
+        """Write to `path` from now on, starting with the records logged before it."""
+        self.log_file = path
+        pending, self._pending = self._pending, []
+        self._append(pending)
+
     def write_log_records(self, level: str, lines: list[str], elapsed: str) -> None:
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        records = [f"{stamp} [{elapsed}] {level:<5} {text}\n" for text in lines]
+        if self.log_file is None:
+            self._pending.extend(records)
+            return
+        self._append(records)
+
+    def _append(self, records: list[str]) -> None:
         if self.log_file is None or not self.log_file.is_file():
             return
-        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
         try:
             with self.log_file.open("a", encoding="utf-8") as handle:
-                for text in lines:
-                    handle.write(f"{stamp} [{elapsed}] {level:<5} {text}\n")
+                handle.writelines(records)
         except OSError:
             # A log that cannot be written must not take the build down; the
             # terminal copy of every record has already been printed.

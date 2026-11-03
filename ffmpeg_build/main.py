@@ -742,7 +742,7 @@ class Orchestrator:
         self.runner.require_sudo()
         # After the context check, so a failing run's log survives the abort.
         context.log_file.write_text("", encoding="utf-8")
-        self.logger.log_file = context.log_file
+        self.logger.attach_log(context.log_file)
         self.runner.log_file = context.log_file
 
         self.logger.banner(f"FFmpeg Build Script {SCRIPT_VERSION}")
