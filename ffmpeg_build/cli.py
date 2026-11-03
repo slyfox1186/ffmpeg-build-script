@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .config import COMPILERS
+from .config import COMPILERS, CPU_TARGET_CHOICES, CPU_TARGETS
 from .runtime.errors import UsageError
 from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
 from .usage import (
@@ -48,6 +48,7 @@ class Arguments:
         self.cleanup = False
         self.menu = False
         self.compiler: str | None = None
+        self.cpu_target: str | None = None
         self.jobs: int | None = None
         self.latest = False
         self.nonfree_and_gpl = False
@@ -84,6 +85,15 @@ def parse_arguments(argv: list[str]) -> Arguments:
             index += 1
         elif argument.startswith("--compiler="):
             arguments.compiler = argument.split("=", 1)[1]
+        elif argument == "--generic":
+            arguments.cpu_target = "generic"
+        elif argument == "--cpu-target":
+            if index + 1 >= len(argv):
+                raise UsageError("Missing value for '--cpu-target'.")
+            arguments.cpu_target = argv[index + 1]
+            index += 1
+        elif argument.startswith("--cpu-target="):
+            arguments.cpu_target = argument.split("=", 1)[1]
         elif argument in ("-j", "--jobs"):
             if index + 1 >= len(argv):
                 raise UsageError(f"Missing value for '{argument}'.")
@@ -117,6 +127,10 @@ def parse_arguments(argv: list[str]) -> Arguments:
 
     if arguments.compiler is not None and arguments.compiler not in COMPILERS:
         raise UsageError(f"Invalid compiler '{arguments.compiler}'; expected 'gcc' or 'clang'.")
+    if arguments.cpu_target is not None and arguments.cpu_target not in CPU_TARGETS:
+        raise UsageError(
+            f"Invalid CPU target '{arguments.cpu_target}'; expected {CPU_TARGET_CHOICES}."
+        )
     chosen = [
         name
         for name, selected in (

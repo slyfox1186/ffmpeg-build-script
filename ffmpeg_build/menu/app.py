@@ -29,7 +29,15 @@ from textual.widgets.option_list import Option
 from .. import registry
 from ..config import COMPILERS
 from ..registry import Package
-from .dialogs import HelpScreen, ImportScreen, PresetScreen, SaveScreen, SettingsScreen, plain
+from .dialogs import (
+    CpuTargetScreen,
+    HelpScreen,
+    ImportScreen,
+    PresetScreen,
+    SaveScreen,
+    SettingsScreen,
+    plain,
+)
 from .model import LaunchSettings, MenuModel
 from .session import MenuResult, MenuSession
 
@@ -154,6 +162,7 @@ class MenuApp(App[MenuResult]):
         Binding("down,j", "next_category", "Next", show=False, priority=True),
         Binding("slash", "search", "Search", show=False),
         Binding("c", "compilers", "Compilers", show=False),
+        Binding("t", "cpu_target", "CPU target", show=False),
         Binding("g", "toggle_gpl", "GPL/non-free", show=False),
         Binding("l", "toggle_latest", "Latest", show=False),
         Binding("a", "enable_category", "Enable category", show=False),
@@ -380,7 +389,7 @@ class MenuApp(App[MenuResult]):
             f"{sum(self.model.states.values())} / {len(registry.PACKAGES)} selected"
         )
         self.query_one("#launch-summary", Static).update(
-            f"Jobs {self.session.result.launch.jobs or 'Auto'}"
+            f"Jobs {self.session.result.launch.jobs or 'Auto'} · CPU {self.model.settings.cpu_target}"
         )
         status = self.query_one("#status", Static)
         status.update(plain(self.session.message))
@@ -407,7 +416,7 @@ class MenuApp(App[MenuResult]):
                 if issues
                 else "No missing package requirements"
             )
-            return f"{summary} · Compiler {self.model.settings.compiler.upper()} · GPL/non-free {'ON' if self.model.gpl else 'OFF'}\n{self.session.default_path}"
+            return f"{summary} · Compiler {self.model.settings.compiler.upper()} · CPU {self.model.settings.cpu_target} · GPL/non-free {'ON' if self.model.gpl else 'OFF'}\n{self.session.default_path}"
         return "\n".join(
             filter(
                 None,
@@ -595,6 +604,16 @@ class MenuApp(App[MenuResult]):
                 False,
             )
         self._refresh_state()
+
+    def action_cpu_target(self) -> None:
+        self.push_screen(CpuTargetScreen(self.model.settings.cpu_target), self._cpu_target_selected)
+
+    def _cpu_target_selected(self, target: str | None) -> None:
+        if target is not None:
+            self._change(
+                lambda: setattr(self.model.settings, "cpu_target", target),
+                f"CPU target: {target}.",
+            )
 
     @on(Button.Pressed, "#presets-button")
     def action_presets(self) -> None:

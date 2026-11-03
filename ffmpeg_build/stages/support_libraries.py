@@ -326,7 +326,11 @@ def _install_gnutls_stack(context: BuildContext) -> None:
             f"{GNU_PRIMARY_MIRROR}/gmp/gmp-{gmp_version}.tar.xz",
             f"{GNU_FALLBACK_MIRROR}/gmp/gmp-{gmp_version}.tar.xz",
         )
-        configure_make_install(context, source, "--disable-shared", "--enable-static")
+        # GMP picks assembly for the exact CPU that builds it, whatever CFLAGS
+        # says. A portable target needs the "fat" build, which carries every
+        # variant and selects one at run time.
+        portable = () if context.cpu_target == "native" else ("--enable-fat",)
+        configure_make_install(context, source, "--disable-shared", "--enable-static", *portable)
         context.build_done("gmp", gmp_version)
 
     nettle_version = context.fetch_version_if_enabled(

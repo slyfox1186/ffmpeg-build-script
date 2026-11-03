@@ -9,6 +9,7 @@
 #   [packages]
 #   key = true|false
 #   compiler = "gcc"|"clang" (only in [build])
+#   cpu_target = "native"|"generic"|"x86-64-v2"|"x86-64-v3"|"x86-64-v4" (only in [build])
 #
 # Package entries are an explicit allowlist: an omitted key is disabled. A true
 # value either builds the component from source or requests its supported system
@@ -30,6 +31,12 @@
 # C/C++ compiler family. CLI --compiler (or --gcc/--clang) overrides this value.
 # Omitted compiler keys default to gcc for compatibility with older configs.
 compiler = "gcc"
+
+# CPU the build is optimized for. "native" tunes for this machine's CPU and the
+# result may not run on others; "generic" runs on any x86-64 CPU; an x86-64-vN
+# level runs on any CPU that implements it. CLI --cpu-target (or --generic)
+# overrides this value. Omitted cpu_target keys default to native.
+cpu_target = "native"
 
 # Recheck upstream releases and rebuild components whose recorded versions differ.
 latest = false

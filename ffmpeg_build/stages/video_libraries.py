@@ -8,6 +8,7 @@ from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.fetchers import find_git_repo, rav1e_download_url
+from ..runtime.host import march
 from ..runtime.paths import safe_remove_tree
 from .helpers import (
     check_and_install_cargo_c,
@@ -18,7 +19,7 @@ from .helpers import (
     meson_ninja_install,
     pkgconfig_add_private_lib,
 )
-from .system_setup import check_avx512, set_ant_path
+from .system_setup import set_ant_path
 
 
 def install_video_libraries(context: BuildContext) -> None:
@@ -105,6 +106,11 @@ def install_video_libraries(context: BuildContext) -> None:
                 "--release",
             ],
             cwd=source,
+            env_overrides={
+                # Scoped to rav1e: cargo-c and the toolchain are build tools.
+                "RUSTFLAGS": f"-C target-cpu={march(context.cpu_target)}",
+                "CARGO_BUILD_JOBS": str(context.build_threads),
+            },
         )
         context.build_done("rav1e", rav1e_version)
     context.append_configure_options_if_enabled("rav1e", "--enable-librav1e")
@@ -281,9 +287,11 @@ def install_video_libraries(context: BuildContext) -> None:
             # FFmpeg links with the host linker; LLVM bitcode from SVT's
             # default LTO cannot be consumed by a normal GNU ld link.
             "-DSVT_AV1_LTO=OFF",
-            f"-DENABLE_AVX512={check_avx512()}",
+            # CFLAGS carries the CPU target, so SVT's own NATIVE switch is not
+            # used. Its AVX-512 kernels keep the upstream default: they are
+            # compiled with their own flags and chosen only on CPUs that have
+            # AVX-512, so they are safe in every build.
             "-DEXCLUDE_HASH=ON",
-            "-DNATIVE=ON",
             "-DREPRODUCIBLE_BUILDS=ON",
         )
         context.build_done("svt-av1", svt_version)
@@ -584,7 +592,6 @@ def _build_x265(context: BuildContext, release: str) -> None:
         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         "-DENABLE_PIC=ON",
         "-DENABLE_LIBNUMA=OFF",
-        "-DNATIVE_BUILD=ON",
         *CMAKE_NO_PACKAGE_REGISTRY_OPTIONS,
         "-G",
         "Ninja",

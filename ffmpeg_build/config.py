@@ -24,8 +24,14 @@ CLEANUP_COMMAND = "build-ffmpeg.py --cleanup"
 _TABLE = re.compile(r"^\[([A-Za-z0-9._-]+)\]$")
 _ASSIGNMENT = re.compile(r"^([A-Za-z0-9_-]+)[ \t]*=[ \t]*(.*)$")
 _COMPILER = re.compile(r"""^(?:"(gcc|clang)"|'(gcc|clang)')$""")
+_QUOTED = re.compile(r"""^(?:"([^"]*)"|'([^']*)')$""")
 _SUPPORTED_TABLES = ("build", "packages")
 COMPILERS = ("gcc", "clang")
+# `native` tunes for the building CPU and runs only on CPUs like it; the others
+# are portable: `generic` runs on any x86-64 CPU, and each psABI level on any CPU
+# that implements it.
+CPU_TARGETS = ("native", "generic", "x86-64-v2", "x86-64-v3", "x86-64-v4")
+CPU_TARGET_CHOICES = "'native', 'generic', 'x86-64-v2', 'x86-64-v3' or 'x86-64-v4'"
 
 
 class Selection:
@@ -77,15 +83,23 @@ class BuildSettings:
     """Persistent `[build]` options; omitted keys keep their legacy defaults."""
 
     def __init__(
-        self, *, compiler: str = "gcc", latest: bool = False, enable_gpl_and_non_free: bool = False
+        self,
+        *,
+        compiler: str = "gcc",
+        cpu_target: str = "native",
+        latest: bool = False,
+        enable_gpl_and_non_free: bool = False,
     ) -> None:
         self.compiler = compiler
+        self.cpu_target = cpu_target
         self.latest = latest
         self.enable_gpl_and_non_free = enable_gpl_and_non_free
 
     def validate(self) -> None:
         if self.compiler not in COMPILERS:
             raise UsageError("Compiler must be 'gcc' or 'clang'.")
+        if self.cpu_target not in CPU_TARGETS:
+            raise UsageError(f"CPU target must be {CPU_TARGET_CHOICES}.")
 
 
 class LoadedConfig:
@@ -141,6 +155,23 @@ def load_config(config_file: Path, logger: Logger) -> LoadedConfig:
                 )
             settings.compiler = compiler_match.group(1) or compiler_match.group(2)
             continue
+        if current_table == "build" and key == "cpu_target":
+            entry_id = "build.cpu_target"
+            if entry_id in seen_entries:
+                raise UsageError(f"Duplicate config key '{entry_id}' at {location}.")
+            seen_entries.add(entry_id)
+            target_match = _QUOTED.fullmatch(value_text)
+            target = None
+            if target_match is not None:
+                target = target_match.group(1)
+                if target is None:
+                    target = target_match.group(2)
+            if target not in CPU_TARGETS:
+                raise UsageError(
+                    f"Invalid cpu_target at {location}; expected a quoted {CPU_TARGET_CHOICES}."
+                )
+            settings.cpu_target = target
+            continue
         if value_text not in ("true", "false"):
             raise UsageError(f"Unsupported config syntax at {location}: '{raw_line}'.")
         value = value_text == "true"
@@ -193,6 +224,7 @@ _TEMPLATE_PREAMBLE = """\
 #   [packages]
 #   key = true|false
 #   compiler = "gcc"|"clang" (only in [build])
+#   cpu_target = "native"|"generic"|"x86-64-v2"|"x86-64-v3"|"x86-64-v4" (only in [build])
 #
 # Package entries are an explicit allowlist: an omitted key is disabled. A true
 # value either builds the component from source or requests its supported system
@@ -215,6 +247,12 @@ _TEMPLATE_PREAMBLE = """\
 # Omitted compiler keys default to gcc for compatibility with older configs.
 compiler = "{compiler}"
 
+# CPU the build is optimized for. "native" tunes for this machine's CPU and the
+# result may not run on others; "generic" runs on any x86-64 CPU; an x86-64-vN
+# level runs on any CPU that implements it. CLI --cpu-target (or --generic)
+# overrides this value. Omitted cpu_target keys default to native.
+cpu_target = "{cpu_target}"
+
 # Recheck upstream releases and rebuild components whose recorded versions differ.
 latest = {latest}
 
@@ -236,6 +274,7 @@ def render_config(settings: BuildSettings, states: dict[str, bool]) -> str:
     parts = [
         _TEMPLATE_PREAMBLE.format(
             compiler=settings.compiler,
+            cpu_target=settings.cpu_target,
             latest="true" if settings.latest else "false",
             gpl="true" if settings.enable_gpl_and_non_free else "false",
         )

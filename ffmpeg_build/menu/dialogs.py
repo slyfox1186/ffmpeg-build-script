@@ -43,6 +43,7 @@ DIALOG_CSS = """
     .dialog .buttons { height: 3; align-horizontal: right; margin-top: 1; }
     .dialog Button { margin-left: 1; }
     #preset-list { height: 10; }
+    #cpu-target-list { height: 7; }
     #help-text { height: auto; }
 """
 
@@ -62,7 +63,7 @@ class PresetScreen(ModalScreen[str | None]):
         with VerticalScroll(classes="dialog"):
             yield Label("Package presets", classes="title")
             yield Static(
-                "Selecting a preset saves immediately. Press u afterwards to undo. Compiler and build settings are preserved. Completed packages are reused when building.",
+                "Selecting a preset saves immediately. Press u afterwards to undo. Compiler, CPU target and build settings are preserved. Completed packages are reused when building.",
                 classes="hint",
             )
             yield OptionList(
@@ -80,6 +81,51 @@ class PresetScreen(ModalScreen[str | None]):
 
     def action_preset(self, name: str) -> None:
         self.dismiss(name)
+
+    @on(Button.Pressed)
+    def cancel(self) -> None:
+        self.dismiss(None)
+
+
+CPU_TARGET_DESCRIPTIONS = {
+    "native": "Fastest on this CPU; may not run on other CPUs",
+    "generic": "Runs on any x86-64 CPU",
+    "x86-64-v2": "SSE4.2 CPUs: Intel Nehalem, AMD Bulldozer or newer",
+    "x86-64-v3": "AVX2 CPUs: Intel Haswell, AMD Excavator or newer",
+    "x86-64-v4": "AVX-512 CPUs: Intel Skylake-X, AMD Zen 4 or newer",
+}
+
+
+class CpuTargetScreen(ModalScreen[str | None]):
+    AUTO_FOCUS = "#cpu-target-list"
+    CSS = DIALOG_CSS
+    BINDINGS = [Binding("escape,q", "dismiss(None)", "Close", show=False)]
+
+    def __init__(self, current: str) -> None:
+        super().__init__()
+        self.current = current
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(classes="dialog"):
+            yield Label("CPU target", classes="title")
+            yield Static(
+                "The CPU the build is optimized for. Your choice is saved in the TOML configuration. A level this CPU cannot run is rejected when the build starts.",
+                classes="hint",
+            )
+            options = OptionList(
+                *(
+                    Option(f"{target:<11}{description}", id=target)
+                    for target, description in CPU_TARGET_DESCRIPTIONS.items()
+                ),
+                id="cpu-target-list",
+            )
+            options.highlighted = list(CPU_TARGET_DESCRIPTIONS).index(self.current)
+            yield options
+            yield Button("Cancel", id="cancel")
+
+    @on(OptionList.OptionSelected)
+    def selected(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(event.option_id)
 
     @on(Button.Pressed)
     def cancel(self) -> None:
@@ -201,7 +247,7 @@ class ImportScreen(FileScreen):
             operation="import",
             heading="Import TOML configuration",
             hint=(
-                "Replace packages, compiler, GPL/non-free and latest.\n"
+                "Replace packages, compiler, CPU target, GPL/non-free and latest.\n"
                 f"Press u afterwards to undo. Saves to: {session.default_path}"
             ),
             initial_path="",
@@ -222,7 +268,7 @@ class SettingsScreen(ModalScreen[LaunchSettings | None]):
         with VerticalScroll(classes="dialog"):
             yield Label("Build and launch settings", classes="title")
             yield Static(
-                "These launch options apply to this session. Compiler, GPL/non-free and latest-version choices are saved automatically in the main menu.",
+                "These launch options apply to this session. Compiler, CPU target, GPL/non-free and latest-version choices are saved automatically in the main menu.",
                 classes="hint",
             )
             yield Label("Parallel jobs · leave empty for available CPUs")
@@ -284,14 +330,15 @@ Left, Escape or Backspace returns without changing the selection.
 Tab / Shift+Tab moves between controls. Mouse clicks and scrolling work too.
 
 / searches packages by name, description or category. Enter or Escape leaves the search field; clear its text to show all packages.
-c opens Compilers. g toggles GPL/non-free; l toggles latest-version checks.
+c opens Compilers. t chooses the CPU target: native or a portable level.
+g toggles GPL/non-free; l toggles latest-version checks.
 a / d enables or disables the entire category, including hidden search matches.
 p opens package presets. u undoes the last saved change (up to 50).
 f enables the current package's requirements; F fixes all requirements.
 D shows the full description and dependency details.
 e edits jobs, CUDA and build root for this session.
 
-Every package, compiler, licence, latest-version, preset and undo change saves immediately. A failed save reverts the change and shows an error.
+Every package, compiler, CPU target, licence, latest-version, preset and undo change saves immediately. A failed save reverts the change and shows an error.
 s saves to another file and makes it the new autosave destination.
 i imports a TOML file into the current configuration; u undoes the import.
 b validates the configuration, saves it and starts the build.

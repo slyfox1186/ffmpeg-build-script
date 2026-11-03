@@ -35,6 +35,14 @@ _CUDA_REPOSITORIES = {
 }
 
 
+def describe_pci_device(line: str) -> str:
+    """`01:00.0 VGA compatible controller [0300]: NVIDIA … [10de:2684] (rev a1)` -> the device."""
+    _, separator, device = line.partition("]: ")
+    if not separator:
+        device = line.split(": ", 1)[-1]
+    return re.sub(r"\s*\(rev [0-9a-fA-F]+\)$", "", device).strip()
+
+
 class HardwareDetection:
     def __init__(self, context: BuildContext, setup: SystemSetup) -> None:
         self.context = context
@@ -42,6 +50,9 @@ class HardwareDetection:
         self.logger = context.logger
         self.runner = context.runner
         self.available_architectures: list[int] = []
+        # What the report names for each vendor: driver-reported models first,
+        # else the lspci device lines that identified it.
+        self.gpu_descriptions: dict[str, list[str]] = {"NVIDIA": [], "AMD": [], "Intel": []}
 
     # -- discovery -------------------------------------------------------
 
@@ -70,13 +81,32 @@ class HardwareDetection:
             [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"]
         ):
             context.nvidia_gpu_present = True
+            details = self.runner.capture(
+                [nvidia_smi, "--query-gpu=name,driver_version", "--format=csv,noheader"]
+            )
+            if details.returncode == 0:
+                for line in details.stdout.splitlines():
+                    name, _, driver = line.rpartition(",")
+                    if name.strip():
+                        self.gpu_descriptions["NVIDIA"].append(
+                            f"{name.strip()} (driver {driver.strip()})"
+                        )
         elif re.search("nvidia", controllers, re.IGNORECASE):
             context.nvidia_gpu_present = True
 
-        context.amd_gpu_present = bool(
-            re.search(r"amd/ati|advanced micro devices|radeon", controllers, re.IGNORECASE)
-        )
-        context.intel_gpu_present = bool(re.search("intel", controllers, re.IGNORECASE))
+        vendor_patterns = {
+            "NVIDIA": re.compile("nvidia", re.IGNORECASE),
+            "AMD": re.compile(r"amd/ati|advanced micro devices|radeon", re.IGNORECASE),
+            "Intel": re.compile("intel", re.IGNORECASE),
+        }
+        context.amd_gpu_present = bool(vendor_patterns["AMD"].search(controllers))
+        context.intel_gpu_present = bool(vendor_patterns["Intel"].search(controllers))
+        for vendor, pattern in vendor_patterns.items():
+            if self.gpu_descriptions[vendor]:
+                continue
+            for line in controllers.splitlines():
+                if pattern.search(line):
+                    self.gpu_descriptions[vendor].append(describe_pci_device(line))
         context.has_vulkan_gpu = (
             context.nvidia_gpu_present or context.amd_gpu_present or context.intel_gpu_present
         )
@@ -437,13 +467,21 @@ class HardwareDetection:
         # One record rather than three bare prints: these results belong in the
         # build log a bug report will quote, and routing them through the logger
         # is what puts them there on the same timeline as everything around them.
-        self.logger.info(
-            "NVIDIA: {0}\nAMD:    {1}\nIntel:  {2}".format(
-                "NVIDIA GPU detected" if context.nvidia_gpu_present else "NVIDIA GPU not detected",
-                "AMD GPU detected" if context.amd_gpu_present else "AMD GPU not detected",
-                "Intel GPU detected" if context.intel_gpu_present else "Intel GPU not detected",
-            )
-        )
+        present = {
+            "NVIDIA": context.nvidia_gpu_present,
+            "AMD": context.amd_gpu_present,
+            "Intel": context.intel_gpu_present,
+        }
+        lines = []
+        for vendor, detected in present.items():
+            label = f"{vendor}:".ljust(8)
+            if not detected:
+                lines.append(f"{label}{vendor} GPU not detected")
+                continue
+            names = self.gpu_descriptions[vendor] or [f"{vendor} GPU detected"]
+            lines.append(label + names[0])
+            lines.extend(" " * 8 + name for name in names[1:])
+        self.logger.info("\n".join(lines))
         if not context.has_vulkan_gpu:
             self.logger.warn(
                 "No supported GPU was detected; proprietary GPU integrations will be omitted "

@@ -24,6 +24,17 @@ from .runtime.build_lock import take_over_build_lock
 from .runtime.context import BuildContext
 from .runtime.errors import REPOSITORY_URL, BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
+from .runtime.host import (
+    cgroup_cpu_limit,
+    format_gib,
+    isa_level_rank,
+    march,
+    plan_jobs,
+    read_cpu,
+    read_memory,
+    target_isa_level,
+    usable_threads,
+)
 from .runtime.logging import Logger, format_duration, format_size
 from .runtime.paths import (
     DirectoryLock,
@@ -396,7 +407,7 @@ class Orchestrator:
 
     def source_compiler_flags(self, context: BuildContext) -> None:
         environment = context.env
-        cflags = environment.get("CFLAGS") or "-O2 -pipe -march=native"
+        cflags = environment.get("CFLAGS") or f"-O2 -pipe -march={march(context.cpu_target)}"
         if "-fPIC" not in cflags:
             cflags += " -fPIC"
         cxxflags = environment.get("CXXFLAGS") or cflags
@@ -433,6 +444,11 @@ class Orchestrator:
                 "cuda_arch_mode": os.environ.get("CUDA_ARCH_MODE", "native"),
                 "cuda_architectures": os.environ.get("CUDA_ARCHITECTURES", ""),
                 "source_date_epoch": os.environ.get("SOURCE_DATE_EPOCH", ""),
+                "cpu_target": context.cpu_target,
+                # Native code runs only on CPUs like the one that built it, so the
+                # record names that CPU; a portable target's code does not depend
+                # on it, and such a workspace may move between machines.
+                "native_cpu": context.host_cpu.identity if context.cpu_target == "native" else "",
             },
             context.selection.states(),
         )
@@ -512,6 +528,14 @@ class Orchestrator:
         for package_name in added_packages:
             if context.package_enabled(package_name):
                 reconfigure = True
+        if "cpu_target" not in previous_fields:
+            # rav1e's Rust code is now compiled for the CPU target too; every
+            # C/C++ dependency already was, through `-march=native`.
+            rav1e_marker = context.marker_path("rav1e")
+            if rav1e_marker.is_file():
+                rav1e_marker.unlink()
+                self.logger.info("rav1e will be rebuilt so its Rust code is tuned for this CPU.")
+            reconfigure = True
 
         # Invalidate before publishing: an interruption between these writes
         # must never leave a new context paired with an old, reusable marker.
@@ -708,9 +732,8 @@ class Orchestrator:
         self.initialize_build_root()
         self.configure_toolchain(context)
         # Before the context check: the record has to hold the flags the build
-        # actually uses. Snapshotting the inherited environment meant a change
-        # in the computed defaults, such as reusing a workspace on a different
-        # CPU with -march=native, went undetected.
+        # actually uses. A different CPU is caught by the record's native_cpu
+        # identity, because `-march=native` reads the same on every machine.
         self.source_compiler_flags(context)
         self.ensure_build_context(context)
         # Last of the pure checks, so this is the first point where a password
@@ -724,7 +747,7 @@ class Orchestrator:
 
         self.logger.banner(f"FFmpeg Build Script {SCRIPT_VERSION}")
         self.logger.info(f"Build root: {context.cwd}")
-        self.logger.info(f"Parallel jobs: {context.build_threads}")
+        self.report_host(context)
         self.logger.info(f"Compiler family: {context.compiler}")
         selected = sum(context.selection.states().values())
         self.logger.info(f"Selected packages: {selected} of {len(registry.PACKAGE_NAMES)}")
@@ -800,9 +823,18 @@ class Orchestrator:
         # mutation, so an unsatisfiable build fails without a traceback and
         # without having installed packages or prompted for sudo.
         validate_build_settings(selection, self.debug_value)
-        # The affinity mask, not the CPU count: under `taskset -c 0,1` a host
-        # with 24 cores must launch 2 compile jobs, not 24.
-        threads = arguments.jobs or len(os.sched_getaffinity(0))
+        cpu_target = arguments.cpu_target or settings.cpu_target
+        host_cpu = read_cpu()
+        required = target_isa_level(cpu_target)
+        if cpu_target != "native" and isa_level_rank(required) > isa_level_rank(host_cpu.isa_level):
+            # Configure tests, build tools and the installed-program checks all
+            # execute what this build compiles, so it has to run here too.
+            raise BuildError(
+                f"This CPU supports up to {host_cpu.isa_level}; a '{cpu_target}' build cannot "
+                "run its own configure tests and validation here."
+            )
+        host_memory = read_memory()
+        jobs = plan_jobs(arguments.jobs, usable_threads(), cgroup_cpu_limit(), host_memory)
         context = BuildContext(
             repo_root=self.repo_root,
             invocation_dir=self.invocation_dir,
@@ -811,15 +843,48 @@ class Orchestrator:
             runner=self.runner,
             selection=selection,
             compiler=arguments.compiler or settings.compiler,
-            build_threads=threads,
+            build_threads=jobs.jobs,
+            cpu_target=cpu_target,
+            host_cpu=host_cpu,
             latest=arguments.latest or settings.latest,
             nonfree_and_gpl=arguments.nonfree_and_gpl or settings.enable_gpl_and_non_free,
             script_version=SCRIPT_VERSION,
         )
+        context.host_memory = host_memory
+        context.jobs_reason = jobs.reason
         if context.nonfree_and_gpl:
             context.configure_options.extend(["--enable-gpl", "--enable-nonfree"])
         self.context = context
         return context
+
+    def report_host(self, context: BuildContext) -> None:
+        cpu = context.host_cpu
+        self.logger.info(
+            f"CPU: {cpu.model_name} ({usable_threads()} usable threads, {cpu.isa_level})."
+        )
+        if context.cpu_target == "native":
+            self.logger.info("CPU target: native (tuned for this CPU; may not run on other CPUs).")
+        elif context.cpu_target == "generic":
+            self.logger.info("CPU target: generic (runs on any x86-64 CPU).")
+        else:
+            self.logger.info(
+                f"CPU target: {context.cpu_target} (runs on any CPU that implements "
+                f"{context.cpu_target})."
+            )
+        memory = context.host_memory
+        if memory is None:
+            self.logger.warn("Memory: unable to read '/proc/meminfo'.")
+        else:
+            limit = (
+                f", cgroup limit {format_gib(memory.cgroup_limit)}"
+                if memory.cgroup_limit is not None
+                else ""
+            )
+            self.logger.info(
+                f"Memory: {format_gib(memory.available)} available of "
+                f"{format_gib(memory.total)}{limit}."
+            )
+        self.logger.info(f"Parallel jobs: {context.build_threads} ({context.jobs_reason}).")
 
     def run(self) -> int:
         metadata = requested_metadata(self.argv, color_enabled(sys.stdout))
@@ -886,6 +951,7 @@ class Orchestrator:
         )
         try:
             settings.compiler = arguments.compiler or settings.compiler
+            settings.cpu_target = arguments.cpu_target or settings.cpu_target
             settings.latest = settings.latest or arguments.latest
             settings.enable_gpl_and_non_free = (
                 settings.enable_gpl_and_non_free or arguments.nonfree_and_gpl
@@ -906,6 +972,7 @@ class Orchestrator:
         loaded = load_config(result.saved_path, self.logger)
         result.launch.validate()
         arguments.compiler = None
+        arguments.cpu_target = None
         arguments.jobs = int(result.launch.jobs) if result.launch.jobs else None
         # The editor's final choices supersede the CLI values it was seeded with.
         arguments.latest = False

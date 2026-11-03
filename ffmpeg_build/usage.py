@@ -46,7 +46,17 @@ BUILD_OPTIONS = (
     ),
     ("    --compiler <gcc|clang>", "Compiler to use (default: gcc)"),
     ("    --gcc, --clang", "Same as --compiler gcc / --compiler clang"),
-    ("-j, --jobs <count>", "Parallel build jobs (default: available CPUs)"),
+    (
+        "    --cpu-target <target>",
+        "CPU to optimize for: native, generic, x86-64-v2, x86-64-v3 or x86-64-v4; "
+        "only generic and the levels run on other CPUs (default: native)",
+    ),
+    ("    --generic", "Same as --cpu-target generic"),
+    (
+        "-j, --jobs <count>",
+        "Parallel build jobs; the default keeps 2 GiB of free memory per job "
+        "(default: usable CPUs)",
+    ),
     ("-l, --latest", "Check upstream for newer releases and rebuild outdated dependencies"),
     (
         "-n, --enable-gpl-and-non-free",
@@ -86,6 +96,10 @@ EXAMPLES = (
         COMMAND + " --build --clang --jobs 8 --enable-gpl-and-non-free",
     ),
     (
+        "Build a portable FFmpeg that runs on any x86-64-v3 (AVX2) CPU",
+        COMMAND + " --build --cpu-target x86-64-v3 --config ./custom.toml",
+    ),
+    (
         "Update outdated dependencies to their newest upstream releases",
         COMMAND + " --build --latest --config ./custom.toml",
     ),
@@ -100,7 +114,7 @@ FOOTER = "Build log: $BUILD_ROOT/build.log    Full guide: README.md"
 # Options that take a separate argument. Every walk over the command line skips
 # that argument and stops at `--`, so an option's value is never mistaken for an
 # option: `--compiler -h` means a compiler named '-h', not a request for help.
-TAKES_VALUE = frozenset(["--compiler", "--config", "-j", "--jobs"])
+TAKES_VALUE = frozenset(["--compiler", "--config", "--cpu-target", "-j", "--jobs"])
 # Single-letter flags that can share one dash, as in `-bln`. `-j` takes a value,
 # so it ends a group: the rest of the group, or else the next argument, is its
 # value (`-bj8`, `-bj 8`).

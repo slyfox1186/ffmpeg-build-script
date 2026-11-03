@@ -23,7 +23,7 @@ class MenuResult:
     launch: LaunchSettings = field(default_factory=LaunchSettings)
 
 
-Snapshot = tuple[dict[str, bool], bool, bool, str]
+Snapshot = tuple[dict[str, bool], bool, bool, str, str]
 
 
 class _ConfigMessages(Logger):
@@ -59,14 +59,16 @@ class MenuSession:
             self.model.gpl,
             self.model.settings.latest,
             self.model.settings.compiler,
+            self.model.settings.cpu_target,
         )
 
     def restore(self, snapshot: Snapshot) -> None:
-        states, gpl, latest, compiler = snapshot
+        states, gpl, latest, compiler, cpu_target = snapshot
         self.model.states = dict(states)
         self.model.settings.enable_gpl_and_non_free = gpl
         self.model.settings.latest = latest
         self.model.settings.compiler = compiler
+        self.model.settings.cpu_target = cpu_target
 
     def change(self, edit: Callable[[], object], message: str) -> bool:
         previous = self.snapshot()
@@ -133,6 +135,7 @@ class MenuSession:
             loaded.settings.enable_gpl_and_non_free,
             loaded.settings.latest,
             loaded.settings.compiler,
+            loaded.settings.cpu_target,
         )
         if imported == self.snapshot():
             if not self.save(self.default_path):

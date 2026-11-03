@@ -21,6 +21,7 @@ from .errors import BuildError
 from .exec import Runner, path_prepend
 from .fetchers import GIT_RELEASE_PREFIXES, PackageVersions
 from .git import GitCloner
+from .host import HostCpu, HostMemory
 from .logging import Logger, format_duration
 from .paths import canonicalize, path_is_within, safe_remove_tree
 from .state import read_marker_version, write_marker_version
@@ -45,6 +46,8 @@ class BuildContext:
         selection: Selection,
         compiler: str,
         build_threads: int,
+        cpu_target: str,
+        host_cpu: HostCpu,
         latest: bool,
         nonfree_and_gpl: bool,
         script_version: str,
@@ -60,6 +63,10 @@ class BuildContext:
         self.selection = selection
         self.compiler = compiler
         self.build_threads = build_threads
+        self.cpu_target = cpu_target
+        self.host_cpu = host_cpu
+        self.host_memory: HostMemory | None = None
+        self.jobs_reason = ""
         self.latest = latest
         self.nonfree_and_gpl = nonfree_and_gpl
         self.script_version = script_version
@@ -71,6 +78,9 @@ class BuildContext:
         self.release_version = ""
         self.release_codename = ""
         self.variable_os = ""
+        self.os_id = ""
+        self.os_pretty_name = ""
+        self.kernel_release = ""
         self.cuda_root: Path | None = None
         self.nvidia_arch_flags = ""
         # `-ccbin gcc-N` when nvcc rejects the default host compiler and an

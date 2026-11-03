@@ -10,6 +10,7 @@ from ..registry import PACKAGES, Gate, Kind
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.exec import BASE_PATH, Runner
+from ..runtime.host import compiler_cpu_target, march
 
 # The project standardizes on the high-level APT interface. Only its expected
 # script-interface notice is suppressed; command diagnostics and exit codes
@@ -284,6 +285,8 @@ class SystemSetup:
             raise BuildError(f"Unable to identify the operating system from '{os_release_file}'.")
 
         context.variable_os = detected_id
+        context.os_id = detected_id
+        context.os_pretty_name = fields.get("PRETTY_NAME", "")
         if detected_id == "debian":
             context.operating_system = "Debian"
             series = detected_codename or detected_version.split(".", 1)[0]
@@ -338,6 +341,7 @@ class SystemSetup:
             kernel_release = kernel_release_file.read_text(
                 encoding="utf-8", errors="replace"
             ).strip()
+        context.kernel_release = kernel_release
         if "microsoft" in kernel_release.lower():
             # WSL2 kernels carry a 'microsoft-standard-WSL2' release string;
             # WSL1 reports a plain 'Microsoft' suffix because it has no kernel.
@@ -583,6 +587,21 @@ class SystemSetup:
                 continue
             self.logger.info(f"{label}: '{lines[0]}' ('{executable}').")
 
+    def report_compiler_cpu_target(self) -> None:
+        """Name the CPU the selected compiler actually generates code for."""
+        context = self.context
+        if context.cpu_target != "native":
+            self.logger.info(f"Compiler CPU target: '{march(context.cpu_target)}'.")
+            return
+        resolved = compiler_cpu_target(self.runner, context.compiler, context.env["CC"])
+        if resolved is None:
+            self.logger.warn(
+                "Compiler CPU target: unable to resolve '-march=native' with "
+                f"'{context.env['CC']}'."
+            )
+            return
+        self.logger.info(f"Compiler CPU target: '{resolved}' (-march=native).")
+
     def run(self) -> None:
         context = self.context
         for tool in ("apt", "dpkg-query", "readlink"):
@@ -595,22 +614,23 @@ class SystemSetup:
         self.source_path()
         if context.package_enabled("ant-git"):
             self.set_java_variables()
-        self.logger.info(
-            f"Host setup complete: '{context.operating_system} {context.release_version}' "
-            f"('{context.variable_os}')."
-        )
+        self.logger.info(f"Host setup complete: {describe_operating_system(context)}.")
         self.report_compiler_versions()
+        self.report_compiler_cpu_target()
 
 
-def check_avx512() -> str:
-    cpuinfo = Path("/proc/cpuinfo")
-    if cpuinfo.is_file():
-        try:
-            if re.search(r"\bavx512f\b", cpuinfo.read_text(encoding="utf-8", errors="replace")):
-                return "ON"
-        except OSError:
-            pass
-    return "OFF"
+def describe_operating_system(context: BuildContext) -> str:
+    """The distribution as it names itself, then what the build treats it as."""
+    base = f"{context.operating_system} {context.release_version}"
+    name = context.os_pretty_name or base
+    details = [f"'{context.release_codename}'"]
+    if context.os_id not in ("debian", "ubuntu"):
+        details.insert(0, f"{base} base")
+    if context.kernel_release:
+        details.append(f"kernel '{context.kernel_release}'")
+    if context.variable_os == "WSL2":
+        details.append("WSL2")
+    return f"'{name}' ({', '.join(details)})"
 
 
 def set_ant_path(context: BuildContext) -> Path:

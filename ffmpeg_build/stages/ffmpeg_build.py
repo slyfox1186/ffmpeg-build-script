@@ -21,6 +21,7 @@ from ..runtime.context import BuildContext
 from ..runtime.download import archive_output_directory
 from ..runtime.errors import BuildError, SignalStop
 from ..runtime.exec import Runner, base_environment
+from ..runtime.host import march
 from ..runtime.logging import Logger, format_duration
 from ..runtime.paths import DirectoryLock, safe_remove_tree
 from ..runtime.state import publish_atomically, read_marker_version
@@ -516,7 +517,7 @@ class FFmpegStage:
         base: list[str] = [
             "--prefix=/usr/local",
             "--arch=x86_64",
-            "--cpu=native",
+            f"--cpu={march(context.cpu_target)}",
             f"--cc={context.env.get('CC', 'gcc')}",
             f"--cxx={context.env.get('CXX', 'g++')}",
             "--pkg-config=pkgconf",

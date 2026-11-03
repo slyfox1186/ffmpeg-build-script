@@ -35,6 +35,11 @@ BUILD_CONTEXT_LEGACY_FORMAT = "ffmpeg-build-context:v1"
 # as changed settings.
 BUILD_CONTEXT_LEGACY_UNRECORDED_FIELDS = ("cflags", "cxxflags", "cppflags", "ldflags")
 
+# Fields added after the native-only releases. Their flags were `-march=native`
+# and the record names no CPU, so a native build adopts them as built on this
+# one; any other target is a different build.
+BUILD_CONTEXT_CPU_FIELDS = ("cpu_target", "native_cpu")
+
 # Script versions whose recorded context this release can adopt. These releases
 # changed discovery, diagnostics and FFmpeg integration; dependency ABI and
 # build flags did not move, so the existing dependency builds stay valid and
@@ -207,6 +212,7 @@ def render_build_context(fields: dict[str, str], package_states: dict[str, bool]
         "cuda_arch_mode",
         "cuda_architectures",
         "source_date_epoch",
+        *BUILD_CONTEXT_CPU_FIELDS,
     ):
         lines.append(f"{name}={shellquote.quote(fields.get(name, ''))}")
     # Sorted by key so the record cannot depend on the order packages happen to
@@ -306,6 +312,12 @@ def migratable_added_packages(
             continue
         if legacy_context and key in BUILD_CONTEXT_LEGACY_UNRECORDED_FIELDS:
             remaining.pop(key, None)
+            continue
+        if (
+            key in BUILD_CONTEXT_CPU_FIELDS
+            and not any(field in previous for field in BUILD_CONTEXT_CPU_FIELDS)
+            and current.get("cpu_target") == "native"
+        ):
             continue
         if key not in remaining:
             # Only the registry growing is additive. A brand new non-package

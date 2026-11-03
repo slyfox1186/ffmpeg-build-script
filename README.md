@@ -11,6 +11,27 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **Choose the CPU the build is optimized for.** `--cpu-target` (or
+  `cpu_target` in `[build]`, or `t` in the menu) takes `native`, the default
+  and fastest, or a portable target: `generic` runs on any x86-64 CPU and
+  `x86-64-v2`, `-v3` or `-v4` on any CPU with that instruction-set level.
+  `--generic` is short for `--cpu-target generic`. FFmpeg, every C/C++
+  dependency, rav1e's Rust code and GMP follow it. A level this CPU cannot run
+  is rejected before anything is installed.
+- **A workspace reused on a different CPU is detected.** A native build records
+  the CPU it was tuned for (model and instruction-set extensions), so moving the
+  workspace to another CPU asks for `--cleanup` instead of reusing code that can
+  crash there. Existing native workspaces are adopted once as built on this
+  CPU; rav1e is rebuilt so its Rust code is tuned too, and FFmpeg is relinked.
+- **The build reports the machine it runs on**: CPU model and instruction-set
+  level, the CPU the compiler resolves `-march=native` to, available memory,
+  the distribution with its point release and kernel, and each GPU's model and
+  NVIDIA driver version. The default job count now also respects a container's
+  CPU quota and keeps 2 GiB of free memory per job; `--jobs` still overrides
+  it, and rav1e's Cargo build follows it.
+- **SVT-AV1 always includes its AVX-512 kernels.** They are compiled with their
+  own flags and used only on CPUs that have AVX-512, so leaving them out on
+  other build machines only made those builds less capable elsewhere.
 - **A finished FFmpeg build is reconfigured when the host changes.** The build
   records the exact options FFmpeg was configured with
   (`packages/ffmpeg.configured`). Before reusing that build, it works out the
@@ -194,7 +215,13 @@ Build options:
                                   (default: every package)
       --compiler <gcc|clang>      Compiler to use (default: gcc)
       --gcc, --clang              Same as --compiler gcc / --compiler clang
-  -j, --jobs <count>              Parallel build jobs (default: available CPUs)
+      --cpu-target <target>       CPU to optimize for: native, generic,
+                                  x86-64-v2, x86-64-v3 or x86-64-v4; only
+                                  generic and the levels run on other CPUs
+                                  (default: native)
+      --generic                   Same as --cpu-target generic
+  -j, --jobs <count>              Parallel build jobs; the default keeps 2 GiB
+                                  of free memory per job (default: usable CPUs)
   -l, --latest                    Check upstream for newer releases and rebuild
                                   outdated dependencies
   -n, --enable-gpl-and-non-free   Allow GPL and non-free components, required
@@ -229,6 +256,9 @@ Examples:
   # Build with clang on 8 cores, including GPL and non-free components
   python3 build-ffmpeg.py --build --clang --jobs 8 --enable-gpl-and-non-free
 
+  # Build a portable FFmpeg that runs on any x86-64-v3 (AVX2) CPU
+  python3 build-ffmpeg.py --build --cpu-target x86-64-v3 --config ./custom.toml
+
   # Update outdated dependencies to their newest upstream releases
   python3 build-ffmpeg.py --build --latest --config ./custom.toml
 
@@ -248,10 +278,21 @@ directory, truncate a log, request sudo, or load a config file.
 On a terminal the help is colored; `NO_COLOR=1` turns color off, and piped or
 redirected output stays plain unless `FORCE_COLOR=1` is set.
 
-The result is tuned for the machine that built it (`-march=native`,
-`--cpu=native`, and AVX-512 detection), so the installed binaries may fault with
-an illegal instruction on a different CPU. Build on the machine that will run
-it, or remove those flags before building for distribution.
+By default the result is tuned for the machine that built it
+(`--cpu-target native`: `-march=native`, FFmpeg's `--cpu=native`, and rav1e's
+`target-cpu=native`), so the installed binaries may fault with an illegal
+instruction on a different CPU. To build for other machines, choose a portable
+target: `--cpu-target generic` (any x86-64 CPU) or `x86-64-v2`, `x86-64-v3`
+(AVX2) or `x86-64-v4` (AVX-512). Libraries that select SIMD code at run time,
+including FFmpeg's own assembly, still use the fastest instructions the running
+CPU offers. The build host must implement the chosen level, because the build
+runs what it compiles.
+
+The default job count is the number of usable CPU threads (the affinity mask,
+reduced by a cgroup v2 CPU quota), capped so each job has 2 GiB of available
+memory (also reduced by a cgroup v2 memory limit). The start of the build log
+names the CPU, its instruction-set level, the CPU target, memory and the reason
+for the job count.
 
 With no action, the script prints help. `--build`, `--cleanup`, and `--menu`
 are mutually exclusive. A build without `--config` selects every registered
@@ -306,8 +347,9 @@ scroll beneath it. Counts include packages only.
 | `/` | Focus live search by package name, description or category |
 | `D` / `?` | Open full details or keyboard help |
 | `p` | Choose template, all, minimal or none preset |
-| `u` | Undo up to 50 package, category, preset, compiler, GPL or latest changes |
+| `u` | Undo up to 50 package, category, preset, compiler, CPU target, GPL or latest changes |
 | `c` | Open the Compilers category |
+| `t` | Choose the CPU target: native or a portable level |
 | `g` / `l` | Toggle GPL/non-free authorization or latest mode |
 | `f` / `F` | Enable requirements for the current package or all packages |
 | `e` | Edit jobs, CUDA installation/targets and build root for this session |
@@ -317,7 +359,7 @@ scroll beneath it. Counts include packages only.
 | `q` | Quit immediately; changes are already saved |
 | Ctrl+C / Ctrl+D / Ctrl+Q | Exit from any screen |
 
-Package toggles, compiler and GPL/latest choices, category changes, presets,
+Package toggles, compiler, CPU target and GPL/latest choices, category changes, presets,
 dependency fixes and undo **save immediately** to the active TOML file. Each
 write is atomic. If it fails, the attempted change is reverted and an error is
 displayed, preserving the saved configuration and undo history. Saving allows
@@ -354,21 +396,24 @@ extended protocol, but neither is required. The menu does not install its own
 Escape timeout or require a second press. It runs `clear` after the terminal is
 restored, including when a build starts or the menu exits through an error.
 
-The saved `[build]` table contains `compiler`, `latest` and
+The saved `[build]` table contains `compiler`, `cpu_target`, `latest` and
 `enable_gpl_and_non_free`. For example:
 
 ```toml
 [build]
 compiler = "clang"
+cpu_target = "native"
 latest = false
 enable_gpl_and_non_free = true
 ```
 
 Compiler precedence is an explicit CLI `--compiler gcc|clang` (or `--gcc` /
 `--clang`), then the config, then GCC. Older configs without `compiler` retain
-the GCC default; selecting a compiler in the menu saves it immediately. CLI
+the GCC default; selecting a compiler in the menu saves it immediately. The CPU
+target follows the same order: `--cpu-target` (or `--generic`), then the config,
+then `native`. CLI
 options initialize the menu; subsequent edits determine what is saved and
-launched. The build reloads that saved file, so compiler, licensing and
+launched. The build reloads that saved file, so compiler, CPU target, licensing and
 package choices match a later `--build --config ./custom.toml` invocation.
 Jobs, CUDA settings and build root remain **session-only launcher options**;
 the settings screen labels which values are saved.
@@ -430,7 +475,7 @@ reuse, so incomplete dependencies or incompatible LTO objects trigger a repair.
 Meson is reused only while its launcher still runs, so a host Python upgrade
 that strands its virtual environment rebuilds it in a fresh one.
 LAME builds its encoder without the optional mpg123 decoder; SVT-AV1 builds
-native objects compatible with FFmpeg's host linker.
+objects compatible with FFmpeg's host linker, for the selected CPU target.
 A completed FFmpeg build is reused only while the programs in `/usr/local/bin`
 match the SHA-256 receipt (`packages/ffmpeg.installed`) written when this
 workspace installed them. Programs replaced by another build, even one of the
@@ -490,6 +535,7 @@ The config parser intentionally supports a small TOML subset:
 ```toml
 [build]
 compiler = "gcc"
+cpu_target = "native"
 latest = false
 enable_gpl_and_non_free = false
 
@@ -500,7 +546,9 @@ ffmpeg = true
 ```
 
 Only `[build]` and `[packages]` are accepted. `compiler` must be the quoted
-string `"gcc"` or `"clang"`; all other values must be literal `true` or `false`.
+string `"gcc"` or `"clang"`, and `cpu_target` one of the quoted strings
+`"native"`, `"generic"`, `"x86-64-v2"`, `"x86-64-v3"` or `"x86-64-v4"`; all
+other values must be literal `true` or `false`.
 Duplicate keys are rejected, and unknown package names are fatal.
 With a config file, omitted package keys are disabled; the file is an explicit
 allowlist. CLI opt-ins such as `--latest` and `--enable-gpl-and-non-free` take
@@ -510,8 +558,10 @@ The licensing switch authorizes those components; it does not override
 
 Start from [example.toml](./example.toml), which lists every supported package
 key, and save changes in `custom.toml`. The build context records compiler and
-flag choices, licensing mode, CUDA targets, and package selections. If any of
-those inputs change for an existing workspace, clean that workspace first:
+flag choices, the CPU target (and, for `native`, the CPU it was tuned for),
+licensing mode, CUDA targets, and package selections. If any of those inputs
+change for an existing workspace, including moving a native workspace to a
+different CPU, clean that workspace first:
 
 ```bash
 python3 build-ffmpeg.py --cleanup
