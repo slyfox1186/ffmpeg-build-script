@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from ..runtime.artifacts import OPENSSL_DIRECTORY
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.exec import strip_workspace_entries
@@ -285,7 +286,9 @@ def _install_openssl(context: BuildContext) -> None:
             [
                 "./Configure",
                 f"--prefix={workspace}",
-                f"--openssldir={workspace}/ssl",
+                # The system CA store, not the workspace: FFmpeg's TLS
+                # verification relies on this compiled-in default.
+                f"--openssldir={OPENSSL_DIRECTORY}",
                 "no-shared",
                 "no-pinshared",
                 "no-apps",

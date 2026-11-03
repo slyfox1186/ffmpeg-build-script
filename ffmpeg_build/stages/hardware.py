@@ -17,7 +17,7 @@ from pathlib import Path
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.paths import safe_remove_tree
-from .system_setup import APT_SCRIPT_OPTIONS, SystemSetup
+from .system_setup import APT_SCRIPT_OPTIONS, WSL_LIBRARY_DIRECTORY, SystemSetup
 
 # FFmpeg's own `check_nvcc` source; the probe below must fail exactly when
 # FFmpeg's configure would.
@@ -60,9 +60,10 @@ class HardwareDetection:
         context = self.context
         controllers = self._gpu_controller_lines()
         nvidia_smi = self.runner.which("nvidia-smi")
-        if nvidia_smi is None and os.access("/usr/lib/wsl/lib/nvidia-smi", os.X_OK):
-            nvidia_smi = "/usr/lib/wsl/lib/nvidia-smi"
-            context.path_prepend("/usr/lib/wsl/lib")
+        wsl_nvidia_smi = f"{WSL_LIBRARY_DIRECTORY}/nvidia-smi"
+        if nvidia_smi is None and os.access(wsl_nvidia_smi, os.X_OK):
+            nvidia_smi = wsl_nvidia_smi
+            context.path_prepend(WSL_LIBRARY_DIRECTORY)
 
         context.nvidia_gpu_present = False
         if nvidia_smi is not None and self.runner.probe(
@@ -384,6 +385,13 @@ class HardwareDetection:
             )
         if not context.nvidia_gpu_present:
             return
+        # Every CUDA consumer is an NVIDIA FFmpeg integration, which needs both.
+        if not (context.nonfree_and_gpl and context.package_enabled("nv-codec-headers")):
+            self.logger.info(
+                "NVIDIA GPU detected; the CUDA toolkit is used only with "
+                "'--enable-gpl-and-non-free' and 'nv-codec-headers = true', so it is not needed."
+            )
+            return
 
         context.cuda_root = self.find_cuda_root()
         if context.cuda_root is not None:
@@ -418,6 +426,9 @@ class HardwareDetection:
             raise BuildError(
                 "CUDA toolkit installation completed, but 'nvcc' could not be located."
             )
+        # A reused FFmpeg was configured without this toolkit. Dependency
+        # builds do not use it, so only FFmpeg is reconfigured.
+        context.marker_path("ffmpeg").unlink(missing_ok=True)
         self._prepare_cuda_compilation("New CUDA toolkit")
 
     def run(self) -> None:

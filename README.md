@@ -11,6 +11,25 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **HTTPS inputs work in GPL/non-free builds.** OpenSSL was configured with a
+  certificate directory inside the workspace that was never created, so
+  FFmpeg, which verifies TLS certificates by default, rejected every HTTPS
+  server. OpenSSL now uses the system's `/usr/lib/ssl`, and an existing
+  workspace rebuilds OpenSSL, its dependents and FFmpeg once.
+- **Configure no longer stops on a too-old system library.** The build reads
+  each library's minimum version from the configure script of the FFmpeg release
+  being built and leaves out, with a warning, a system library older than that.
+  Ubuntu 22.04's dav1d and Debian 13's libplacebo are both too old for FFmpeg 9.
+- **The CUDA toolkit is offered only to builds that can use it**: with
+  `--enable-gpl-and-non-free` and `nv-codec-headers = true`. A toolkit installed
+  during a build now also reconfigures FFmpeg, which otherwise reused a build
+  made without it. On WSL2, `nvidia-smi` stays on the build path after that
+  install.
+- The menu's compact and narrow layouts now follow every terminal resize,
+  including one made while a dialog is open.
+- `libaribb24` is marked as needing GPL authorization in the menu and the
+  closing summary, since FFmpeg accepts the version every supported release
+  ships only with `--enable-gpl`.
 - **Existing workspaces rebuild FFmpeg once.** The build now records a SHA-256
   fingerprint of the programs it installs in `/usr/local/bin` and reuses a
   finished FFmpeg build only while they still match, so a different FFmpeg
@@ -524,9 +543,11 @@ GPU discovery is advisory for compile-time feature selection. The script:
 - never downloads Windows SDK headers into a Linux build;
 - never guesses CUDA architecture support from a hard-coded GPU table.
 
-If an NVIDIA GPU is present but `nvcc` is absent, the default behavior is to
-ask before installing the CUDA toolkit from NVIDIA's signed APT repository.
-Control that explicitly:
+If an NVIDIA GPU is present but `nvcc` is absent, and the build can use CUDA
+(`--enable-gpl-and-non-free` with `nv-codec-headers = true`), the default
+behavior is to ask before installing the CUDA toolkit from NVIDIA's signed APT
+repository. Other builds never install or probe the toolkit. Installing it
+reconfigures FFmpeg on that run. Control that explicitly:
 
 ```bash
 # Never modify CUDA packages.

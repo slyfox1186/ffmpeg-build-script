@@ -231,6 +231,9 @@ GROUPS: tuple[Group, ...] = (
                 "ARIB STD-B24 caption decoding",
                 default_enabled=False,
                 kind=SYSTEM,
+                # FFmpeg accepts aribb24 1.0.3, the version every supported
+                # release ships, only with --enable-gpl.
+                gate=FLAG_REQUIRES_GPL,
                 apt_packages=("libaribb24-dev",),
                 ffmpeg_flags=("--enable-libaribb24",),
             ),

@@ -222,7 +222,10 @@ def setup_python_venv(context: BuildContext, venv_path: Path, requirements: list
         raise BuildError("At least one Python package is required.")
     safe_remove_tree(venv_path, context.workspace)
     context.logger.info(f"Creating a Python virtual environment at '{venv_path}'...")
-    context.execute(["python3", "-m", "venv", str(venv_path)])
+    # `python -m` puts its working directory first on sys.path, so both calls
+    # run in the workspace: a `venv.py` or `pip/` package wherever the user
+    # started the build would otherwise replace the module being run.
+    context.execute(["python3", "-m", "venv", str(venv_path)], cwd=context.workspace)
     cache_dir = context.workspace / "python-package-cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -243,6 +246,7 @@ def setup_python_venv(context: BuildContext, venv_path: Path, requirements: list
             "PIP_INDEX_URL": "https://pypi.org/simple",
             "PYTHONNOUSERSITE": "1",
         },
+        cwd=context.workspace,
     )
 
 

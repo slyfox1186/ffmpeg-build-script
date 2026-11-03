@@ -15,6 +15,8 @@ from ..runtime.exec import BASE_PATH, Runner
 # script-interface notice is suppressed; command diagnostics and exit codes
 # remain intact.
 APT_SCRIPT_OPTIONS = ("-o", "APT::Cmd::Disable-Script-Warning=1")
+# WSL2's GPU driver libraries and its only 'nvidia-smi'.
+WSL_LIBRARY_DIRECTORY = "/usr/lib/wsl/lib"
 
 BASE_PACKAGES = (
     "autoconf",
@@ -544,6 +546,13 @@ class SystemSetup:
         context.path_prepend("/usr/local/cuda/bin")
         if ccache_directory:
             context.path_prepend(ccache_directory)
+        # Host directories found during setup. The CUDA install rebuilds PATH
+        # later, and WSL2 provides 'nvidia-smi' only in its driver directory.
+        if context.variable_os == "WSL2":
+            context.path_prepend(WSL_LIBRARY_DIRECTORY)
+        java_home = context.env.get("JAVA_HOME")
+        if java_home:
+            context.path_prepend(Path(java_home) / "bin")
 
     def set_java_variables(self) -> None:
         javac_path = self.runner.which("javac")
@@ -584,8 +593,6 @@ class SystemSetup:
         self.verify_required_host_tools()
         self.configure_pkgconf_search_paths()
         self.source_path()
-        if context.variable_os == "WSL2":
-            context.path_prepend("/usr/lib/wsl/lib")
         if context.package_enabled("ant-git"):
             self.set_java_variables()
         self.logger.info(

@@ -135,3 +135,27 @@ FILE_ARTIFACTS: dict[str, Callable[[Path], bool]] = {
 
 # freeglut installs its metadata under either name depending on the release.
 FREEGLUT_MODULE_ALTERNATIVES = (("glut",), ("freeglut",))
+
+# Debian's and Ubuntu's own OPENSSLDIR. With no `ca_file`, FFmpeg verifies TLS
+# peers against OpenSSL's compiled-in default paths, `certs/` and `cert.pem`
+# below this directory, which the distribution links to its CA store.
+# `make install_sw` writes nothing here.
+OPENSSL_DIRECTORY = "/usr/lib/ssl"
+
+
+def openssl_uses_system_directory(workspace: Path) -> bool:
+    """True when the workspace libcrypto trusts the system CA store.
+
+    libcrypto embeds `OPENSSLDIR: "<dir>"`, the documented
+    `OpenSSL_version(OPENSSL_DIR)` string. An archive configured with any other
+    directory makes every HTTPS input fail certificate verification.
+    """
+    expected = f'OPENSSLDIR: "{OPENSSL_DIRECTORY}"'.encode()
+    for candidate in ("lib64/libcrypto.a", "lib/libcrypto.a"):
+        archive = workspace / candidate
+        if archive.is_file():
+            try:
+                return expected in archive.read_bytes()
+            except OSError:
+                return False
+    return False

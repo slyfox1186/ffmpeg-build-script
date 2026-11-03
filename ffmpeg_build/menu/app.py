@@ -10,6 +10,7 @@ from textual import events, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.geometry import Size
 from textual.message import Message
 from textual.widgets import (
     Button,
@@ -220,12 +221,21 @@ class MenuApp(App[MenuResult]):
         self._show_category()
         self._refresh_state()
         self.action_categories()
-        self.on_resize()
+        self._apply_layout(self.size)
 
-    def on_resize(self) -> None:
-        self.screen.set_class(self.size.width < 76 or self.size.height < 18, "compact")
-        self.screen.set_class(self.size.width < 110, "narrow")
-        self.screen.set_class(self.size.height < 28, "short")
+    def on_resize(self, event: events.Resize) -> None:
+        # Textual runs this before App._on_resize stores the new size, so
+        # `self.size` still holds the previous one here.
+        self._apply_layout(event.size)
+
+    def _apply_layout(self, size: Size) -> None:
+        # The editor screen, not `self.screen`: that is the dialog while one is
+        # open, and the editor must already fit the terminal when it closes.
+        editor = self.screen_stack[0]
+        editor.set_class(size.width < 76 or size.height < 18, "compact")
+        editor.set_class(size.width < 110, "narrow")
+        editor.set_class(size.height < 28, "short")
+        self._refresh_navigation()
 
     @property
     def failure(self) -> Exception | None:
@@ -260,19 +270,22 @@ class MenuApp(App[MenuResult]):
         self._refresh_navigation()
 
     def _refresh_navigation(self) -> None:
-        right = self.focused is not None and self.focused.id in ("packages", "compiler-options")
+        # The editor screen keeps its own focus while a dialog is on top.
+        editor = self.screen_stack[0]
+        focused = editor.focused
+        right = focused is not None and focused.id in ("packages", "compiler-options")
         text = (
             "Enter/Space select · Left/Esc/Backspace back"
             if right
             else "Right/Enter browse · / search · ? help"
         )
-        if self.screen.has_class("compact"):
+        if editor.has_class("compact"):
             text = (
                 "Left/Esc/Backspace back · Enter select"
                 if right
                 else "Right/Enter browse · / search · ? help"
             )
-        self.query_one("#navigation", Static).update(text)
+        editor.query_one("#navigation", Static).update(text)
 
     def _refresh_categories(self) -> None:
         categories = self.query_one("#categories", OptionList)

@@ -323,6 +323,10 @@ class BuildContext:
                     "--version",
                 ]
             )
+        if key == "openssl":
+            return self.workspace_pkgconf_modules_ready(
+                *artifacts.PKGCONF_MODULES[key]
+            ) and artifacts.openssl_uses_system_directory(self.workspace)
         if key == "ffmpeg":
             return os.access("/usr/local/bin/ffmpeg", os.X_OK) and os.access(
                 "/usr/local/bin/ffprobe", os.X_OK
@@ -518,7 +522,8 @@ class BuildContext:
         if prior_version is not None:
             if not self.package_artifacts_ready(key):
                 self.logger.warn(
-                    f"{key} has a build marker but its workspace artifacts are missing; rebuilding."
+                    f"{key} has a build marker but its workspace artifacts are missing or "
+                    "outdated; rebuilding."
                 )
                 marker.unlink(missing_ok=True)
                 self._start_package_build(key, version)

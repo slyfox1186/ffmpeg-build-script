@@ -67,6 +67,24 @@ class ConfigureOptions:
                 self.options.append(option)
 
 
+def configure_pkg_config_requirement(configure_script: str, library: str) -> str | None:
+    """The versioned pkg-config module a release's configure hard-requires.
+
+    Floors move between releases (libplacebo went from 5.229.0 in 8.x to
+    7.351.0 in 9.0), and `require_pkg_config` aborts configure when the host
+    library is older, so the probe has to use the floor of the release actually
+    being built. `check_pkg_config` forms carry their own fallback and are not
+    floors.
+    """
+    name = re.escape(library)
+    match = re.search(
+        rf'^enabled {name}[ \t]+&&[ \t]*require_pkg_config {name} "([^"]*[<>=][^"]*)"',
+        configure_script,
+        re.MULTILINE,
+    )
+    return match.group(1) if match else None
+
+
 def ffmpeg_installed_version(binary: Path = Path("/usr/local/bin/ffmpeg")) -> str | None:
     if not os.access(binary, os.X_OK):
         return None
@@ -130,6 +148,17 @@ class FFmpegStage:
     def _require(self, target: list[str], *options: str) -> None:
         target.extend(options)
         self.context.record_required_config_symbols(options)
+
+    def _meets_release_floor(self, key: str, option: str, configure_script: str) -> bool:
+        """False, with a warning, when the host library is older than configure accepts."""
+        library = option.removeprefix("--enable-").replace("-", "_")
+        requirement = configure_pkg_config_requirement(configure_script, library)
+        if requirement is None or self.context.library_exists(requirement):
+            return True
+        self.logger.warn(
+            f"'{key}' is older than this FFmpeg release requires ('{requirement}'); omitting it."
+        )
+        return False
 
     def validate_required_features(self, config_file: Path) -> None:
         """Fail when configure silently dropped a requested feature."""
@@ -389,6 +418,14 @@ class FFmpegStage:
         )
         if configure_help.returncode != 0:
             raise BuildError("Unable to inspect the selected FFmpeg release's configure options.")
+        try:
+            configure_script = (source_directory / "configure").read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError as error:
+            raise BuildError(
+                "Unable to read the selected FFmpeg release's configure script."
+            ) from error
         build_directory = source_directory / "build"
         build_directory.mkdir(parents=True, exist_ok=True)
 
@@ -429,7 +466,9 @@ class FFmpegStage:
 
         # Detection runs first because the CUDA path contributes include and
         # library directories that have to be inside the --extra-* flags below.
-        cuda_cflags, cuda_ldflags = self._detect_options(detected, configure_help.stdout)
+        cuda_cflags, cuda_ldflags = self._detect_options(
+            detected, configure_help.stdout, configure_script
+        )
         extra_cflags += cuda_cflags
         extra_ldflags += cuda_ldflags
 
@@ -474,13 +513,15 @@ class FFmpegStage:
         context.unregister_temporary_path(staging_root)
         context.build_done("ffmpeg", f"n{ffmpeg_version}")
 
-    def _detect_options(self, detected: list[str], configure_help: str) -> tuple[str, str]:
+    def _detect_options(
+        self, detected: list[str], configure_help: str, configure_script: str
+    ) -> tuple[str, str]:
         """Gate every optional integration on both selection and a real probe.
 
         FFmpeg's own configure performs the authoritative compile/link check
         afterwards; these probes only decide whether to ask for the feature at
-        all, so that a missing system library is a skipped option rather than a
-        configure abort.
+        all, so that a missing or too-old system library is a skipped option
+        rather than a configure abort.
 
         Returns the CUDA include and library additions for the `--extra-*`
         flags, which are empty unless CUDA compilation was enabled.
@@ -552,7 +593,9 @@ class FFmpegStage:
                         "--enable-libxcb-shape",
                         "--enable-libxcb-xfixes",
                     )
-            elif context.library_exists(*modules):
+            elif context.library_exists(*modules) and self._meets_release_floor(
+                key, option, configure_script
+            ):
                 self._require(detected, option)
 
         header_gated = (
@@ -591,7 +634,8 @@ class FFmpegStage:
             self.append_shader_options(detected, configure_help)
             if (
                 enabled("libplacebo")
-                and context.library_exists("libplacebo >= 5.229.0")
+                and context.library_exists("libplacebo")
+                and self._meets_release_floor("libplacebo", "--enable-libplacebo", configure_script)
                 and self._libplacebo_has_alpha_none()
             ):
                 self._require(detected, "--enable-libplacebo")
@@ -616,9 +660,10 @@ class FFmpegStage:
     def _libplacebo_has_alpha_none(self) -> bool:
         """Feature-test PL_ALPHA_NONE rather than trusting a version number.
 
-        FFmpeg's configure requires libplacebo >= 5.229.0, which is too low:
-        distro libplacebo 6.x passes it and then fails to compile, because the
-        enum arrived in 7.x.
+        FFmpeg 8.x's configure floor, libplacebo >= 5.229.0, is too low: distro
+        libplacebo 6.x passes it and then fails to compile, because the enum
+        arrived in 7.x. FFmpeg 9.0 raised the floor past that, so this matters
+        only when an older pinned release is rebuilt.
         """
         completed = self.context.runner.capture(["pkgconf", "--cflags", "libplacebo"])
         if completed.returncode != 0:
