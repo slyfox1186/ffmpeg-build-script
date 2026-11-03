@@ -20,7 +20,12 @@ def _clear_terminal() -> None:
     """Run clear only after Textual has restored terminal modes and its screen."""
     try:
         completed = subprocess.run(
-            ["clear"], stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=False
+            ["clear"],
+            cwd="/",
+            stdin=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         print(f"Warning: unable to clear the terminal: {error}", file=sys.stderr)

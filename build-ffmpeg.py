@@ -57,6 +57,7 @@ def interpreter_version(executable: str) -> tuple[int, int, bool] | None:
                 "-c",
                 "import sys; print('%d.%d %s' % (sys.version_info[:2] + (sys.version_info[3],)))",
             ],
+            cwd="/",
             capture_output=True,
             text=True,
             check=False,
@@ -143,7 +144,7 @@ def conda_create_command(root: str) -> list[str]:
 
 def create_conda_environment(root: str) -> bool:
     print("Creating the '%s' conda environment..." % CONDA_ENVIRONMENT)
-    created = subprocess.run(conda_create_command(root), check=False)
+    created = subprocess.run(conda_create_command(root), check=False, cwd="/")
     python = environment_python(root)
     if created.returncode != 0:
         sys.stderr.write("Could not create the '%s' conda environment.\n" % CONDA_ENVIRONMENT)
@@ -154,7 +155,10 @@ def create_conda_environment(root: str) -> bool:
             % CONDA_ENVIRONMENT
         )
         return False
-    installed = subprocess.run([python, "-m", "pip", "install"] + list(MENU_PACKAGES), check=False)
+    # `-m` imports from the working directory first.
+    installed = subprocess.run(
+        [python, "-m", "pip", "install"] + list(MENU_PACKAGES), check=False, cwd="/"
+    )
     if installed.returncode != 0:
         # A failed UI install does not invalidate the standard-library
         # builder. Menu entry reports the missing dependency with a remedy.

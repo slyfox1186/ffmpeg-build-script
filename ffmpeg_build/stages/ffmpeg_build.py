@@ -8,14 +8,17 @@ installed are copied aside first so a failed promotion is recoverable.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..registry import PACKAGES, Gate
 from ..runtime.context import BuildContext
+from ..runtime.download import archive_output_directory
 from ..runtime.errors import BuildError, SignalStop
 from ..runtime.exec import Runner, base_environment
 from ..runtime.logging import Logger, format_duration
@@ -24,8 +27,44 @@ from ..runtime.state import publish_atomically, read_marker_version
 
 _VERSION_LINE = re.compile(r"^(?P<tool>\w+) version n?(?P<version>[0-9]+(?:\.[0-9]+){1,3})")
 _CODEC_ROW = re.compile(r"^ [A-Z.]{6} ")
-# Beside the FFmpeg marker: what this workspace's last promotion installed.
+# Beside the FFmpeg marker: what this workspace's last promotion installed,
+# and the exact configure arguments that build was made with.
 INSTALL_RECEIPT_NAME = "ffmpeg.installed"
+CONFIGURE_RECEIPT_NAME = "ffmpeg.configured"
+
+
+def ffmpeg_source_archive(version: str) -> tuple[str, str]:
+    """The release archive's URL and cache file name."""
+    name = f"ffmpeg-{version}.tar.xz"
+    return f"https://ffmpeg.org/releases/{name}", name
+
+
+def render_configure_receipt(options: Sequence[str]) -> str:
+    """One JSON string per line: exact for any option text, readable with `cat`."""
+    return json.dumps(list(options), indent=1) + "\n"
+
+
+def read_configure_receipt(path: Path) -> list[str] | None:
+    """The recorded configure arguments, or None when absent or not a receipt."""
+    try:
+        recorded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(recorded, list) or not all(isinstance(option, str) for option in recorded):
+        return None
+    return [str(option) for option in recorded]
+
+
+def describe_option_changes(recorded: Sequence[str], planned: Sequence[str]) -> str:
+    previous, current = set(recorded), set(planned)
+    changes = []
+    added = [option for option in planned if option not in previous]
+    if added:
+        changes.append("adds " + ", ".join(f"'{option}'" for option in added))
+    dropped = [option for option in recorded if option not in current]
+    if dropped:
+        changes.append("drops " + ", ".join(f"'{option}'" for option in dropped))
+    return "; ".join(changes) or "reorders them"
 
 
 def installed_program_digests(install_prefix: Path = Path("/usr/local")) -> str:
@@ -382,6 +421,7 @@ class FFmpegStage:
         marker_file = context.marker_path("ffmpeg")
         ffplay_enabled = context.package_enabled("sdl2") and context.library_exists("sdl2")
         recorded_version = read_marker_version(marker_file)
+        planned: list[str] | None = None
         programs_incomplete = (
             installed_version != ffmpeg_version
             or not os.access("/usr/local/bin/ffprobe", os.X_OK)
@@ -400,19 +440,60 @@ class FFmpegStage:
                     "install receipt; rebuilding."
                 )
                 marker_file.unlink(missing_ok=True)
+            else:
+                planned = self._changed_configuration(ffmpeg_version, ffplay_enabled)
+                if planned is not None:
+                    marker_file.unlink(missing_ok=True)
 
         if context.build("ffmpeg", f"n{ffmpeg_version}"):
-            self._configure_build_install(ffmpeg_version, ffplay_enabled)
+            self._configure_build_install(ffmpeg_version, ffplay_enabled, planned)
         else:
             self.validate_installation(ffmpeg_version, ffplay_enabled)
 
-    def _configure_build_install(self, ffmpeg_version: str, ffplay_enabled: bool) -> None:
+    def _changed_configuration(self, ffmpeg_version: str, ffplay_enabled: bool) -> list[str] | None:
+        """This run's configure arguments when they differ from the receipt's.
+
+        The marker and install receipt prove what was installed, not that this
+        run's probes would configure the same FFmpeg: a system library or a
+        CUDA toolkit installed since then changes the arguments.
+        """
+        context = self.context
+        url, name = ffmpeg_source_archive(ffmpeg_version)
+        source_directory = context.packages / archive_output_directory(name)
+        if not (source_directory / "configure").is_file():
+            obtained = context.downloader.try_download(url, name)
+            if obtained is None:
+                self.logger.warn(
+                    f"Unable to obtain the FFmpeg {ffmpeg_version} source to check its configure "
+                    "options; keeping the existing build."
+                )
+                return None
+            source_directory = obtained
+        planned = self.plan_configure(source_directory, ffplay_enabled)
+        recorded = read_configure_receipt(context.packages / CONFIGURE_RECEIPT_NAME)
+        if recorded is None:
+            self.logger.warn(
+                "This workspace has no record of FFmpeg's configure options; rebuilding FFmpeg "
+                "once to record them."
+            )
+            return planned
+        if recorded == planned:
+            return None
+        self.logger.warn(
+            "FFmpeg's configure options changed since it was built "
+            f"({describe_option_changes(recorded, planned)}); rebuilding."
+        )
+        return planned
+
+    def plan_configure(self, source_directory: Path, ffplay_enabled: bool) -> list[str]:
+        """The exact arguments this run passes to the release's configure.
+
+        Probes record each requested feature's `CONFIG_*` symbol as they go.
+        The result names no path inside the source tree, so a plan made from
+        one extraction holds for a fresh one of the same release.
+        """
         context = self.context
         workspace = context.workspace
-        source_directory = context.download(
-            f"https://ffmpeg.org/releases/ffmpeg-{ffmpeg_version}.tar.xz",
-            f"ffmpeg-{ffmpeg_version}.tar.xz",
-        )
         configure_help = context.runner.capture(
             [str(source_directory / "configure"), "--help"], cwd=source_directory
         )
@@ -426,8 +507,6 @@ class FFmpegStage:
             raise BuildError(
                 "Unable to read the selected FFmpeg release's configure script."
             ) from error
-        build_directory = source_directory / "build"
-        build_directory.mkdir(parents=True, exist_ok=True)
 
         extra_cflags = f"-I{workspace}/include {context.env.get('CPPFLAGS', '')} {context.env.get('CFLAGS', '')}"
         extra_cxxflags = f"-I{workspace}/include {context.env.get('CPPFLAGS', '')} {context.env.get('CXXFLAGS', '')}"
@@ -481,8 +560,22 @@ class FFmpegStage:
 
         final = ConfigureOptions()
         final.add(*base, *detected, *context.configure_options)
+        return final.options
 
-        context.execute([str(source_directory / "configure"), *final.options], cwd=build_directory)
+    def _configure_build_install(
+        self, ffmpeg_version: str, ffplay_enabled: bool, planned: list[str] | None = None
+    ) -> None:
+        """Configure, compile, stage, validate and promote one release.
+
+        `planned` comes from the reuse check, which already ran every probe.
+        """
+        context = self.context
+        source_directory = context.download(*ffmpeg_source_archive(ffmpeg_version))
+        if planned is None:
+            planned = self.plan_configure(source_directory, ffplay_enabled)
+        build_directory = source_directory / "build"
+        build_directory.mkdir(parents=True, exist_ok=True)
+        context.execute([str(source_directory / "configure"), *planned], cwd=build_directory)
 
         config_mak = build_directory / "ffbuild/config.mak"
         if not config_mak.is_file():
@@ -511,6 +604,12 @@ class FFmpegStage:
         self.promote_installation(build_directory, staging_root, ffmpeg_version, ffplay_enabled)
         safe_remove_tree(staging_root, context.packages)
         context.unregister_temporary_path(staging_root)
+        # Before the marker: a marker without a receipt means a rebuild.
+        publish_atomically(
+            context.packages / CONFIGURE_RECEIPT_NAME,
+            render_configure_receipt(planned),
+            mode=0o644,
+        )
         context.build_done("ffmpeg", f"n{ffmpeg_version}")
 
     def _detect_options(

@@ -11,6 +11,18 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **A finished FFmpeg build is reconfigured when the host changes.** The build
+  records the exact options FFmpeg was configured with
+  (`packages/ffmpeg.configured`). Before reusing that build, it works out the
+  options this run would use and rebuilds FFmpeg if they differ, for example
+  when a system library such as dav1d or a CUDA toolkit was installed since. The
+  warning names the options added and dropped. Workspaces without this record
+  rebuild FFmpeg once; dependency builds are still reused.
+- **Commands no longer run in the directory you started the build from.** A
+  command that needs no particular directory now runs in `/`, so a Git
+  repository, `.cargo/config.toml` or Python module there can no longer
+  affect the build. Before, a Git `insteadOf` rule in that directory redirected
+  release lookups to another host.
 - **HTTPS inputs work in GPL/non-free builds.** OpenSSL was configured with a
   certificate directory inside the workspace that was never created, so
   FFmpeg, which verifies TLS certificates by default, rejected every HTTPS
@@ -423,16 +435,21 @@ A completed FFmpeg build is reused only while the programs in `/usr/local/bin`
 match the SHA-256 receipt (`packages/ffmpeg.installed`) written when this
 workspace installed them. Programs replaced by another build, even one of the
 same version, trigger an FFmpeg rebuild; workspaces from earlier releases have
-no receipt and rebuild FFmpeg once.
+no receipt and rebuild FFmpeg once. Reuse also requires the configure options
+this run would use to equal those recorded in `packages/ffmpeg.configured`. A
+system library or CUDA toolkit installed since, or a library that is gone or
+now too old, changes them and rebuilds FFmpeg.
 If a recorded Git checkout is missing or points to another commit,
 a normal rerun stops with recovery instructions; restore that checkout or use
 `--latest` to select a fresh snapshot. It does not silently discard the pin.
 Starting a rebuild invalidates that component's completion marker, the
 registry's declared dependent components, and FFmpeg's marker before any recipe
 writes. A failed upgrade is retried on resume, and FFmpeg is relinked against
-rebuilt static dependencies. For changes to optional dependencies detected by
-upstream build systems outside the registry's dependency rules, use a clean
-workspace to guarantee every optional integration is reconfigured.
+rebuilt static dependencies. FFmpeg's own optional integrations follow the
+configure receipt above. Dependency recipes are not re-probed: for changes to
+optional dependencies detected by their upstream build systems outside the
+registry's dependency rules, use a clean workspace to guarantee every optional
+integration is reconfigured.
 
 Use either an absolute or relative path for a separate build root:
 

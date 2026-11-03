@@ -426,9 +426,8 @@ class HardwareDetection:
             raise BuildError(
                 "CUDA toolkit installation completed, but 'nvcc' could not be located."
             )
-        # A reused FFmpeg was configured without this toolkit. Dependency
-        # builds do not use it, so only FFmpeg is reconfigured.
-        context.marker_path("ffmpeg").unlink(missing_ok=True)
+        # FFmpeg's configure receipt notices the new CUDA options and
+        # reconfigures it; dependency builds do not use the toolkit.
         self._prepare_cuda_compilation("New CUDA toolkit")
 
     def run(self) -> None:

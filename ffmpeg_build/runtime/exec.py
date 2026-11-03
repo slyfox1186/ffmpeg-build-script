@@ -31,6 +31,13 @@ from .logging import Logger, format_duration
 # unrelated user-local executable from silently replacing a build tool.
 BASE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/sbin"
 
+# Where a command that names no working directory runs. The directory the build
+# was started from is the user's: `git` reads an enclosing repository's config
+# (an `insteadOf` there redirects release discovery), `python -m`/`-c` import
+# from it first, and cargo reads its `.cargo/config.toml`. `/` always exists and
+# only root can write to it.
+NEUTRAL_DIRECTORY = Path("/")
+
 # Variables a build legitimately needs from the invoking session. Everything
 # else is dropped, including every variable a Python environment manager sets.
 _INHERITED_EXACT = (
@@ -269,7 +276,7 @@ class Runner:
         self.logger.run(command_display, arguments=arguments, quiet=quiet)
         started = self.logger.elapsed_seconds
         environment = self.child_environment(env_overrides)
-        working_directory = str(cwd) if cwd is not None else None
+        working_directory = str(cwd if cwd is not None else NEUTRAL_DIRECTORY)
 
         if self.debug and self.log_file is not None:
             exit_code = self._run_teed(
@@ -320,7 +327,7 @@ class Runner:
         self,
         log_file: Path,
         arguments: Sequence[str],
-        cwd: str | None,
+        cwd: str,
         environment: Mapping[str, str],
         stdin_text: str | None,
     ) -> int:
@@ -398,7 +405,7 @@ class Runner:
             with managed_process(
                 subprocess.Popen(
                     list(arguments),
-                    cwd=str(cwd) if cwd is not None else None,
+                    cwd=str(cwd if cwd is not None else NEUTRAL_DIRECTORY),
                     env=self.child_environment(env_overrides),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -438,7 +445,9 @@ class Runner:
             raise BuildError("This script requires 'sudo' (run on a system with sudo configured).")
         # Prompt once up front; failing mid-build after an hour of compiling is
         # a worse experience than a password prompt before any work starts.
-        completed = subprocess.run(["sudo", "-v"], env=self.child_environment(), check=False)
+        completed = subprocess.run(
+            ["sudo", "-v"], cwd=NEUTRAL_DIRECTORY, env=self.child_environment(), check=False
+        )
         if completed.returncode != 0:
             raise BuildError("Unable to validate 'sudo' credentials.")
         self.start_sudo_keepalive()
@@ -489,6 +498,7 @@ def notify_failure(message: str) -> None:
     try:
         subprocess.run(
             ["notify-send", "-t", "5000", "--", message],
+            cwd=NEUTRAL_DIRECTORY,
             capture_output=True,
             check=False,
             timeout=5,
