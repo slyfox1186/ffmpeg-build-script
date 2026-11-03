@@ -560,6 +560,19 @@ CUDA/NVENC integration also requires
 NVENC/NVDEC can use those headers without a CUDA toolkit; `nvcc` is required
 only for CUDA-compiled filters.
 
+libnpp is never requested: FFmpeg 9.0 removed it and its `scale_npp` and
+`transpose_npp` filters, and NPP 13 dropped the API they used. FFmpeg's own
+CUDA filters (`scale_cuda`, `overlay_cuda`, `yadif_cuda`, ...) are compiled
+with `nvcc` instead.
+
+Before any package builds, the hardware stage compiles FFmpeg's own `nvcc`
+probe with the flags the FFmpeg configure will use. When `nvcc` rejects the
+selected compiler as too new, the build uses the newest installed `gcc-N` and
+`g++-N` pair the toolkit accepts (via `-ccbin`). Without such a pair it warns
+with the exact packages to install, for example
+`sudo apt install gcc-13 g++-13`, disables CUDA filter compilation for that run,
+and retains NVENC/NVDEC.
+
 ## Safety model
 
 The build performs unavoidable system changes only in narrowly defined places:

@@ -19,7 +19,6 @@ from ..runtime.exec import Runner, base_environment
 from ..runtime.logging import Logger
 from ..runtime.paths import DirectoryLock, safe_remove_tree
 from ..runtime.state import publish_atomically, read_marker_version
-from .hardware import HardwareDetection
 
 _VERSION_LINE = re.compile(r"^(?P<tool>\w+) version n?(?P<version>[0-9]+(?:\.[0-9]+){1,3})")
 _CODEC_ROW = re.compile(r"^ [A-Z.]{6} ")
@@ -80,9 +79,8 @@ def ffmpeg_installed_version(binary: Path = Path("/usr/local/bin/ffmpeg")) -> st
 
 
 class FFmpegStage:
-    def __init__(self, context: BuildContext, hardware: HardwareDetection) -> None:
+    def __init__(self, context: BuildContext) -> None:
         self.context = context
-        self.hardware = hardware
         self.logger = context.logger
 
     # -- configure-time feature selection --------------------------------
@@ -633,7 +631,8 @@ class FFmpegStage:
         """NVENC/NVDEC need ffnvcodec headers, not nvcc.
 
         CUDA-compiled filters are a separate capability, enabled only when a
-        validated toolkit and architecture flags are both available.
+        validated toolkit and architecture flags are both available. libnpp is
+        never requested: FFmpeg 9.0 removed it.
         """
         context = self.context
         if not (
@@ -669,22 +668,10 @@ class FFmpegStage:
             return "", ""
 
         self._require(detected, "--enable-cuda-nvcc")
-        detected += [
-            f"--nvcc={cuda_root}/bin/nvcc",
-            f"--nvccflags=-O2 {context.nvidia_arch_flags}",
-        ]
-        cuda_version = self.hardware.local_cuda_version(cuda_root) or ""
-        cuda_major = cuda_version.split(".", 1)[0]
-        if cuda_major.isdigit() and int(cuda_major) < 13:
-            if (cuda_root / "lib64/libnppc.so").exists() or (
-                cuda_root / "lib64/libnppc_static.a"
-            ).exists():
-                self._require(detected, "--enable-libnpp")
-        elif cuda_major.isdigit() and int(cuda_major) >= 13:
-            self.logger.info(
-                "Skipping deprecated 'libnpp' integration because FFmpeg does not support it "
-                "with CUDA 13+."
-            )
+        nvccflags = " ".join(
+            part for part in ("-O2", context.nvcc_host_flags, context.nvidia_arch_flags) if part
+        )
+        detected += [f"--nvcc={cuda_root}/bin/nvcc", f"--nvccflags={nvccflags}"]
         return f" -I{cuda_root}/include", f" -L{cuda_root}/lib64"
 
 

@@ -19,6 +19,13 @@ from ..runtime.errors import BuildError
 from ..runtime.paths import safe_remove_tree
 from .system_setup import APT_SCRIPT_OPTIONS, SystemSetup
 
+# FFmpeg's own `check_nvcc` source; the probe below must fail exactly when
+# FFmpeg's configure would.
+_NVCC_PROBE_SOURCE = 'extern "C" {\n    __global__ void hello(unsigned char *data) {}\n}\n'
+_NVCC_GCC_LIMIT = re.compile(r"gcc versions later than ([0-9]+) are not supported")
+# No supported CUDA release accepts a host GCC older than 7.
+_OLDEST_NVCC_GCC = 7
+
 _CUDA_REPOSITORIES = {
     ("Ubuntu", "22.04"): "ubuntu2204",
     ("Ubuntu", "24.04"): "ubuntu2404",
@@ -265,6 +272,108 @@ class HardwareDetection:
         self.logger.info(f"CUDA targets: '{selected_display}' (PTX: 'compute_{lowest}').")
         return True
 
+    def _nvcc_probe_arguments(self, nvcc: Path, host_flags: list[str], source: Path) -> list[str]:
+        # The same flags FFmpeg's configure adds before `check_nvcc`, so a
+        # host-compiler rejection surfaces here instead of hours later.
+        return [
+            str(nvcc),
+            "-O2",
+            *host_flags,
+            *self.context.nvidia_arch_flags.split(),
+            "-std=c++11",
+            "-m64",
+            "-ptx",
+            str(source),
+            "-o",
+            str(source.with_suffix(".ptx")),
+        ]
+
+    def _installed_gcc_pair(self, limit: int) -> int | None:
+        """Highest `gcc-N`/`g++-N` pair nvcc would accept.
+
+        Both are required: nvcc drives `gcc-N` on C++ sources, which fails
+        without the `g++-N` package's cc1plus.
+        """
+        for version in range(limit, _OLDEST_NVCC_GCC - 1, -1):
+            if (
+                self.runner.which(f"gcc-{version}") is not None
+                and self.runner.which(f"g++-{version}") is not None
+            ):
+                return version
+        return None
+
+    def verify_nvcc_host_compiler(self) -> None:
+        """Probe nvcc the way FFmpeg's configure will, before anything is built.
+
+        A rejected host compiler falls back to an installed older GCC pair
+        when one exists; otherwise CUDA filter compilation is disabled for the
+        run with the exact packages to install, and NVENC/NVDEC are retained.
+        """
+        context = self.context
+        cuda_root = context.cuda_root
+        if cuda_root is None or not context.nvidia_arch_flags:
+            return
+        nvcc = cuda_root / "bin/nvcc"
+        probe_directory = Path(tempfile.mkdtemp(prefix=".nvcc-probe.", dir=context.packages))
+        context.register_temporary_path(probe_directory)
+        try:
+            source = probe_directory / "probe.cu"
+            source.write_text(_NVCC_PROBE_SOURCE, encoding="utf-8")
+            completed = self.runner.capture(self._nvcc_probe_arguments(nvcc, [], source))
+            if completed.returncode == 0:
+                return
+            limit_match = _NVCC_GCC_LIMIT.search(completed.stderr + completed.stdout)
+            if limit_match is None:
+                detail = [line for line in completed.stderr.splitlines() if line.strip()]
+                self.logger.warn(
+                    "'nvcc' cannot compile FFmpeg's CUDA probe with the selected compiler "
+                    f"('{detail[-1] if detail else 'no diagnostic'}'); CUDA filter compilation "
+                    "is disabled for this run and NVENC/NVDEC are retained."
+                )
+                context.nvidia_arch_flags = ""
+                return
+            limit = int(limit_match.group(1))
+            fallback = self._installed_gcc_pair(limit)
+            if fallback is not None:
+                host_flags = ["-ccbin", f"gcc-{fallback}"]
+                completed = self.runner.capture(
+                    self._nvcc_probe_arguments(nvcc, host_flags, source)
+                )
+                if completed.returncode == 0:
+                    context.nvcc_host_flags = " ".join(host_flags)
+                    self.logger.info(
+                        f"'nvcc' rejects the default host compiler (GCC {limit} is the newest "
+                        f"it supports); compiling CUDA filters with 'gcc-{fallback}'."
+                    )
+                    return
+                detail = [line for line in completed.stderr.splitlines() if line.strip()]
+                self.logger.warn(
+                    f"'nvcc' rejects the default host compiler, and the installed "
+                    f"'gcc-{fallback}' failed its probe too "
+                    f"('{detail[-1] if detail else 'no diagnostic'}'). This run disables CUDA "
+                    "filter compilation and retains NVENC/NVDEC."
+                )
+                context.nvidia_arch_flags = ""
+                return
+            self.logger.warn(
+                f"'nvcc' rejects the selected compiler: GCC {limit} is the newest this CUDA "
+                f"toolkit supports. Install a supported pair ('sudo apt install gcc-{limit} "
+                f"g++-{limit}') and rerun to compile CUDA filters. This run disables CUDA "
+                "filter compilation and retains NVENC/NVDEC."
+            )
+            context.nvidia_arch_flags = ""
+        finally:
+            safe_remove_tree(probe_directory, context.packages)
+            context.unregister_temporary_path(probe_directory)
+
+    def _prepare_cuda_compilation(self, origin: str) -> None:
+        if not self.configure_nvidia_architecture():
+            self.logger.warn(
+                f"{origin}: CUDA architecture detection failed; CUDA compilation will be disabled."
+            )
+            return
+        self.verify_nvcc_host_compiler()
+
     def install_cuda(self) -> None:
         context = self.context
         install_mode = os.environ.get("CUDA_INSTALL", "ask")
@@ -282,11 +391,7 @@ class HardwareDetection:
             self.logger.info(
                 f"CUDA toolkit detected at '{context.cuda_root}' (version '{version}')."
             )
-            if not self.configure_nvidia_architecture():
-                self.logger.warn(
-                    "Installed CUDA toolkit: CUDA architecture detection failed; "
-                    "CUDA compilation will be disabled."
-                )
+            self._prepare_cuda_compilation("Installed CUDA toolkit")
             return
 
         if install_mode == "never":
@@ -313,11 +418,7 @@ class HardwareDetection:
             raise BuildError(
                 "CUDA toolkit installation completed, but 'nvcc' could not be located."
             )
-        if not self.configure_nvidia_architecture():
-            self.logger.warn(
-                "New CUDA toolkit: CUDA architecture detection failed; "
-                "CUDA compilation will be disabled."
-            )
+        self._prepare_cuda_compilation("New CUDA toolkit")
 
     def run(self) -> None:
         context = self.context

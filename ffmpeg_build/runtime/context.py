@@ -73,6 +73,9 @@ class BuildContext:
         self.variable_os = ""
         self.cuda_root: Path | None = None
         self.nvidia_arch_flags = ""
+        # `-ccbin gcc-N` when nvcc rejects the default host compiler and an
+        # installed older pair was verified instead; empty otherwise.
+        self.nvcc_host_flags = ""
         self.nvidia_gpu_present = False
         self.amd_gpu_present = False
         self.intel_gpu_present = False

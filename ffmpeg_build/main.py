@@ -762,7 +762,7 @@ class Orchestrator:
         install_audio_libraries(context)
         install_video_libraries(context)
         install_image_libraries(context)
-        FFmpegStage(context, hardware).run()
+        FFmpegStage(context).run()
 
         report_success(context)
         self.finish()
