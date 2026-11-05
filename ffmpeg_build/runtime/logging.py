@@ -435,6 +435,19 @@ class Logger:
     def info(self, message: str) -> None:
         self.line("INFO", message)
 
+    def compiler(self, label: str, banner: str, location: str) -> None:
+        """A selected compiler's version banner, highlighted like a package name."""
+        self._emit(
+            self._tag("INFO"),
+            [
+                (f"{label}: '", "", False),
+                (banner, "yellow", True),
+                ("' ", "", False),
+                *self._text_parts(f"({location})."),
+            ],
+        )
+        self._record("INFO", f"{label}: '{banner}' ({location}).")
+
     def get(self, url: str, filename: str = "", note: str = "") -> None:
         if note:
             self.line("INFO", f"{url} {note}.")

@@ -609,7 +609,7 @@ class SystemSetup:
             compiler = compiler_behind_ccache(executable, command, self.context.env["PATH"])
             if compiler is not None:
                 location += f", ccache for '{compiler}'"
-            self.logger.info(f"{label}: '{lines[0]}' ({location}).")
+            self.logger.compiler(label, lines[0], location)
 
     def report_compiler_cpu_target(self) -> None:
         """Name the CPU the selected compiler actually generates code for."""
