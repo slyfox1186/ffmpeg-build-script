@@ -44,7 +44,13 @@ from .runtime.paths import (
     safe_remove_tree,
     tree_size,
 )
-from .runtime.settings import MAX_PROCESS_INTEGER, parse_integer
+from .runtime.settings import (
+    BYPASS_CACHE_DELETE,
+    MAX_PROCESS_INTEGER,
+    checkout_setting,
+    parse_integer,
+    parse_switch,
+)
 from .runtime.state import (
     BUILD_CONTEXT_NAME,
     BUILD_ROOT_MARKER_NAME,
@@ -603,6 +609,29 @@ class Orchestrator:
         repository = canonicalize(self.repo_root)
         return [path for path in self._leftover_artifacts() if is_legacy_root(path, repository)]
 
+    def _keeps_caches(self, repository: Path) -> bool:
+        """Whether `BYPASS_CACHE_DELETE`, from the environment or `.env`, keeps them.
+
+        Keeping is the safe answer whenever the setting cannot be read.
+        """
+        try:
+            value = checkout_setting(repository, BYPASS_CACHE_DELETE)
+        except (OSError, UnicodeDecodeError) as error:
+            self.logger.warn(
+                f"Keeping the cache folders: cannot read '{repository / '.env'}': {error}"
+            )
+            return True
+        keep = parse_switch(value)
+        if keep is None:
+            self.logger.warn(
+                f"Ignoring {BYPASS_CACHE_DELETE}='{value}': expected true or false. "
+                "Deleting the cache folders."
+            )
+            return False
+        if keep:
+            self.logger.debug(f"{BYPASS_CACHE_DELETE} is set; keeping the cache folders.")
+        return keep
+
     def _sweep_caches(self) -> None:
         """Delete the checkout's cache folders without asking.
 
@@ -616,7 +645,7 @@ class Orchestrator:
         caches = [
             path for path in self._leftover_artifacts() if not is_legacy_root(path, repository)
         ]
-        if not caches:
+        if not caches or self._keeps_caches(repository):
             return
         size = _combined_size(caches)
         deleted = 0

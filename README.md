@@ -131,6 +131,9 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   build and on `--cleanup`, without asking. The prompt now covers only the
   build folder and old build folders, and nothing inside a build root is ever
   counted as a cache.
+  To keep them while you work on this repository, put
+  `BYPASS_CACHE_DELETE=true` in a `.env` file at the top of the checkout
+  (ignored by Git) or set it in the environment, where it takes precedence.
 - Single-letter options can be grouped: `python3 build-ffmpeg.py -bln` is the
   same as `-b -l -n`, and `-bj8` the same as `-b -j 8`.
 
@@ -595,8 +598,10 @@ script's directory.
 A successful build ends by calling cleanup. It first deletes the temporary
 cache folders inside the checkout (`ffbuild/`, `__pycache__/`, `.mypy_cache/`,
 `.pytest_cache/`, `.ruff_cache/`, `*.egg-info/`) without asking, since they are
-recreated automatically when needed; the scan never enters a build root. It
-then interactively offers to delete the build root. Answer no to keep the
+recreated automatically when needed; the scan never enters a build root.
+`BYPASS_CACHE_DELETE=true`, in a `.env` file at the top of the checkout or in
+the environment, keeps them for developers of this repository. Cleanup then
+interactively offers to delete the build root. Answer no to keep the
 sources and workspace for a later incremental build; either answer ends with a
 pointer to the project repository. Before asking, cleanup lists what a yes
 deletes, with sizes and what each item is: the build root, and old
