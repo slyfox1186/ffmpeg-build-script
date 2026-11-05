@@ -130,18 +130,15 @@ def _folder_label(path: Path, repository: Path) -> str:
     return f"{path.relative_to(repository) if path.is_relative_to(repository) else path}/"
 
 
-def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[Path]) -> str:
-    """A short table of what a yes to the cleanup prompt deletes.
+def is_legacy_root(path: Path, repository: Path) -> bool:
+    return path.parent == repository and path.name in LEGACY_BUILD_ROOT_NAMES
 
-    One row per kind, so an old build folder holding gigabytes never hides
-    behind a count of kilobyte caches.
+
+def cleanup_summary(repository: Path, build_root: Path | None, old_roots: list[Path]) -> str:
+    """A short table of what a yes to the cleanup prompt deletes, one row per folder.
+
+    Cache folders are not listed: cleanup deletes them before asking.
     """
-    old_roots = [
-        path
-        for path in leftovers
-        if path.parent == repository and path.name in LEGACY_BUILD_ROOT_NAMES
-    ]
-    caches = [path for path in leftovers if path not in old_roots]
     rows: list[tuple[str, list[Path], str]] = []
     if build_root is not None:
         rows.append(
@@ -155,10 +152,6 @@ def cleanup_summary(repository: Path, build_root: Path | None, leftovers: list[P
         (_folder_label(path, repository), [path], "Old build folder from an earlier version")
         for path in old_roots
     )
-    if caches:
-        rows.append(
-            (_counted(len(caches), "cache folder"), caches, "Temporary files, safe to delete")
-        )
 
     sizes = [_combined_size(paths) for _label, paths, _description in rows]
     shown = ["" if size is None else format_size(size) for size in sizes]
@@ -606,30 +599,57 @@ class Orchestrator:
             targets.append(candidate)
         return targets
 
-    def _remove_leftover_artifacts(self, targets: list[Path]) -> None:
+    def _old_roots(self) -> list[Path]:
         repository = canonicalize(self.repo_root)
-        legacy_roots = {repository / legacy for legacy in LEGACY_BUILD_ROOT_NAMES}
-        caches = 0
+        return [path for path in self._leftover_artifacts() if is_legacy_root(path, repository)]
+
+    def _sweep_caches(self) -> None:
+        """Delete the checkout's cache folders without asking.
+
+        They are configure output, bytecode, tool caches and packaging metadata
+        that are recreated on demand; the scan never enters a build root, so no
+        downloaded or compiled project is touched. A folder that cannot be
+        removed, such as a root-owned `__pycache__`, is reported and kept:
+        tidying up must not fail a finished build.
+        """
+        repository = canonicalize(self.repo_root)
+        caches = [
+            path for path in self._leftover_artifacts() if not is_legacy_root(path, repository)
+        ]
+        if not caches:
+            return
+        size = _combined_size(caches)
+        deleted = 0
+        for cache in caches:
+            try:
+                safe_remove_tree(cache, repository)
+            except BuildError as error:
+                self.logger.warn(f"Leaving the cache folder '{cache}' in place: {error}")
+                continue
+            self.logger.debug(f"Deleted '{cache}'.")
+            deleted += 1
+        if deleted:
+            freed = f" ({format_size(size)})" if size is not None and deleted == len(caches) else ""
+            self.logger.info(f"Deleted {_counted(deleted, 'cache folder')}{freed}.")
+
+    def _remove_old_roots(self, targets: list[Path]) -> None:
+        repository = canonicalize(self.repo_root)
         for target in targets:
-            if target not in legacy_roots:
+            if not target.is_dir():
+                continue
+            # A legacy root may be another build's BUILD_ROOT. Remove it only
+            # under its lock, and only if it is still ours.
+            with DirectoryLock(target) as lock:
+                if not lock.acquire():
+                    self.logger.warn(f"Leaving '{target}' in place: another build is using it.")
+                    continue
+                if not _legacy_root_is_ours(target):
+                    continue
                 safe_remove_tree(target, repository)
-                self.logger.debug(f"Deleted '{target}'.")
-                caches += 1
-            elif target.is_dir():
-                # A legacy root may be another build's BUILD_ROOT. Remove it
-                # only under its lock, and only if it is still ours.
-                with DirectoryLock(target) as lock:
-                    if not lock.acquire():
-                        self.logger.warn(f"Leaving '{target}' in place: another build is using it.")
-                        continue
-                    if not _legacy_root_is_ours(target):
-                        continue
-                    safe_remove_tree(target, repository)
-                self.logger.info(f"Deleted the old build folder '{target}'.")
-        if caches:
-            self.logger.info(f"Deleted {_counted(caches, 'cache folder')}.")
+            self.logger.info(f"Deleted the old build folder '{target}'.")
 
     def cleanup(self) -> None:
+        self._sweep_caches()
         root = self.build_root
         if not root.exists():
             self.logger.info(f"There is no build folder to delete at '{root}'.")
@@ -670,7 +690,7 @@ class Orchestrator:
                     f"'{resolved}'."
                 )
                 return
-            self.logger.info(cleanup_summary(repository, resolved, self._leftover_artifacts()))
+            self.logger.info(cleanup_summary(repository, resolved, self._old_roots()))
             while True:
                 try:
                     choice = self.logger.prompt("Delete these folders? (yes/no): ")
@@ -689,7 +709,7 @@ class Orchestrator:
                     self.runner.log_file = None
                     self.logger.info(f"Deleted the build folder '{resolved}'.")
                     # Re-read: removing the build root can itself clear entries.
-                    self._remove_leftover_artifacts(self._leftover_artifacts())
+                    self._remove_old_roots(self._old_roots())
                     return
                 if choice.strip().lower() in ("n", "no"):
                     self.logger.info("Nothing was deleted.")
@@ -700,14 +720,14 @@ class Orchestrator:
                 lock.release()
 
     def _clean_leftovers_only(self) -> None:
-        """Offer the leftover sweep when there is no build root to remove."""
-        leftovers = self._leftover_artifacts()
+        """Offer to delete old build folders when there is no build root to remove."""
+        leftovers = self._old_roots()
         if not leftovers:
             return
         if not sys.stdin.isatty():
             self.logger.info(
-                "Standard input is not interactive; nothing was deleted. Run --cleanup from a "
-                "terminal to choose."
+                "Standard input is not interactive; old build folders were kept. Run --cleanup "
+                "from a terminal to choose."
             )
             return
         self.logger.info(cleanup_summary(canonicalize(self.repo_root), None, leftovers))
@@ -719,7 +739,7 @@ class Orchestrator:
                 self.logger.info("No cleanup response received; nothing was deleted.")
                 return
             if choice.strip().lower() in ("y", "yes"):
-                self._remove_leftover_artifacts(leftovers)
+                self._remove_old_roots(leftovers)
                 return
             if choice.strip().lower() in ("n", "no"):
                 self.logger.info("Nothing was deleted.")

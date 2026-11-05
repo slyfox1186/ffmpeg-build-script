@@ -127,6 +127,10 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 - Building Nettle without GnuTLS now asks for GMP, which Nettle needs.
 - The cleanup prompt now lists what it deletes, with sizes and a plain
   description of each item, instead of a bare count of "build leftovers".
+- **Cache folders in the checkout are deleted automatically** after every
+  build and on `--cleanup`, without asking. The prompt now covers only the
+  build folder and old build folders, and nothing inside a build root is ever
+  counted as a cache.
 - Single-letter options can be grouped: `python3 build-ffmpeg.py -bln` is the
   same as `-b -l -n`, and `-bj8` the same as `-b -j 8`.
 
@@ -588,17 +592,18 @@ BUILD_ROOT=./path/to/ffmpeg-build \
 A relative `BUILD_ROOT` is resolved from the invocation directory, not from the
 script's directory.
 
-A successful build ends by calling cleanup, which interactively offers to
-delete the build root. Answer no to keep the sources and workspace for a later
-incremental build; either answer ends with a pointer to the project
-repository. Before asking, cleanup lists what a yes deletes, with sizes and
-what each item is: the build root; old `packages/`, `workspace/` and
-`ffmpeg-build-script/` build folders from earlier versions of this script when
-they are this project's own; and temporary cache folders inside the checkout
-(`ffbuild/`, `__pycache__/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
-`*.egg-info/`), which are recreated automatically when needed. `--cleanup`
-asks the same question. The FFmpeg installed under `/usr/local`, tracked files,
-config files, `.git/` and anything symlinked are never touched.
+A successful build ends by calling cleanup. It first deletes the temporary
+cache folders inside the checkout (`ffbuild/`, `__pycache__/`, `.mypy_cache/`,
+`.pytest_cache/`, `.ruff_cache/`, `*.egg-info/`) without asking, since they are
+recreated automatically when needed; the scan never enters a build root. It
+then interactively offers to delete the build root. Answer no to keep the
+sources and workspace for a later incremental build; either answer ends with a
+pointer to the project repository. Before asking, cleanup lists what a yes
+deletes, with sizes and what each item is: the build root, and old
+`packages/`, `workspace/` and `ffmpeg-build-script/` build folders from earlier
+versions of this script when they are this project's own. `--cleanup` does the
+same. The FFmpeg installed under `/usr/local`, tracked files, config files,
+`.git/` and anything symlinked are never touched.
 
 A custom, non-empty directory must already contain this project's
 `.ffmpeg-build-root` marker. This prevents a typo from turning an unrelated
@@ -644,8 +649,9 @@ different CPU, clean that workspace first:
 python3 build-ffmpeg.py --cleanup
 ```
 
-Cleanup is interactive and removes only the validated build root. In a
-non-interactive context it leaves files in place. For an alternate root, run
+Cleanup asks before removing the validated build root. In a non-interactive
+context it leaves the build root in place and deletes only the checkout's
+cache folders. For an alternate root, run
 `BUILD_ROOT=/same/path python3 build-ffmpeg.py --cleanup`.
 
 The portable template leaves `libjxl` and `libshaderc` disabled because the
