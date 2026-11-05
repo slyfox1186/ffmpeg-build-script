@@ -11,8 +11,10 @@ interpreter resolution, because they are contractually free of side effects and
 resolving an interpreter can mean creating an environment and asking a
 question.
 
-When Conda is available the build always runs in the Conda environment; a
-system interpreter is used only on hosts without Conda.
+Conda is optional. An existing `install-ffmpeg` Conda environment is used
+because it was created with the user's consent; otherwise the newest stable
+compatible system interpreter runs the build. Creating the environment is
+offered only when no compatible interpreter exists.
 """
 
 from __future__ import annotations
@@ -166,8 +168,12 @@ def create_conda_environment(root: str) -> bool:
     return True
 
 
-def resolve_conda_interpreter(roots: list[str]) -> str | None:
-    """Return the Conda environment's interpreter, or None after explaining why not."""
+def existing_conda_interpreter(roots: list[str]) -> str | None:
+    """The usable interpreter of an existing environment, never prompting.
+
+    An environment that is too old or cannot be inspected is reported with its
+    remedy and skipped, so a compatible system interpreter can still run.
+    """
     required = "%d.%d" % REQUIRED_VERSION
     for root in roots:
         python = environment_python(root)
@@ -175,12 +181,14 @@ def resolve_conda_interpreter(roots: list[str]) -> str | None:
             continue
         version = interpreter_version(python)
         if version is None:
-            sys.stderr.write("Could not determine the Python version of %s.\n" % python)
-            return None
+            sys.stderr.write(
+                "Could not determine the Python version of %s; skipping it.\n" % python
+            )
+            continue
         if version[:2] < REQUIRED_VERSION:
             sys.stderr.write(
                 "The '%s' conda environment has Python %d.%d; this project needs %s or newer.\n"
-                "Remove it so this script can recreate it:\n  %s\n"
+                "It is skipped. Remove it so this script can offer to recreate it:\n  %s\n"
                 % (
                     CONDA_ENVIRONMENT,
                     version[0],
@@ -198,9 +206,13 @@ def resolve_conda_interpreter(roots: list[str]) -> str | None:
                     ),
                 )
             )
-            return None
+            continue
         return python
-    root = roots[0]
+    return None
+
+
+def offer_conda_environment(root: str) -> str | None:
+    """Create the environment with consent; only used when no interpreter fits."""
     question = "Create conda environment '%s' (python=%s) and install %s? [y/N]: " % (
         CONDA_ENVIRONMENT,
         CONDA_PYTHON_VERSION,
@@ -208,9 +220,9 @@ def resolve_conda_interpreter(roots: list[str]) -> str | None:
     )
     if not ask_consent(question):
         sys.stderr.write(
-            "Conda is available, so this project runs in the '%s' conda environment.\n"
-            "Create it by answering yes interactively, or run:\n  %s\n"
-            % (CONDA_ENVIRONMENT, shlex.join(conda_create_command(root)))
+            "No compatible Python was found. Install Python %d.%d or newer, or create\n"
+            "the '%s' conda environment by answering yes interactively, or run:\n  %s\n"
+            % (REQUIRED_VERSION + (CONDA_ENVIRONMENT, shlex.join(conda_create_command(root))))
         )
         return None
     if not create_conda_environment(root):
@@ -273,13 +285,19 @@ def reexec(interpreter: str, argv: list[str]) -> None:
 
 
 def resolve_interpreter() -> str | None:
+    """An existing Conda environment, else system Python, else an offer to create one."""
     roots = conda_roots()
     if roots:
-        return resolve_conda_interpreter(roots)
+        interpreter = existing_conda_interpreter(roots)
+        if interpreter is not None:
+            return interpreter
     interpreter = resolve_system_interpreter()
-    if interpreter is None:
-        report_missing_interpreter()
-    return interpreter
+    if interpreter is not None:
+        return interpreter
+    if roots:
+        return offer_conda_environment(roots[0])
+    report_missing_interpreter()
+    return None
 
 
 def main(argv: list[str]) -> int:

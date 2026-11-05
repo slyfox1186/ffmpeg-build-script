@@ -11,6 +11,11 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **Conda is optional.** The launcher uses an existing `install-ffmpeg` Conda
+  environment, and otherwise the newest compatible system Python, without
+  invoking Conda. It offers to create the environment only when no Python 3.12
+  or newer is available. An environment that is too old, or whose version
+  cannot be read, is reported and skipped instead of stopping the launcher.
 - **pkg-config falls back to freedesktop.org pkg-config.** The workspace
   resolver is still pkgconf, now downloaded as its uploaded `.tar.xz` release
   and built with Meson, since pkgconf drops Autotools in 3.1. When pkgconf
@@ -156,19 +161,24 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 **Python 3.12, 3.13, and 3.14 are supported.** Ubuntu 22.04's default
 Python 3.10 and Debian 12's default Python 3.11 cannot run the builder.
 
-When Conda is available, the build always runs in its `install-ffmpeg`
-environment. The launcher finds Conda through `CONDA_EXE`, a `conda` command on
-`PATH`, or an installation at `~/miniconda3`, `~/miniforge3`, or `~/anaconda3`.
-If the environment is missing, it asks before creating it with Python 3.14
-from conda-forge, which needs no Anaconda Terms of Service acceptance, and
-installs Textual. Declining, or running without an interactive terminal, stops
-with the exact `conda create` command to run; no environment is created without
-consent. An existing environment older than Python 3.12 is reported with the
-command that removes it so the launcher can recreate it.
+Conda is optional. The launcher picks an interpreter in this order:
 
-Only when no Conda installation exists does the launcher use a system
-interpreter: the newest stable `python3` or `python3.N` on `PATH` or in
-`/usr/bin` that is Python 3.12 or newer. The menu needs an interactive
+1. An existing `install-ffmpeg` Conda environment, which was created with your
+   consent. The launcher finds Conda through `CONDA_EXE`, a `conda` command on
+   `PATH`, or an installation at `~/miniconda3`, `~/miniforge3`, or
+   `~/anaconda3`. An environment older than Python 3.12, or one whose version
+   cannot be read, is reported with its remedy and skipped.
+2. The newest stable `python3` or `python3.N` on `PATH` or in `/usr/bin`, or
+   the interpreter running the launcher, that is Python 3.12 or newer. Conda is
+   not invoked.
+3. Only when neither exists and Conda is installed, the launcher asks before
+   creating the environment with Python 3.14 from conda-forge, which needs no
+   Anaconda Terms of Service acceptance, and installs Textual. Declining, or
+   running without an interactive terminal, stops with the exact
+   `conda create` command to run; no environment is created without consent.
+
+To stop using an existing environment, remove it; the launcher then uses a
+compatible system Python. The menu needs an interactive
 terminal and Textual 8.2.8 or newer. Existing environments can install the menu
 dependency with `~/miniconda3/envs/install-ffmpeg/bin/python -m pip install -e '.[menu]'`
 from this checkout. A missing dependency produces an installation command for
@@ -319,8 +329,8 @@ package; using the reviewed `custom.toml` allowlist is the recommended path.
 
 Bare invocation, help and version reporting do not resolve or create an
 interpreter environment. An existing Conda environment older than Python 3.12
-stops the launcher with its removal command; while Conda exists, the launcher
-never falls back to a system interpreter. Numeric settings accept ASCII
+is reported with its removal command and skipped in favor of a compatible
+system interpreter. Numeric settings accept ASCII
 decimal digits; jobs, timeouts and counters are bounded to 2,147,483,647, while
 byte limits may use the host's signed integer range. Empty environment timeout
 overrides use the documented defaults.
