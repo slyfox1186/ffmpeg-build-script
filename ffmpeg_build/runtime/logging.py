@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
 
-from ..usage import color_enabled
+from ..usage import color_enabled, read_answer
 from . import shellquote
 
 # Wrapped command arguments hang this far in, clear of the `$ ` prompt, so a
@@ -498,7 +498,9 @@ class Logger:
         palette = self.out_palette
         text, style, bold = self._tag("PROMPT")
         self._blank()
-        answer = input(f"{palette.paint(getattr(palette, style), text, bold=bold)} {question}")
+        answer = read_answer(
+            f"{palette.paint(getattr(palette, style), text, bold=bold)} {question}"
+        )
         self._after_blank = False
         self._record("PROMPT", f"{question}{answer}")
         return answer

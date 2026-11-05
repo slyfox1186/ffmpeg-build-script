@@ -90,8 +90,10 @@ def ask_consent(question: str) -> bool:
     """
     if not sys.stdin.isatty():
         return False
+    from ffmpeg_build.usage import read_answer
+
     try:
-        answer = input(question)
+        answer = read_answer(question)
     except (EOFError, KeyboardInterrupt):
         print()
         return False

@@ -1,10 +1,12 @@
-"""The help screen, the version string, and the terminal color policy.
+"""The help screen, the version string, the terminal color policy, and how
+typed answers are read.
 
 The launcher imports this module on whatever interpreter the user happened to
 start, which on Ubuntu 22.04 is Python 3.10. `--help` and `--version` are
 answered before any interpreter resolution, so this file must parse on every
 interpreter the project can be launched from and must import nothing that does
-not.
+not. The launcher's consent question and the build's prompts share
+`read_answer` for the same reason.
 
 The plain layout is a contract. `README.md` reproduces it verbatim and the
 linter diffs the two byte for byte, so the text is wrapped to a fixed WIDTH
@@ -14,8 +16,11 @@ escape codes wrap tokens in place and never change the visible text.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
+import sys
+import termios
 import textwrap
 from typing import TextIO
 
@@ -158,6 +163,26 @@ def color_enabled(stream: TextIO) -> bool:
         return stream.isatty()
     except (AttributeError, ValueError):
         return False
+
+
+# CSI sequences (arrows, Home/End, Ctrl+Home is ESC[1;5H), SS3 sequences
+# (ESC O H), other two-byte escapes, then any remaining control character.
+_TERMINAL_KEY_CODE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|O.|[@-_])|[\x00-\x1f\x7f]")
+
+
+def read_answer(question: str) -> str:
+    """Ask `question` and return what was typed, without terminal key codes.
+
+    `input()` without readline returns key codes verbatim, so a Home or arrow
+    key turns a visible "no" into an invalid answer. Keys pressed before the
+    question appeared, such as during a long build, are discarded so they can
+    never answer it. EOFError and KeyboardInterrupt reach the caller.
+    """
+    if sys.stdin.isatty():
+        # Best effort: an unflushable stdin still gets the question.
+        with contextlib.suppress(OSError, ValueError, termios.error):
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+    return _TERMINAL_KEY_CODE.sub("", input(question))
 
 
 def _sgr(code: str, text: str) -> str:
