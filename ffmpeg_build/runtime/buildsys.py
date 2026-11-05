@@ -31,7 +31,10 @@ def meson_project_option_exists(source: Path, option_name: str) -> bool:
     for candidate in ("meson.options", "meson_options.txt"):
         options_file = source / candidate
         if options_file.is_file():
-            pattern = re.compile(rf"^[ \t]*option\([\"']{re.escape(option_name)}[\"']", re.M)
+            # The name may sit on the line after `option(`, as pkgconf writes it.
+            pattern = re.compile(
+                rf"^[ \t]*option[ \t]*\(\s*[\"']{re.escape(option_name)}[\"']", re.M
+            )
             try:
                 return bool(
                     pattern.search(options_file.read_text(encoding="utf-8", errors="replace"))

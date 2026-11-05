@@ -56,7 +56,7 @@ m4 = true  # Macro processor used by Autotools
 meson = true  # High-level build-system generator
 nasm = true  # Netwide x86/x86-64 assembler
 ninja = true  # Fast low-level build executor
-pkgconf = true  # pkg-config-compatible dependency resolver
+pkgconf = true  # pkg-config dependency resolver (pkgconf; freedesktop.org pkg-config fallback)
 yasm = true  # Modular x86/x86-64 assembler
 
 # Compression, parsing, allocation, and other foundational libraries

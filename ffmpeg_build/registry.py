@@ -99,7 +99,11 @@ GROUPS: tuple[Group, ...] = (
             Package("meson", "High-level build-system generator", kind=TOOL),
             Package("nasm", "Netwide x86/x86-64 assembler", kind=TOOL),
             Package("ninja", "Fast low-level build executor", kind=TOOL),
-            Package("pkgconf", "pkg-config-compatible dependency resolver", kind=TOOL),
+            Package(
+                "pkgconf",
+                "pkg-config dependency resolver (pkgconf; freedesktop.org pkg-config fallback)",
+                kind=TOOL,
+            ),
             Package("yasm", "Modular x86/x86-64 assembler", kind=TOOL),
         ),
         title="Build tools",

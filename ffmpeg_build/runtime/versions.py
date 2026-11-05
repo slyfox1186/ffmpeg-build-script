@@ -34,6 +34,11 @@ _REPO_NAME = re.compile(r"^[a-zA-Z0-9._/-]+$")
 _COMMIT = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 
 
+def is_full_commit(value: str) -> bool:
+    """True for a complete SHA-1 or SHA-256 Git object name."""
+    return _COMMIT.fullmatch(value) is not None
+
+
 class VersionResolver:
     """Queries upstream tag lists and release indexes."""
 

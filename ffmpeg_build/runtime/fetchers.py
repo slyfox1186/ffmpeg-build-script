@@ -20,6 +20,15 @@ from .versions import DEFAULT_VERSION_PATTERN, VersionResolver
 
 _THREE_PART = re.compile(r"^[0-9]+(\.[0-9]+){2}$")
 
+FREEDESKTOP_PKG_CONFIG_GIT = "https://gitlab.freedesktop.org/pkg-config/pkg-config.git"
+X265_BITBUCKET_GIT = "https://bitbucket.org/multicoreware/x265_git.git"
+X265_GITHUB_GIT = "https://github.com/Multicorewareinc/x265.git"
+X265_RELEASE_PATTERN = re.compile(r"^[0-9]+(\.[0-9]+){1,2}$")
+
+# Which implementation a pkg-config version belongs to.
+PKGCONF_SOURCE = "pkgconf"
+FREEDESKTOP_SOURCE = "freedesktop"
+
 # VideoLAN projects whose release tags carry no prefix.
 VIDEOLAN_PROJECTS = frozenset({"videolan/libdvdread", "videolan/libdvdnav", "videolan/libudfread"})
 
@@ -228,8 +237,29 @@ class PackageVersions:
             "vapoursynth/vapoursynth", "R", "[Rr][Cc]", re.compile(r"^[0-9]+$")
         )
 
-    def pkgconf(self) -> str | None:
+    def pkgconf(self) -> ResolvedVersion | None:
+        """The workspace pkg-config: pkgconf, else freedesktop.org pkg-config.
+
+        pkgconf honors `Cflags.private` and needs no host GLib. The freedesktop
+        tool publishes no release after 2017, so its newest `HEAD` commit is
+        the version, and it is recorded as that full commit.
+        """
+        version = self.pkgconf_release()
+        if version is not None:
+            return ResolvedVersion(version, PKGCONF_SOURCE)
+        self.logger.warn(
+            "pkgconf releases are unavailable; falling back to freedesktop pkg-config."
+        )
+        commit = self.freedesktop_pkg_config_commit()
+        if commit is None:
+            return None
+        return ResolvedVersion(commit, FREEDESKTOP_SOURCE)
+
+    def pkgconf_release(self) -> str | None:
         return self.resolver.github_version("pkgconf/pkgconf", "pkgconf-")
+
+    def freedesktop_pkg_config_commit(self) -> str | None:
+        return self.resolver.remote_head_commit(FREEDESKTOP_PKG_CONFIG_GIT)
 
     def nv_codec_headers(self) -> str | None:
         return self.resolver.github_version(
@@ -240,12 +270,31 @@ class PackageVersions:
         return self.resolver.github_version("FFmpeg/FFmpeg", "n")
 
     def x265(self) -> str | None:
-        tags = self.resolver.remote_tag_names("https://github.com/Multicorewareinc/x265.git")
-        if tags is None:
+        """The newest x265 release tagged on either host.
+
+        Bitbucket is the official repository, but its GitHub mirror has carried
+        releases Bitbucket lacked, so neither host alone is authoritative.
+        """
+        releases: list[str] = []
+        for host, repository in (("Bitbucket", X265_BITBUCKET_GIT), ("GitHub", X265_GITHUB_GIT)):
+            tags = self.resolver.remote_tag_names(repository)
+            release = (
+                None
+                if tags is None
+                else self.resolver.select_prefixed_version(
+                    tags, "", "alpha|beta|rc", X265_RELEASE_PATTERN
+                )
+            )
+            if release is None:
+                self.logger.warn(
+                    f"x265: no release tag could be read from {host}; "
+                    "the newest release may be missed."
+                )
+                continue
+            releases.append(release)
+        if not releases:
             return None
-        return self.resolver.select_prefixed_version(
-            tags, "", "alpha|beta|rc", re.compile(r"^[0-9]+(\.[0-9]+){1,2}$")
-        )
+        return version_sort(releases)[-1]
 
     def x264(self) -> str:
         """x264 publishes branches, not release tags.

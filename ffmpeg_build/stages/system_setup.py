@@ -89,6 +89,7 @@ REQUIRED_HOST_TOOLS = (
     "nasm",
     "ninja",
     "patch",
+    "pkg-config",
     "pkgconf",
     "python3",
     "ranlib",
@@ -436,6 +437,10 @@ class SystemSetup:
                 "libwayland-dev",
                 "libx11-dev",
             )
+        # Only freedesktop pkg-config, the fallback when pkgconf cannot be
+        # downloaded, needs it; it must never block the primary build.
+        if enabled("pkgconf"):
+            request.add("libglib2.0-dev")
         if enabled("libheif"):
             request.add("libde265-dev")
 

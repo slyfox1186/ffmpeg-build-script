@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from ..runtime.buildsys import CMAKE_NO_PACKAGE_REGISTRY_OPTIONS
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
-from ..runtime.fetchers import find_git_repo, rav1e_download_url
+from ..runtime.fetchers import (
+    X265_BITBUCKET_GIT,
+    X265_GITHUB_GIT,
+    X265_RELEASE_PATTERN,
+    find_git_repo,
+    rav1e_download_url,
+)
 from ..runtime.host import march
 from ..runtime.paths import safe_remove_tree
+from ..runtime.state import read_marker_version
+from ..runtime.versioncmp import version_compare
 from .helpers import (
+    QUICK_MIRROR_SETTINGS,
     check_and_install_cargo_c,
     cmake_ninja_install,
     configure_make_install,
@@ -406,7 +416,7 @@ def _install_gpl_video(context: BuildContext) -> None:
         context.build_done("x264", x264_version)
     context.append_configure_options_if_enabled("x264", "--enable-libx264")
 
-    x265_release = context.fetch_version_if_enabled("x265", context.versions.x265)
+    x265_release = _x265_release(context)
     if context.package_enabled("x265") and x265_release is None:
         raise BuildError("Failed to detect the latest stable 'x265' release.")
     if context.build("x265", x265_release):
@@ -569,6 +579,79 @@ def _install_gpl_video(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("xvidcore", "--enable-libxvid")
 
 
+def _x265_release(context: BuildContext) -> str | None:
+    """The x265 release to build, never older than the one already built.
+
+    Releases are looked up on two hosts. When one cannot be reached, the
+    other may answer with an older release; a refresh must not downgrade a
+    newer build because of that. A build whose installed metadata names a
+    different release is rebuilt once to correct it.
+    """
+    release = context.fetch_version_if_enabled("x265", context.versions.x265)
+    if release is None:
+        return None
+    marker = context.marker_path("x265")
+    recorded = read_marker_version(marker)
+    if recorded is None or not X265_RELEASE_PATTERN.fullmatch(recorded):
+        return release
+    if version_compare(recorded, release) > 0:
+        context.logger.warn(
+            f"x265: the newest release found upstream, {release}, is older than the "
+            f"recorded {recorded}; a release host was probably unreachable. "
+            f"Keeping {recorded}."
+        )
+        return recorded
+    if recorded == release and context.workspace_pkgconf_modules_ready("x265"):
+        reported = context.pkgconf_modversion("x265")
+        if reported and reported != release:
+            context.logger.warn(
+                f"x265 {release} is installed but its metadata reports '{reported}'; "
+                "rebuilding it with the correct release metadata."
+            )
+            marker.unlink(missing_ok=True)
+    return release
+
+
+def _download_x265(context: BuildContext, release: str) -> tuple[Path, str | None]:
+    """Fetch an x265 release from Bitbucket, the official host, else GitHub.
+
+    Returns the source tree and the release's commit when known.
+    """
+    resolver = context.versions.resolver
+    commit = resolver.remote_head_commit(X265_BITBUCKET_GIT, f"refs/tags/{release}")
+    if commit is None:
+        context.logger.info(f"x265: Bitbucket has no {release} tag; downloading from GitHub.")
+    else:
+        with context.downloader.temporary_settings(**QUICK_MIRROR_SETTINGS):
+            source = context.downloader.try_download(
+                f"https://bitbucket.org/multicoreware/x265_git/get/{commit}.tar.bz2",
+                f"x265-{release}.tar.bz2",
+            )
+        if source is not None:
+            return source, commit
+        context.logger.warn(f"x265: the Bitbucket download of {release} failed; trying GitHub.")
+    source = context.download(
+        f"https://github.com/Multicorewareinc/x265/archive/refs/tags/{release}.tar.gz",
+        f"x265-{release}.tar.gz",
+    )
+    return source, resolver.remote_head_commit(X265_GITHUB_GIT, f"refs/tags/{release}")
+
+
+def _write_x265_version_file(source: Path, release: str, commit: str | None) -> None:
+    """Record the release being built where x265's CMake reads its version.
+
+    A Git archive carries a `x265Version.txt` that upstream does not refresh
+    for each tag, so it can name an older release (4.2's archive says 4.0).
+    That label becomes the installed `x265.pc` version and the version string
+    the library reports.
+    """
+    lines = ["#Attribute: \t     Values"]
+    if commit is not None:
+        lines.append(f"repositorychangeset: {commit[:7]}")
+    lines += ["releasetagdistance: 0", f"releasetag: {release}"]
+    (source / "x265Version.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _build_x265(context: BuildContext, release: str) -> None:
     """Build x265 as one static archive covering 8, 10 and 12-bit depths.
 
@@ -577,10 +660,8 @@ def _build_x265(context: BuildContext, release: str) -> None:
     and then merged with `ar -M` into a single archive FFmpeg can link once.
     """
     workspace = context.workspace
-    source = context.download(
-        f"https://github.com/Multicorewareinc/x265/archive/refs/tags/{release}.tar.gz",
-        f"x265-{release}.tar.gz",
-    )
+    source, commit = _download_x265(context, release)
+    _write_x265_version_file(source, release, commit)
     linux_build = source / "build/linux"
     for depth in ("8bit", "10bit", "12bit"):
         safe_remove_tree(linux_build / depth, linux_build)

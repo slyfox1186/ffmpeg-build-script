@@ -15,6 +15,16 @@ from ..runtime.paths import safe_remove_tree
 _PC_NAME = re.compile(r"^[A-Za-z0-9_.+-]+$")
 _LINKER_FLAG = re.compile(r"^-l[A-Za-z0-9_+.-]+$")
 
+# For a first download attempt that has a fallback behind it: give up quickly
+# rather than wait out the default half-hour transfer timeout on a host that is
+# down. Small source archives only.
+QUICK_MIRROR_SETTINGS = {
+    "connect_timeout": 3,
+    "max_time": 45,
+    "retry": 0,
+    "retry_delay": 3,
+}
+
 
 def ensure_autotools(context: BuildContext, source: Path) -> None:
     """Produce a `configure` without running `autoupdate`.
@@ -139,7 +149,7 @@ def pkgconf_include_dir(context: BuildContext, module: str) -> str | None:
     the way a shell would means a `*` there is expanded against the current
     directory — and a file named `-Ibogus` looks exactly like an include flag.
     """
-    completed = context.runner.capture(["pkgconf", "--cflags-only-I", module])
+    completed = context.runner.capture(["pkg-config", "--cflags-only-I", module])
     if completed.returncode == 0:
         for token in completed.stdout.split():
             if token.startswith("-I"):
@@ -147,12 +157,12 @@ def pkgconf_include_dir(context: BuildContext, module: str) -> str | None:
     include_dir = context.pkgconf_variable(module, "includedir")
     if include_dir:
         return include_dir
-    context.logger.warn(f"Unable to resolve include dir for pkgconf module '{module}'.")
+    context.logger.warn(f"Unable to resolve include dir for pkg-config module '{module}'.")
     return None
 
 
 def pkgconf_library_dir(context: BuildContext, module: str) -> str | None:
-    completed = context.runner.capture(["pkgconf", "--libs-only-L", module])
+    completed = context.runner.capture(["pkg-config", "--libs-only-L", module])
     if completed.returncode == 0:
         for token in completed.stdout.split():
             if token.startswith("-L"):
@@ -160,7 +170,7 @@ def pkgconf_library_dir(context: BuildContext, module: str) -> str | None:
     library_dir = context.pkgconf_variable(module, "libdir")
     if library_dir:
         return library_dir
-    context.logger.warn(f"Unable to resolve library dir for pkgconf module '{module}'.")
+    context.logger.warn(f"Unable to resolve library dir for pkg-config module '{module}'.")
     return None
 
 
@@ -173,7 +183,7 @@ def pkgconf_library_file(context: BuildContext, module: str, basename: str) -> s
         if candidate.is_file():
             return str(candidate)
     context.logger.warn(
-        f"Unable to locate 'lib{basename}' in '{library_dir}' for pkgconf module '{module}'."
+        f"Unable to locate 'lib{basename}' in '{library_dir}' for pkg-config module '{module}'."
     )
     return None
 

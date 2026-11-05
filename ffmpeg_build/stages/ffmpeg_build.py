@@ -523,7 +523,7 @@ class FFmpegStage:
             f"--cpu={march(context.cpu_target)}",
             f"--cc={context.env.get('CC', 'gcc')}",
             f"--cxx={context.env.get('CXX', 'g++')}",
-            "--pkg-config=pkgconf",
+            "--pkg-config=pkg-config",
             "--pkg-config-flags=--static",
             "--disable-autodetect",
             "--disable-debug",
@@ -768,7 +768,7 @@ class FFmpegStage:
         arrived in 7.x. FFmpeg 9.0 raised the floor past that, so this matters
         only when an older pinned release is rebuilt.
         """
-        completed = self.context.runner.capture(["pkgconf", "--cflags", "libplacebo"])
+        completed = self.context.runner.capture(["pkg-config", "--cflags", "libplacebo"])
         if completed.returncode != 0:
             return False
         return self.context.compile_probe(

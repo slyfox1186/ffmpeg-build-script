@@ -1,8 +1,8 @@
-"""Build-system tools: m4, autotools, pkgconf, cmake, meson, ninja, zlib, TLS.
+"""Build-system tools: m4, autotools, pkg-config, cmake, meson, ninja, zlib, TLS.
 
 Stage order is load-bearing across the whole build: later stages use the
-`cmake`, `meson`, `ninja`, `pkgconf` and `nasm` that this stage installs into
-the workspace.
+`cmake`, `meson`, `ninja`, `pkg-config` and `nasm` that this stage installs
+into the workspace.
 """
 
 from __future__ import annotations
@@ -11,19 +11,37 @@ import os
 from pathlib import Path
 
 from ..runtime.artifacts import OPENSSL_DIRECTORY
+from ..runtime.buildsys import meson_project_option_exists
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.exec import strip_workspace_entries
-from ..runtime.fetchers import find_git_repo
+from ..runtime.fetchers import (
+    FREEDESKTOP_SOURCE,
+    PKGCONF_SOURCE,
+    ResolvedVersion,
+    find_git_repo,
+)
 from ..runtime.paths import safe_remove_tree
-from ..runtime.versions import GNU_FALLBACK_MIRROR, GNU_PRIMARY_MIRROR
+from ..runtime.versions import GNU_FALLBACK_MIRROR, GNU_PRIMARY_MIRROR, is_full_commit
 from .helpers import (
+    QUICK_MIRROR_SETTINGS,
     configure_make_install,
+    ensure_autotools,
     meson_ninja_install,
     setup_python_venv,
     workspace_or_pkgconf_include_dir,
     workspace_or_pkgconf_library_dir,
 )
+
+PKGCONF_REPOSITORY = "https://github.com/pkgconf/pkgconf"
+FREEDESKTOP_PKG_CONFIG_ARCHIVES = "https://gitlab.freedesktop.org/pkg-config/pkg-config/-/archive"
+# Host directories compiled into the workspace pkg-config. Flags naming them are
+# filtered from its output, as the host's own resolver does.
+SYSTEM_LIBRARY_PATH = (
+    "/lib:/lib64:/lib/x86_64-linux-gnu:/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu"
+)
+SYSTEM_INCLUDE_PATH = "/usr/include:/usr/include/x86_64-linux-gnu"
+PROVIDER_NAMES = {PKGCONF_SOURCE: "pkgconf", FREEDESKTOP_SOURCE: "freedesktop pkg-config"}
 
 
 def resolve_tool_path(context: BuildContext, tool: str, preferred: Path) -> str | None:
@@ -100,28 +118,7 @@ def install_global_tools(context: BuildContext) -> None:
         configure_make_install(context, source, "--with-pic", f"M4={m4_path}")
         context.build_done("libtool", libtool_version)
 
-    pkgconf_version = context.fetch_version_if_enabled("pkgconf", context.versions.pkgconf)
-    if context.package_enabled("pkgconf") and pkgconf_version is None:
-        raise BuildError("Failed to detect pkgconf version.")
-    if context.build("pkgconf", pkgconf_version):
-        source = context.download(
-            f"https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-{pkgconf_version}.tar.gz",
-            f"pkgconf-{pkgconf_version}.tar.gz",
-        )
-        # Release tarballs from GitHub ship no configure script.
-        context.execute(["autoreconf", "-fi"], cwd=source)
-        configure_make_install(
-            context,
-            source,
-            "--enable-silent-rules",
-            f"--with-pkg-config-dir={context.system_pkg_config_path}",
-            "--with-system-libdir=/lib:/lib64:/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu",
-            "--with-system-includedir=/usr/include:/usr/include/x86_64-linux-gnu",
-        )
-        context.execute(
-            ["ln", "-sf", str(workspace / "bin/pkgconf"), str(workspace / "bin/pkg-config")]
-        )
-        context.build_done("pkgconf", pkgconf_version)
+    _install_pkg_config(context)
 
     cmake_version = context.fetch_version_if_enabled(
         "cmake", lambda: find_git_repo(context.versions, "Kitware/CMake", 1)
@@ -254,6 +251,165 @@ def install_global_tools(context: BuildContext) -> None:
 
     if context.nonfree_and_gpl:
         _install_openssl(context)
+
+
+def pkg_config_version_and_source(
+    resolved: ResolvedVersion | str | None,
+) -> tuple[str | None, str]:
+    """Normalize what `fetch_version_if_enabled` returned for `pkgconf`.
+
+    A recorded marker carries no source, but the two implementations record
+    different shapes: pkgconf a dotted release, freedesktop pkg-config the full
+    commit it was built from, since it has published no release since 2017.
+    """
+    if resolved is None:
+        return None, PKGCONF_SOURCE
+    if isinstance(resolved, ResolvedVersion):
+        return resolved.version, resolved.source
+    return resolved, FREEDESKTOP_SOURCE if is_full_commit(resolved) else PKGCONF_SOURCE
+
+
+def _install_pkg_config(context: BuildContext) -> None:
+    """Build the workspace pkg-config: pkgconf, else freedesktop pkg-config.
+
+    Only a source that cannot be obtained switches implementation; a failed
+    configure or compile is reported as it is.
+    """
+    version, provider = pkg_config_version_and_source(
+        context.fetch_version_if_enabled("pkgconf", context.versions.pkgconf)
+    )
+    if context.package_enabled("pkgconf") and version is None:
+        raise BuildError("Failed to detect a pkgconf or freedesktop pkg-config version.")
+    if not context.build("pkgconf", version):
+        return
+    assert version is not None
+    provider, version, source = _acquire_pkg_config(context, provider, version)
+    if provider == FREEDESKTOP_SOURCE:
+        _build_freedesktop_pkg_config(context, source, version)
+    else:
+        _build_pkgconf(context, source)
+    context.build_done("pkgconf", version)
+
+
+def _download_pkg_config(context: BuildContext, provider: str, version: str) -> Path | None:
+    # Every attempt here has another behind it, so none may stall the build.
+    with context.downloader.temporary_settings(**QUICK_MIRROR_SETTINGS):
+        if provider == FREEDESKTOP_SOURCE:
+            return context.downloader.try_download(
+                f"{FREEDESKTOP_PKG_CONFIG_ARCHIVES}/{version}/pkg-config-{version}.tar.bz2",
+                f"pkg-config-{version}.tar.bz2",
+            )
+        # The uploaded release ships a generated configure and is the smallest
+        # archive; older releases were never uploaded, so the tag snapshot follows.
+        source = context.downloader.try_download(
+            f"{PKGCONF_REPOSITORY}/releases/download/pkgconf-{version}/pkgconf-{version}.tar.xz",
+            f"pkgconf-{version}.tar.xz",
+        )
+        if source is not None:
+            return source
+        return context.downloader.try_download(
+            f"{PKGCONF_REPOSITORY}/archive/refs/tags/pkgconf-{version}.tar.gz",
+            f"pkgconf-{version}.tar.gz",
+        )
+
+
+def _acquire_pkg_config(
+    context: BuildContext, provider: str, version: str
+) -> tuple[str, str, Path]:
+    """Download the selected implementation, or the other one when it is unavailable."""
+    source = _download_pkg_config(context, provider, version)
+    if source is not None:
+        return provider, version, source
+    if provider == FREEDESKTOP_SOURCE:
+        fallback, fallback_version = PKGCONF_SOURCE, context.versions.pkgconf_release()
+    else:
+        fallback, fallback_version = (
+            FREEDESKTOP_SOURCE,
+            context.versions.freedesktop_pkg_config_commit(),
+        )
+    context.logger.warn(
+        f"{PROVIDER_NAMES[provider]} {version} could not be downloaded; "
+        f"falling back to {PROVIDER_NAMES[fallback]}."
+    )
+    if fallback_version is None:
+        raise BuildError(
+            f"Failed to download {PROVIDER_NAMES[provider]} {version}, and no "
+            f"{PROVIDER_NAMES[fallback]} version could be resolved."
+        )
+    context.replace_package_version("pkgconf", fallback_version)
+    source = _download_pkg_config(context, fallback, fallback_version)
+    if source is None:
+        raise BuildError("Failed to download both pkgconf and freedesktop pkg-config.")
+    return fallback, fallback_version, source
+
+
+def _build_pkgconf(context: BuildContext, source: Path) -> None:
+    workspace = context.workspace
+    # pkgconf's autotools build is deprecated in 3.0 and announced for removal
+    # in 3.1. Meson is used once the release declares the search-path option,
+    # which older Meson files lack.
+    if meson_project_option_exists(source, "with-pkg-config-dir"):
+        # A static libpkgconf keeps the installed tool runnable without the
+        # workspace on the loader path.
+        meson_ninja_install(
+            context,
+            source,
+            "build",
+            "--libdir=lib",
+            "--buildtype=release",
+            "-Ddefault_library=static",
+            f"-Dwith-pkg-config-dir={context.system_pkg_config_path}",
+            f"-Dwith-system-libdir={SYSTEM_LIBRARY_PATH}",
+            f"-Dwith-system-includedir={SYSTEM_INCLUDE_PATH}",
+        )
+    else:
+        ensure_autotools(context, source)
+        configure_make_install(
+            context,
+            source,
+            "--enable-silent-rules",
+            f"--with-pkg-config-dir={context.system_pkg_config_path}",
+            f"--with-system-libdir={SYSTEM_LIBRARY_PATH}",
+            f"--with-system-includedir={SYSTEM_INCLUDE_PATH}",
+        )
+    context.execute(
+        ["ln", "-sf", str(workspace / "bin/pkgconf"), str(workspace / "bin/pkg-config")]
+    )
+
+
+def _build_freedesktop_pkg_config(context: BuildContext, source: Path, commit: str) -> None:
+    """Build freedesktop pkg-config against the host GLib.
+
+    Its bundled 2013 GLib no longer compiles with current GCC or Clang, so the
+    host's development package is required instead.
+    """
+    if not context.runner.probe(["/usr/bin/pkgconf", "--exists", "glib-2.0"]):
+        raise BuildError(
+            "freedesktop pkg-config needs the host GLib development files; "
+            "install 'libglib2.0-dev' and retry."
+        )
+    workspace = context.workspace
+    context.logger.info(f"pkgconf: building freedesktop pkg-config at commit {commit[:12]}.")
+    # The bundled GLib's m4 macros clash with the host's glib-gettext.m4, and
+    # that subproject is never configured here.
+    context.execute(["autoreconf", "-fi", "--no-recursive"], cwd=source)
+    # The host tool finds the host GLib; workspace metadata and flags stay out.
+    configure_make_install(
+        context,
+        source,
+        "--disable-host-tool",
+        f"--with-pc-path={context.system_pkg_config_path}",
+        f"--with-system-include-path={SYSTEM_INCLUDE_PATH}",
+        f"--with-system-library-path={SYSTEM_LIBRARY_PATH}",
+        "PKG_CONFIG=/usr/bin/pkgconf",
+        env_overrides={
+            "PKG_CONFIG_PATH": strip_workspace_entries(
+                context.env.get("PKG_CONFIG_PATH", ""), workspace, ":"
+            ),
+            "CPPFLAGS": strip_workspace_entries(context.env.get("CPPFLAGS", ""), workspace),
+            "LDFLAGS": strip_workspace_entries(context.env.get("LDFLAGS", ""), workspace),
+        },
+    )
 
 
 def _install_openssl(context: BuildContext) -> None:

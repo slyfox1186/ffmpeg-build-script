@@ -210,7 +210,7 @@ class BuildContext:
     # -- workspace probes ------------------------------------------------
 
     def pkgconf_available(self) -> bool:
-        return self.runner.which("pkgconf") is not None
+        return self.runner.which("pkg-config") is not None
 
     def library_exists(self, *modules: str) -> bool:
         """True when pkg-config can satisfy every module.
@@ -220,7 +220,7 @@ class BuildContext:
         """
         if not modules or not self.pkgconf_available():
             return False
-        return self.runner.probe(["pkgconf", "--exists", *modules])
+        return self.runner.probe(["pkg-config", "--exists", *modules])
 
     def header_exists(self, header: str) -> bool:
         """True when the active C toolchain can find a header.
@@ -257,7 +257,12 @@ class BuildContext:
         )
 
     def pkgconf_variable(self, module: str, variable: str) -> str:
-        completed = self.runner.capture(["pkgconf", f"--variable={variable}", module])
+        completed = self.runner.capture(["pkg-config", f"--variable={variable}", module])
+        return completed.stdout.strip() if completed.returncode == 0 else ""
+
+    def pkgconf_modversion(self, module: str) -> str:
+        """The `Version` a module's metadata declares, or "" when unavailable."""
+        completed = self.runner.capture(["pkg-config", "--modversion", module])
         return completed.stdout.strip() if completed.returncode == 0 else ""
 
     def workspace_pkgconf_modules_ready(self, *modules: str) -> bool:
@@ -271,7 +276,7 @@ class BuildContext:
             return False
         workspace_resolved = canonicalize(self.workspace)
         for module in modules:
-            if not self.runner.probe(["pkgconf", "--exists", module]):
+            if not self.runner.probe(["pkg-config", "--exists", module]):
                 return False
             prefix = self.pkgconf_variable(module, "prefix")
             if prefix:
@@ -284,11 +289,13 @@ class BuildContext:
         return True
 
     def pkgconf_uses_system_default_path(self, pkgconf_binary: Path) -> bool:
-        """True when the workspace pkgconf kept the host's compiled defaults.
+        """True when the workspace pkg-config kept the host's compiled defaults.
 
-        A pkgconf built with the workspace baked into its default search path
+        A resolver built with the workspace baked into its default search path
         would make every later probe find workspace metadata even with
-        `PKG_CONFIG_PATH` unset, which hides missing host packages.
+        `PKG_CONFIG_PATH` unset, which hides missing host packages. pkgconf
+        and freedesktop pkg-config both answer for the virtual `pkg-config`
+        module.
         """
         if not pkgconf_binary.is_file() or not self.system_pkg_config_path:
             return False
@@ -296,7 +303,7 @@ class BuildContext:
         for name in ("PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR"):
             environment.pop(name, None)
         completed = Runner(self.logger, environment).capture(
-            [str(pkgconf_binary), "--variable=pc_path", "pkgconf"],
+            [str(pkgconf_binary), "--variable=pc_path", "pkg-config"],
             timeout=30,
         )
         if completed.returncode != 0:
@@ -306,7 +313,7 @@ class BuildContext:
     def package_artifacts_ready(self, key: str) -> bool:
         """True when the workspace still holds what this package installed."""
         if key == "pkgconf":
-            return self.pkgconf_uses_system_default_path(self.workspace / "bin/pkgconf")
+            return self.pkgconf_uses_system_default_path(self.workspace / "bin/pkg-config")
         if key == "liblame":
             return self.workspace_static_library_links(
                 "mp3lame",
@@ -608,6 +615,19 @@ class BuildContext:
             self.package_in_progress = ""
         else:
             self.logger.package_done(key, version)
+
+    def replace_package_version(self, key: str, version: str) -> None:
+        """Record that the package in progress is being built at another version.
+
+        A recipe that falls back to a different upstream after `build` started
+        calls this, so completion and failure reports name what was built.
+        Markers and counters are untouched: `build` already did that once.
+        """
+        if key != self.package_in_progress:
+            raise BuildError(f"Cannot change the version of '{key}': it is not being built.")
+        if not is_valid_version(version):
+            raise BuildError(f"replace_package_version() received an invalid version for '{key}'.")
+        self.package_version = version
 
     # -- convenience -----------------------------------------------------
 

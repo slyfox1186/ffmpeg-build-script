@@ -11,6 +11,17 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **pkg-config falls back to freedesktop.org pkg-config.** The workspace
+  resolver is still pkgconf, now downloaded as its uploaded `.tar.xz` release
+  and built with Meson, since pkgconf drops Autotools in 3.1. When pkgconf
+  cannot be downloaded, freedesktop.org pkg-config is built from its newest
+  commit instead. Every recipe and FFmpeg call the resolver `pkg-config`, so
+  FFmpeg is reconfigured once.
+- **x265 comes from its official Bitbucket repository** when that repository
+  has the newest release, and from the GitHub mirror otherwise. The newest
+  release on either host is built, and the installed `x265.pc` and library now
+  report that release; Git archives named an older one, such as 4.2 for 4.3.
+  Workspaces carrying the wrong label rebuild x265 once.
 - **Choose the CPU the build is optimized for.** `--cpu-target` (or
   `cpu_target` in `[build]`, or `t` in the menu) takes `native`, the default
   and fastest, or a portable target: `generic` runs on any x86-64 CPU and
@@ -471,7 +482,28 @@ Every source recipe discovers releases from upstream tags or release indexes;
 there are no fixed release-version fallbacks. Git packages select stable release
 tags and verify the checked-out commit, including annotated tags. x264 uses
 upstream's `stable` branch because it does not publish ordinary release tags;
-SDL2 stays within the SDL2 API family. Rust, cargo-c, and NVIDIA's CUDA keyring
+SDL2 stays within the SDL2 API family.
+The workspace `pkg-config` is pkgconf at its newest release, downloaded as the
+uploaded `.tar.xz` and otherwise as the tag snapshot of the same version. It is
+built with Meson when the release declares Meson's search-path option, and with
+Autotools before that. When neither pkgconf archive can be downloaded, or no
+release can be found, freedesktop.org pkg-config is built from its newest
+`HEAD` commit against the host GLib (`libglib2.0-dev`, installed when
+available), and the commit is recorded as the version. The fallback does not
+apply `Cflags.private` and matches field names such as `Libs.private` case
+sensitively, so it can omit flags pkgconf emits. When a recorded
+implementation's source is unavailable during a repair, the other one is
+built and recorded; a configure or compile failure is never retried with the
+other implementation. FFmpeg runs the resolver as `pkg-config`, which both
+install, so workspaces configured with `pkgconf` reconfigure FFmpeg once,
+whenever the FFmpeg source is available to check.
+x265 builds the newest release tagged on either its official Bitbucket
+repository or its GitHub mirror, downloading from Bitbucket when it carries
+that tag and from GitHub otherwise or when the Bitbucket download fails. A
+refresh that reaches only one host never replaces a newer recorded release
+with an older one. The build records the selected release and its commit in
+`x265Version.txt`, because Git archives carry a stale label there, and a
+finished build whose `x265.pc` reports another release is rebuilt once. Rust, cargo-c, and NVIDIA's CUDA keyring
 also resolve their current releases dynamically. Adopting dynamic Rust
 tools rebuilds rav1e and FFmpeg while preserving other compatible dependencies.
 System integrations use the distribution's APT packages; their versions follow
@@ -825,6 +857,11 @@ the projects it invokes:
 - [FFmpeg configure options and dependency checks](https://github.com/FFmpeg/FFmpeg/blob/master/configure)
   (the build resolves its FFmpeg version at runtime rather than pinning one)
 - [pkgconf 3.0.4 package search path semantics](https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.4/man/pkgconf.1)
+  and the [Autotools deprecation and Meson build options](https://github.com/pkgconf/pkgconf/blob/master/README.md)
+- [freedesktop.org pkg-config](https://gitlab.freedesktop.org/pkg-config/pkg-config),
+  the fallback resolver
+- [x265's official repository](https://bitbucket.org/multicoreware/x265_git) and
+  [GitHub mirror](https://github.com/Multicorewareinc/x265)
 - [CMake package-registry controls](https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-registry)
 - [Meson subproject and wrap-mode controls](https://mesonbuild.com/Subprojects.html#command-line-options)
 - [GNU tar security guidance](https://www.gnu.org/software/tar/manual/html_node/Security.html)

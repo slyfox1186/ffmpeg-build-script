@@ -16,21 +16,13 @@ from ..runtime.fetchers import (
 )
 from ..runtime.versions import GNU_FALLBACK_MIRROR, GNU_PRIMARY_MIRROR
 from .helpers import (
+    QUICK_MIRROR_SETTINGS,
     cmake_ninja_install,
     configure_make_install,
     ensure_autotools,
     meson_ninja_install,
     pkgconfig_add_private_lib,
 )
-
-# Two mirrors are tried in sequence for the font packages, so the first attempt
-# must give up quickly rather than wait out the default transfer timeout.
-_FONT_MIRROR_SETTINGS = {
-    "connect_timeout": 3,
-    "max_time": 45,
-    "retry": 0,
-    "retry_delay": 3,
-}
 
 
 def install_support_libraries(context: BuildContext) -> None:
@@ -418,7 +410,7 @@ def _install_fonts(context: BuildContext) -> None:
         )
     if context.build("freetype", freetype_version):
         assert freetype_version is not None
-        with context.downloader.temporary_settings(**_FONT_MIRROR_SETTINGS):
+        with context.downloader.temporary_settings(**QUICK_MIRROR_SETTINGS):
             if freetype_source == "gitlab":
                 source = context.downloader.download_with_fallback(
                     freetype_gitlab_archive_url(freetype_version),
@@ -455,7 +447,7 @@ def _install_fonts(context: BuildContext) -> None:
         )
     if context.build("fontconfig", fontconfig_version):
         assert fontconfig_version is not None
-        with context.downloader.temporary_settings(**_FONT_MIRROR_SETTINGS):
+        with context.downloader.temporary_settings(**QUICK_MIRROR_SETTINGS):
             if fontconfig_source == "gitlab":
                 source = context.downloader.download_with_fallback(
                     fontconfig_gitlab_archive_url(fontconfig_version),
