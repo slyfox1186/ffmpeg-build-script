@@ -15,7 +15,7 @@ from typing import TypeVar
 
 from .. import registry
 from ..config import Selection
-from . import artifacts, shellquote
+from . import artifacts
 from .download import Downloader, DownloadSettings
 from .errors import BuildError
 from .exec import Runner, path_prepend
@@ -564,9 +564,9 @@ class BuildContext:
             if prior_version == version:
                 self.packages_already_built += 1
                 self.logger.package_reused(key, version)
-                self.logger.debug(
-                    "Force a rebuild with: " + shellquote.join(["rm", "-f", "--", str(marker)])
-                )
+                # Shown on its own line so it can be copied whole; deleting the
+                # marker rebuilds the package on the next run.
+                self.logger.hint(str(marker))
                 return False
             if self.latest:
                 self._start_package_build(key, version, prior_version)
@@ -575,9 +575,8 @@ class BuildContext:
             self.logger.package_reused(
                 key, prior_version, note=f"-> {version} is outdated; keeping the existing build."
             )
-            self.logger.debug(
-                "Rebuild with '--latest', or: " + shellquote.join(["rm", "-f", "--", str(marker)])
-            )
+            self.logger.hint(str(marker))
+            self.logger.debug("Rebuild with '--latest', or delete the marker above.")
             return False
 
         self._start_package_build(key, version)

@@ -868,6 +868,7 @@ The terminal output reads like a shell session:
 └──────────────────────────┘
 
 [SKIP] openjpeg 2.5.4 is already built.
+       /home/user/ffmpeg-build-script/build/packages/openjpeg.done
 
 Building libheif - version 1.23.5 (replacing 1.23.4)
 ====================================================
@@ -966,7 +967,7 @@ FFMPEG_BUILD_DEBUG=ON python3 build-ffmpeg.py --build --config ./custom.toml
 Common recovery actions:
 
 ```bash
-# Retry only one component.
+# Retry only one component; every [SKIP] line is followed by its marker's full path.
 rm -f build/packages/<package>.done
 python3 build-ffmpeg.py --build --config ./custom.toml
 
