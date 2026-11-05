@@ -131,9 +131,14 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   build and on `--cleanup`, without asking. The prompt now covers only the
   build folder and old build folders, and nothing inside a build root is ever
   counted as a cache.
-  To keep them while you work on this repository, put
-  `BYPASS_CACHE_DELETE=true` in a `.env` file at the top of the checkout
-  (ignored by Git) or set it in the environment, where it takes precedence.
+  To keep them while you work on this repository, set
+  `BYPASS_CACHE_DELETE=true` in your [settings file](#settings-file-env) or in
+  the environment.
+- **A settings file.** Every environment setting the script reads (build
+  folder, debug output, CUDA, download, lookup and Git time limits, lock waits,
+  the cache bypass) can be saved in a `.env` file beside the script.
+  `.env.example` lists each one with what it does and its default; see
+  [Settings file](#settings-file-env).
 - Single-letter options can be grouped: `python3 build-ffmpeg.py -bln` is the
   same as `-b -l -n`, and `-bj8` the same as `-b -j 8`.
 
@@ -300,6 +305,8 @@ Environment variables:
   CUDA_ARCHITECTURES="<list>"     Targets for custom mode, for example "86 89"
   FFMPEG_BUILD_DEBUG=ON           Stream all command output to the terminal; the
                                   build log is still written (default: OFF)
+  .env                            Every setting in .env.example can be saved in
+                                  a .env file beside this script
 
 Examples:
   # Build the packages enabled in your config (copy example.toml first)
@@ -365,6 +372,28 @@ Arguments are validated before any config file is read, so an invalid request
 never applies a package selection. A relative `--config` path resolves against
 the directory you ran the script from, never against the script's own
 directory.
+
+## Settings file (`.env`)
+
+Settings you would otherwise type before the command, such as
+`CUDA_INSTALL=never python3 build-ffmpeg.py --build`, can be saved once:
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env`, delete the `# ` in front of each `NAME=value` line you want
+to change, and edit its value. [`.env.example`](.env.example) lists every
+setting with what it does, its allowed values and its default; every value
+shown is the default, so a line uncommented unchanged changes nothing.
+
+- `.env` sits next to `build-ffmpeg.py` and is ignored by Git.
+- A variable set in the shell wins over `.env` for that run.
+- Only the settings listed in `.env.example` are read. Any other line, such as
+  a misspelled name or one that starts with `export`, is reported with its line
+  number and ignored, so the file cannot change variables such as `PATH`.
+- Values are checked exactly as if they had been exported; an invalid one stops
+  the build before anything is installed. An unreadable `.env` stops the run.
 
 ## Interactive menu
 
@@ -599,7 +628,7 @@ A successful build ends by calling cleanup. It first deletes the temporary
 cache folders inside the checkout (`ffbuild/`, `__pycache__/`, `.mypy_cache/`,
 `.pytest_cache/`, `.ruff_cache/`, `*.egg-info/`) without asking, since they are
 recreated automatically when needed; the scan never enters a build root.
-`BYPASS_CACHE_DELETE=true`, in a `.env` file at the top of the checkout or in
+`BYPASS_CACHE_DELETE=true`, in the [settings file](#settings-file-env) or in
 the environment, keeps them for developers of this repository. Cleanup then
 interactively offers to delete the build root. Answer no to keep the
 sources and workspace for a later incremental build; either answer ends with a

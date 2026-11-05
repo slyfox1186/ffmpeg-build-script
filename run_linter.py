@@ -12,6 +12,8 @@ from pathlib import Path
 
 from ffmpeg_build import registry
 from ffmpeg_build.config import BuildSettings, default_states, render_config
+from ffmpeg_build.runtime.dotenv import TEMPLATE_NAME, render_dotenv_example
+from ffmpeg_build.runtime.settings import DOTENV_SETTINGS
 
 REPO_ROOT = Path(__file__).resolve().parent
 # Developer directories that .gitignore keeps out of the published repository.
@@ -50,6 +52,11 @@ def contract_errors(root: Path) -> list[str]:
         errors.append(
             "example.toml differs from config.render_config() with the template defaults."
         )
+    dotenv_template = root / TEMPLATE_NAME
+    if not dotenv_template.is_file() or dotenv_template.read_text(
+        encoding="utf-8"
+    ) != render_dotenv_example("build-ffmpeg.py", DOTENV_SETTINGS):
+        errors.append(f"{TEMPLATE_NAME} differs from render_dotenv_example(); regenerate it.")
 
     completed = subprocess.run(
         [sys.executable, "-B", str(root / "build-ffmpeg.py"), "--help"],

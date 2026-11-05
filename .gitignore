@@ -52,6 +52,7 @@ htmlcov/
 # Secrets and local configuration
 .env
 .env.*
+!.env.example
 /custom*.toml
 
 # Developer-only directories kept out of the published repository

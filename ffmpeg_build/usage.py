@@ -89,6 +89,7 @@ ENVIRONMENT = (
         "FFMPEG_BUILD_DEBUG=ON",
         "Stream all command output to the terminal; the build log is still written (default: OFF)",
     ),
+    (".env", "Every setting in .env.example can be saved in a .env file beside this script"),
 )
 EXAMPLES = (
     (

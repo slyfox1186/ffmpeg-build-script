@@ -22,6 +22,7 @@ from .cli import (
 from .config import CLEANUP_COMMAND, BuildSettings, Selection, load_config
 from .runtime.build_lock import take_over_build_lock
 from .runtime.context import BuildContext
+from .runtime.dotenv import load_dotenv
 from .runtime.errors import REPOSITORY_URL, BuildError, SignalStop, UsageError
 from .runtime.exec import Runner, base_environment, notify_failure
 from .runtime.host import (
@@ -46,8 +47,8 @@ from .runtime.paths import (
 )
 from .runtime.settings import (
     BYPASS_CACHE_DELETE,
+    DOTENV_SETTINGS,
     MAX_PROCESS_INTEGER,
-    checkout_setting,
     parse_integer,
     parse_switch,
 )
@@ -609,18 +610,9 @@ class Orchestrator:
         repository = canonicalize(self.repo_root)
         return [path for path in self._leftover_artifacts() if is_legacy_root(path, repository)]
 
-    def _keeps_caches(self, repository: Path) -> bool:
-        """Whether `BYPASS_CACHE_DELETE`, from the environment or `.env`, keeps them.
-
-        Keeping is the safe answer whenever the setting cannot be read.
-        """
-        try:
-            value = checkout_setting(repository, BYPASS_CACHE_DELETE)
-        except (OSError, UnicodeDecodeError) as error:
-            self.logger.warn(
-                f"Keeping the cache folders: cannot read '{repository / '.env'}': {error}"
-            )
-            return True
+    def _keeps_caches(self) -> bool:
+        """Whether `BYPASS_CACHE_DELETE`, from the environment or `.env`, keeps them."""
+        value = os.environ.get(BYPASS_CACHE_DELETE, "")
         keep = parse_switch(value)
         if keep is None:
             self.logger.warn(
@@ -645,7 +637,7 @@ class Orchestrator:
         caches = [
             path for path in self._leftover_artifacts() if not is_legacy_root(path, repository)
         ]
-        if not caches or self._keeps_caches(repository):
+        if not caches or self._keeps_caches():
             return
         size = _combined_size(caches)
         deleted = 0
@@ -1065,7 +1057,17 @@ def _install_signal_handlers() -> None:
 
 def main(argv: list[str]) -> int:
     repo_root = Path(__file__).resolve().parent.parent
+    # Before the orchestrator exists: it captures the environment its commands
+    # inherit and reads FFMPEG_BUILD_DEBUG, and BUILD_ROOT and the timeouts are
+    # read from os.environ.
+    try:
+        warnings = load_dotenv(repo_root / ".env", DOTENV_SETTINGS)
+    except UsageError as error:
+        Logger().error(str(error))
+        return 1
     orchestrator = Orchestrator(repo_root, argv)
+    for warning in warnings:
+        orchestrator.logger.warn(warning)
     _install_signal_handlers()
     try:
         return orchestrator.run()
