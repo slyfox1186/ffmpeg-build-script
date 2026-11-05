@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from pathlib import Path
 
 from ..registry import PACKAGES, Gate, Kind
@@ -18,6 +19,25 @@ from ..runtime.host import compiler_cpu_target, march
 APT_SCRIPT_OPTIONS = ("-o", "APT::Cmd::Disable-Script-Warning=1")
 # WSL2's GPU driver libraries and its only 'nvidia-smi'.
 WSL_LIBRARY_DIRECTORY = "/usr/lib/wsl/lib"
+
+
+def compiler_behind_ccache(executable: str, command: str, path: str) -> str | None:
+    """The compiler a ccache shim dispatches to, found the way ccache finds it.
+
+    ccache invoked through a compiler-named symlink walks PATH for that name
+    and skips every candidate that is ccache itself. None when `executable` is
+    not a ccache shim or nothing else on PATH answers to the name.
+    """
+    if Path(executable).resolve().name != "ccache":
+        return None
+    for entry in path.split(":"):
+        if not entry:
+            continue
+        candidate = shutil.which(command, path=entry)
+        if candidate is not None and Path(candidate).resolve().name != "ccache":
+            return candidate
+    return None
+
 
 BASE_PACKAGES = (
     "autoconf",
@@ -585,7 +605,11 @@ class SystemSetup:
             if result.returncode != 0 or not lines:
                 self.logger.warn(f"{label}: unable to read the version from '{executable}'.")
                 continue
-            self.logger.info(f"{label}: '{lines[0]}' ('{executable}').")
+            location = f"'{executable}'"
+            compiler = compiler_behind_ccache(executable, command, self.context.env["PATH"])
+            if compiler is not None:
+                location += f", ccache for '{compiler}'"
+            self.logger.info(f"{label}: '{lines[0]}' ({location}).")
 
     def report_compiler_cpu_target(self) -> None:
         """Name the CPU the selected compiler actually generates code for."""

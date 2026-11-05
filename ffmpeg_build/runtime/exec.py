@@ -29,7 +29,10 @@ from .logging import Logger, format_duration
 # Supported hosts provide the bootstrap toolchain in these administrator-
 # controlled locations. Starting from a deterministic base prevents an
 # unrelated user-local executable from silently replacing a build tool.
-BASE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/sbin"
+# `/usr/local` precedes `/usr`, as in a login shell: a compiler the
+# administrator installed there, and the compiler a ccache shim re-resolves
+# along this PATH, must win over the distribution's copy.
+BASE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Where a command that names no working directory runs. The directory the build
 # was started from is the user's: `git` reads an enclosing repository's config
