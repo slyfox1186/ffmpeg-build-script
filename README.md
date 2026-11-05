@@ -513,7 +513,10 @@ that tag and from GitHub otherwise or when the Bitbucket download fails. A
 refresh that reaches only one host never replaces a newer recorded release
 with an older one. The build records the selected release and its commit in
 `x265Version.txt`, because Git archives carry a stale label there, and a
-finished build whose `x265.pc` reports another release is rebuilt once. Rust, cargo-c, and NVIDIA's CUDA keyring
+finished build whose `x265.pc` reports another release is rebuilt once. Until
+a release contains upstream commit 98eec40, the build adds its `<cstdint>`
+include to the HDR10+ JSON parser, which GCC 15's C++ headers otherwise leave
+without `uint8_t` under both GCC and Clang. Rust, cargo-c, and NVIDIA's CUDA keyring
 also resolve their current releases dynamically. Adopting dynamic Rust
 tools rebuilds rav1e and FFmpeg while preserving other compatible dependencies.
 System integrations use the distribution's APT packages; their versions follow

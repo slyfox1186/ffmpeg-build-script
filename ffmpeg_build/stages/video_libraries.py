@@ -652,6 +652,28 @@ def _write_x265_version_file(source: Path, release: str, commit: str | None) -> 
     (source / "x265Version.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def fix_x265_json11_cstdint(context: BuildContext, source: Path) -> None:
+    """Declare `uint8_t` in x265's HDR10+ JSON parser.
+
+    https://github.com/Multicorewareinc/x265/commit/98eec4057fc20850b59ed292b3f13ddeefc2f93f
+    json11.cpp uses `uint8_t` without including `<cstdint>`. GCC 15's libstdc++,
+    which Clang also uses here, no longer includes it transitively, so the 10-bit
+    HDR10+ build fails with either compiler on releases predating that commit.
+    """
+    target = source / "source/dynamicHDR10/json11/json11.cpp"
+    if not target.is_file():
+        return
+    lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
+    if any(line.strip() == "#include <cstdint>" for line in lines):
+        return
+    for index, line in enumerate(lines):
+        if line.strip() == "#include <cmath>":
+            lines.insert(index + 1, "#include <cstdint>\n")
+            target.write_text("".join(lines), encoding="utf-8")
+            context.logger.info("Applied upstream x265 json11 <cstdint> include (commit 98eec40).")
+            return
+
+
 def _build_x265(context: BuildContext, release: str) -> None:
     """Build x265 as one static archive covering 8, 10 and 12-bit depths.
 
@@ -662,6 +684,7 @@ def _build_x265(context: BuildContext, release: str) -> None:
     workspace = context.workspace
     source, commit = _download_x265(context, release)
     _write_x265_version_file(source, release, commit)
+    fix_x265_json11_cstdint(context, source)
     linux_build = source / "build/linux"
     for depth in ("8bit", "10bit", "12bit"):
         safe_remove_tree(linux_build / depth, linux_build)
