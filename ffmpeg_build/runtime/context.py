@@ -408,6 +408,22 @@ class BuildContext:
     def marker_path(self, key: str) -> Path:
         return self.packages / f"{key}.done"
 
+    def pin_path(self, key: str) -> Path:
+        """The release a package is being rebuilt at, kept until it completes.
+
+        Rebuilding is not upgrading: an invalidated or interrupted package is
+        rebuilt at this release unless `--latest` asks for the newest.
+        """
+        return self.packages / f"{key}.pin"
+
+    def invalidate(self, key: str) -> None:
+        """Make `key` rebuild at the release its completion marker records."""
+        marker = self.marker_path(key)
+        if read_marker_version(marker) is not None:
+            os.replace(marker, self.pin_path(key))
+        else:
+            marker.unlink(missing_ok=True)
+
     def fetch_version_if_enabled(
         self, key: str, fetcher: Callable[[], _Version | None]
     ) -> str | _Version | None:
@@ -423,7 +439,7 @@ class BuildContext:
 
         if not self.latest:
             marker = self.marker_path(key)
-            prior_version = read_marker_version(marker)
+            prior_version = read_marker_version(marker) or read_marker_version(self.pin_path(key))
             if prior_version is not None:
                 if key == "m4" and prior_version == "latest":
                     self.logger.warn(
@@ -436,7 +452,8 @@ class BuildContext:
                     return prior_version.removeprefix("n")
                 else:
                     # build() checks artifacts and invalidates consumers. A
-                    # missing artifact needs repair, not an implicit upgrade.
+                    # missing artifact or a pinned rebuild is a repair, not an
+                    # implicit upgrade.
                     return prior_version
         return fetcher()
 
@@ -445,7 +462,7 @@ class BuildContext:
         if not self.package_enabled(key):
             return None
         marker = self.marker_path(key)
-        prior_version = read_marker_version(marker)
+        prior_version = read_marker_version(marker) or read_marker_version(self.pin_path(key))
         source_directory = self.packages / key
         valid_prior = (
             prior_version is not None
@@ -542,7 +559,6 @@ class BuildContext:
                     f"{key} has a build marker but its workspace artifacts are missing or "
                     "outdated; rebuilding."
                 )
-                marker.unlink(missing_ok=True)
                 self._start_package_build(key, version)
                 return True
             if prior_version == version:
@@ -576,17 +592,22 @@ class BuildContext:
         # Recipes install in place. Invalidate before any write, including on
         # --latest: a failed upgrade may leave new artifacts beside old ones.
         # Consumers must also rebuild when a dependency's static archive changes.
+        # Each keeps its release as a pin, so an interrupted run resumes the
+        # same releases instead of upgrading.
+        links = [(rule.package, rule.needs) for rule in registry.REQUIREMENTS]
+        links += list(registry.LINKED_WHEN_ENABLED)
         invalidated = {key, "ffmpeg"}
         while True:
-            consumers = {
-                rule.package for rule in registry.REQUIREMENTS if rule.needs in invalidated
-            }
+            consumers = {consumer for consumer, producer in links if producer in invalidated}
             expanded = invalidated | consumers
             if expanded == invalidated:
                 break
             invalidated = expanded
-        for package in sorted(invalidated):
-            self.marker_path(package).unlink(missing_ok=True)
+        self.packages.mkdir(parents=True, exist_ok=True)
+        write_marker_version(self.pin_path(key), version)
+        self.marker_path(key).unlink(missing_ok=True)
+        for package in sorted(invalidated - {key}):
+            self.invalidate(package)
         self.packages_built += 1
         self._package_started = self.logger.elapsed_seconds
         self.package_in_progress = key
@@ -605,6 +626,7 @@ class BuildContext:
             )
         self.packages.mkdir(parents=True, exist_ok=True)
         write_marker_version(self.marker_path(key), version)
+        self.pin_path(key).unlink(missing_ok=True)
 
         # Only time packages this run actually started. A recipe that finishes
         # outside a `build` branch would otherwise report the elapsed time of
@@ -621,13 +643,15 @@ class BuildContext:
 
         A recipe that falls back to a different upstream after `build` started
         calls this, so completion and failure reports name what was built.
-        Markers and counters are untouched: `build` already did that once.
+        Counters are untouched, since `build` already counted it; the pin
+        follows, so a resumed run rebuilds the version that was being built.
         """
         if key != self.package_in_progress:
             raise BuildError(f"Cannot change the version of '{key}': it is not being built.")
         if not is_valid_version(version):
             raise BuildError(f"replace_package_version() received an invalid version for '{key}'.")
         self.package_version = version
+        write_marker_version(self.pin_path(key), version)
 
     # -- convenience -----------------------------------------------------
 

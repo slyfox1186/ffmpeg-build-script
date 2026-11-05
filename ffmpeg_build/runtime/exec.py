@@ -189,6 +189,34 @@ def managed_process(
                 stream.close()
 
 
+CANCELLATION_SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
+
+
+@contextmanager
+def defer_cancellation() -> Iterator[list[str]]:
+    """Hold off cancellation while a recovery must run to its end.
+
+    Yields the names of the signals that arrived. The handler only records
+    them: logging from a signal handler can re-enter a buffered stream. Every
+    command runs in a process group of its own, so the terminal's Ctrl+C
+    reaches only this process and each recovery command runs to its end.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield []
+        return
+    received: list[str] = []
+
+    def record(signal_number: int, _frame: object) -> None:
+        received.append(signal.Signals(signal_number).name)
+
+    previous = {number: signal.signal(number, record) for number in CANCELLATION_SIGNALS}
+    try:
+        yield received
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
 class Runner:
     """Runs commands with this project's logging and environment behavior."""
 

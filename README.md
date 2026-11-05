@@ -11,6 +11,25 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **Takeover also stops workers whose parent already exited.** Every command
+  runs in a process group of its own, and the takeover stops and kills each of
+  those groups too. A build in the middle of a privileged step (APT, CUDA or
+  the FFmpeg install) is never interrupted; the new build names the PID to wait
+  for or stop instead.
+- **An unfinished FFmpeg install blocks every build root.** The programs a
+  promotion replaces are saved to
+  `/usr/local/share/ffmpeg-build-script/previous-install/` instead of the build
+  root, so every workspace and user waits until a failed restore is put back.
+  Cancellation waits until every program has been restored, and the reuse
+  checks and closing summary read `/usr/local` only under its install lock.
+- **Rebuilds keep their releases.** A package being rebuilt records its release
+  in `packages/<package>.pin`, so packages rebuilt because a dependency changed,
+  and a rebuild interrupted part-way, resume at the releases they had instead of
+  upgrading. Rebuilding rav1e, x265 or libaom also rebuilds libheif, and
+  rebuilding zlib, libpng or libjpeg-turbo rebuilds what links them.
+- **WSL2 kernels older than 5.10** (`-microsoft-standard`, without `WSL2`) are
+  no longer refused as WSL1, and a pre-release Python in the Conda environment
+  is skipped in favour of a stable one.
 - **Conda is optional.** The launcher uses an existing `install-ffmpeg` Conda
   environment, and otherwise the newest compatible system Python, without
   invoking Conda. It offers to create the environment only when no Python 3.12
@@ -476,7 +495,8 @@ build/
 │   ├── <downloaded archives>
 │   ├── <archive>.sha256
 │   ├── <extracted sources>
-│   └── <package>.done
+│   ├── <package>.done
+│   └── <package>.pin       (only while a rebuild is unfinished)
 └── workspace/
     ├── bin/
     ├── include/
@@ -487,7 +507,11 @@ build/
 Each successful component writes an atomic `.done` marker containing the exact
 release version or Git commit used. A normal rerun reuses those versions and
 does not contact every upstream service. `--latest` refreshes upstream versions
-and rebuilds components whose recorded version changed.
+and rebuilds components whose recorded version changed. A component being
+rebuilt, whether because its files are missing, a dependency it links was
+rebuilt, or a previous run stopped part-way, keeps its release in
+`<package>.pin` until it completes, so it is rebuilt at that release rather
+than upgraded; `--latest` ignores pins.
 Every source recipe discovers releases from upstream tags or release indexes;
 there are no fixed release-version fallbacks. Git packages select stable release
 tags and verify the checked-out commit, including annotated tags. x264 uses
@@ -739,8 +763,12 @@ Starting a build automatically force-kills a competing build that owns the same
 build-root lock, including its worker processes, before acquiring the lock.
 The owner is identified by the kernel lock record and process descriptors are
 pinned before signalling. Unrelated processes and other build roots are left
-alone. If a worker belongs to another user or cannot be stopped, takeover fails
-and surviving stopped processes are resumed. Host installation locks still wait
+alone. A worker whose parent already exited is still found: every command runs
+in a process group of its own, and each group is stopped and killed while its
+stopped leader keeps the group ID from being reused. If a worker belongs to
+another user (sudo and the privileged step it runs) or cannot be stopped,
+takeover fails, names the build to wait for or stop, and surviving stopped
+processes are resumed. Host installation locks still wait
 or fail normally; they do not force-kill their owners.
 
 In addition to the compressed transfer limit, archives are limited to 8 GiB of
@@ -756,7 +784,11 @@ entries relative to those descriptors. It preserves other devices and reports
 removal errors; same-device bind mounts are subject to the same limitation as
 `rm --one-file-system`. Host-mutation lock failures stop the operation. Final
 FFmpeg backup, installation, validation and rollback share a lock on the
-installation prefix across workspaces and users.
+installation prefix across workspaces and users, and so do the reuse checks and
+the closing summary. The programs being replaced are saved to
+`/usr/local/share/ffmpeg-build-script/previous-install/`, which every workspace
+sees: while it exists, no install starts. Cancellation waits until every
+program has been restored.
 
 The project does **not** copy workspace libraries over distribution libraries,
 replace `libstdc++`, delete a system Rust compiler, wipe Cargo caches, or append
@@ -935,6 +967,11 @@ python3 build-ffmpeg.py --cleanup
 ```
 
 Do not remove a `.done` marker unless you intend to rebuild that component.
+
+`An earlier install's backup of the FFmpeg programs is still at ...` means a
+previous install's restore failed or was killed. Restore it with the printed
+`sudo cp` command, or delete the directory if the current `/usr/local/bin`
+programs are what you want, then rerun.
 When reporting a failure, include the failing command, its emitted output, the
 host release, compiler choice, and relevant config entries.
 

@@ -13,14 +13,15 @@ import os
 import re
 import sys
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from ..registry import PACKAGES, Gate
 from ..runtime.context import BuildContext
 from ..runtime.download import archive_output_directory
-from ..runtime.errors import BuildError, SignalStop
-from ..runtime.exec import Runner, base_environment
+from ..runtime.errors import BuildError
+from ..runtime.exec import Runner, base_environment, defer_cancellation
 from ..runtime.host import march
 from ..runtime.logging import Logger, format_duration
 from ..runtime.paths import DirectoryLock, safe_remove_tree
@@ -35,6 +36,30 @@ _FILTER_ROW = re.compile(r"^ [.TSC]{2,3} ")
 # and the exact configure arguments that build was made with.
 INSTALL_RECEIPT_NAME = "ffmpeg.installed"
 CONFIGURE_RECEIPT_NAME = "ffmpeg.configured"
+INSTALL_PREFIX = Path("/usr/local")
+INSTALLED_PROGRAMS = ("ffmpeg", "ffprobe", "ffplay")
+# Under the install prefix: the programs a promotion replaced, kept until the
+# new install passes its checks. Its presence tells every build root and user
+# that an install was never committed or restored, and the next one waits.
+BACKUP_DIRECTORY = "share/ffmpeg-build-script/previous-install"
+
+
+@contextmanager
+def install_prefix_lock(install_prefix: Path | None = None) -> Iterator[None]:
+    """Hold the lock on the install prefix that every build root and user shares.
+
+    Taken for every read of the installed programs as well as for the install,
+    so no check sees another build's half-installed tree.
+    """
+    install_prefix = install_prefix or INSTALL_PREFIX
+    lock = DirectoryLock(install_prefix)
+    timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT") or "3600")
+    if not lock.acquire(timeout=timeout):
+        raise BuildError(
+            f"Timed out waiting for another build to finish installing into '{install_prefix}'."
+        )
+    with lock:
+        yield
 
 
 def ffmpeg_source_archive(version: str) -> tuple[str, str]:
@@ -71,14 +96,14 @@ def describe_option_changes(recorded: Sequence[str], planned: Sequence[str]) -> 
     return "; ".join(changes) or "reorders them"
 
 
-def installed_program_digests(install_prefix: Path = Path("/usr/local")) -> str:
+def installed_program_digests(install_prefix: Path = INSTALL_PREFIX) -> str:
     """Identify the installed programs by content, one `name sha256` line each.
 
     A matching version does not mean a matching build: another workspace or a
     manual install can replace these programs with a different configuration.
     """
     lines: list[str] = []
-    for program in ("ffmpeg", "ffprobe", "ffplay"):
+    for program in INSTALLED_PROGRAMS:
         path = install_prefix / "bin" / program
         try:
             with path.open("rb") as stream:
@@ -128,7 +153,7 @@ def configure_pkg_config_requirement(configure_script: str, library: str) -> str
     return match.group(1) if match else None
 
 
-def ffmpeg_installed_version(binary: Path = Path("/usr/local/bin/ffmpeg")) -> str | None:
+def ffmpeg_installed_version(binary: Path = INSTALL_PREFIX / "bin/ffmpeg") -> str | None:
     if not os.access(binary, os.X_OK):
         return None
     completed = Runner(Logger(), base_environment()).capture(
@@ -225,7 +250,7 @@ class FFmpegStage:
         self,
         expected_version: str,
         require_ffplay: bool,
-        install_prefix: Path = Path("/usr/local"),
+        install_prefix: Path = INSTALL_PREFIX,
         display_results: bool = True,
     ) -> None:
         context = self.context
@@ -286,84 +311,113 @@ class FFmpegStage:
             for version_line in version_lines:
                 self.logger.info(version_line)
 
-    def backup_installed_programs(self, backup_dir: Path, install_prefix: Path) -> None:
-        """Copy the three programs aside before `/usr/local` is touched.
+    def backup_installed_programs(self, backup_dir: Path, install_prefix: Path) -> frozenset[str]:
+        """Copy the installed programs aside before the prefix is touched; returns which existed.
 
         `sudo make install` overwrites them in place, so a failure part-way
         through — ENOSPC being the classic one — destroys a working
         installation. Only the programs are saved: restoring a working ffmpeg
         is the property that matters, and a half-written library tree is
-        repaired by re-running the build.
+        repaired by re-running the build. The copy lives under the prefix, not
+        in a build root, so every build root and user sees an unrestored one.
         """
-        for program in ("ffmpeg", "ffprobe", "ffplay"):
-            source = install_prefix / "bin" / program
-            if source.is_file() or source.is_symlink():
-                self.context.execute(["cp", "-a", "--", str(source), str(backup_dir / program)])
+        existing = frozenset(
+            program
+            for program in INSTALLED_PROGRAMS
+            if (install_prefix / "bin" / program).is_file()
+            or (install_prefix / "bin" / program).is_symlink()
+        )
+        if not existing:
+            return existing
+        try:
+            self.context.execute(["sudo", "-n", "mkdir", "-p", "--", str(backup_dir)])
+            for program in INSTALLED_PROGRAMS:
+                if program in existing:
+                    source = install_prefix / "bin" / program
+                    self.context.execute(
+                        ["sudo", "-n", "cp", "-a", "--", str(source), str(backup_dir / program)]
+                    )
+        except BaseException:
+            # Nothing has been replaced yet, so a partial copy must not stay
+            # behind to read as an unrestored install.
+            self.discard_backup(backup_dir)
+            raise
+        return existing
 
-    def restore_installed_programs(self, backup_dir: Path, install_prefix: Path) -> bool:
-        if not backup_dir.is_dir():
-            return False
+    def discard_backup(self, backup_dir: Path) -> None:
+        try:
+            self.context.execute(["sudo", "-n", "rm", "-rf", "--", str(backup_dir)])
+        except BuildError as error:
+            self.logger.warn(
+                f"Could not remove '{backup_dir}' ({error}); the next install waits until it is "
+                "deleted."
+            )
+
+    def restore_installed_programs(
+        self, backup_dir: Path, install_prefix: Path, existing: frozenset[str]
+    ) -> bool:
+        """Put back the programs that existed and remove the ones this install added.
+
+        Every program is attempted even when one fails, and cancellation waits
+        until all have been: stopping halfway would leave a mix of releases.
+        """
         restored = True
-        for program in ("ffmpeg", "ffprobe", "ffplay"):
-            backup_path = backup_dir / program
-            target = install_prefix / "bin" / program
-            if backup_path.exists() or backup_path.is_symlink():
-                command = [
-                    "sudo",
-                    "-n",
-                    "cp",
-                    "-a",
-                    "--remove-destination",
-                    "--",
-                    str(backup_path),
-                    str(target),
-                ]
-            else:
-                command = ["sudo", "-n", "rm", "-f", "--", str(target)]
-            try:
-                status = self.context.runner.run_logged(command)
-            except (BuildError, OSError) as error:
-                self.logger.warn(f"Restoring '{target}' failed: {error}")
-                status = 1
-            except (KeyboardInterrupt, SignalStop):
-                # A repeated cancellation has already stopped this command;
-                # still restore the other programs. The caller re-raises the
-                # original failure.
-                self.logger.warn(f"Restoring '{target}' was interrupted.")
-                status = 1
-            if status == 0:
-                self.logger.warn(f"Restored the previous state of '{target}'.")
-            else:
-                restored = False
-                self.logger.warn(
-                    f"Could not restore '{target}'; recovery files are kept at '{backup_dir}'."
-                )
+        with defer_cancellation() as deferred:
+            for program in INSTALLED_PROGRAMS:
+                target = install_prefix / "bin" / program
+                if program in existing:
+                    command = [
+                        "sudo",
+                        "-n",
+                        "cp",
+                        "-a",
+                        "--remove-destination",
+                        "--",
+                        str(backup_dir / program),
+                        str(target),
+                    ]
+                else:
+                    command = ["sudo", "-n", "rm", "-f", "--", str(target)]
+                try:
+                    status = self.context.runner.run_logged(command)
+                except (BuildError, OSError) as error:
+                    self.logger.warn(f"Restoring '{target}' failed: {error}")
+                    status = 1
+                if status == 0:
+                    self.logger.warn(f"Restored the previous state of '{target}'.")
+                else:
+                    restored = False
+                    self.logger.warn(f"Could not restore '{target}'.")
+        if deferred:
+            self.logger.warn("Cancellation was held off until the previous programs were restored.")
         return restored
 
     def promote_installation(
         self,
         build_directory: Path,
-        staging_root: Path,
         ffmpeg_version: str,
         ffplay_enabled: bool,
-        install_prefix: Path = Path("/usr/local"),
+        install_prefix: Path = INSTALL_PREFIX,
     ) -> None:
         """Keep a recoverable backup through promotion and installed validation."""
         # Lock the shared destination inode, not a per-user/per-workspace path.
         # Keep the backup, write, validation and any rollback in one transaction.
-        with DirectoryLock(install_prefix) as lock:
-            timeout = int(os.environ.get("HOST_MUTATION_LOCK_TIMEOUT") or "3600")
-            if not lock.acquire(timeout=timeout):
-                raise BuildError(f"Timed out waiting to install into '{install_prefix}'.")
+        with install_prefix_lock(install_prefix):
+            backup_dir = install_prefix / BACKUP_DIRECTORY
+            if os.path.lexists(backup_dir):
+                # Left by an install whose restore failed or that was killed,
+                # from any build root: it may hold the only working programs.
+                raise BuildError(
+                    f"An earlier install's backup of the FFmpeg programs is still at "
+                    f"'{backup_dir}'. Restore it with "
+                    f"'sudo cp -a -- {backup_dir}/. {install_prefix / 'bin'}/ && "
+                    f"sudo rm -rf -- {backup_dir}', or delete it with "
+                    f"'sudo rm -rf -- {backup_dir}', then run the build again."
+                )
             # The compile and the lock wait can outlast the cached credential;
             # refresh it in the foreground before the noninteractive install.
             self.context.runner.require_sudo()
-            backup_dir = staging_root / "previous-install"
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            self.backup_installed_programs(backup_dir, install_prefix)
-            # Once promotion starts, automatic abort cleanup must not erase the only
-            # recovery copy if either installation or restoration fails.
-            self.context.unregister_temporary_path(staging_root)
+            existing = self.backup_installed_programs(backup_dir, install_prefix)
             try:
                 status = self.context.runner.run_logged(
                     ["sudo", "-n", "make", "install"], cwd=build_directory
@@ -374,17 +428,21 @@ class FFmpegStage:
                     )
                 self.validate_installation(ffmpeg_version, ffplay_enabled, install_prefix)
             except BaseException as error:
-                restored = self.restore_installed_programs(backup_dir, install_prefix)
-                outcome = (
-                    "The previously installed programs were restored."
-                    if restored
-                    else "Restoration was incomplete."
-                )
-                detail = f"{outcome} Recovery files remain at '{staging_root}'."
+                restored = self.restore_installed_programs(backup_dir, install_prefix, existing)
+                if restored:
+                    outcome = "The previously installed programs were restored."
+                    if existing:
+                        self.discard_backup(backup_dir)
+                else:
+                    outcome = "Restoration was incomplete."
+                    if existing:
+                        outcome += f" Recovery files remain at '{backup_dir}'."
                 if isinstance(error, BuildError):
-                    raise BuildError(f"{error} {detail}") from error
-                self.logger.warn(detail)
+                    raise BuildError(f"{error} {outcome}") from error
+                self.logger.warn(outcome)
                 raise
+            if existing:
+                self.discard_backup(backup_dir)
             # Recorded while the prefix is still locked, so a later run can tell
             # whether another build has since replaced these programs.
             publish_atomically(
@@ -417,42 +475,50 @@ class FFmpegStage:
         if not re.match(r"^[0-9]+(\.[0-9]+){1,3}$", ffmpeg_version):
             raise BuildError(f"Invalid FFmpeg release version '{ffmpeg_version}'.")
 
-        installed_version = ffmpeg_installed_version()
-        if installed_version:
-            self.logger.info(f"Installed FFmpeg version: '{installed_version}'.")
-        self.logger.info(f"Selected FFmpeg release: '{ffmpeg_version}'.")
-
         marker_file = context.marker_path("ffmpeg")
         ffplay_enabled = context.package_enabled("sdl2") and context.library_exists("sdl2")
         recorded_version = read_marker_version(marker_file)
         planned: list[str] | None = None
-        programs_incomplete = (
-            installed_version != ffmpeg_version
-            or not os.access("/usr/local/bin/ffprobe", os.X_OK)
-            or (ffplay_enabled and not os.access("/usr/local/bin/ffplay", os.X_OK))
-        )
+        # Read under the lock another build holds while it installs, so a
+        # half-installed tree is never taken for a mismatch or a match.
+        with install_prefix_lock():
+            installed_version = ffmpeg_installed_version()
+            programs_incomplete = (
+                installed_version != ffmpeg_version
+                or not os.access(INSTALL_PREFIX / "bin/ffprobe", os.X_OK)
+                or (ffplay_enabled and not os.access(INSTALL_PREFIX / "bin/ffplay", os.X_OK))
+            )
+            receipt_matches = (
+                recorded_version == f"n{ffmpeg_version}"
+                and not programs_incomplete
+                and self.installed_programs_match_receipt()
+            )
+        if installed_version:
+            self.logger.info(f"Installed FFmpeg version: '{installed_version}'.")
+        self.logger.info(f"Selected FFmpeg release: '{ffmpeg_version}'.")
         if recorded_version == f"n{ffmpeg_version}":
             if programs_incomplete:
                 self.logger.warn(
                     "FFmpeg's build marker exists, but its required installed programs are "
                     "incomplete; rebuilding."
                 )
-                marker_file.unlink(missing_ok=True)
-            elif not self.installed_programs_match_receipt():
+                context.invalidate("ffmpeg")
+            elif not receipt_matches:
                 self.logger.warn(
                     "The FFmpeg programs in '/usr/local/bin' do not match this workspace's "
                     "install receipt; rebuilding."
                 )
-                marker_file.unlink(missing_ok=True)
+                context.invalidate("ffmpeg")
             else:
                 planned = self._changed_configuration(ffmpeg_version, ffplay_enabled)
                 if planned is not None:
-                    marker_file.unlink(missing_ok=True)
+                    context.invalidate("ffmpeg")
 
         if context.build("ffmpeg", f"n{ffmpeg_version}"):
             self._configure_build_install(ffmpeg_version, ffplay_enabled, planned)
         else:
-            self.validate_installation(ffmpeg_version, ffplay_enabled)
+            with install_prefix_lock():
+                self.validate_installation(ffmpeg_version, ffplay_enabled)
 
     def _changed_configuration(self, ffmpeg_version: str, ffplay_enabled: bool) -> list[str] | None:
         """This run's configure arguments when they differ from the receipt's.
@@ -605,7 +671,7 @@ class FFmpegStage:
         # Only mutate /usr/local after the complete staged install has passed
         # its binary, version and capability checks, and keep the previous
         # programs recoverable until the installed result has passed them too.
-        self.promote_installation(build_directory, staging_root, ffmpeg_version, ffplay_enabled)
+        self.promote_installation(build_directory, ffmpeg_version, ffplay_enabled)
         safe_remove_tree(staging_root, context.packages)
         context.unregister_temporary_path(staging_root)
         # Before the marker: a marker without a receipt means a rebuild.
@@ -830,8 +896,13 @@ def report_success(context: BuildContext) -> None:
         context.logger.banner("Dependency build completed successfully")
         _report_package_summary(context)
         return
+    with install_prefix_lock():
+        _report_installed(context)
+    _report_package_summary(context)
 
-    ffmpeg_path = Path("/usr/local/bin/ffmpeg")
+
+def _report_installed(context: BuildContext) -> None:
+    ffmpeg_path = INSTALL_PREFIX / "bin/ffmpeg"
     if not os.access(ffmpeg_path, os.X_OK):
         raise BuildError(f"The build completed, but '{ffmpeg_path}' is missing or not executable.")
 
@@ -858,9 +929,7 @@ def report_success(context: BuildContext) -> None:
         line.strip() for line in ask("-hide_banner", "-hwaccels").splitlines()[1:] if line.strip()
     ]
     installed_tools = [
-        tool
-        for tool in ("ffmpeg", "ffprobe", "ffplay")
-        if os.access(f"/usr/local/bin/{tool}", os.X_OK)
+        tool for tool in INSTALLED_PROGRAMS if os.access(INSTALL_PREFIX / "bin" / tool, os.X_OK)
     ]
     configuration = ask("-hide_banner", "-buildconf").split()
 
@@ -886,7 +955,6 @@ def report_success(context: BuildContext) -> None:
                 f"{name} input loads '{library}' at run time; install it on the system "
                 "library search path to use it."
             )
-    _report_package_summary(context)
 
 
 def _report_package_summary(context: BuildContext) -> None:

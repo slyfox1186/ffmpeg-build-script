@@ -878,6 +878,20 @@ REQUIREMENTS: tuple[Requirement, ...] = (
 # Rules that can be evaluated without probing the host. These run before the
 # first host mutation, so an unsatisfiable request fails without having
 # installed packages or asked for a password first.
+# (consumer, producer) links that are not selection requirements: the consumer
+# picks the producer up when it is enabled and built first. libheif enables
+# each workspace codec only when it was built (libheif.pc then lists aom, rav1e
+# and x265; dav1d comes from APT), gpac probes for and links -ljpeg and -lpng,
+# and libpng links the workspace zlib (libpng.pc lists it).
+LINKED_WHEN_ENABLED: tuple[tuple[str, str], ...] = (
+    ("libheif", "av1-git"),
+    ("libheif", "rav1e"),
+    ("libheif", "x265"),
+    ("gpac-git", "libjpeg-turbo"),
+    ("gpac-git", "libpng"),
+    ("libpng", "zlib"),
+)
+
 SETTINGS_REQUIREMENTS = tuple(
     requirement for requirement in REQUIREMENTS if requirement.pkgconf_module is None
 )

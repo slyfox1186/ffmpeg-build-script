@@ -50,6 +50,11 @@ REPOSITORY_ROOT = os.path.dirname(os.path.realpath(__file__))
 SYSTEM_PYTHON_NAME = re.compile(r"^python3(\.[0-9]+)?$")
 
 
+def is_compatible(version: tuple[int, int, bool]) -> bool:
+    """New enough, and a final release rather than an alpha, beta or candidate."""
+    return version[:2] >= REQUIRED_VERSION and version[2]
+
+
 def interpreter_version(executable: str) -> tuple[int, int, bool] | None:
     """Report (major, minor, is_final_release) without importing anything from it."""
     try:
@@ -187,14 +192,16 @@ def existing_conda_interpreter(roots: list[str]) -> str | None:
                 "Could not determine the Python version of %s; skipping it.\n" % python
             )
             continue
-        if version[:2] < REQUIRED_VERSION:
+        if not is_compatible(version):
             sys.stderr.write(
-                "The '%s' conda environment has Python %d.%d; this project needs %s or newer.\n"
-                "It is skipped. Remove it so this script can offer to recreate it:\n  %s\n"
+                "The '%s' conda environment has Python %d.%d%s; this project needs a final\n"
+                "release of %s or newer. It is skipped. Remove it so this script can offer to\n"
+                "recreate it:\n  %s\n"
                 % (
                     CONDA_ENVIRONMENT,
                     version[0],
                     version[1],
+                    "" if version[2] else " (a pre-release)",
                     required,
                     shlex.join(
                         [
@@ -254,7 +261,7 @@ def resolve_system_interpreter() -> str | None:
             continue
         seen.add(real)
         version = interpreter_version(candidate)
-        if version is None or not version[2] or version[:2] < REQUIRED_VERSION:
+        if version is None or not is_compatible(version):
             continue
         if best is None or version[:2] > best[0]:
             best = (version[:2], candidate)

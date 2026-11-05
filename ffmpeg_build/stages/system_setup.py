@@ -363,10 +363,12 @@ class SystemSetup:
                 encoding="utf-8", errors="replace"
             ).strip()
         context.kernel_release = kernel_release
-        if "microsoft" in kernel_release.lower():
-            # WSL2 kernels carry a 'microsoft-standard-WSL2' release string;
-            # WSL1 reports a plain 'Microsoft' suffix because it has no kernel.
-            if "wsl2" not in kernel_release.lower():
+        lowered = kernel_release.lower()
+        if "microsoft" in lowered:
+            # Microsoft's WSL2 kernels end their release with '-microsoft-standard'
+            # (4.19) or '-microsoft-standard-WSL2' (5.10 and later); WSL1 has no
+            # Linux kernel and reports a plain '-Microsoft' suffix.
+            if "microsoft-standard" not in lowered and "wsl2" not in lowered:
                 raise BuildError(
                     f"WSL1 detected ('{kernel_release}'); convert the distribution with "
                     "'wsl.exe --set-version <distro> 2' and update WSL with 'wsl.exe --update'."

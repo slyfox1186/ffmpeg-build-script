@@ -47,12 +47,13 @@ class _Process:
         with os.fdopen(os.open(name, os.O_RDONLY, dir_fd=self.fd)) as stream:
             return stream.read()
 
-    def status(self) -> tuple[str, int]:
+    def status(self) -> tuple[str, int, int]:
+        """(state, parent PID, process group) from /proc/<pid>/stat."""
         try:
             fields = self.read("stat").rsplit(")", 1)[1].split()
-            return fields[0], int(fields[1])
+            return fields[0], int(fields[1]), int(fields[2])
         except (FileNotFoundError, ProcessLookupError):
-            return "Z", 0
+            return "Z", 0, 0
 
     def send(self, signum: signal.Signals) -> None:
         try:
@@ -78,20 +79,51 @@ class _Process:
             os.close(task_fd)
 
 
-def _open_process(pid: int) -> _Process:
+def _open_process(pid: int, owner: int) -> _Process:
     fd = os.open(f"/proc/{pid}", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     if os.fstat(fd).st_uid != os.geteuid():
         os.close(fd)
-        raise BuildError(f"Competing build has a process owned by another user: PID {pid}.")
+        if pid == owner:
+            raise BuildError(
+                f"The competing build (PID {owner}) belongs to another user; it is never stopped."
+            )
+        # sudo and what it runs (APT, the font and ImageMagick installs) belong
+        # to root. Killing them could leave dpkg or /usr/local half-written.
+        raise BuildError(
+            f"The competing build (PID {owner}) is running a privileged step (PID {pid}, owned "
+            "by another user), which is never interrupted. Wait for it to finish, or stop that "
+            f"build with: kill {owner}"
+        )
     return _Process(pid, fd)
+
+
+def _groups_alive(groups: set[int]) -> bool:
+    """True while any process of these process groups has not exited."""
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat", encoding="utf-8", errors="replace") as stream:
+                fields = stream.read().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            continue
+        if fields[0] not in ("Z", "X") and int(fields[2]) in groups:
+            return True
+    return False
 
 
 def take_over_build_lock(lock: DirectoryLock, logger: Logger, *, timeout: float = 10) -> bool:
     """Stop and kill the verified owner and descendants, then acquire its lock.
 
     Each parent is stopped before enumerating its children so it cannot fork
-    new workers during takeover. Subprocesses are killed before the owner;
-    the new build starts only after all captured workers have exited and the
+    new workers during takeover. A worker whose parent already exited is no
+    longer anyone's child here, but it stays in its command's process group
+    (the runner starts every command but sudo in a group of its own), so each
+    captured group leader's whole group is stopped and killed too. A group is
+    signalled only while its stopped leader is alive, so its ID cannot have
+    been reused. The owner's own group is shared with its shell and is never
+    signalled. Subprocesses are killed before the owner; the new build starts
+    only after every captured process and group member has exited and the
     kernel grants the directory lock. Download and host locks never use this.
     """
     if lock.acquire():
@@ -103,10 +135,12 @@ def take_over_build_lock(lock: DirectoryLock, logger: Logger, *, timeout: float 
         raise BuildError(f"Refusing to force-kill build lock owner PID {owner}.")
 
     processes: list[_Process] = []
+    groups: list[int] = []
+    killed = False
     deadline = time.monotonic() + timeout
     try:
         try:
-            root = _open_process(owner)
+            root = _open_process(owner, owner)
         except (FileNotFoundError, ProcessLookupError):
             return lock.acquire(timeout=timeout)
         processes.append(root)
@@ -128,11 +162,15 @@ def take_over_build_lock(lock: DirectoryLock, logger: Logger, *, timeout: float 
                 if time.monotonic() >= deadline:
                     raise BuildError(f"Competing process PID {process.pid} could not be stopped.")
                 time.sleep(0.01)
-            if process.status()[0] in ("Z", "X"):
+            state, _parent, group = process.status()
+            if state in ("Z", "X"):
                 continue
+            if process is not root and group == process.pid:
+                os.killpg(group, signal.SIGSTOP)
+                groups.append(group)
             for pid in process.children():
                 try:
-                    child = _open_process(pid)
+                    child = _open_process(pid, owner)
                 except (FileNotFoundError, ProcessLookupError):
                     continue
                 if child.status()[1] != process.pid:
@@ -140,9 +178,14 @@ def take_over_build_lock(lock: DirectoryLock, logger: Logger, *, timeout: float 
                     continue
                 processes.append(child)
 
+        killed = True
+        for group in groups:
+            os.killpg(group, signal.SIGKILL)
         for process in reversed(processes):
             process.send(signal.SIGKILL)
-        while any(process.status()[0] not in ("Z", "X") for process in processes):
+        while any(process.status()[0] not in ("Z", "X") for process in processes) or (
+            _groups_alive(set(groups))
+        ):
             if time.monotonic() >= deadline:
                 raise BuildError(
                     "Competing build processes have not exited; refusing to overlap builds."
@@ -157,6 +200,12 @@ def take_over_build_lock(lock: DirectoryLock, logger: Logger, *, timeout: float 
     except OSError as error:
         raise BuildError(f"Unable to stop competing build PID {owner}: {error}") from error
     finally:
+        if not killed:
+            for group in groups:
+                try:
+                    os.killpg(group, signal.SIGCONT)
+                except OSError as error:
+                    logger.warn(f"Could not resume competing process group {group}: {error}")
         for process in reversed(processes):
             try:
                 # On an interrupted or rejected takeover, never leave a

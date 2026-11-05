@@ -523,7 +523,7 @@ class Orchestrator:
         ):
             # Migrate only the Rust-built component when adopting dynamic tools.
             # Native C/C++ dependencies remain reusable with identical flags.
-            context.marker_path("rav1e").unlink(missing_ok=True)
+            context.invalidate("rav1e")
             reconfigure = True
         for package_name in added_packages:
             if context.package_enabled(package_name):
@@ -531,18 +531,20 @@ class Orchestrator:
         if "cpu_target" not in previous_fields:
             # rav1e's Rust code is now compiled for the CPU target too; every
             # C/C++ dependency already was, through `-march=native`.
-            rav1e_marker = context.marker_path("rav1e")
-            if rav1e_marker.is_file():
-                rav1e_marker.unlink()
+            if context.marker_path("rav1e").is_file():
+                context.invalidate("rav1e")
                 self.logger.info("rav1e will be rebuilt so its Rust code is tuned for this CPU.")
             reconfigure = True
 
         # Invalidate before publishing: an interruption between these writes
         # must never leave a new context paired with an old, reusable marker.
-        ffmpeg_marker = context.marker_path("ffmpeg")
-        if reconfigure and context.package_enabled("ffmpeg") and ffmpeg_marker.is_file():
+        if (
+            reconfigure
+            and context.package_enabled("ffmpeg")
+            and context.marker_path("ffmpeg").is_file()
+        ):
             try:
-                ffmpeg_marker.unlink()
+                context.invalidate("ffmpeg")
             except OSError as error:
                 raise BuildError(
                     "Unable to clear the FFmpeg build marker for a reconfigure."
