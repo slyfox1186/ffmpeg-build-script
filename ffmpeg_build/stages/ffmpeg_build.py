@@ -68,6 +68,54 @@ def ffmpeg_source_archive(version: str) -> tuple[str, str]:
     return f"https://ffmpeg.org/releases/{name}", name
 
 
+# Each `ffbuild/common.mak` line exactly as releases before upstream commit
+# 95799831978b carry it, mapped to that commit's replacement.
+_RESOURCE_DIRECTORY_RACE_FIX = {
+    rb"RUN_GZIP  = $(M)gzip -nc9 $(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<) >$@": (
+        rb"RUN_GZIP  = $(M)mkdir -p $(dir $@) && gzip -nc9 "
+        rb"$(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<) >$@"
+    ),
+    rb"RUN_MINIFY = $(M)sed 's!/\\*.*\\*/!!g' $< | tr '\n' ' ' | tr -s ' ' "
+    rb"| sed 's/^ //; s/ $$//' > $@": (
+        rb"RUN_MINIFY = $(M)mkdir -p $(dir $@) && sed 's!/\\*.*\\*/!!g' $< "
+        rb"| tr '\n' ' ' | tr -s ' ' | sed 's/^ //; s/ $$//' > $@"
+    ),
+}
+
+
+def fix_ffmpeg_resource_directory_race(context: BuildContext, source: Path) -> None:
+    """Create each generated file's directory before the recipe writes into it.
+
+    https://github.com/FFmpeg/FFmpeg/commit/95799831978b3cda47ce51722f8d8a980423e546
+    The gzip and CSS-minify recipes redirect into `$@`, but only the objects
+    built from their output depend on the directory rule. A parallel
+    out-of-tree build can therefore write `fftools/resources/graph.html.gz`
+    before `fftools/resources` exists and fail with "Directory nonexistent".
+    Only a line that is exactly the unfixed text is replaced, so a release
+    containing that commit, or rewriting these rules, is left untouched. Bytes
+    keep every other line, and every line ending, exactly as released. Delete
+    this once every release the builder can select contains the commit.
+    """
+    target = source / "ffbuild/common.mak"
+    if not target.is_file():
+        return
+    lines = target.read_bytes().splitlines(keepends=True)
+    changed = False
+    for index, line in enumerate(lines):
+        content = line.rstrip(b"\r\n")
+        replacement = _RESOURCE_DIRECTORY_RACE_FIX.get(content)
+        if replacement is not None:
+            lines[index] = replacement + line[len(content) :]
+            changed = True
+    if not changed:
+        return
+    target.write_bytes(b"".join(lines))
+    context.logger.info(
+        "Applied upstream FFmpeg commit 9579983 "
+        "(create generated-file directories before writing them)."
+    )
+
+
 def render_configure_receipt(options: Sequence[str]) -> str:
     """One JSON string per line: exact for any option text, readable with `cat`."""
     return json.dumps(list(options), indent=1) + "\n"
@@ -641,6 +689,7 @@ class FFmpegStage:
         """
         context = self.context
         source_directory = context.download(*ffmpeg_source_archive(ffmpeg_version))
+        fix_ffmpeg_resource_directory_race(context, source_directory)
         if planned is None:
             planned = self.plan_configure(source_directory, ffplay_enabled)
         build_directory = source_directory / "build"

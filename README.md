@@ -576,7 +576,12 @@ with an older one. The build records the selected release and its commit in
 finished build whose `x265.pc` reports another release is rebuilt once. Until
 a release contains upstream commit 98eec40, the build adds its `<cstdint>`
 include to the HDR10+ JSON parser, which GCC 15's C++ headers otherwise leave
-without `uint8_t` under both GCC and Clang. Rust, cargo-c, and NVIDIA's CUDA keyring
+without `uint8_t` under both GCC and Clang. Until an FFmpeg release contains
+upstream commit 9579983, the build applies its two-line `ffbuild/common.mak`
+change to the extracted release; without it, a parallel out-of-tree build can
+write `fftools/resources/graph.html.gz` before that directory exists and fail
+with "Directory nonexistent". Only lines matching the unfixed text change, so a
+release that contains the commit is left untouched. Rust, cargo-c, and NVIDIA's CUDA keyring
 also resolve their current releases dynamically. Adopting dynamic Rust
 tools rebuilds rav1e and FFmpeg while preserving other compatible dependencies.
 System integrations use the distribution's APT packages; their versions follow
