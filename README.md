@@ -192,6 +192,12 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 **Python 3.12, 3.13, and 3.14 are supported.** Ubuntu 22.04's default
 Python 3.10 and Debian 12's default Python 3.11 cannot run the builder.
 
+With `-C` or `--clear`, the launcher runs `clear` before anything else,
+including `--help` and `--version`, so the output starts on an empty screen.
+Without the option the terminal is never cleared. Redirected or piped output,
+and a missing or `dumb` `TERM`, are left untouched even with it. If `clear` is
+unavailable or fails, a warning is printed and the launcher continues.
+
 Conda is optional. The launcher picks an interpreter in this order:
 
 1. An existing `install-ffmpeg` Conda environment, which was created with your
@@ -291,6 +297,7 @@ Build options:
 General options:
   -h, --help                      Show this help; changes nothing on disk
   -v, --version                   Show the script version
+  -C, --clear                     Clear the terminal before anything else runs
 
   Options that take a value also accept --option=value, for example --jobs=8.
   Single-letter options can be grouped: -bln is -b -l -n, and -bj8 is -b -j 8.

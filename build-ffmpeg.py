@@ -6,7 +6,8 @@ happens to have, so it stays syntactically conservative. Before an interpreter
 of the required version is running it imports only `ffmpeg_build.usage`, which
 is kept parseable on Python 3.10.
 
-Ordering here is load-bearing. `--help` and `--version` are answered before any
+Ordering here is load-bearing. `--clear` clears an interactive terminal first,
+once, before anything is printed. `--help` and `--version` are answered before any
 interpreter resolution, because they are contractually free of side effects and
 resolving an interpreter can mean creating an environment and asking a
 question.
@@ -309,11 +310,45 @@ def resolve_interpreter() -> str | None:
     return None
 
 
+def clear_terminal() -> None:
+    """Clear an interactive terminal; redirected output never receives escape codes.
+
+    A missing or `dumb` TERM is skipped because `clear` cannot work there.
+    """
+    if os.environ.get("TERM", "") in ("", "dumb"):
+        return
+    try:
+        if not sys.stdout.isatty():
+            return
+    except (AttributeError, ValueError):
+        return
+    sys.stdout.flush()
+    try:
+        completed = subprocess.run(
+            ["clear"],
+            cwd="/",
+            stdin=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        sys.stderr.write("Warning: unable to clear the terminal: %s\n" % error)
+        return
+    if completed.returncode != 0:
+        sys.stderr.write("Warning: 'clear' exited with status %d.\n" % completed.returncode)
+
+
 def main(argv: list[str]) -> int:
     if REPOSITORY_ROOT not in sys.path:
         sys.path.insert(0, REPOSITORY_ROOT)
 
-    from ffmpeg_build.usage import color_enabled, metadata_response
+    from ffmpeg_build.usage import clear_requested, color_enabled, metadata_response
+
+    # Only the first launcher clears; after the re-exec it would erase what
+    # interpreter resolution printed, such as a skipped-environment warning.
+    if not os.environ.get(RESOLVED_GUARD) and clear_requested(argv):
+        clear_terminal()
 
     answer = metadata_response(argv or ["--help"], color_enabled(sys.stdout))
     if answer is not None:

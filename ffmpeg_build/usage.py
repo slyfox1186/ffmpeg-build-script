@@ -72,6 +72,7 @@ BUILD_OPTIONS = (
 GENERAL_OPTIONS = (
     ("-h, --help", "Show this help; changes nothing on disk"),
     ("-v, --version", "Show the script version"),
+    ("-C, --clear", "Clear the terminal before anything else runs"),
 )
 VALUE_NOTE = (
     "Options that take a value also accept --option=value, for example --jobs=8. "
@@ -124,7 +125,7 @@ TAKES_VALUE = frozenset(["--compiler", "--config", "--cpu-target", "-j", "--jobs
 # Single-letter flags that can share one dash, as in `-bln`. `-j` takes a value,
 # so it ends a group: the rest of the group, or else the next argument, is its
 # value (`-bj8`, `-bj 8`).
-GROUPABLE_FLAGS = frozenset("bmclnhv")
+GROUPABLE_FLAGS = frozenset("bmclnhvC")
 
 # Line kinds. BODY lines are colored token by token; the others as a whole.
 TITLE, HEADING, BODY, COMMENT = "title", "heading", "body", "comment"
@@ -305,6 +306,26 @@ def expand_short_options(argv: list[str]) -> list[str]:
             group.append("-" + letter)
         expanded.extend(group)
     return expanded
+
+
+def clear_requested(argv: list[str]) -> bool:
+    """Whether `-C`/`--clear` was given as an option.
+
+    The launcher asks before it answers metadata or resolves an interpreter,
+    so this walk alone keeps `--config --clear` and `-- --clear` from clearing.
+    """
+    argv = expand_short_options(argv)
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--":
+            return False
+        if argument in ("-C", "--clear"):
+            return True
+        if argument in TAKES_VALUE:
+            index += 1
+        index += 1
+    return False
 
 
 def metadata_response(argv: list[str], color: bool = False) -> str | None:

@@ -112,6 +112,9 @@ def parse_arguments(argv: list[str]) -> Arguments:
             if arguments.config_path is not None:
                 raise UsageError("'--config' may only be specified once.")
             arguments.config_path = argument.split("=", 1)[1]
+        elif argument in ("-C", "--clear"):
+            # The launcher clears the terminal before it selects an interpreter.
+            pass
         elif argument in ("-h", "--help", "-v", "--version"):
             # Already answered before the config is loaded, so these stay
             # side-effect free.
