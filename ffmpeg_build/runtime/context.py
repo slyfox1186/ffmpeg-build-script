@@ -72,6 +72,8 @@ class BuildContext:
         self.nonfree_and_gpl = nonfree_and_gpl
         self.script_version = script_version
         self.set_path = set_path
+        # Commands the user must run, shown last so the closing output cannot bury them.
+        self.closing_actions: list[tuple[str, str]] = []
 
         self.configure_options: list[str] = []
         self.required_symbols: dict[str, str] = {}

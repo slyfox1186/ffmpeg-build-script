@@ -836,6 +836,9 @@ class Orchestrator:
         """Offer cleanup, then close the run whichever way the user answered."""
         self.cleanup()
         self.logger.farewell(REPOSITORY_URL)
+        if self.context is not None:
+            for message, command in self.context.closing_actions:
+                self.logger.action(message, command)
 
     def host_mutation_lock(self) -> DirectoryLock:
         """Serialize the host-mutating sections across every run by this user.

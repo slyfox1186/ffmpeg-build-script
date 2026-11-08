@@ -303,10 +303,15 @@ def _set_program_path(
         logger.info(f"Added the PATH block to the end of '{rc_file}'.")
     else:
         logger.info(f"'{rc_file}' already has the PATH block; the links were refreshed.")
-    logger.hint(
-        f"New terminals pick this up. In this one, run: source {shlex.quote(str(rc_file))} "
-        "&& hash -r"
-    )
+    if hidden:
+        # The shell that started the build keeps its own PATH and command cache.
+        context.closing_actions.append(
+            (
+                "This terminal still runs the old ffmpeg. Run this now; new terminals "
+                "already use this build:",
+                f"source {shlex.quote(str(rc_file))} && hash -r",
+            )
+        )
     logger.hint(
         f"To undo: delete the '{BLOCK_START}' block from '{rc_file}', then remove '{app_dir}'. "
         "These links stay first even after 'conda activate'; run an environment's own copy "

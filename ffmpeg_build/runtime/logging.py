@@ -45,6 +45,7 @@ _TAGS = {
     "FAIL": "[FAILED]",
     "ERROR": "[ERROR]",
     "PROMPT": "[PROMPT]",
+    "ACTION": "[ACTION]",
 }
 _TAG_COLOR = {
     "STEP": "blue",
@@ -57,8 +58,9 @@ _TAG_COLOR = {
     "FAIL": "red",
     "ERROR": "red",
     "PROMPT": "magenta",
+    "ACTION": "yellow",
 }
-_BOLD_TAGS = ("OK", "WARN", "FAIL", "ERROR", "PROMPT")
+_BOLD_TAGS = ("OK", "WARN", "FAIL", "ERROR", "PROMPT", "ACTION")
 _URL = re.compile(r"(https?://[^\s'\"]+)")
 
 
@@ -504,6 +506,19 @@ class Logger:
         self._after_blank = False
         self._record("PROMPT", f"{question}{answer}")
         return answer
+
+    def action(self, message: str, command: str) -> None:
+        """A command the user must run themselves, set apart in bold color.
+
+        Printed after everything else in a run, because a dim line in the
+        middle of the closing summary scrolls away unread.
+        """
+        self._blank()
+        self._emit(self._tag("ACTION"), [(message, "yellow", True)])
+        self._emit(("$", "dim", False), [(command, "green", True)], indent=COMMAND_INDENT)
+        self._after_blank = False
+        self._blank()
+        self._record("ACTION", f"{message} $ {command}")
 
     def hint(self, message: str) -> None:
         """A dim follow-up under the previous record's text, such as a log location."""

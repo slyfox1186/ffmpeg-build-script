@@ -765,7 +765,9 @@ After FFmpeg installs, the build:
 - appends one marked block to the end of `~/.bashrc` (bash) or
   `${ZDOTDIR:-~}/.zshrc` (zsh) that loads `env.sh`, after Conda's own block.
 
-New terminals then run this build. In the terminal you are in, run
+New terminals then run this build. The terminal the build ran in keeps its old
+PATH, because no program can change the shell that started it, so the build
+ends with a highlighted `[ACTION]` line giving the command to run there,
 `source ~/.bashrc && hash -r`. Running with `--set-path` again never adds a
 second block; it keeps the links current. When the programs already resolve to
 `/usr/local/bin` and no block exists, nothing is written.
