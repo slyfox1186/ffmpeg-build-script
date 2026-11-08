@@ -51,6 +51,7 @@ class BuildContext:
         latest: bool,
         nonfree_and_gpl: bool,
         script_version: str,
+        set_path: bool = False,
     ) -> None:
         self.repo_root = repo_root
         self.invocation_dir = invocation_dir
@@ -70,6 +71,7 @@ class BuildContext:
         self.latest = latest
         self.nonfree_and_gpl = nonfree_and_gpl
         self.script_version = script_version
+        self.set_path = set_path
 
         self.configure_options: list[str] = []
         self.required_symbols: dict[str, str] = {}

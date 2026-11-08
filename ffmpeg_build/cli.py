@@ -53,6 +53,7 @@ class Arguments:
         self.latest = False
         self.nonfree_and_gpl = False
         self.config_path: str | None = None
+        self.set_path = False
 
 
 def requested_metadata(argv: list[str], color: bool = False) -> str | None:
@@ -76,6 +77,8 @@ def parse_arguments(argv: list[str]) -> Arguments:
             arguments.latest = True
         elif argument in ("-n", "--enable-gpl-and-non-free"):
             arguments.nonfree_and_gpl = True
+        elif argument in ("-s", "--set-path"):
+            arguments.set_path = True
         elif argument in ("--gcc", "--clang"):
             arguments.compiler = argument.removeprefix("--")
         elif argument == "--compiler":

@@ -98,6 +98,11 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   during a build now also reconfigures FFmpeg, which otherwise reused a build
   made without it. On WSL2, `nvidia-smi` stays on the build path after that
   install.
+- **`-s` / `--set-path` makes this build the `ffmpeg` your shell runs.** Another
+  copy earlier on PATH, such as a Conda environment's `ffmpeg` package, used to
+  hide the programs in `/usr/local/bin`. Every build now warns when that
+  happens, and `--set-path` fixes it; see
+  [Making this build the default](#making-this-build-the-default).
 - **A newer CUDA toolkit is detected and offered again.** Builds that use CUDA
   compare the installed toolkit with the newest release in NVIDIA's repository
   for this distribution and, with `CUDA_INSTALL=ask`, ask before installing it.
@@ -300,6 +305,9 @@ Build options:
   -n, --enable-gpl-and-non-free   Allow GPL and non-free components, required
                                   for x264, x265, fdk-aac and CUDA/NVENC; the
                                   result may not be redistributable
+  -s, --set-path                  After installing, put ffmpeg, ffprobe and
+                                  ffplay ahead of other copies on your PATH by
+                                  adding a block to ~/.bashrc or ~/.zshrc
 
 General options:
   -h, --help                      Show this help; changes nothing on disk
@@ -734,6 +742,49 @@ FFmpeg loads `libvapoursynth-script.so` or `libavisynth.so` when a `.vpy` or
 `.avs` input is opened, so those inputs work only on a host that provides that
 library on the system library search path; the closing summary names the
 library for each integration the installed FFmpeg was configured with.
+
+## Making this build the default
+
+If `ffmpeg -version` shows an older release than the one just built, another
+copy is earlier on your PATH. A common cause is `conda activate base` in
+`~/.bashrc` putting a Conda environment's `ffmpeg` package ahead of
+`/usr/local/bin`. Every build checks this after installing and names the copy
+that wins. To fix it, add `-s` (or `--set-path`) to the build command:
+
+```bash
+python3 build-ffmpeg.py --build --set-path --config ./custom.toml
+```
+
+After FFmpeg installs, the build:
+
+- creates `~/.local/share/ffmpeg-build-script/bin` (or under `$XDG_DATA_HOME`)
+  holding links to only `ffmpeg`, `ffprobe` and `ffplay` in `/usr/local/bin`,
+  so nothing else in `/usr/local/bin` changes order;
+- writes `~/.local/share/ffmpeg-build-script/env.sh`, which moves that
+  directory to the front of PATH;
+- appends one marked block to the end of `~/.bashrc` (bash) or
+  `${ZDOTDIR:-~}/.zshrc` (zsh) that loads `env.sh`, after Conda's own block.
+
+New terminals then run this build. In the terminal you are in, run
+`source ~/.bashrc && hash -r`. Running with `--set-path` again never adds a
+second block; it keeps the links current. When the programs already resolve to
+`/usr/local/bin` and no block exists, nothing is written.
+
+The startup file is only appended to, never rewritten: a symlinked dotfile
+stays a link and keeps its permissions. A file with a hand-edited or incomplete
+block, or one owned by another user, is left alone and the lines to add are
+printed. For fish and other shells the links are created and the line to add
+is printed instead (`fish_add_path --move --prepend ...` for fish). If a bash
+login file such as `~/.bash_profile` never loads `~/.bashrc`, the build says so,
+because SSH sessions would skip the block.
+
+The links stay first even after `conda activate` of another environment,
+because Conda replaces its previous environment's entry in place; run an
+environment's own copy by its full path. To undo, delete the block between
+`# >>> ffmpeg-build-script PATH >>>` and `# <<< ffmpeg-build-script PATH <<<`
+and remove `~/.local/share/ffmpeg-build-script`. `update-alternatives` is not
+used because it manages links such as `/usr/bin/ffmpeg`, which an earlier PATH
+entry hides just the same.
 
 ## CUDA and hardware acceleration
 

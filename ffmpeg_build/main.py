@@ -69,6 +69,7 @@ from .runtime.state import (
 )
 from .stages.ffmpeg_build import FFmpegStage, report_success
 from .stages.hardware import HardwareDetection
+from .stages.program_path import apply_program_path
 from .stages.system_setup import SystemSetup
 
 _POSITIVE_INTEGER_SETTINGS = (
@@ -824,6 +825,11 @@ class Orchestrator:
         FFmpegStage(context).run()
 
         report_success(context)
+        if context.package_enabled("ffmpeg"):
+            # Writes only the user's own files, so it needs no sudo; serialized
+            # with the other host changes so two builds never edit the rc at once.
+            with self.host_mutation_lock():
+                apply_program_path(context, self.invocation_dir)
         self.finish()
 
     def finish(self) -> None:
@@ -892,6 +898,7 @@ class Orchestrator:
             latest=arguments.latest or settings.latest,
             nonfree_and_gpl=arguments.nonfree_and_gpl or settings.enable_gpl_and_non_free,
             script_version=SCRIPT_VERSION,
+            set_path=arguments.set_path,
         )
         context.host_memory = host_memory
         context.jobs_reason = jobs.reason

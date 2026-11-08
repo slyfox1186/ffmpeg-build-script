@@ -68,6 +68,11 @@ BUILD_OPTIONS = (
         "Allow GPL and non-free components, required for x264, x265, fdk-aac and "
         "CUDA/NVENC; the result may not be redistributable",
     ),
+    (
+        "-s, --set-path",
+        "After installing, put ffmpeg, ffprobe and ffplay ahead of other copies on your "
+        "PATH by adding a block to ~/.bashrc or ~/.zshrc",
+    ),
 )
 GENERAL_OPTIONS = (
     ("-h, --help", "Show this help; changes nothing on disk"),
@@ -125,7 +130,7 @@ TAKES_VALUE = frozenset(["--compiler", "--config", "--cpu-target", "-j", "--jobs
 # Single-letter flags that can share one dash, as in `-bln`. `-j` takes a value,
 # so it ends a group: the rest of the group, or else the next argument, is its
 # value (`-bj8`, `-bj 8`).
-GROUPABLE_FLAGS = frozenset("bmclnhvC")
+GROUPABLE_FLAGS = frozenset("bmclnhvCs")
 
 # Line kinds. BODY lines are colored token by token; the others as a whole.
 TITLE, HEADING, BODY, COMMENT = "title", "heading", "body", "comment"
