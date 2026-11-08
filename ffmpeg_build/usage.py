@@ -82,7 +82,7 @@ ENVIRONMENT = (
     ("BUILD_ROOT=<dir>", "Build workspace (default: build/ in this checkout)"),
     (
         "CUDA_INSTALL=<mode>",
-        "Install a missing CUDA toolkit: ask, always or never (default: ask)",
+        "Install a missing or newer CUDA toolkit: ask, always or never (default: ask)",
     ),
     ("CUDA_ARCH_MODE=<mode>", "GPU code targets: native, all or custom (default: native)"),
     ('CUDA_ARCHITECTURES="<list>"', 'Targets for custom mode, for example "86 89"'),

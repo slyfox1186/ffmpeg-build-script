@@ -273,7 +273,7 @@ class SettingsScreen(ModalScreen[LaunchSettings | None]):
             )
             yield Label("Parallel jobs · leave empty for available CPUs")
             yield Input(self.launch.jobs, id="jobs", placeholder="Auto", select_on_focus=True)
-            yield Label("CUDA installation")
+            yield Label("CUDA installation · missing or newer toolkit")
             yield Select(
                 [(value.title(), value) for value in ("ask", "always", "never")],
                 value=self.launch.cuda_install,

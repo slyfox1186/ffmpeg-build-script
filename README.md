@@ -98,6 +98,13 @@ link dynamically to selected operating-system libraries and GPU runtimes.
   during a build now also reconfigures FFmpeg, which otherwise reused a build
   made without it. On WSL2, `nvidia-smi` stays on the build path after that
   install.
+- **A newer CUDA toolkit is detected and offered again.** Builds that use CUDA
+  compare the installed toolkit with the newest release in NVIDIA's repository
+  for this distribution and, with `CUDA_INSTALL=ask`, ask before installing it.
+  The offer is limited to releases the installed NVIDIA driver supports, because
+  FFmpeg's CUDA filters are PTX that an older driver cannot load. WSL2 now uses
+  the distribution's repository, since NVIDIA's `wsl-ubuntu` repository is
+  deprecated and stops at CUDA 13.3.
 - The menu's compact and narrow layouts now follow every terminal resize,
   including one made while a dialog is open.
 - `libaribb24` is marked as needing GPL authorization in the menu and the
@@ -305,8 +312,8 @@ General options:
 Environment variables:
   BUILD_ROOT=<dir>                Build workspace
                                   (default: build/ in this checkout)
-  CUDA_INSTALL=<mode>             Install a missing CUDA toolkit: ask, always or
-                                  never (default: ask)
+  CUDA_INSTALL=<mode>             Install a missing or newer CUDA toolkit: ask,
+                                  always or never (default: ask)
   CUDA_ARCH_MODE=<mode>           GPU code targets: native, all or custom
                                   (default: native)
   CUDA_ARCHITECTURES="<list>"     Targets for custom mode, for example "86 89"
@@ -743,13 +750,46 @@ If an NVIDIA GPU is present but `nvcc` is absent, and the build can use CUDA
 (`--enable-gpl-and-non-free` with `nv-codec-headers = true`), the default
 behavior is to ask before installing the CUDA toolkit from NVIDIA's signed APT
 repository. Other builds never install or probe the toolkit. Installing it
-reconfigures FFmpeg on that run. Control that explicitly:
+reconfigures FFmpeg on that run.
+
+When a toolkit is installed, the build also checks NVIDIA's repository for this
+distribution (`ubuntu2204`, `ubuntu2404`, `ubuntu2604`, `debian12` or
+`debian13`, on WSL2 too) and offers a newer release:
+
+- When the driver's CUDA support can be read (`cuDriverGetVersion`), only
+  releases it supports are offered: FFmpeg's CUDA filters are PTX that the
+  driver compiles at load time, and NVIDIA's compatibility rules do not cover
+  PTX from a newer toolkit. A newer release that needs a newer driver is
+  reported with that reason instead of offered. When it cannot be read, the
+  build warns and still asks. The script never installs or changes a driver.
+- The exact package is installed, for example `cuda-toolkit-13-5=13.5.0-1`, and
+  the build checks that its `version.json` reports that release before using
+  it. A new series installs beside the old one (`/usr/local/cuda-13.5` next to
+  `/usr/local/cuda-13.4`, which stays installed); an update within a series
+  replaces it in place.
+- If `/usr/local/cuda` was set manually to another toolkit, the build uses the
+  new one, says so, and names `sudo update-alternatives --auto cuda`.
+- If the default toolkit cannot compile for a GPU target this build needs,
+  which happens when NVIDIA drops an older GPU generation, the build uses the
+  newest other installed `/usr/local/cuda-M.m` that can, on every run, and says
+  which targets are missing. An update within a series replaces the old
+  toolkit, so there is nothing to fall back to in that case.
+- A toolkit in a new directory changes FFmpeg's `--nvcc` path, so FFmpeg is
+  reconfigured; dependency builds are reused.
+- WSL2 systems still configured for NVIDIA's deprecated `wsl-ubuntu`
+  repository are moved to the distribution's repository when they install,
+  following NVIDIA's WSL guide.
+
+`CUDA_INSTALL=always` installs a missing toolkit and applies a newer supported
+release without asking. When the driver's CUDA support cannot be read, it still
+installs a missing toolkit (with a warning) but does not update an existing
+one. `CUDA_INSTALL=never` checks nothing online. Control that explicitly:
 
 ```bash
 # Never modify CUDA packages.
 CUDA_INSTALL=never python3 build-ffmpeg.py --build --config ./custom.toml
 
-# Install the toolkit non-interactively if missing (still does not install a driver).
+# Install a missing toolkit, or a newer supported release, without asking (never a driver).
 CUDA_INSTALL=always python3 build-ffmpeg.py --build \
   --enable-gpl-and-non-free \
   --config ./custom.toml
@@ -795,8 +835,9 @@ and retains NVENC/NVDEC.
 The build performs unavoidable system changes only in narrowly defined places:
 
 - APT installs missing host development packages.
-- An opted-in CUDA setup installs NVIDIA's repository keyring and the
-  `cuda-toolkit` package, not a display driver.
+- An opted-in CUDA setup installs NVIDIA's repository keyring and a versioned
+  `cuda-toolkit-M-m` package, not a display driver. On WSL2 it first removes
+  the deprecated `wsl-ubuntu` repository entry, as NVIDIA's WSL guide directs.
 - FFmpeg's final `make install` writes under `/usr/local`.
 
 These commands run as `sudo -n`, so they never wait at a password prompt they

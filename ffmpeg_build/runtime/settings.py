@@ -66,10 +66,11 @@ DOTENV_SETTINGS = (
         "ask",
         "ask",
         "CUDA is used only with --enable-gpl-and-non-free and nv-codec-headers = "
-        "true. What to do when this computer has an NVIDIA GPU but no CUDA toolkit: ask "
-        "asks before installing it from NVIDIA's signed APT repository, always "
-        "installs it without asking, never leaves CUDA alone. The NVIDIA display "
-        "driver is never installed or changed. Allowed: ask, always or never.",
+        "true. What to do when this computer has an NVIDIA GPU and either no CUDA "
+        "toolkit or an older one than NVIDIA's repository offers for its driver: ask "
+        "asks before installing from NVIDIA's signed APT repository, always installs "
+        "without asking, never leaves CUDA alone and checks nothing. The NVIDIA "
+        "display driver is never installed or changed. Allowed: ask, always or never.",
     ),
     Setting(
         _CUDA,

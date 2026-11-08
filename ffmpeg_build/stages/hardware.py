@@ -1,22 +1,30 @@
-"""GPU discovery and optional CUDA toolkit installation.
+"""GPU discovery and optional CUDA toolkit installation and updates.
 
 This stage never installs or replaces an NVIDIA display driver, and it never
 guesses CUDA architectures: the targets come from `nvcc --list-gpu-code` and
 `nvidia-smi`. CUDA itself is added from NVIDIA's signed network repository and
 only after an explicit opt-in.
+
+The newest toolkit is read from this distribution's own repository listing
+rather than NVIDIA's download page, so the release offered is one apt can
+install here. WSL2 uses the same per-distribution repository: NVIDIA deprecated
+its 'wsl-ubuntu' repository, which stops at CUDA 13.3.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
 from ..runtime.paths import safe_remove_tree
+from ..runtime.versioncmp import version_compare, version_sort
 from .system_setup import APT_SCRIPT_OPTIONS, WSL_LIBRARY_DIRECTORY, SystemSetup
 
 # FFmpeg's own `check_nvcc` source; the probe below must fail exactly when
@@ -33,6 +41,96 @@ _CUDA_REPOSITORIES = {
     ("Debian", "12"): "debian12",
     ("Debian", "13"): "debian13",
 }
+
+
+# `cuda-toolkit-13-5_13.5.0-1_amd64.deb`: the series in the name must match the
+# version, which excludes `cuda-toolkit-13-4-config-common_13.4.92-1_all.deb` and
+# `cuda-toolkit-13-config-common_13.5.37-1_all.deb`.
+_CUDA_TOOLKIT_PACKAGE = re.compile(
+    r"cuda-toolkit-([0-9]+)-([0-9]+)_(([0-9]+)\.([0-9]+)\.[0-9]+)-([0-9]+)_amd64\.deb"
+)
+_CUDA_KEYRING_PACKAGE = re.compile(r"cuda-keyring_([0-9]+(?:\.[0-9]+)+-[0-9]+)_all\.deb")
+_CUDA_RELEASE_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+# Each `cuda-toolkit-M-m` package installs into its own `cuda-M.m` directory here.
+CUDA_PREFIX = Path("/usr/local")
+# The source entry of NVIDIA's deprecated WSL repository, which ends at CUDA 13.3.
+WSL_CUDA_SOURCE = Path("/etc/apt/sources.list.d/cuda-wsl-ubuntu-x86_64.list")
+# The driver's own answer, from a stable C API, rather than the `nvidia-smi`
+# banner, whose label changed from "CUDA Version" to "CUDA UMD Version". Run as a
+# child so loading the driver library can never affect the build process.
+_DRIVER_CUDA_PROBE = (
+    "import ctypes\n"
+    "version = ctypes.c_int()\n"
+    "status = ctypes.CDLL('libcuda.so.1').cuDriverGetVersion(ctypes.byref(version))\n"
+    "print(version.value if status == 0 else '')\n"
+)
+
+
+@dataclass(frozen=True)
+class CudaRelease:
+    """One `cuda-toolkit-M-m` package in NVIDIA's repository for this system."""
+
+    version: str
+    package_version: str
+    repository: str
+    repository_url: str
+    keyring_version: str
+
+    @property
+    def series(self) -> str:
+        return ".".join(self.version.split(".")[:2])
+
+    @property
+    def package(self) -> str:
+        return "cuda-toolkit-" + self.series.replace(".", "-")
+
+    @property
+    def root(self) -> Path:
+        return CUDA_PREFIX / f"cuda-{self.series}"
+
+
+def parse_cuda_listing(listing: str) -> tuple[list[tuple[str, str]], str | None]:
+    """The toolkit (version, package version) pairs, newest first, and the newest keyring."""
+    toolkits: dict[str, str] = {}
+    for match in _CUDA_TOOLKIT_PACKAGE.finditer(listing):
+        major, minor, version, version_major, version_minor, revision = match.groups()
+        if (major, minor) != (version_major, version_minor):
+            continue
+        package_version = f"{version}-{revision}"
+        recorded = toolkits.get(version)
+        if recorded is None or version_compare(package_version, recorded) > 0:
+            toolkits[version] = package_version
+    ordered = version_sort(list(toolkits), reverse=True, unique=True)
+    keyrings = version_sort(_CUDA_KEYRING_PACKAGE.findall(listing), reverse=True, unique=True)
+    return [(version, toolkits[version]) for version in ordered], (
+        keyrings[0] if keyrings else None
+    )
+
+
+def cuda_series(version: str) -> str:
+    return ".".join(version.split(".")[:2])
+
+
+def cuda_update_available(installed: str, available: str) -> bool:
+    """Whether `available` is newer; an installed `M.m` without its patch level is
+    compared by series, so 13.4 is never told that 13.4.3 is an update."""
+    if installed.count(".") == 1:
+        return version_compare(cuda_series(available), installed) > 0
+    return version_compare(available, installed) > 0
+
+
+def newest_supported_release(
+    releases: list[CudaRelease], driver_series: str | None
+) -> CudaRelease | None:
+    """The newest release whose PTX this driver can load; any release when unknown.
+
+    NVIDIA's minor-version compatibility excludes PTX from a newer toolkit, and
+    FFmpeg's CUDA filters are PTX the driver compiles at load time.
+    """
+    for release in releases:
+        if driver_series is None or version_compare(release.series, driver_series) <= 0:
+            return release
+    return None
 
 
 def describe_pci_device(line: str) -> str:
@@ -126,41 +224,93 @@ class HardwareDetection:
         return None
 
     def local_cuda_version(self, cuda_root: Path) -> str | None:
+        """`version.json`'s full release, else `nvcc`'s `M.m`, else None."""
         if not os.access(cuda_root / "bin/nvcc", os.X_OK):
             return None
+        try:
+            record = json.loads((cuda_root / "version.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError):
+            record = None
+        if isinstance(record, dict):
+            cuda = record.get("cuda")
+            version = cuda.get("version") if isinstance(cuda, dict) else None
+            if isinstance(version, str) and _CUDA_RELEASE_VERSION.match(version):
+                return version
         completed = self.runner.capture([str(cuda_root / "bin/nvcc"), "--version"])
-        match = re.search(r"release ([0-9]+(?:\.[0-9]+){1,2})", completed.stdout)
+        if completed.returncode != 0:
+            return None
+        match = re.search(r"release ([0-9]+\.[0-9]+)\b", completed.stdout)
         return match.group(1) if match else None
+
+    def driver_cuda_version(self) -> str | None:
+        """The newest CUDA `M.m` the installed NVIDIA driver supports, or None."""
+        completed = self.runner.capture(
+            [sys.executable, "-I", "-c", _DRIVER_CUDA_PROBE], timeout=20
+        )
+        value = completed.stdout.strip()
+        if completed.returncode != 0 or not value.isdigit() or int(value) <= 0:
+            return None
+        number = int(value)
+        return f"{number // 1000}.{number % 1000 // 10}"
 
     def cuda_repository_name(self) -> str | None:
         context = self.context
-        if context.variable_os == "WSL2":
-            return "wsl-ubuntu"
         return _CUDA_REPOSITORIES.get((context.operating_system, context.release_version))
 
-    def install_cuda_toolkit(self) -> None:
-        context = self.context
+    def cuda_releases(self) -> list[CudaRelease] | None:
+        """This system's CUDA toolkit releases, newest first, from one repository listing.
+
+        None when no repository maps to this system, the listing cannot be read,
+        or it names no keyring or toolkit; every caller treats that as optional.
+        """
         repository = self.cuda_repository_name()
         if repository is None:
-            raise BuildError(
-                "No supported NVIDIA CUDA repository mapping exists for "
-                f"'{context.operating_system} {context.release_version}'."
-            )
-        if repository == "wsl-ubuntu" and context.operating_system == "Debian":
-            # NVIDIA publishes exactly one WSL2 CUDA repository; its packages
-            # are driver-free and install on Debian userspaces as well.
-            self.logger.info(
-                "Using NVIDIA's 'wsl-ubuntu' repository for this Debian WSL2 userspace."
-            )
-
+            return None
         repository_url = (
             f"https://developer.download.nvidia.com/compute/cuda/repos/{repository}/x86_64/"
         )
-        keyring_version = context.resolver.scrape_highest(
-            repository_url, r"cuda-keyring_([0-9]+(?:\.[0-9]+)+-[0-9]+)_all\.deb"
-        )
-        if keyring_version is None:
-            raise BuildError("Unable to discover NVIDIA's current CUDA repository keyring.")
+        listing = self.context.resolver.fetch_text(repository_url)
+        if listing is None:
+            return None
+        toolkits, keyring_version = parse_cuda_listing(listing)
+        if keyring_version is None or not toolkits:
+            return None
+        return [
+            CudaRelease(version, package_version, repository, repository_url, keyring_version)
+            for version, package_version in toolkits
+        ]
+
+    def _remove_wsl_cuda_repository(self) -> None:
+        """NVIDIA's documented migration off its deprecated 'wsl-ubuntu' repository.
+
+        Its keyring package and the distribution's share the name and version,
+        so installing the new one would keep the old source as an obsolete
+        conffile; NVIDIA's WSL guide purges it first.
+        """
+        if not os.path.lexists(WSL_CUDA_SOURCE):
+            return
+        self.logger.info("Removing NVIDIA's deprecated 'wsl-ubuntu' CUDA repository...")
+        owner = self.runner.capture(["dpkg-query", "-S", str(WSL_CUDA_SOURCE)])
+        if owner.returncode == 0 and owner.stdout.split(":", 1)[0].strip() == "cuda-keyring":
+            self.context.execute(
+                [
+                    "sudo",
+                    "-n",
+                    "env",
+                    "DEBIAN_FRONTEND=noninteractive",
+                    "apt",
+                    *APT_SCRIPT_OPTIONS,
+                    "remove",
+                    "--purge",
+                    "--assume-yes",
+                    "cuda-keyring",
+                ]
+            )
+        else:
+            self.context.execute(["sudo", "-n", "rm", "-f", "--", str(WSL_CUDA_SOURCE)])
+
+    def install_cuda_toolkit(self, release: CudaRelease) -> None:
+        context = self.context
 
         # Staged inside the package cache, not /tmp, so the removal below gets a
         # real containment boundary. Deriving the allowed root from the
@@ -168,9 +318,11 @@ class HardwareDetection:
         temp_directory = Path(tempfile.mkdtemp(prefix=".cuda-keyring.", dir=context.packages))
         context.register_temporary_path(temp_directory)
         keyring_file = temp_directory / "cuda-keyring.deb"
-        keyring_url = f"{repository_url}cuda-keyring_{keyring_version}_all.deb"
+        keyring_url = f"{release.repository_url}cuda-keyring_{release.keyring_version}_all.deb"
 
-        self.logger.info(f"Downloading NVIDIA's CUDA repository keyring for '{repository}'...")
+        self.logger.info(
+            f"Downloading NVIDIA's CUDA repository keyring for '{release.repository}'..."
+        )
         exit_code = self.runner.run_logged(
             [
                 "curl",
@@ -200,11 +352,14 @@ class HardwareDetection:
             context.unregister_temporary_path(temp_directory)
             raise BuildError("Unable to download NVIDIA's CUDA repository keyring.")
 
+        # After the download, so a failed fetch leaves a working configuration.
+        self._remove_wsl_cuda_repository()
         context.execute(["sudo", "-n", "dpkg", "-i", str(keyring_file)])
         safe_remove_tree(temp_directory, context.packages)
         context.unregister_temporary_path(temp_directory)
         self.setup.apt_index_updated = False
         self.setup.apt_update_once()
+        self.logger.info(f"Installing CUDA {release.version} ('{release.package}')...")
         context.execute(
             [
                 "sudo",
@@ -216,15 +371,209 @@ class HardwareDetection:
                 "install",
                 "--assume-yes",
                 "--no-install-recommends",
-                "cuda-toolkit",
+                f"{release.package}={release.package_version}",
             ]
         )
         self.setup.source_path()
+
+    def installed_release_root(self, release: CudaRelease) -> Path:
+        """The new toolkit's root once it reports the release that was installed.
+
+        The build uses it even when `/usr/local/cuda` still names another
+        toolkit, and says why rather than guessing.
+        """
+        root = release.root
+        installed = self.local_cuda_version(root)
+        if installed != release.version:
+            raise BuildError(
+                f"Installing '{release.package}={release.package_version}' finished, but "
+                f"'{root}' reports CUDA '{installed or 'unknown'}' instead of {release.version}."
+            )
+        found = self.find_cuda_root()
+        if found is None or found.resolve() != root.resolve():
+            query = self.runner.capture(["update-alternatives", "--query", "cuda"])
+            if query.returncode == 0 and re.search(r"^Status: manual$", query.stdout, re.MULTILINE):
+                self.logger.warn(
+                    f"'/usr/local/cuda' is set manually to another toolkit; this build uses "
+                    f"'{root}'. Run 'sudo update-alternatives --auto cuda' to make CUDA "
+                    f"{release.version} the default."
+                )
+            else:
+                self.logger.warn(
+                    f"'nvcc' on the build PATH resolves to '{found}', not '{root}'; this build "
+                    f"uses '{root}'."
+                )
+        return root
+
+    def _consent(self, install_mode: str, question: str, declined: str) -> bool:
+        """`always` agrees; `ask` asks on a terminal and otherwise warns `declined`."""
+        if install_mode == "always":
+            return True
+        if not sys.stdin.isatty():
+            self.logger.warn(declined)
+            return False
+        try:
+            answer = self.logger.prompt(question)
+        except EOFError:
+            print()
+            return False
+        return answer.strip().lower() in ("y", "yes")
+
+    def _driver_limit(self, release: CudaRelease, driver_series: str | None) -> str:
+        return (
+            f"CUDA {release.version} is available, but this NVIDIA driver supports CUDA up "
+            f"to {driver_series}, and FFmpeg's CUDA filters built with it would not load. "
+            "Update the NVIDIA driver to one that supports it (see NVIDIA's CUDA release "
+            "notes) and run the build again; this script never installs drivers."
+        )
+
+    def _offer_update(
+        self,
+        cuda_root: Path,
+        releases: list[CudaRelease] | None,
+        driver_series: str | None,
+        install_mode: str,
+    ) -> Path:
+        """Offer a newer toolkit for an installed one; return the root to build with."""
+        version = self.local_cuda_version(cuda_root)
+        self.logger.info(
+            f"CUDA toolkit detected at '{cuda_root}' (version '{version or 'unknown'}')."
+        )
+        if (
+            driver_series is not None
+            and version is not None
+            and version_compare(cuda_series(version), driver_series) > 0
+        ):
+            self.logger.warn(
+                f"CUDA {version} is newer than the CUDA {driver_series} this NVIDIA driver "
+                "supports; FFmpeg's CUDA filters built with it may not load until the driver "
+                "is updated."
+            )
+        if releases is None:
+            self.logger.warn(
+                "Unable to check NVIDIA's CUDA repository for a newer toolkit; using the "
+                "installed one."
+            )
+            return cuda_root
+        if version is None:
+            self.logger.warn(
+                "Unable to read the installed CUDA toolkit's version; not checking for updates."
+            )
+            return cuda_root
+        newest = releases[0]
+        target = newest_supported_release(releases, driver_series)
+        if target is not None and cuda_update_available(version, target.version):
+            if target is not newest:
+                self.logger.info(self._driver_limit(newest, driver_series))
+            present = self.local_cuda_version(target.root)
+            if (
+                present is not None
+                and present.count(".") == 2
+                and version_compare(present, target.version) >= 0
+                and target.root.resolve() != cuda_root.resolve()
+            ):
+                self.logger.info(
+                    f"CUDA {present} is already installed at '{target.root}', but this build "
+                    f"uses the default toolkit at '{cuda_root}'."
+                )
+                return cuda_root
+            self.logger.info(
+                f"CUDA {target.version} is available from NVIDIA's '{target.repository}' "
+                f"repository (installed: {version})."
+            )
+            if driver_series is None:
+                self.logger.warn(
+                    "Unable to read the CUDA version this NVIDIA driver supports; make sure "
+                    f"it supports CUDA {target.series} before installing."
+                )
+                if install_mode == "always":
+                    # A working toolkit is never replaced unattended by one
+                    # whose PTX this driver might not load.
+                    self.logger.warn(
+                        "Not updating automatically while the driver's CUDA support is "
+                        "unknown; run the build in a terminal with 'CUDA_INSTALL=ask' to choose."
+                    )
+                    return cuda_root
+            if not self._consent(
+                install_mode,
+                f"Install CUDA {target.version} from NVIDIA's signed APT repository? [y/N]: ",
+                f"CUDA {target.version} is available, but input is non-interactive; run the "
+                "build in a terminal to be asked, or set 'CUDA_INSTALL=always'.",
+            ):
+                return cuda_root
+            # Resolved first: installing can repoint `/usr/local/cuda`.
+            previous = cuda_root.resolve()
+            self.install_cuda_toolkit(target)
+            new_root = self.installed_release_root(target)
+            if new_root.resolve() != previous:
+                self.logger.info(f"CUDA {version} remains installed at '{previous}'.")
+            return new_root
+        if cuda_update_available(version, newest.version):
+            self.logger.info(self._driver_limit(newest, driver_series))
+        else:
+            self.logger.info(
+                f"CUDA {version} is up to date (newest in NVIDIA's '{newest.repository}' "
+                f"repository: {newest.version})."
+            )
+        return cuda_root
 
     def read_cuda_architectures(self, cuda_root: Path) -> list[int]:
         completed = self.runner.capture([str(cuda_root / "bin/nvcc"), "--list-gpu-code"])
         found = {int(value) for value in re.findall(r"sm_([0-9]+)", completed.stdout)}
         return sorted(found)
+
+    def _unsupported_targets(self, cuda_root: Path) -> list[int]:
+        """The GPU targets this build needs that the toolkit at `cuda_root` cannot compile.
+
+        Read from the toolkit itself, never from a table of GPU generations.
+        """
+        mode = os.environ.get("CUDA_ARCH_MODE", "native")
+        if mode == "native":
+            required = self.read_installed_gpu_architectures()
+        elif mode == "custom":
+            required = [
+                int(value)
+                for value in os.environ.get("CUDA_ARCHITECTURES", "").split()
+                if value.isdigit()
+            ]
+        else:
+            return []
+        available = set(self.read_cuda_architectures(cuda_root))
+        return [value for value in required if value not in available]
+
+    def compatible_root(self, cuda_root: Path, driver_series: str | None) -> Path:
+        """`cuda_root`, or the newest installed toolkit that compiles for this build's GPUs.
+
+        NVIDIA drops older GPU generations in new toolkit series. Checked on
+        every run, not only right after an update, because the update makes the
+        new toolkit the default that later runs discover.
+        """
+        dropped = self._unsupported_targets(cuda_root)
+        if not dropped:
+            return cuda_root
+        candidates: dict[str, Path] = {}
+        for root in CUDA_PREFIX.glob("cuda-*"):
+            if not re.fullmatch(r"cuda-[0-9]+\.[0-9]+", root.name) or root.is_symlink():
+                continue
+            version = self.local_cuda_version(root)
+            if version is None or root.resolve() == cuda_root.resolve():
+                continue
+            if (
+                driver_series is not None
+                and version_compare(cuda_series(version), driver_series) > 0
+            ):
+                continue
+            candidates[version] = root
+        for version in version_sort(list(candidates), reverse=True):
+            root = candidates[version]
+            if not self._unsupported_targets(root):
+                self.logger.warn(
+                    f"The CUDA toolkit at '{cuda_root}' cannot compile for "
+                    f"{', '.join(f'sm_{value}' for value in dropped)}; this build uses CUDA "
+                    f"{version} at '{root}', which can."
+                )
+                return root
+        return cuda_root
 
     def read_installed_gpu_architectures(self) -> list[int]:
         if self.runner.which("nvidia-smi") is None:
@@ -424,38 +773,72 @@ class HardwareDetection:
             return
 
         context.cuda_root = self.find_cuda_root()
-        if context.cuda_root is not None:
+        if install_mode == "never":
+            # No repository lookup either: 'never' leaves CUDA entirely alone.
+            if context.cuda_root is None:
+                self.logger.warn(
+                    "NVIDIA GPU detected, but 'CUDA_INSTALL=never' and no toolkit is installed."
+                )
+                return
             version = self.local_cuda_version(context.cuda_root) or "unknown"
             self.logger.info(
                 f"CUDA toolkit detected at '{context.cuda_root}' (version '{version}')."
             )
+            context.cuda_root = self.compatible_root(context.cuda_root, None)
             self._prepare_cuda_compilation("Installed CUDA toolkit")
             return
 
-        if install_mode == "never":
-            self.logger.warn(
-                "NVIDIA GPU detected, but 'CUDA_INSTALL=never' and no toolkit is installed."
+        releases = self.cuda_releases()
+        driver_series = self.driver_cuda_version()
+        if context.cuda_root is not None:
+            previous = context.cuda_root
+            offered = self._offer_update(previous, releases, driver_series, install_mode)
+            context.cuda_root = self.compatible_root(offered, driver_series)
+            # FFmpeg's configure receipt names nvcc's path, so a toolkit in a
+            # new directory reconfigures FFmpeg; dependency builds never use it.
+            self._prepare_cuda_compilation(
+                "Installed CUDA toolkit" if context.cuda_root == previous else "New CUDA toolkit"
             )
             return
-        if install_mode == "ask":
-            if not sys.stdin.isatty():
-                self.logger.warn(
-                    "NVIDIA GPU detected, but input is non-interactive; "
-                    "skipping CUDA toolkit installation."
-                )
-                return
-            answer = self.logger.prompt(
-                "Install the CUDA toolkit from NVIDIA's signed APT repository? [y/N]: "
-            )
-            if answer.strip().lower() not in ("y", "yes"):
-                return
 
-        self.install_cuda_toolkit()
-        context.cuda_root = self.find_cuda_root()
-        if context.cuda_root is None:
-            raise BuildError(
-                "CUDA toolkit installation completed, but 'nvcc' could not be located."
+        if releases is None:
+            if self.cuda_repository_name() is None:
+                problem = (
+                    "No supported NVIDIA CUDA repository mapping exists for "
+                    f"'{context.operating_system} {context.release_version}'."
+                )
+            else:
+                problem = "Unable to discover NVIDIA's current CUDA toolkit and repository keyring."
+            if install_mode == "always":
+                raise BuildError(problem)
+            self.logger.warn(f"{problem} Skipping the CUDA toolkit installation.")
+            return
+        target = newest_supported_release(releases, driver_series)
+        if target is None:
+            self.logger.warn(
+                f"No CUDA toolkit in NVIDIA's '{releases[0].repository}' repository supports "
+                f"this NVIDIA driver's CUDA {driver_series}; skipping the CUDA toolkit "
+                "installation."
             )
+            return
+        if target is not releases[0]:
+            self.logger.info(self._driver_limit(releases[0], driver_series))
+        if driver_series is None:
+            self.logger.warn(
+                "Unable to read the CUDA version this NVIDIA driver supports; CUDA "
+                f"{target.version} is the newest release, and FFmpeg's CUDA filters load only "
+                "when the driver supports it."
+            )
+        if not self._consent(
+            install_mode,
+            f"Install CUDA {target.version} from NVIDIA's signed APT repository? [y/N]: ",
+            "NVIDIA GPU detected, but input is non-interactive; "
+            "skipping CUDA toolkit installation.",
+        ):
+            return
+
+        self.install_cuda_toolkit(target)
+        context.cuda_root = self.installed_release_root(target)
         # FFmpeg's configure receipt notices the new CUDA options and
         # reconfigures it; dependency builds do not use the toolkit.
         self._prepare_cuda_compilation("New CUDA toolkit")
