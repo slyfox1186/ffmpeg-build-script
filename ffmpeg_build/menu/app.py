@@ -634,7 +634,7 @@ class MenuApp(App[MenuResult]):
         self.push_screen(HelpScreen())
 
     def action_details(self) -> None:
-        self.push_screen(HelpScreen(self._detail_text()))
+        self.push_screen(HelpScreen(self._detail_text(), title="Package details"))
 
     @on(Button.Pressed, "#build-button")
     def action_build(self) -> None:

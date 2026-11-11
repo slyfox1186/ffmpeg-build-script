@@ -1,9 +1,11 @@
 """Per-package release discovery.
 
-Most packages resolve through `github_version` or `gitlab_version`. The rest
-publish no tag list this project can read and need a dedicated index scraper,
-which is what the functions below are. `find_git_repo` is the dispatch table
-that maps a recipe's upstream identifier onto the right resolver.
+Most packages resolve through `github_version` or `gitlab_version` with the
+tag convention recorded in the tables at the bottom. The methods below cover
+the rest: projects whose tags need their own shape, and projects that publish
+no tag list this project can read and need an index scraper. `find_git_repo`
+maps a recipe's upstream identifier onto the right resolver, and an identifier
+it does not know is an error rather than a guess at a tag convention.
 """
 
 from __future__ import annotations
@@ -19,6 +21,10 @@ from .versioncmp import version_sort
 from .versions import DEFAULT_VERSION_PATTERN, VersionResolver
 
 _THREE_PART = re.compile(r"^[0-9]+(\.[0-9]+){2}$")
+# libjpeg-turbo and Fontconfig number development releases x.y.90 and up
+# (libjpeg-turbo 3.1.90 is "3.2 beta1"; Fontconfig 2.13.91-2.13.96 preceded
+# 2.14.0), as plain tags the numeric pattern would otherwise accept.
+STABLE_RELEASE_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.(?:[0-9]|[1-8][0-9])(?:\.[0-9]+)?$")
 
 FREEDESKTOP_PKG_CONFIG_GIT = "https://gitlab.freedesktop.org/pkg-config/pkg-config.git"
 X265_BITBUCKET_GIT = "https://bitbucket.org/multicoreware/x265_git.git"
@@ -51,8 +57,9 @@ GIT_RELEASE_PREFIXES = {
 class ResolvedVersion:
     """A version plus which upstream produced it.
 
-    FreeType and Fontconfig publish both release tarballs and GitLab archives
-    under different names, so the download URL depends on which source answered.
+    FreeType publishes release tarballs and GitLab archives under different
+    names, so its download URL depends on which source answered; pkg-config
+    records whether pkgconf or freedesktop pkg-config was built.
     """
 
     version: str
@@ -86,24 +93,23 @@ class PackageVersions:
             "https://gitlab.freedesktop.org",
             "freetype/freetype",
             "VER-",
-            "-",
             re.compile(r"^[0-9]+(-[0-9]+){2,3}$"),
         )
         if hyphenated:
             return ResolvedVersion(hyphenated.replace("-", "."), "gitlab")
         return None
 
-    def fontconfig(self) -> ResolvedVersion | None:
+    def fontconfig(self) -> str | None:
         # The legacy release directory stopped updating before the GitLab
-        # releases. Prefer upstream tags so a reachable old mirror cannot
-        # silently select an obsolete version.
+        # releases. Upstream tags decide, so a reachable old mirror cannot
+        # silently select an obsolete version; the mirror is only a download
+        # fallback.
         version = self.resolver.gitlab_version(
-            "https://gitlab.freedesktop.org", "fontconfig/fontconfig", "", "."
+            "https://gitlab.freedesktop.org", "fontconfig/fontconfig", "", STABLE_RELEASE_PATTERN
         )
-        if version:
-            return ResolvedVersion(version, "gitlab")
-        self.logger.warn("Unable to discover the latest Fontconfig release from upstream tags.")
-        return None
+        if version is None:
+            self.logger.warn("Unable to discover the latest Fontconfig release from upstream tags.")
+        return version
 
     # -- release indexes -------------------------------------------------
 
@@ -182,18 +188,16 @@ class PackageVersions:
         return ordered[0] if ordered else None
 
     def opencore_amr(self) -> str | None:
-        version = self.resolver.scrape_highest(
+        return self.resolver.scrape_highest(
             "https://sourceforge.net/projects/opencore-amr/files/opencore-amr/",
             r"opencore-amr-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.gz",
         )
-        return version if version and _THREE_PART.match(version) else None
 
     def xvidcore(self) -> str | None:
-        version = self.resolver.scrape_highest(
+        return self.resolver.scrape_highest(
             "https://downloads.xvid.com/downloads/",
             r"xvidcore-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.bz2",
         )
-        return version if version and _THREE_PART.match(version) else None
 
     def giflib(self) -> str | None:
         version = self.resolver.scrape_highest(
@@ -230,12 +234,10 @@ class PackageVersions:
         return self.resolver.github_version("openssl/openssl", "openssl-")
 
     def rav1e(self) -> str | None:
-        return self.resolver.github_version("xiph/rav1e", "v", "alpha|beta|rc")
+        return self.resolver.github_version("xiph/rav1e", "v")
 
     def vapoursynth(self) -> str | None:
-        return self.resolver.github_version(
-            "vapoursynth/vapoursynth", "R", "[Rr][Cc]", re.compile(r"^[0-9]+$")
-        )
+        return self.resolver.github_version("vapoursynth/vapoursynth", "R", re.compile(r"^[0-9]+$"))
 
     def pkgconf(self) -> ResolvedVersion | None:
         """The workspace pkg-config: pkgconf, else freedesktop.org pkg-config.
@@ -263,7 +265,7 @@ class PackageVersions:
 
     def nv_codec_headers(self) -> str | None:
         return self.resolver.github_version(
-            "FFmpeg/nv-codec-headers", "n", "", re.compile(r"^[0-9]+(\.[0-9]+){3}$")
+            "FFmpeg/nv-codec-headers", "n", re.compile(r"^[0-9]+(\.[0-9]+){3}$")
         )
 
     def ffmpeg(self) -> str | None:
@@ -281,9 +283,7 @@ class PackageVersions:
             release = (
                 None
                 if tags is None
-                else self.resolver.select_prefixed_version(
-                    tags, "", "alpha|beta|rc", X265_RELEASE_PATTERN
-                )
+                else self.resolver.select_prefixed_version(tags, "", X265_RELEASE_PATTERN)
             )
             if release is None:
                 self.logger.warn(
@@ -310,19 +310,15 @@ class PackageVersions:
             raise BuildError("Failed to detect x264 stable commit.")
         return commit
 
-    def videolan(self, project: str, count: int = 1) -> str | None:
+    def videolan(self, project: str) -> str | None:
         """Resolve the newest unprefixed release tag of a VideoLAN project."""
-        if project not in VIDEOLAN_PROJECTS:
-            return None
         tags = self.resolver.remote_tag_names(f"https://code.videolan.org/{project}.git")
         if not tags:
             return None
-        return self.resolver.select_prefixed_version(tags, "", index=count)
+        return self.resolver.select_prefixed_version(tags, "")
 
-    def svt_av1(self, index: int = 1) -> str | None:
-        return self.resolver.gitlab_version(
-            "https://gitlab.com", "AOMediaCodec/SVT-AV1", "v", ".", None, index
-        )
+    def svt_av1(self) -> str | None:
+        return self.resolver.gitlab_version("https://gitlab.com", "AOMediaCodec/SVT-AV1", "v")
 
 
 # --------------------------------------------------------------------------
@@ -391,10 +387,8 @@ _UNPREFIXED_GITHUB = frozenset(
         "harfbuzz/harfbuzz",
         "google/highway",
         "jemalloc/jemalloc",
-        "libjpeg-turbo/libjpeg-turbo",
         "libsndfile/libsndfile",
         "chirlu/soxr",
-        "mesonbuild/meson",
     }
 )
 
@@ -413,7 +407,6 @@ _V_PREFIXED_GITHUB = frozenset(
         "google/brotli",
         "gflags/gflags",
         "c-ares/c-ares",
-        "akheron/jansson",
         "pnggroup/libpng",
         "strukturag/libheif",
         "uclouvain/openjpeg",
@@ -423,8 +416,6 @@ _V_PREFIXED_GITHUB = frozenset(
         "georgmartius/vid.stab",
         "mstorsjo/fdk-aac",
         "hoene/libmysofa",
-        "dyne/frei0r",
-        "nkoriyama/aribb24",
         "Netflix/vmaf",
     }
 )
@@ -433,49 +424,38 @@ _GITLAB_PROJECTS = {
     "drobilla/zix": ("https://gitlab.com", "drobilla/zix"),
     "libtiff/libtiff": ("https://gitlab.com", "libtiff/libtiff"),
     "GNOME/libxml2": ("https://gitlab.gnome.org", "GNOME/libxml2"),
-    "rist/librist": ("https://code.videolan.org", "rist/librist"),
 }
 
 
-def find_git_repo(
-    versions: PackageVersions,
-    repository: str,
-    choice: int = 1,
-) -> str | None:
-    """Resolve a version for one of the registry's upstream identifiers."""
+def find_git_repo(versions: PackageVersions, repository: str) -> str | None:
+    """Resolve a version for one of the recipes' upstream identifiers."""
     resolver = versions.resolver
-    if repository == "FFmpeg/FFmpeg":
-        return versions.ffmpeg()
     if repository == "xiph/rav1e":
         return versions.rav1e()
     if repository == "videolan/x264":
         return versions.x264()
     if repository == "GPUOpen-LibrariesAndSDKs/AMF":
         return resolver.github_version("GPUOpen-LibrariesAndSDKs/AMF", "v")
-    if repository in ("avisynth/avisynthplus", "AviSynth/AviSynthPlus"):
+    if repository == "AviSynth/AviSynthPlus":
         return resolver.github_version("AviSynth/AviSynthPlus", "v")
     if repository == "vapoursynth/vapoursynth":
         return versions.vapoursynth()
     if repository in ("MediaArea/ZenLib", "MediaArea/MediaInfoLib", "MediaArea/MediaInfo"):
         return resolver.github_version(repository, "v")
     if repository == "AOMediaCodec/SVT-AV1":
-        return versions.svt_av1(choice)
+        return versions.svt_av1()
     if repository in VIDEOLAN_PROJECTS:
-        return versions.videolan(repository, choice)
+        return versions.videolan(repository)
     if repository == "Kitware/CMake":
-        return resolver.github_version("Kitware/CMake", "v", "rc")
+        return resolver.github_version("Kitware/CMake", "v")
     if repository == "mesonbuild/meson":
-        return resolver.github_version("mesonbuild/meson", "", "rc")
+        return resolver.github_version("mesonbuild/meson", "")
     if repository == "madler/zlib":
         return resolver.github_version("madler/zlib", "v")
     if repository == "mm2/Little-CMS":
         return resolver.github_version("mm2/Little-CMS", "lcms")
-    if repository == "freetype/freetype":
-        resolved = versions.freetype()
-        return resolved.version if resolved else None
-    if repository == "fontconfig/fontconfig":
-        resolved = versions.fontconfig()
-        return resolved.version if resolved else None
+    if repository == "libjpeg-turbo/libjpeg-turbo":
+        return resolver.github_version(repository, "", STABLE_RELEASE_PATTERN)
     if repository in _GITLAB_PROJECTS:
         base_url, project = _GITLAB_PROJECTS[repository]
         return resolver.gitlab_version(base_url, project, "v")
@@ -483,4 +463,4 @@ def find_git_repo(
         return resolver.github_version(repository, "")
     if repository in _V_PREFIXED_GITHUB:
         return resolver.github_version(repository, "v")
-    return resolver.github_version_any_prefix(repository)
+    raise BuildError(f"No release rule is registered for '{repository}'.")

@@ -116,7 +116,6 @@ class BuildContext:
             settings=self.download_settings,
             register_temporary=self.register_temporary_path,
             unregister_temporary=self.unregister_temporary_path,
-            build_root_locked=True,
         )
         self.cloner = GitCloner(
             clone_timeout=int(os.environ.get("GIT_CLONE_TIMEOUT") or "1800"),
@@ -348,6 +347,10 @@ class BuildContext:
             return self.workspace_pkgconf_modules_ready(
                 *artifacts.PKGCONF_MODULES[key]
             ) and artifacts.openssl_uses_system_directory(self.workspace)
+        if key == "libass":
+            return self.workspace_pkgconf_modules_ready(
+                *artifacts.PKGCONF_MODULES[key]
+            ) and artifacts.libass_has_assembly_kernels(self.workspace)
         if key == "ffmpeg":
             return os.access("/usr/local/bin/ffmpeg", os.X_OK) and os.access(
                 "/usr/local/bin/ffprobe", os.X_OK
@@ -462,7 +465,7 @@ class BuildContext:
         return fetcher()
 
     def git_snapshot(self, repository_url: str, key: str, mode: str = "shallow") -> str | None:
-        """Build a stable release tag, retaining exact commits for normal resumes."""
+        """Check out the newest stable release tag, keeping the exact commit for resumes."""
         if not self.package_enabled(key):
             return None
         marker = self.marker_path(key)
@@ -487,41 +490,28 @@ class BuildContext:
             self.logger.warn(f"Replacing legacy non-commit marker for Git snapshot '{key}'.")
             marker.unlink(missing_ok=True)
 
-        reference: str | None = None
-        remote_commit: str | None = None
-        if key in GIT_RELEASE_PREFIXES:
-            prefix = GIT_RELEASE_PREFIXES[key]
-            tags = self.resolver.remote_tag_names(repository_url)
-            version = self.resolver.select_prefixed_version(tags or [], prefix)
-            if version is None:
-                raise BuildError(f"Unable to resolve a stable release tag for '{key}'.")
-            reference = prefix + version
-            remote_commit = self.resolver.remote_head_commit(
-                repository_url, f"refs/tags/{reference}"
-            )
-            if remote_commit is None:
-                raise BuildError(f"Unable to resolve the stable release commit for '{key}'.")
-            self.logger.info(f"{key}: selected stable release {reference} ({remote_commit[:12]}).")
-        elif key.endswith("-git"):
+        if key not in GIT_RELEASE_PREFIXES:
             raise BuildError(f"No stable release discovery rule is registered for '{key}'.")
-        elif valid_prior and self.latest:
-            remote_commit = self.resolver.remote_head_commit(repository_url)
-            if remote_commit is None:
-                raise BuildError(f"Unable to resolve the remote HEAD for '{key}'.")
+        prefix = GIT_RELEASE_PREFIXES[key]
+        tags = self.resolver.remote_tag_names(repository_url)
+        version = self.resolver.select_prefixed_version(tags or [], prefix)
+        if version is None:
+            raise BuildError(f"Unable to resolve a stable release tag for '{key}'.")
+        reference = prefix + version
+        remote_commit = self.resolver.remote_head_commit(repository_url, f"refs/tags/{reference}")
+        if remote_commit is None:
+            raise BuildError(f"Unable to resolve the stable release commit for '{key}'.")
+        self.logger.info(f"{key}: selected stable release {reference} ({remote_commit[:12]}).")
 
         if (
-            remote_commit
-            and prior_version
+            prior_version
             and remote_commit.startswith(prior_version)
             and self.cloner.local_head(source_directory) == remote_commit
         ):
             return remote_commit
-        if reference is not None:
-            commit = self.cloner.clone(
-                repository_url, key, mode, reference=reference, expected_commit=remote_commit
-            )
-        else:
-            commit = self.cloner.clone(repository_url, key, mode)
+        commit = self.cloner.clone(
+            repository_url, key, mode, reference=reference, expected_commit=remote_commit
+        )
         if commit is None:
             raise BuildError(f"Unable to obtain a Git release for '{key}' from '{repository_url}'.")
         return commit

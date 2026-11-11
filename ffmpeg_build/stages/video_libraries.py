@@ -67,7 +67,7 @@ def install_video_libraries(context: BuildContext) -> None:
     # default models so the filter works without external files, and
     # `enable_float` adds the extractors the standard VMAF model needs.
     vmaf_version = context.fetch_version_if_enabled(
-        "libvmaf", lambda: find_git_repo(context.versions, "Netflix/vmaf", 1)
+        "libvmaf", lambda: find_git_repo(context.versions, "Netflix/vmaf")
     )
     if context.build("libvmaf", vmaf_version):
         source = context.download(
@@ -96,7 +96,7 @@ def install_video_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("libvmaf", "--enable-libvmaf")
 
     rav1e_version = context.fetch_version_if_enabled(
-        "rav1e", lambda: find_git_repo(context.versions, "xiph/rav1e", 1)
+        "rav1e", lambda: find_git_repo(context.versions, "xiph/rav1e")
     )
     if context.build("rav1e", rav1e_version):
         assert rav1e_version is not None
@@ -136,7 +136,7 @@ def install_video_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("zimg-git", "--enable-libzimg")
 
     avif_version = context.fetch_version_if_enabled(
-        "avif", lambda: find_git_repo(context.versions, "AOMediaCodec/libavif", 1)
+        "avif", lambda: find_git_repo(context.versions, "AOMediaCodec/libavif")
     )
     if context.build("avif", avif_version):
         source = context.download(
@@ -168,7 +168,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("avif", avif_version)
 
     kvazaar_version = context.fetch_version_if_enabled(
-        "kvazaar", lambda: find_git_repo(context.versions, "ultravideo/kvazaar", 1)
+        "kvazaar", lambda: find_git_repo(context.versions, "ultravideo/kvazaar")
     )
     if context.build("kvazaar", kvazaar_version):
         source = context.download(
@@ -189,7 +189,7 @@ def install_video_libraries(context: BuildContext) -> None:
     # libdvdread and libdvdnav build in every configuration. Only their FFmpeg
     # integration waits for the licence flag, which the FFmpeg stage applies.
     dvdread_version = context.fetch_version_if_enabled(
-        "libdvdread", lambda: find_git_repo(context.versions, "videolan/libdvdread", 1)
+        "libdvdread", lambda: find_git_repo(context.versions, "videolan/libdvdread")
     )
     if context.build("libdvdread", dvdread_version):
         source = context.download(
@@ -208,7 +208,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("libdvdread", dvdread_version)
 
     dvdnav_version = context.fetch_version_if_enabled(
-        "libdvdnav", lambda: find_git_repo(context.versions, "videolan/libdvdnav", 1)
+        "libdvdnav", lambda: find_git_repo(context.versions, "videolan/libdvdnav")
     )
     if context.build("libdvdnav", dvdnav_version):
         source = context.download(
@@ -221,7 +221,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("libdvdnav", dvdnav_version)
 
     udfread_version = context.fetch_version_if_enabled(
-        "udfread", lambda: find_git_repo(context.versions, "videolan/libudfread", 1)
+        "udfread", lambda: find_git_repo(context.versions, "videolan/libudfread")
     )
     if context.build("udfread", udfread_version):
         source = context.download(
@@ -277,7 +277,7 @@ def install_video_libraries(context: BuildContext) -> None:
         context.build_done("gpac-git", gpac_commit)
 
     svt_version = context.fetch_version_if_enabled(
-        "svt-av1", lambda: find_git_repo(context.versions, "AOMediaCodec/SVT-AV1", 1)
+        "svt-av1", lambda: find_git_repo(context.versions, "AOMediaCodec/SVT-AV1")
     )
     if context.build("svt-av1", svt_version):
         source = context.download(
@@ -294,11 +294,11 @@ def install_video_libraries(context: BuildContext) -> None:
             "-DBUILD_APPS=OFF",
             "-DBUILD_SHARED_LIBS=OFF",
             "-DBUILD_TESTING=OFF",
-            # FFmpeg links with the host linker; LLVM bitcode from SVT's
-            # default LTO cannot be consumed by a normal GNU ld link.
+            # FFmpeg links with the host linker; the compiler-specific LTO
+            # objects SVT's default LTO emits cannot be consumed by that link.
             "-DSVT_AV1_LTO=OFF",
             # CFLAGS carries the CPU target, so SVT's own NATIVE switch is not
-            # used. Its AVX-512 kernels keep the upstream default: they are
+            # passed. Its AVX-512 kernels keep the upstream default: they are
             # compiled with their own flags and chosen only on CPUs that have
             # AVX-512, so they are safe in every build.
             "-DEXCLUDE_HASH=ON",
@@ -327,7 +327,7 @@ def install_video_libraries(context: BuildContext) -> None:
 
 def _install_mediaarea(context: BuildContext) -> None:
     zenlib_version = context.fetch_version_if_enabled(
-        "zenlib", lambda: find_git_repo(context.versions, "MediaArea/ZenLib", 1)
+        "zenlib", lambda: find_git_repo(context.versions, "MediaArea/ZenLib")
     )
     if context.build("zenlib", zenlib_version):
         source = context.download(
@@ -340,7 +340,7 @@ def _install_mediaarea(context: BuildContext) -> None:
         context.build_done("zenlib", zenlib_version)
 
     mediainfo_lib_version = context.fetch_version_if_enabled(
-        "mediainfo-lib", lambda: find_git_repo(context.versions, "MediaArea/MediaInfoLib", 1)
+        "mediainfo-lib", lambda: find_git_repo(context.versions, "MediaArea/MediaInfoLib")
     )
     if context.build("mediainfo-lib", mediainfo_lib_version):
         source = context.download(
@@ -354,7 +354,7 @@ def _install_mediaarea(context: BuildContext) -> None:
         context.build_done("mediainfo-lib", mediainfo_lib_version)
 
     mediainfo_cli_version = context.fetch_version_if_enabled(
-        "mediainfo-cli", lambda: find_git_repo(context.versions, "MediaArea/MediaInfo", 1)
+        "mediainfo-cli", lambda: find_git_repo(context.versions, "MediaArea/MediaInfo")
     )
     if context.build("mediainfo-cli", mediainfo_cli_version):
         source = context.download(
@@ -371,7 +371,7 @@ def _install_gpl_video(context: BuildContext) -> None:
     workspace = context.workspace
 
     vid_stab_version = context.fetch_version_if_enabled(
-        "vid-stab", lambda: find_git_repo(context.versions, "georgmartius/vid.stab", 1)
+        "vid-stab", lambda: find_git_repo(context.versions, "georgmartius/vid.stab")
     )
     if context.build("vid-stab", vid_stab_version):
         source = context.download(
@@ -392,7 +392,7 @@ def _install_gpl_video(context: BuildContext) -> None:
     # x264's "version" is the 40-character commit on its stable branch; it has
     # no release tags.
     x264_version = context.fetch_version_if_enabled(
-        "x264", lambda: find_git_repo(context.versions, "videolan/x264", 1)
+        "x264", lambda: find_git_repo(context.versions, "videolan/x264")
     )
     if context.build("x264", x264_version):
         source = context.download(
@@ -445,7 +445,7 @@ def _install_gpl_video(context: BuildContext) -> None:
     if context.amd_gpu_present:
         amf_version = context.fetch_version_if_enabled(
             "amf-headers",
-            lambda: find_git_repo(context.versions, "GPUOpen-LibrariesAndSDKs/AMF", 1),
+            lambda: find_git_repo(context.versions, "GPUOpen-LibrariesAndSDKs/AMF"),
         )
         if context.build("amf-headers", amf_version):
             source = context.download(
@@ -462,7 +462,7 @@ def _install_gpl_video(context: BuildContext) -> None:
         )
 
     srt_version = context.fetch_version_if_enabled(
-        "srt", lambda: find_git_repo(context.versions, "Haivision/srt", 1)
+        "srt", lambda: find_git_repo(context.versions, "Haivision/srt")
     )
     if context.build("srt", srt_version):
         source = context.download(
@@ -509,7 +509,6 @@ def _install_gpl_video(context: BuildContext) -> None:
                 "-DENABLE_SHARED=OFF",
                 "-DENABLE_STATIC=ON",
                 "-DENABLE_UNITTESTS=OFF",
-                "-DOPENSSL_USE_STATIC_LIBS=TRUE",
                 "-DUSE_OPENSSL_PC=ON",
             )
         finally:
@@ -522,7 +521,7 @@ def _install_gpl_video(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("srt", "--enable-libsrt")
 
     avisynth_version = context.fetch_version_if_enabled(
-        "avisynth", lambda: find_git_repo(context.versions, "AviSynth/AviSynthPlus", 1)
+        "avisynth", lambda: find_git_repo(context.versions, "AviSynth/AviSynthPlus")
     )
     if context.build("avisynth", avisynth_version):
         source = context.download(
@@ -782,7 +781,7 @@ def _install_vapoursynth(context: BuildContext) -> None:
     by the installed program; the runtime must come from the host.
     """
     version = context.fetch_version_if_enabled(
-        "vapoursynth", lambda: find_git_repo(context.versions, "vapoursynth/vapoursynth", 1)
+        "vapoursynth", lambda: find_git_repo(context.versions, "vapoursynth/vapoursynth")
     )
     marker_version = f"R{version}" if version else None
     if context.build("vapoursynth", marker_version):

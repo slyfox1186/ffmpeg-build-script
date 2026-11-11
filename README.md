@@ -11,6 +11,39 @@ link dynamically to selected operating-system libraries and GPU runtimes.
 
 ## Latest changes (since 8.1.0)
 
+- **libass keeps its assembly kernels.** The recipe disabled every optional
+  feature, which also switched off libass's NASM-built x86 code, so subtitle
+  rendering ran the C fallbacks. The build now requires that code, and an
+  existing workspace whose `libass.a` lacks it rebuilds libass once at its
+  recorded release, together with FFmpeg.
+- **Two missing dependency rules.** `libdvdnav` needs `libdvdread` (its Meson
+  build takes no fallback), and HarfBuzz is built with its FreeType backend
+  required rather than auto-detected, because FFmpeg's `drawtext` filter uses
+  `hb-ft`. Both rules now take part in validation, the menu's requirement
+  checks and the host-package list (`libdvdread-dev`, `libfreetype-dev`).
+  Rebuilding zlib also rebuilds libmysofa, which links it.
+- **Development tags are no longer mistaken for releases.** libjpeg-turbo
+  numbers its betas `x.y.90` and up (3.1.90 was "3.2 beta1"), and Fontconfig
+  used the same scheme; both are skipped now.
+- **A stalled Git clone is stopped completely.** The clone deadline is enforced
+  by the build itself, which stops the clone's whole process group, instead of
+  `timeout --foreground`, which leaves git's transfer helpers running.
+- **Settings file fixes.** A `.env` saved with a byte-order mark no longer loses
+  its first line, and an empty value now means the default for every setting,
+  as `.env.example` says. `VERSION_CHECK_MAX_TIME` now also bounds the GNU
+  mirror lookups, which ignored it.
+- **`--cleanup` keeps the build folder recognizable until the end.** The
+  `.ffmpeg-build-root` marker is deleted last, so a cleanup interrupted
+  part-way leaves a folder the next `--build` or `--cleanup` still accepts.
+- **`--set-path` prints the lines to add** when the startup file cannot be
+  opened for writing (a dangling symlink, a read-only file) instead of a bare
+  error, and says so when a write stopped part-way.
+- The template now also disables `avif` and `libheif`: FFmpeg has no option for
+  either, its AVIF support is native, and nothing built here links them. A
+  build without a config file still selects every package.
+- Build options that current releases no longer accept were dropped (GnuTLS,
+  SDL2, libjpeg-turbo, SRT), and the Rust, release-discovery and logging code
+  lost parameters and branches nothing used.
 - **Takeover also stops workers whose parent already exited.** Every command
   runs in a process group of its own, and the takeover stops and kills each of
   those groups too. A build in the middle of a privileged step (APT, CUDA or
@@ -723,13 +756,15 @@ instead of silently omitting an unavailable dependency. The system `libzix-dev`
 package is similarly absent from Ubuntu 22.04 and Debian 12; keep the `zix`
 source build enabled on those releases.
 
-The template also disables `brotli`, `c-ares`, `freeglut`, `gflags`, `giflib`,
-`jemalloc`, `libhwy`, `libsndfile`, `libtiff`, and `pcre2`. FFmpeg has no
-configure option for any of them, and every component built here that could
-consume one is configured with that consumer switched off, so they cost build
-time and produce nothing linkable. `jemalloc` is the partial exception: FFmpeg
-accepts `--custom-allocator=jemalloc`, which this script does not pass. Set any
-of these keys back to `true` to restore the source build. `libpng` and
+The template also disables `avif`, `brotli`, `c-ares`, `freeglut`, `gflags`,
+`giflib`, `jemalloc`, `libheif`, `libhwy`, `libsndfile`, `libtiff`, and
+`pcre2`. FFmpeg has no configure option for any of them (its AVIF support is
+native), and every component built here that could consume one is configured
+with that consumer switched off, so they cost build time and produce nothing
+linkable. `jemalloc` is the partial exception: FFmpeg accepts
+`--custom-allocator=jemalloc`, which this script does not pass. Set any of
+these keys back to `true` to restore the source build. A build without a
+config file still selects every package. `libpng` and
 `libjpeg-turbo` stay enabled because GPAC probes for `-lpng` and `-ljpeg` and
 links whichever copies the workspace provides.
 
@@ -774,9 +809,11 @@ second block; it keeps the links current. When the programs already resolve to
 
 The startup file is only appended to, never rewritten: a symlinked dotfile
 stays a link and keeps its permissions. A file with a hand-edited or incomplete
-block, or one owned by another user, is left alone and the lines to add are
-printed. For fish and other shells the links are created and the line to add
-is printed instead (`fish_add_path --move --prepend ...` for fish). If a bash
+block, one owned by another user, or one that cannot be opened for writing is
+left alone and the lines to add are printed; a write that stopped part-way is
+reported so the file's end can be checked first. For fish and other shells the
+links are created and the line to add is printed instead
+(`fish_add_path --move --prepend ...` for fish). If a bash
 login file such as `~/.bash_profile` never loads `~/.bashrc`, the build says so,
 because SSH sessions would skip the block.
 

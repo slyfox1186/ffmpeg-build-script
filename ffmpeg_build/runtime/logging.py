@@ -278,14 +278,6 @@ class Logger:
         pending, self._pending = self._pending, []
         self._append(pending)
 
-    def write_log_records(self, level: str, lines: list[str], elapsed: str) -> None:
-        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        records = [f"{stamp} [{elapsed}] {level:<5} {text}\n" for text in lines]
-        if self.log_file is None:
-            self._pending.extend(records)
-            return
-        self._append(records)
-
     def _append(self, records: list[str]) -> None:
         if self.log_file is None or not self.log_file.is_file():
             return
@@ -298,9 +290,15 @@ class Logger:
             pass
 
     def _record(self, level: str, message: str) -> None:
-        self.write_log_records(
-            level, message.splitlines() or [""], format_elapsed(self.elapsed_seconds)
-        )
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        elapsed = format_elapsed(self.elapsed_seconds)
+        records = [
+            f"{stamp} [{elapsed}] {level:<5} {text}\n" for text in message.splitlines() or [""]
+        ]
+        if self.log_file is None:
+            self._pending.extend(records)
+            return
+        self._append(records)
 
     @staticmethod
     def _text_parts(message: str, style: str = "") -> list[Fragment]:
@@ -334,27 +332,21 @@ class Logger:
 
     def _command(
         self,
-        message: str,
-        arguments: Sequence[str] | None,
+        arguments: Sequence[str],
         *,
         stream: TextIO | None = None,
         quiet: bool = False,
     ) -> None:
-        if arguments is not None:
-            message = shellquote.join(list(arguments))
-            words = [shellquote.quote(word) for word in arguments]
-            raw = list(arguments)
-        else:
-            words = raw = message.split(" ")
+        words = [shellquote.quote(word) for word in arguments]
         if not quiet or self.debug_enabled:
             parts: list[Fragment] = []
-            for position, (word, shown) in enumerate(zip(raw, words, strict=True)):
+            for position, (word, shown) in enumerate(zip(arguments, words, strict=True)):
                 if word.startswith(("http://", "https://")):
                     parts.append((shown, "cyan", False))
                 else:
                     parts.append((shown, "", position == 0))
             self._emit(("$", "dim", False), _spaced(parts), stream=stream, indent=COMMAND_INDENT)
-        self._record("RUN", message)
+        self._record("RUN", " ".join(words))
 
     # -- package lifecycle ------------------------------------------------
 
@@ -383,14 +375,12 @@ class Logger:
         self._blank()
         self._record("OK", f"{key} {version}" + (f" in {duration}" if duration else ""))
 
-    def package_reused(
-        self, key: str, version: str, note: str = "is already built.", record: str = ""
-    ) -> None:
+    def package_reused(self, key: str, version: str, note: str = "is already built.") -> None:
         self._emit(
             self._tag("SKIP"),
             _spaced([(key, "yellow", True), (version, "yellow", False), (note, "", False)]),
         )
-        self._record("SKIP", record or f"{key} {version} {note}")
+        self._record("SKIP", f"{key} {version} {note}")
 
     def package_failed(self, key: str, version: str, reason: str) -> None:
         name = f"{key} {version}".strip()
@@ -450,13 +440,8 @@ class Logger:
         )
         self._record("INFO", f"{label}: '{banner}' ({location}).")
 
-    def get(self, url: str, filename: str = "", note: str = "") -> None:
-        if note:
-            self.line("INFO", f"{url} {note}.")
-        elif filename:
-            self.line("INFO", f"Downloading {url} as '{filename}'.")
-        else:
-            self.line("INFO", f"Downloading {url}.")
+    def get(self, url: str, filename: str) -> None:
+        self.line("INFO", f"Downloading {url} as '{filename}'.")
 
     def extracted(self, name: str) -> None:
         self.line("INFO", f"File extracted: '{name}'.")
@@ -470,16 +455,14 @@ class Logger:
     def skip(self, message: str) -> None:
         self.line("SKIP", message)
 
-    def run(
-        self, message: str, *, arguments: Sequence[str] | None = None, quiet: bool = False
-    ) -> None:
+    def run(self, arguments: Sequence[str], *, quiet: bool = False) -> None:
         """Echo a command as `$ command`.
 
         A quiet command, such as the download transport already announced by
         its own record, reaches the terminal only with --debug; the log file
         records it either way.
         """
-        self._command(message, arguments, quiet=quiet)
+        self._command(arguments, quiet=quiet)
 
     def time(self, message: str, *, quiet: bool = False) -> None:
         if quiet and not self.debug_enabled:

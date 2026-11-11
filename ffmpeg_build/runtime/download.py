@@ -28,7 +28,6 @@ from .errors import BuildError
 from .exec import Runner
 from .logging import Logger
 from .paths import (
-    DirectoryLock,
     canonicalize,
     is_exclusive_regular_file,
     path_is_within,
@@ -58,7 +57,6 @@ class DownloadSettings:
         self.max_members = integer("DOWNLOAD_MAX_MEMBERS", 100000)
         self.retry = integer("DOWNLOAD_RETRY", 5)
         self.retry_delay = integer("DOWNLOAD_RETRY_DELAY", 5)
-        self.lock_timeout = integer("DOWNLOAD_LOCK_TIMEOUT", 1800)
 
     def replace(self, **overrides: int) -> DownloadSettings:
         clone = DownloadSettings({})
@@ -137,7 +135,6 @@ class Downloader:
         settings: DownloadSettings,
         register_temporary: Callable[[Path], None] | None = None,
         unregister_temporary: Callable[[Path], None] | None = None,
-        build_root_locked: bool = False,
     ) -> None:
         self.runner = runner
         self.logger = logger
@@ -145,15 +142,15 @@ class Downloader:
         self.settings = settings
         self._register = register_temporary or (lambda _path: None)
         self._unregister = unregister_temporary or (lambda _path: None)
-        self.build_root_locked = build_root_locked
 
     @contextlib.contextmanager
     def temporary_settings(self, **overrides: int) -> Iterator[None]:
         """Tighten transfer limits for one recipe.
 
-        The font packages try two mirrors in sequence, so the first attempt has
-        to give up quickly; waiting out the default half-hour timeout on a
-        mirror that is simply down would stall the build for no benefit.
+        Recipes with a fallback host (the font packages, pkgconf, x265) try
+        two mirrors in sequence, so the first attempt has to give up quickly;
+        waiting out the default half-hour timeout on a mirror that is simply
+        down would stall the build for no benefit.
         """
         previous = self.settings
         self.settings = previous.replace(**overrides)
@@ -335,10 +332,10 @@ class Downloader:
             raise BuildError("Download URLs may not contain control characters.")
 
         checksum_file = Path(f"{target}.sha256")
-        # Another process may have populated the cache while this one waited.
+        # A valid cached archive is reused; a damaged or tampered one is replaced.
         if self.validate_tar_archive(target):
             if archive_checksum_matches(target, checksum_file):
-                self.logger.get(url, note="already exists and matches its SHA-256 cache record")
+                self.logger.info(f"{url} already exists and matches its SHA-256 cache record.")
                 return True
             if checksum_file.exists() or checksum_file.is_symlink():
                 self.logger.warn(
@@ -427,10 +424,7 @@ class Downloader:
             return False
         return True
 
-    def extract_transactionally(self, archive: Path, target_directory: Path) -> bool:
-        return self._extract_transactionally(archive, target_directory) is ExtractionResult.SUCCESS
-
-    def _extract_transactionally(self, archive: Path, target_directory: Path) -> ExtractionResult:
+    def extract_transactionally(self, archive: Path, target_directory: Path) -> ExtractionResult:
         """Extract into a temporary tree and publish it with one rename."""
         if not self.validate_tar_archive(archive):
             return ExtractionResult.INVALID_ARCHIVE
@@ -514,44 +508,32 @@ class Downloader:
         checksum_file = Path(f"{target_file}.sha256")
         self.packages.mkdir(parents=True, exist_ok=True)
 
-        # Held across both populating the cache and reading it: validating an
-        # archive and then extracting it under a released lock lets a concurrent
-        # process replace the file in between. A real build already holds an
-        # exclusive lock on the whole build root, so this matters only for
-        # concurrent or standalone use.
-        lock = None
-        if not self.build_root_locked:
-            lock = DirectoryLock(self.packages)
-            if not lock.acquire(timeout=self.settings.lock_timeout):
-                self.logger.warn(f"Timed out waiting for the package-cache lock: '{name}'.")
-                return None
-        try:
-            if not self._download_to_cache(url, name, target_file):
-                return None
-            extraction = self._extract_transactionally(target_file, target_directory)
-            if extraction is not ExtractionResult.SUCCESS:
-                # The archive was listed and checksum-verified moments ago, so
-                # an extraction failure is usually local (no space, no
-                # permission) and says nothing about the download. Purging a
-                # still-valid archive would force a full re-fetch.
-                if (
-                    extraction is ExtractionResult.LOCAL_FAILURE
-                    and self.validate_tar_archive(target_file)
-                    and archive_checksum_matches(target_file, checksum_file)
-                ):
-                    self.logger.warn(
-                        f"Failed to extract '{name}'; its cached archive is still valid and was kept."
-                    )
-                else:
-                    target_file.unlink(missing_ok=True)
-                    checksum_file.unlink(missing_ok=True)
-                    self.logger.warn(
-                        f"Failed to extract '{name}' safely; the cached archive was removed."
-                    )
-                return None
-        finally:
-            if lock is not None:
-                lock.release()
+        # The build-root lock held for the whole build serializes the cache:
+        # no other process can replace the archive between its validation
+        # here and its extraction.
+        if not self._download_to_cache(url, name, target_file):
+            return None
+        extraction = self.extract_transactionally(target_file, target_directory)
+        if extraction is not ExtractionResult.SUCCESS:
+            # The archive was listed and checksum-verified moments ago, so an
+            # extraction failure is usually local (no space, no permission)
+            # and says nothing about the download. Purging a still-valid
+            # archive would force a full re-fetch.
+            if (
+                extraction is ExtractionResult.LOCAL_FAILURE
+                and self.validate_tar_archive(target_file)
+                and archive_checksum_matches(target_file, checksum_file)
+            ):
+                self.logger.warn(
+                    f"Failed to extract '{name}'; its cached archive is still valid and was kept."
+                )
+            else:
+                target_file.unlink(missing_ok=True)
+                checksum_file.unlink(missing_ok=True)
+                self.logger.warn(
+                    f"Failed to extract '{name}' safely; the cached archive was removed."
+                )
+            return None
 
         self.logger.extracted(name)
         return target_directory

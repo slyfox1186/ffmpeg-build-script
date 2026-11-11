@@ -75,9 +75,6 @@ class Selection:
     def states(self) -> dict[str, bool]:
         return {key: self.enabled(key) for key in registry.PACKAGE_NAMES}
 
-    def set(self, key: str, value: bool) -> None:
-        self.explicit[registry.canonical_key(key)] = value
-
 
 class BuildSettings:
     """Persistent `[build]` options; omitted keys keep their legacy defaults."""

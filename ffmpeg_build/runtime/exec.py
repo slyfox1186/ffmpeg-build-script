@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -120,6 +121,59 @@ def strip_workspace_entries(value: str, workspace: Path, separator: str = " ") -
             kept.append(part)
         index += 1
     return separator.join(kept)
+
+
+def _signal_group(pgid: int, signal_number: int) -> bool:
+    """Signal a group; False once it has no members left."""
+    try:
+        os.killpg(pgid, signal_number)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
+
+
+class _Deadline:
+    """Stop a command's process group when its time is up.
+
+    A timer thread signals the group directly, so the command is stopped even
+    while this process is blocked forwarding its output to a stalled terminal,
+    and even after the command itself exited while a helper it started still
+    holds the output open. The group's pipes close as it dies and
+    `managed_process` reaps the command. `stop` waits for an expiry in
+    progress, so the group is gone before the caller goes on to clean up; it
+    is called inside `managed_process`, so an interrupt during that wait takes
+    the cancellation path, which stops the group itself.
+    """
+
+    def __init__(self, seconds: float | None) -> None:
+        self.seconds = seconds
+        self.expired = False
+        self._timer: threading.Timer | None = None
+
+    def start(self, process: subprocess.Popen[bytes]) -> None:
+        if self.seconds is None:
+            return
+        self._timer = threading.Timer(self.seconds, self._expire, (process.pid,))
+        self._timer.daemon = True
+        self._timer.start()
+
+    def stop(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer.join()
+
+    def _expire(self, pgid: int) -> None:
+        self.expired = True
+        if not _signal_group(pgid, signal.SIGTERM):
+            return
+        # The same second managed_process grants before killing what is left.
+        for _ in range(20):
+            time.sleep(0.05)
+            if not _signal_group(pgid, 0):
+                return
+        _signal_group(pgid, signal.SIGKILL)
 
 
 class CommandFailed(BuildError):
@@ -275,10 +329,16 @@ class Runner:
         env_overrides: Mapping[str, str] | None = None,
         stdin_text: str | None = None,
         quiet: bool = False,
+        timeout: float | None = None,
     ) -> int:
         try:
             return self._run_logged(
-                arguments, cwd=cwd, env_overrides=env_overrides, stdin_text=stdin_text, quiet=quiet
+                arguments,
+                cwd=cwd,
+                env_overrides=env_overrides,
+                stdin_text=stdin_text,
+                quiet=quiet,
+                timeout=timeout,
             )
         except FileNotFoundError as error:
             self.logger.error(f"Unable to run command: {error}")
@@ -294,57 +354,79 @@ class Runner:
         env_overrides: Mapping[str, str] | None = None,
         stdin_text: str | None = None,
         quiet: bool = False,
+        timeout: float | None = None,
     ) -> int:
         """Run a command, log it, and return its status instead of raising.
 
         Callers that must recover from a failure rather than abort on it — the
         staged install, which has to restore its backup first — use this
         directly; `execute` is this plus fail-on-non-zero.
+
+        `timeout` bounds the whole run. When it expires the command's entire
+        process group is stopped, which `timeout --foreground` does not do for
+        the command's descendants. A command the deadline killed reports 124,
+        as from coreutils; one that exited by itself keeps its own status.
         """
         if not arguments:
             raise BuildError("run_logged() called without a command.")
-        command_display = shellquote.join(list(arguments))
-        self.logger.run(command_display, arguments=arguments, quiet=quiet)
+        if timeout is not None and Path(arguments[0]).name == "sudo":
+            # Killing sudo would orphan the privileged command it relays to.
+            raise BuildError("A deadline cannot be applied to a sudo command.")
+        self.logger.run(arguments, quiet=quiet)
         started = self.logger.elapsed_seconds
         environment = self.child_environment(env_overrides)
         working_directory = str(cwd if cwd is not None else NEUTRAL_DIRECTORY)
+        deadline = _Deadline(timeout)
+        replay = not self.debug and self.log_file is not None
+        start = self._log_size()
 
-        if self.debug and self.log_file is not None:
-            exit_code = self._run_teed(
-                self.log_file, arguments, working_directory, environment, stdin_text
-            )
-        elif self.log_file is not None:
-            start = self._log_size()
-            with self.log_file.open("ab") as sink:
+        try:
+            if self.debug and self.log_file is not None:
+                exit_code = self._run_teed(
+                    self.log_file, arguments, working_directory, environment, stdin_text, deadline
+                )
+            elif self.log_file is not None:
+                with self.log_file.open("ab") as sink:
+                    with managed_process(
+                        subprocess.Popen(
+                            list(arguments),
+                            cwd=working_directory,
+                            env=environment,
+                            stdout=sink,
+                            stderr=subprocess.STDOUT,
+                            stdin=subprocess.PIPE if stdin_text is not None else None,
+                            process_group=0,
+                        ),
+                        signal_relay=Path(arguments[0]).name == "sudo",
+                    ) as process:
+                        deadline.start(process)
+                        process.communicate(stdin_text.encode() if stdin_text is not None else None)
+                        exit_code = process.wait()
+                        deadline.stop()
+            else:
                 with managed_process(
                     subprocess.Popen(
                         list(arguments),
                         cwd=working_directory,
                         env=environment,
-                        stdout=sink,
-                        stderr=subprocess.STDOUT,
                         stdin=subprocess.PIPE if stdin_text is not None else None,
                         process_group=0,
                     ),
                     signal_relay=Path(arguments[0]).name == "sudo",
                 ) as process:
+                    deadline.start(process)
                     process.communicate(stdin_text.encode() if stdin_text is not None else None)
                     exit_code = process.wait()
-            if exit_code != 0:
-                self._replay_log(start)
-        else:
-            with managed_process(
-                subprocess.Popen(
-                    list(arguments),
-                    cwd=working_directory,
-                    env=environment,
-                    stdin=subprocess.PIPE if stdin_text is not None else None,
-                    process_group=0,
-                ),
-                signal_relay=Path(arguments[0]).name == "sudo",
-            ) as process:
-                process.communicate(stdin_text.encode() if stdin_text is not None else None)
-                exit_code = process.wait()
+                    deadline.stop()
+        finally:
+            # Only reached with the timer idle or already joined; this covers
+            # the paths that left the managed block through an exception.
+            deadline.stop()
+        if deadline.expired and exit_code < 0:
+            self.logger.warn(f"Command timed out after {timeout} seconds and was stopped.")
+            exit_code = 124
+        if replay and exit_code != 0:
+            self._replay_log(start)
 
         # Only the slow commands get a timing line. A compile that ran for
         # twenty minutes is worth recording; a version probe that took no
@@ -361,6 +443,7 @@ class Runner:
         cwd: str,
         environment: Mapping[str, str],
         stdin_text: str | None,
+        deadline: _Deadline,
     ) -> int:
         """Stream a command's output while also recording it in `log_file`.
 
@@ -386,14 +469,19 @@ class Runner:
                 ),
                 signal_relay=Path(arguments[0]).name == "sudo",
             ) as process:
+                deadline.start(process)
                 assert process.stdout is not None
-                output = process.stdout
-                for chunk in iter(lambda: os.read(output.fileno(), 65536), b""):
+                output = process.stdout.fileno()
+                # The loop ends when the group's last writer dies; the deadline
+                # thread kills the group even when the write below is stalled.
+                for chunk in iter(lambda: os.read(output, 65536), b""):
                     sys.stdout.buffer.write(chunk)
                     sys.stdout.flush()
                     sink.write(chunk)
                 sink.flush()
-                return process.wait()
+                exit_code = process.wait()
+                deadline.stop()
+                return exit_code
 
     def execute(
         self,

@@ -15,7 +15,6 @@ from .cli import (
     Arguments,
     color_enabled,
     parse_arguments,
-    requested_metadata,
     resolve_config_path,
     usage_text,
 )
@@ -71,6 +70,7 @@ from .stages.ffmpeg_build import FFmpegStage, report_success
 from .stages.hardware import HardwareDetection
 from .stages.program_path import apply_program_path
 from .stages.system_setup import SystemSetup
+from .usage import metadata_response
 
 _POSITIVE_INTEGER_SETTINGS = (
     "DOWNLOAD_CONNECT_TIMEOUT",
@@ -78,7 +78,6 @@ _POSITIVE_INTEGER_SETTINGS = (
     "DOWNLOAD_MAX_BYTES",
     "DOWNLOAD_MAX_EXTRACTED_BYTES",
     "DOWNLOAD_MAX_MEMBERS",
-    "DOWNLOAD_LOCK_TIMEOUT",
     "HOST_MUTATION_LOCK_TIMEOUT",
     "VERSION_CHECK_MAX_TIME",
     "GIT_OPERATION_TIMEOUT",
@@ -263,14 +262,6 @@ def validate_package_selection(context: BuildContext) -> None:
             continue
         issues.append(rule.message())
 
-    if (
-        context.nonfree_and_gpl
-        and context.package_enabled("x264")
-        and context.runner.which("yasm") is None
-        and context.runner.which("nasm") is None
-    ):
-        issues.append("'packages.x264=true' requires 'yasm' or 'nasm' to be available")
-
     if issues:
         listed = "\n - ".join(issues)
         raise BuildError(f"Package selection has unresolved dependencies:\n - {listed}\n")
@@ -296,7 +287,7 @@ class Orchestrator:
             requested = str(self.invocation_dir / requested)
         self.build_root = canonicalize(requested)
 
-    def validate_build_root(self) -> None:
+    def validate_build_root(self, *, quiet: bool = False) -> None:
         root = self.build_root
         assert_safe_build_root(root, self.repo_root)
         if root.exists() and not root.is_dir():
@@ -316,16 +307,18 @@ class Orchestrator:
         if build_root_marker_matches(root / BUILD_ROOT_MARKER_NAME, root):
             return
         if legacy_build_root_marker(root / BUILD_ROOT_MARKER_NAME):
-            self.logger.warn(
-                f"'BUILD_ROOT' '{root}' uses a legacy empty marker; this build will upgrade "
-                "it to a path-bound marker."
-            )
+            if not quiet:
+                self.logger.warn(
+                    f"'BUILD_ROOT' '{root}' uses a legacy empty marker; this build will upgrade "
+                    "it to a path-bound marker."
+                )
             return
         if build_root_is_adoptable(root):
-            self.logger.warn(
-                f"'{root}' holds only this project's empty scaffolding from an interrupted "
-                "run; adopting it."
-            )
+            if not quiet:
+                self.logger.warn(
+                    f"'{root}' holds only this project's empty scaffolding from an interrupted "
+                    "run; adopting it."
+                )
             return
         raise BuildError(
             f"'BUILD_ROOT' '{root}' already contains data and lacks a valid path-bound "
@@ -366,7 +359,9 @@ class Orchestrator:
             raise BuildError(f"Another process is already using build root '{root}'.")
 
         self._lock.assert_current()
-        self.validate_build_root()
+        # Repeated under the lock against a concurrent change; the first call
+        # already gave any warning.
+        self.validate_build_root(quiet=True)
         for managed in (
             packages,
             workspace,
@@ -407,24 +402,18 @@ class Orchestrator:
         )
 
     def source_compiler_flags(self, context: BuildContext) -> None:
-        environment = context.env
-        cflags = environment.get("CFLAGS") or f"-O2 -pipe -march={march(context.cpu_target)}"
-        if "-fPIC" not in cflags:
-            cflags += " -fPIC"
-        cxxflags = environment.get("CXXFLAGS") or cflags
-        if "-fPIC" not in cxxflags:
-            cxxflags += " -fPIC"
-        existing_cppflags = environment.get("CPPFLAGS", "")
-        cppflags = f"-I{context.workspace}/include"
-        if existing_cppflags:
-            cppflags += f" {existing_cppflags}"
-        existing_ldflags = environment.get("LDFLAGS", "")
-        ldflags = f"-L{context.workspace}/lib64 -L{context.workspace}/lib"
-        if existing_ldflags:
-            ldflags += f" {existing_ldflags}"
-        ldflags += " -Wl,-O1,--as-needed,-z,relro,-z,now -pthread"
-        environment.update(
-            {"CFLAGS": cflags, "CXXFLAGS": cxxflags, "CPPFLAGS": cppflags, "LDFLAGS": ldflags}
+        cflags = f"-O2 -pipe -march={march(context.cpu_target)} -fPIC"
+        workspace = context.workspace
+        context.env.update(
+            {
+                "CFLAGS": cflags,
+                "CXXFLAGS": cflags,
+                "CPPFLAGS": f"-I{workspace}/include",
+                "LDFLAGS": (
+                    f"-L{workspace}/lib64 -L{workspace}/lib "
+                    "-Wl,-O1,--as-needed,-z,relro,-z,now -pthread"
+                ),
+            }
         )
 
     # -- build context ---------------------------------------------------
@@ -667,7 +656,7 @@ class Orchestrator:
                     continue
                 if not _legacy_root_is_ours(target):
                     continue
-                safe_remove_tree(target, repository)
+                safe_remove_tree(target, repository, last_entry=BUILD_ROOT_MARKER_NAME)
             self.logger.info(f"Deleted the old build folder '{target}'.")
 
     def cleanup(self) -> None:
@@ -713,30 +702,21 @@ class Orchestrator:
                 )
                 return
             self.logger.info(cleanup_summary(repository, resolved, self._old_roots()))
-            while True:
-                try:
-                    choice = self.logger.prompt("Delete these folders? (yes/no): ")
-                except EOFError:
-                    print()
-                    self.logger.info("No cleanup response received; nothing was deleted.")
-                    return
-                if choice.strip().lower() in ("y", "yes"):
-                    try:
-                        lock.assert_current()
-                        remove_tree_one_filesystem(resolved)
-                    except OSError as error:
-                        raise BuildError(f"Failed to remove build root '{resolved}'.") from error
-                    lock.release()
-                    self.logger.log_file = None
-                    self.runner.log_file = None
-                    self.logger.info(f"Deleted the build folder '{resolved}'.")
-                    # Re-read: removing the build root can itself clear entries.
-                    self._remove_old_roots(self._old_roots())
-                    return
-                if choice.strip().lower() in ("n", "no"):
-                    self.logger.info("Nothing was deleted.")
-                    return
-                self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
+            if not self._confirm_deletion():
+                return
+            try:
+                lock.assert_current()
+                # The marker goes last: a root interrupted mid-removal keeps
+                # it, so the next --build or --cleanup still recognizes it.
+                remove_tree_one_filesystem(resolved, last_entry=BUILD_ROOT_MARKER_NAME)
+            except OSError as error:
+                raise BuildError(f"Failed to remove build root '{resolved}'.") from error
+            lock.release()
+            self.logger.log_file = None
+            self.runner.log_file = None
+            self.logger.info(f"Deleted the build folder '{resolved}'.")
+            # Re-read: removing the build root can itself clear entries.
+            self._remove_old_roots(self._old_roots())
         finally:
             if owns_lock:
                 lock.release()
@@ -753,19 +733,23 @@ class Orchestrator:
             )
             return
         self.logger.info(cleanup_summary(canonicalize(self.repo_root), None, leftovers))
+        if self._confirm_deletion():
+            self._remove_old_roots(leftovers)
+
+    def _confirm_deletion(self) -> bool:
+        """Ask until the answer is yes or no; no answer at all deletes nothing."""
         while True:
             try:
                 choice = self.logger.prompt("Delete these folders? (yes/no): ")
             except EOFError:
                 print()
                 self.logger.info("No cleanup response received; nothing was deleted.")
-                return
+                return False
             if choice.strip().lower() in ("y", "yes"):
-                self._remove_old_roots(leftovers)
-                return
+                return True
             if choice.strip().lower() in ("n", "no"):
                 self.logger.info("Nothing was deleted.")
-                return
+                return False
             self.logger.warn("Invalid input. Please enter 'yes' or 'no'.")
 
     def run_build(self, context: BuildContext) -> None:
@@ -940,7 +924,7 @@ class Orchestrator:
         self.logger.info(f"Parallel jobs: {context.build_threads} ({context.jobs_reason}).")
 
     def run(self) -> int:
-        metadata = requested_metadata(self.argv, color_enabled(sys.stdout))
+        metadata = metadata_response(self.argv, color_enabled(sys.stdout))
         if metadata is not None:
             sys.stdout.write(metadata)
             return 0

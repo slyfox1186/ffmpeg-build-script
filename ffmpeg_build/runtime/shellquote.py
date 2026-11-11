@@ -1,7 +1,7 @@
 """A byte-compatible reimplementation of Bash's `printf '%q'`.
 
-The build-context record encodes seven fields this way, and every workspace
-created by an earlier release of this project holds those bytes. Encoding them
+The build-context record encodes its flag and CPU fields this way, and every
+workspace created by an earlier release of this project holds those bytes. Encoding them
 any other way — `shlex.quote` produces `'-O2 -pipe'` where Bash produces
 `-O2\\ -pipe` — would make every existing workspace compare unequal, and users
 would be told to run `--cleanup` for a change that never happened.
@@ -33,20 +33,6 @@ _NAMED_ESCAPES = {
     0x0C: "\\f",
     0x0D: "\\r",
     0x1B: "\\E",
-}
-_NAMED_UNESCAPES = {
-    "a": "\x07",
-    "b": "\x08",
-    "t": "\x09",
-    "n": "\x0a",
-    "v": "\x0b",
-    "f": "\x0c",
-    "r": "\x0d",
-    "E": "\x1b",
-    "e": "\x1b",
-    "\\": "\\",
-    "'": "'",
-    '"': '"',
 }
 
 
@@ -94,46 +80,15 @@ def join(arguments: list[str] | tuple[str, ...]) -> str:
     return " ".join(quote(argument) for argument in arguments)
 
 
-def _unquote_ansi_c(value: str) -> str:
-    body = value[2:-1]
-    out = bytearray()
-    index = 0
-    while index < len(body):
-        character = body[index]
-        if character != "\\":
-            out.extend(character.encode("utf-8", "surrogateescape"))
-            index += 1
-            continue
-        index += 1
-        if index >= len(body):
-            out.append(ord("\\"))
-            break
-        escape = body[index]
-        if escape in _NAMED_UNESCAPES:
-            out.extend(_NAMED_UNESCAPES[escape].encode("utf-8"))
-            index += 1
-        elif escape.isdigit():
-            digits = ""
-            while index < len(body) and len(digits) < 3 and body[index] in "01234567":
-                digits += body[index]
-                index += 1
-            out.append(int(digits, 8) & 0xFF)
-        else:
-            out.extend(escape.encode("utf-8", "surrogateescape"))
-            index += 1
-    return out.decode("utf-8", "surrogateescape")
-
-
 def unquote(value: str) -> str:
-    """Decode a value produced by `quote`.
+    """Undo the backslash form of `quote` for display.
 
-    Required to read back records written by any release of this project, so
-    the parser is part of the format contract rather than a convenience.
+    Records are compared as encoded text, so nothing needs to decode them; this
+    only makes a flag list readable in a mismatch message. The `$'...'` form is
+    left to `readable`, which shows it verbatim.
     """
     if value in ("", "''"):
         return ""
-    if value.startswith("$'") and value.endswith("'") and len(value) >= 3:
-        return _unquote_ansi_c(value)
     out: list[str] = []
     index = 0
     while index < len(value):

@@ -33,7 +33,7 @@ class Kind(Enum):
 class Gate(Enum):
     """How GPL/non-free authorization affects a package.
 
-    Three states, not two. Rendering the middle one as "blocked" would be
+    Four states, not two. Rendering `FLAG_REQUIRES_GPL` as "blocked" would be
     wrong: `libdvdread` and `libdvdnav` build in every configuration, and only
     their FFmpeg integration waits for the licence flag.
     """
@@ -262,7 +262,11 @@ GROUPS: tuple[Group, ...] = (
     Group(
         "Still-image codecs, color management, and image containers",
         (
-            Package("avif", "AV1 Image File Format encoding and decoding"),
+            Package(
+                "avif",
+                "AV1 Image File Format library; FFmpeg's AVIF support is native and never links it",
+                default_enabled=False,
+            ),
             Package(
                 "giflib",
                 "GIF codec; FFmpeg carries its own and no component here links this one",
@@ -273,7 +277,11 @@ GROUPS: tuple[Group, ...] = (
                 "ICC color management with Little CMS",
                 ffmpeg_flags=("--enable-lcms2",),
             ),
-            Package("libheif", "HEIF and AVIF image container support"),
+            Package(
+                "libheif",
+                "HEIF and AVIF image container library; nothing built here links it",
+                default_enabled=False,
+            ),
             Package(
                 "libhwy",
                 "SIMD primitives for JPEG XL, which arrives as the system libjxl-dev package",
@@ -857,6 +865,9 @@ REQUIREMENTS: tuple[Requirement, ...] = (
     Requirement(
         "srt", "openssl", "openssl", "a system OpenSSL development package", condition="gpl"
     ),
+    # FFmpeg's drawtext filter uses hb-ft, so HarfBuzz is built with its
+    # FreeType backend required rather than auto-detected.
+    Requirement("harfbuzz", "freetype", "freetype2", "a system FreeType development package"),
     Requirement("fontconfig", "libxml2", "libxml-2.0", "a system libxml2 development package"),
     Requirement("fontconfig", "freetype", "freetype2", "a system FreeType development package"),
     Requirement("libass", "fontconfig", "fontconfig", "a system fontconfig development package"),
@@ -873,16 +884,15 @@ REQUIREMENTS: tuple[Requirement, ...] = (
     Requirement("lilv", "sord", "sord-0", "a system Sord development package"),
     Requirement("lilv", "sratom", "sratom-0", "a system Sratom development package"),
     Requirement("avif", "av1-git", "aom", "a system libaom development package"),
+    # libdvdnav's meson build needs dvdread and runs with --wrap-mode=nofallback.
+    Requirement("libdvdnav", "libdvdread", "dvdread", "a system libdvdread development package"),
 )
 
-# Rules that can be evaluated without probing the host. These run before the
-# first host mutation, so an unsatisfiable request fails without having
-# installed packages or asked for a password first.
 # (consumer, producer) links that are not selection requirements: the consumer
 # picks the producer up when it is enabled and built first. libheif enables
 # each workspace codec only when it was built (libheif.pc then lists aom, rav1e
 # and x265; dav1d comes from APT), gpac probes for and links -ljpeg and -lpng,
-# and libpng links the workspace zlib (libpng.pc lists it).
+# and libpng and libmysofa link the workspace zlib.
 LINKED_WHEN_ENABLED: tuple[tuple[str, str], ...] = (
     ("libheif", "av1-git"),
     ("libheif", "rav1e"),
@@ -890,8 +900,12 @@ LINKED_WHEN_ENABLED: tuple[tuple[str, str], ...] = (
     ("gpac-git", "libjpeg-turbo"),
     ("gpac-git", "libpng"),
     ("libpng", "zlib"),
+    ("libmysofa", "zlib"),
 )
 
+# Rules that can be evaluated without probing the host run before the first
+# host mutation, so an unsatisfiable request fails without having installed
+# packages or asked for a password first.
 SETTINGS_REQUIREMENTS = tuple(
     requirement for requirement in REQUIREMENTS if requirement.pkgconf_module is None
 )

@@ -29,8 +29,8 @@ from ..runtime.state import publish_atomically, read_marker_version
 
 _VERSION_LINE = re.compile(r"^(?P<tool>\w+) version n?(?P<version>[0-9]+(?:\.[0-9]+){1,3})")
 _CODEC_ROW = re.compile(r"^ [A-Z.]{6} ")
-# FFmpeg 9 prints two filter flags (timeline, slice threading); older releases
-# add a third for command support. Legend lines start with two spaces.
+# FFmpeg 8.0 and later print two filter flags (timeline, slice threading);
+# 7.1 added a third for command support. Legend lines start with two spaces.
 _FILTER_ROW = re.compile(r"^ [.TSC]{2,3} ")
 # Beside the FFmpeg marker: what this workspace's last promotion installed,
 # and the exact configure arguments that build was made with.
@@ -165,11 +165,12 @@ def installed_program_digests(install_prefix: Path = INSTALL_PREFIX) -> str:
 
 
 class ConfigureOptions:
-    """An ordered, first-wins list of FFmpeg configure options.
+    """An ordered list of FFmpeg configure options without exact duplicates.
 
-    Order matters: FFmpeg's own configure is order-sensitive, and the first
-    occurrence of an option is the one that takes effect, so a later duplicate
-    must be dropped rather than appended.
+    Order is preserved because configure applies options in order (a later
+    `--enable-x`/`--disable-x` pair resolves to the last one). Only exact
+    duplicates are dropped, so the recorded receipt stays comparable between
+    runs that assemble the same options.
     """
 
     def __init__(self) -> None:
@@ -786,8 +787,8 @@ class FFmpegStage:
             ("libv4l2", ("libv4l2",), "--enable-libv4l2"),
             ("xlib", (), ""),
             ("libvpx", ("vpx",), "--enable-libvpx"),
-            ("libopenh264", ("openh264 >= 1.3.0",), "--enable-libopenh264"),
-            ("libopenmpt", ("libopenmpt >= 0.2.6557",), "--enable-libopenmpt"),
+            ("libopenh264", ("openh264",), "--enable-libopenh264"),
+            ("libopenmpt", ("libopenmpt",), "--enable-libopenmpt"),
             ("librtmp", ("librtmp",), "--enable-librtmp"),
             ("librsvg", ("librsvg-2.0",), "--enable-librsvg"),
             ("alsa", ("alsa",), "--enable-alsa"),

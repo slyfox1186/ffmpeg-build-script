@@ -46,7 +46,7 @@ def install_audio_libraries(context: BuildContext) -> None:
     workspace = context.workspace
 
     libsoxr_version = context.fetch_version_if_enabled(
-        "libsoxr", lambda: find_git_repo(context.versions, "chirlu/soxr", 1)
+        "libsoxr", lambda: find_git_repo(context.versions, "chirlu/soxr")
     )
     if context.build("libsoxr", libsoxr_version):
         source = context.download(
@@ -87,7 +87,6 @@ def install_audio_libraries(context: BuildContext) -> None:
             "-DSDL_SHARED=OFF",
             "-DSDL_STATIC=ON",
             "-DSDL_TESTS=OFF",
-            "-DSDL2_DISABLE_INSTALL_DOCS=ON",
         )
         # A static workspace libiconv has to appear in SDL's private link
         # dependencies; glibc-based system builds do not need -liconv.
@@ -96,7 +95,7 @@ def install_audio_libraries(context: BuildContext) -> None:
         context.build_done("sdl2", sdl2_version)
 
     libsndfile_version = context.fetch_version_if_enabled(
-        "libsndfile", lambda: find_git_repo(context.versions, "libsndfile/libsndfile", 1)
+        "libsndfile", lambda: find_git_repo(context.versions, "libsndfile/libsndfile")
     )
     if context.build("libsndfile", libsndfile_version):
         source = context.download(
@@ -116,7 +115,7 @@ def install_audio_libraries(context: BuildContext) -> None:
         context.build_done("libsndfile", libsndfile_version)
 
     libogg_version = context.fetch_version_if_enabled(
-        "libogg", lambda: find_git_repo(context.versions, "xiph/ogg", 1)
+        "libogg", lambda: find_git_repo(context.versions, "xiph/ogg")
     )
     if context.build("libogg", libogg_version):
         source = context.download(
@@ -136,7 +135,7 @@ def install_audio_libraries(context: BuildContext) -> None:
 
     if context.nonfree_and_gpl:
         fdk_version = context.fetch_version_if_enabled(
-            "libfdk-aac", lambda: find_git_repo(context.versions, "mstorsjo/fdk-aac", 1)
+            "libfdk-aac", lambda: find_git_repo(context.versions, "mstorsjo/fdk-aac")
         )
         if context.build("libfdk-aac", fdk_version):
             source = context.download(
@@ -149,7 +148,7 @@ def install_audio_libraries(context: BuildContext) -> None:
         context.append_configure_options_if_enabled("libfdk-aac", "--enable-libfdk-aac")
 
     vorbis_version = context.fetch_version_if_enabled(
-        "vorbis", lambda: find_git_repo(context.versions, "xiph/vorbis", 1)
+        "vorbis", lambda: find_git_repo(context.versions, "xiph/vorbis")
     )
     if context.build("vorbis", vorbis_version):
         source = context.download(
@@ -185,7 +184,7 @@ def install_audio_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("vorbis", "--enable-libvorbis")
 
     libopus_version = context.fetch_version_if_enabled(
-        "libopus", lambda: find_git_repo(context.versions, "xiph/opus", 1)
+        "libopus", lambda: find_git_repo(context.versions, "xiph/opus")
     )
     if context.build("libopus", libopus_version):
         source = context.download(
@@ -206,7 +205,7 @@ def install_audio_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("libopus", "--enable-libopus")
 
     libmysofa_version = context.fetch_version_if_enabled(
-        "libmysofa", lambda: find_git_repo(context.versions, "hoene/libmysofa", 1)
+        "libmysofa", lambda: find_git_repo(context.versions, "hoene/libmysofa")
     )
     if context.build("libmysofa", libmysofa_version):
         source = context.download(
@@ -262,7 +261,7 @@ def install_audio_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("liblame", "--enable-libmp3lame")
 
     theora_version = context.fetch_version_if_enabled(
-        "libtheora", lambda: find_git_repo(context.versions, "xiph/theora", 1)
+        "libtheora", lambda: find_git_repo(context.versions, "xiph/theora")
     )
     if context.build("libtheora", theora_version):
         source = context.download(

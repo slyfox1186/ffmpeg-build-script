@@ -84,16 +84,28 @@ def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
     return (first.st_dev, first.st_ino) == (second.st_dev, second.st_ino)
 
 
-def _remove_at(parent_fd: int, name: str, device: int) -> None:
+def _remove_at(parent_fd: int, name: str, device: int, last_entry: str = "") -> None:
     # Post-order traversal without Python recursion: valid source archives can
     # contain more directory levels than the interpreter's recursion limit.
-    pending: list[tuple[int, str, os.stat_result | None, int | None]] = [
-        (parent_fd, name, None, None)
+    pending: list[tuple[int, str, os.stat_result | None, int | None, bool]] = [
+        (parent_fd, name, None, None, False)
     ]
     opened: set[int] = set()
+    # Only the top directory's own entries may be held back.
+    held_back = last_entry
     try:
         while pending:
-            parent, child, expected, child_fd = pending.pop()
+            parent, child, expected, child_fd, deferred = pending.pop()
+            if deferred:
+                # An interrupt must never leave a populated directory without
+                # this entry, so it goes only when nothing else is left. Anything
+                # still here, such as another device's mount, keeps it, and the
+                # directory's rmdir then fails with ENOTEMPTY.
+                with os.scandir(parent) as entries:
+                    remaining = [entry.name for entry in entries]
+                if remaining == [child]:
+                    pending.append((parent, child, None, None, False))
+                continue
             if child_fd is not None:
                 assert expected is not None
                 if not _same_inode(expected, os.stat(child, dir_fd=parent, follow_symlinks=False)):
@@ -118,19 +130,30 @@ def _remove_at(parent_fd: int, name: str, device: int) -> None:
             opened.add(fd)
             if not _same_inode(inspected, os.fstat(fd)):
                 raise OSError(errno.ESTALE, "Directory changed before removal", child)
-            pending.append((parent, child, inspected, fd))
+            pending.append((parent, child, inspected, fd, False))
             with os.scandir(fd) as entries:
-                pending.extend((fd, entry.name, None, None) for entry in entries)
+                names = [entry.name for entry in entries]
+            # Pushed beneath its siblings, so it is popped after all of them
+            # and their subtrees and just before this directory's own rmdir.
+            if held_back and held_back in names:
+                names.remove(held_back)
+                pending.append((fd, held_back, None, None, True))
+            held_back = ""
+            pending.extend((fd, entry, None, None, False) for entry in names)
     finally:
         for fd in opened:
             os.close(fd)
 
 
-def remove_tree_one_filesystem(target: Path) -> None:
+def remove_tree_one_filesystem(target: Path, *, last_entry: str = "") -> None:
     """Remove through pinned directory descriptors, staying on one device.
 
     Device boundaries are preserved, as with rm --one-file-system. A bind
     mount of the same device is not distinguishable by st_dev.
+
+    `last_entry`, a name directly inside `target`, is removed only once it is
+    the last thing left there, so an interrupted or partial removal leaves it
+    in place for as long as anything else remains.
     """
     if target.absolute() == Path("/"):
         raise BuildError("Refusing to remove '/'.")
@@ -143,7 +166,7 @@ def remove_tree_one_filesystem(target: Path) -> None:
             inspected = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
         except FileNotFoundError:
             return
-        _remove_at(parent_fd, target.name, inspected.st_dev)
+        _remove_at(parent_fd, target.name, inspected.st_dev, last_entry)
     finally:
         os.close(parent_fd)
 
@@ -179,8 +202,13 @@ def tree_size(target: Path) -> int | None:
         return None
 
 
-def safe_remove_tree(target: str | os.PathLike[str], allowed_root: str | os.PathLike[str]) -> None:
-    """Remove one path only when it is a strict descendant of `allowed_root`."""
+def safe_remove_tree(
+    target: str | os.PathLike[str], allowed_root: str | os.PathLike[str], *, last_entry: str = ""
+) -> None:
+    """Remove one path only when it is a strict descendant of `allowed_root`.
+
+    `last_entry` is passed to remove_tree_one_filesystem.
+    """
     target_path = Path(target)
     if not target_path.exists() and not target_path.is_symlink():
         return
@@ -203,7 +231,7 @@ def safe_remove_tree(target: str | os.PathLike[str], allowed_root: str | os.Path
     # would let the kernel re-resolve it after the containment check, so the
     # check and the deletion could disagree about which tree is being removed.
     try:
-        remove_tree_one_filesystem(resolved_target)
+        remove_tree_one_filesystem(resolved_target, last_entry=last_entry)
     except OSError as error:
         raise BuildError(f"Failed to remove bounded path '{resolved_target}': {error}") from error
 

@@ -19,6 +19,7 @@ import os
 import shlex
 import stat
 from pathlib import Path
+from typing import IO
 
 from ..runtime.context import BuildContext
 from ..runtime.errors import BuildError
@@ -184,30 +185,58 @@ def update_links(link_dir: Path, install_bin: Path) -> list[str]:
     return sorted(set(foreign))
 
 
+_UNCHANGED = "so it was not changed. Add these lines at its end:"
+
+
+def _reason(error: OSError) -> str:
+    return error.strerror or str(error)
+
+
 def append_block(rc_file: Path, block: str) -> str:
-    """Add `block` to `rc_file` once. Returns 'added', 'present' or why it was not edited."""
-    if rc_file.exists():
-        resolved = rc_file.resolve()
-        status = resolved.stat()
-        if not stat.S_ISREG(status.st_mode):
-            return f"'{resolved}' is not a regular file"
-        if status.st_uid != os.geteuid():
-            return f"'{resolved}' is owned by another user"
-        data = resolved.read_bytes()
-        current = existing_block(data.decode("utf-8", errors="surrogateescape"))
-        if current is None:
-            return f"'{resolved}' has an incomplete or repeated '{BLOCK_START}' block"
-        if current:
-            if current.replace("\r\n", "\n") == block:
-                return "present"
-            return f"'{resolved}' already has a different '{BLOCK_START}' block"
-        separator = b"" if not data else (b"\n" if data.endswith(b"\n") else b"\n\n")
-        with open(resolved, "ab") as stream:
+    """Add `block` to `rc_file` once.
+
+    Returns 'added', 'present', or a sentence for the user that ends by asking
+    them to add the block themselves, which the caller prints after it.
+    """
+    target = rc_file
+    stream: IO[bytes]
+    try:
+        if rc_file.is_symlink() and not rc_file.exists():
+            return f"'{rc_file}' is a broken symlink, {_UNCHANGED}"
+        if rc_file.exists():
+            target = rc_file.resolve()
+            status = target.stat()
+            if not stat.S_ISREG(status.st_mode):
+                return f"'{target}' is not a regular file, {_UNCHANGED}"
+            if status.st_uid != os.geteuid():
+                return f"'{target}' is owned by another user, {_UNCHANGED}"
+            data = target.read_bytes()
+            current = existing_block(data.decode("utf-8", errors="surrogateescape"))
+            if current is None:
+                return (
+                    f"'{target}' has an incomplete or repeated '{BLOCK_START}' block, {_UNCHANGED}"
+                )
+            if current:
+                if current.replace("\r\n", "\n") == block:
+                    return "present"
+                return f"'{target}' already has a different '{BLOCK_START}' block, {_UNCHANGED}"
+            stream = open(target, "ab")
+        else:
+            data = b""
+            descriptor = os.open(rc_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+            stream = os.fdopen(descriptor, "wb")
+    except OSError as error:
+        return f"'{target}' could not be opened ({_reason(error)}), {_UNCHANGED}"
+    separator = b"" if not data else (b"\n" if data.endswith(b"\n") else b"\n\n")
+    try:
+        with stream:
+            # One write, so a failure can leave at most a prefix of the block.
             stream.write(separator + block.encode("utf-8"))
-        return "added"
-    descriptor = os.open(rc_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-        stream.write(block)
+    except OSError as error:
+        return (
+            f"Writing to '{target}' failed ({_reason(error)}); it may now hold a partial "
+            "block. Check its end before adding these lines:"
+        )
     return "added"
 
 
@@ -257,7 +286,11 @@ def _set_program_path(
     block = render_block(env_script)
     managed = False
     if rc_file is not None and rc_file.is_file():
-        text = rc_file.read_bytes().decode("utf-8", errors="surrogateescape")
+        # An unreadable file still gets the links, then append_block reports why.
+        try:
+            text = rc_file.read_bytes().decode("utf-8", errors="surrogateescape")
+        except OSError:
+            text = ""
         managed = bool(existing_block(text))
     if not hidden and not managed:
         logger.info(
@@ -266,7 +299,7 @@ def _set_program_path(
         )
         return
     if any(character in str(app_dir) for character in ":\n"):
-        raise BuildError(f"'{app_dir}' cannot be placed on PATH because it contains ':'.")
+        raise BuildError(f"'{app_dir}' cannot be placed on PATH: it contains ':' or a newline.")
 
     foreign = update_links(link_dir, install_bin)
     publish_atomically(env_script, render_env_script(link_dir), mode=0o644)
@@ -297,7 +330,7 @@ def _set_program_path(
 
     outcome = append_block(rc_file, block)
     if outcome not in ("added", "present"):
-        logger.warn(f"{outcome}, so it was not changed. Add these lines at its end:\n{block}")
+        logger.warn(f"{outcome}\n{block}")
         return
     if outcome == "added":
         logger.info(f"Added the PATH block to the end of '{rc_file}'.")

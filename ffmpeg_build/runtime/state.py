@@ -198,8 +198,8 @@ def assert_safe_build_root(candidate: Path, repository_root: Path) -> None:
 def render_build_context(fields: dict[str, str], package_states: dict[str, bool]) -> str:
     """Serialize the fingerprint exactly as every earlier release wrote it.
 
-    The seven `%q`-encoded fields keep their Bash encoding so a workspace
-    created by 7.0.0 still compares equal here.
+    The `%q`-encoded fields keep their Bash encoding so a workspace created
+    by 7.0.0 still compares equal here.
     """
     lines = [BUILD_CONTEXT_FORMAT]
     for name in ("script_version", "compiler", "gpl_and_non_free", "rust_toolchain", "cargo_c"):

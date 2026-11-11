@@ -121,7 +121,7 @@ def install_global_tools(context: BuildContext) -> None:
     _install_pkg_config(context)
 
     cmake_version = context.fetch_version_if_enabled(
-        "cmake", lambda: find_git_repo(context.versions, "Kitware/CMake", 1)
+        "cmake", lambda: find_git_repo(context.versions, "Kitware/CMake")
     )
     if context.build("cmake", cmake_version):
         source = context.download(
@@ -161,7 +161,7 @@ def install_global_tools(context: BuildContext) -> None:
         context.build_done("cmake", cmake_version)
 
     meson_version = context.fetch_version_if_enabled(
-        "meson", lambda: find_git_repo(context.versions, "mesonbuild/meson", 1)
+        "meson", lambda: find_git_repo(context.versions, "mesonbuild/meson")
     )
     if context.build("meson", meson_version):
         setup_python_venv(
@@ -176,7 +176,7 @@ def install_global_tools(context: BuildContext) -> None:
     context.path_prepend(workspace / "python_virtual_environment/build-tools/bin")
 
     ninja_version = context.fetch_version_if_enabled(
-        "ninja", lambda: find_git_repo(context.versions, "ninja-build/ninja", 1)
+        "ninja", lambda: find_git_repo(context.versions, "ninja-build/ninja")
     )
     if context.build("ninja", ninja_version):
         source = context.download(
@@ -188,7 +188,7 @@ def install_global_tools(context: BuildContext) -> None:
         context.build_done("ninja", ninja_version)
 
     zstd_version = context.fetch_version_if_enabled(
-        "libzstd", lambda: find_git_repo(context.versions, "facebook/zstd", 1)
+        "libzstd", lambda: find_git_repo(context.versions, "facebook/zstd")
     )
     if context.build("libzstd", zstd_version):
         source = context.download(
@@ -236,16 +236,15 @@ def install_global_tools(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("librist", "--enable-librist")
 
     zlib_version = context.fetch_version_if_enabled(
-        "zlib", lambda: find_git_repo(context.versions, "madler/zlib", 1)
+        "zlib", lambda: find_git_repo(context.versions, "madler/zlib")
     )
     if context.build("zlib", zlib_version):
         source = context.download(
             f"https://github.com/madler/zlib/releases/download/v{zlib_version}"
             f"/zlib-{zlib_version}.tar.xz"
         )
-        # zlib 1.3.x's CMake build always creates both shared and static
-        # targets. Its documented --static configure path builds only the
-        # archive this workspace consumes.
+        # The documented --static configure path builds only the archive this
+        # workspace consumes, with no CMake option set to keep in step.
         configure_make_install(context, source, "--static")
         context.build_done("zlib", zlib_version)
 

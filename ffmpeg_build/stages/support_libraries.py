@@ -36,7 +36,7 @@ def install_support_libraries(context: BuildContext) -> None:
     _install_fonts(context)
 
     freeglut_version = context.fetch_version_if_enabled(
-        "freeglut", lambda: find_git_repo(context.versions, "freeglut/freeglut", 1)
+        "freeglut", lambda: find_git_repo(context.versions, "freeglut/freeglut")
     )
     if context.build("freeglut", freeglut_version):
         source = context.download(
@@ -89,7 +89,7 @@ def install_support_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("libwebp-git", "--enable-libwebp")
 
     libhwy_version = context.fetch_version_if_enabled(
-        "libhwy", lambda: find_git_repo(context.versions, "google/highway", 1)
+        "libhwy", lambda: find_git_repo(context.versions, "google/highway")
     )
     if context.build("libhwy", libhwy_version):
         source = context.download(
@@ -112,7 +112,7 @@ def install_support_libraries(context: BuildContext) -> None:
         context.build_done("libhwy", libhwy_version)
 
     brotli_version = context.fetch_version_if_enabled(
-        "brotli", lambda: find_git_repo(context.versions, "google/brotli", 1)
+        "brotli", lambda: find_git_repo(context.versions, "google/brotli")
     )
     if context.build("brotli", brotli_version):
         source = context.download(
@@ -130,7 +130,7 @@ def install_support_libraries(context: BuildContext) -> None:
         context.build_done("brotli", brotli_version)
 
     lcms2_version = context.fetch_version_if_enabled(
-        "lcms2", lambda: find_git_repo(context.versions, "mm2/Little-CMS", 1)
+        "lcms2", lambda: find_git_repo(context.versions, "mm2/Little-CMS")
     )
     if context.build("lcms2", lcms2_version):
         source = context.download(
@@ -154,7 +154,7 @@ def install_support_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("lcms2", "--enable-lcms2")
 
     gflags_version = context.fetch_version_if_enabled(
-        "gflags", lambda: find_git_repo(context.versions, "gflags/gflags", 1)
+        "gflags", lambda: find_git_repo(context.versions, "gflags/gflags")
     )
     if context.build("gflags", gflags_version):
         source = context.download(
@@ -217,7 +217,7 @@ def install_support_libraries(context: BuildContext) -> None:
         context.build_done("vulkan-headers-git", vulkan_commit)
 
     libjpeg_version = context.fetch_version_if_enabled(
-        "libjpeg-turbo", lambda: find_git_repo(context.versions, "libjpeg-turbo/libjpeg-turbo", 1)
+        "libjpeg-turbo", lambda: find_git_repo(context.versions, "libjpeg-turbo/libjpeg-turbo")
     )
     if context.build("libjpeg-turbo", libjpeg_version):
         source = context.download(
@@ -232,7 +232,6 @@ def install_support_libraries(context: BuildContext) -> None:
             "-DENABLE_STATIC=ON",
             "-DWITH_JPEG8=1",
             "-DWITH_TURBOJPEG=ON",
-            "-DWITH_JAVA=OFF",
         )
         context.build_done("libjpeg-turbo", libjpeg_version)
 
@@ -259,7 +258,7 @@ def install_support_libraries(context: BuildContext) -> None:
         context.append_configure_options_if_enabled("rubberband-git", "--enable-librubberband")
 
     cares_version = context.fetch_version_if_enabled(
-        "c-ares", lambda: find_git_repo(context.versions, "c-ares/c-ares", 1)
+        "c-ares", lambda: find_git_repo(context.versions, "c-ares/c-ares")
     )
     if context.build("c-ares", cares_version):
         source = context.download(
@@ -287,7 +286,7 @@ def install_support_libraries(context: BuildContext) -> None:
     _install_lv2_stack(context)
 
     jemalloc_version = context.fetch_version_if_enabled(
-        "jemalloc", lambda: find_git_repo(context.versions, "jemalloc/jemalloc", 1)
+        "jemalloc", lambda: find_git_repo(context.versions, "jemalloc/jemalloc")
     )
     if context.build("jemalloc", jemalloc_version):
         source = context.download(
@@ -360,7 +359,6 @@ def _install_gnutls_stack(context: BuildContext) -> None:
                     "cxx",
                     "doc",
                     "gtk-doc-html",
-                    "guile",
                     "libdane",
                     "nls",
                     "shared",
@@ -368,7 +366,7 @@ def _install_gnutls_stack(context: BuildContext) -> None:
                     "tools",
                 )
             ],
-            *[f"--enable-{feature}" for feature in ("local-libopts", "static")],
+            "--enable-static",
             *[f"--with-included-{component}" for component in ("libtasn1", "unistring")],
             "--without-p11-kit",
             f"CPPFLAGS={context.env.get('CPPFLAGS', '')}",
@@ -382,21 +380,19 @@ def _install_gnutls_stack(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("gmp", "--enable-gmp")
 
 
-def _version_and_source(
-    resolved: ResolvedVersion | str | None, *, marker_source: str = "release"
-) -> tuple[str | None, str]:
-    """Normalize what `fetch_version_if_enabled` returned for a font package.
+def _version_and_source(resolved: ResolvedVersion | str | None) -> tuple[str | None, str]:
+    """Normalize what `fetch_version_if_enabled` returned for FreeType.
 
-    A fresh lookup reports which upstream answered, because FreeType and
-    Fontconfig publish differently named archives on their release mirror and
-    on GitLab. A marker has no source metadata, so use the package's current
-    archive host if missing artifacts require that recorded version to rebuild.
+    A fresh lookup reports which upstream answered, because FreeType publishes
+    differently named archives on its release mirror and on GitLab. A marker
+    has no source metadata, so a rebuild at a recorded version uses the
+    release mirror.
     """
     if resolved is None:
         return None, "release"
     if isinstance(resolved, ResolvedVersion):
         return resolved.version, resolved.source
-    return resolved, marker_source
+    return resolved, "release"
 
 
 def _install_fonts(context: BuildContext) -> None:
@@ -436,28 +432,16 @@ def _install_fonts(context: BuildContext) -> None:
         context.build_done("freetype", freetype_version)
     context.append_configure_options_if_enabled("freetype", "--enable-libfreetype")
 
-    fontconfig_version, fontconfig_source = _version_and_source(
-        context.fetch_version_if_enabled("fontconfig", context.versions.fontconfig),
-        marker_source="gitlab",
-    )
+    fontconfig_version = context.fetch_version_if_enabled("fontconfig", context.versions.fontconfig)
     if context.package_enabled("fontconfig") and fontconfig_version is None:
-        raise BuildError(
-            "Failed to detect Fontconfig version from the official Fontconfig release archive "
-            "or FreeDesktop GitLab."
-        )
+        raise BuildError("Failed to detect the Fontconfig version from FreeDesktop GitLab.")
     if context.build("fontconfig", fontconfig_version):
         assert fontconfig_version is not None
         with context.downloader.temporary_settings(**QUICK_MIRROR_SETTINGS):
-            if fontconfig_source == "gitlab":
-                source = context.downloader.download_with_fallback(
-                    fontconfig_gitlab_archive_url(fontconfig_version),
-                    fontconfig_release_archive_url(fontconfig_version),
-                )
-            else:
-                source = context.download(
-                    fontconfig_release_archive_url(fontconfig_version),
-                    f"fontconfig-{fontconfig_version}.tar.xz",
-                )
+            source = context.downloader.download_with_fallback(
+                fontconfig_gitlab_archive_url(fontconfig_version),
+                fontconfig_release_archive_url(fontconfig_version),
+            )
         meson_ninja_install(
             context,
             source,
@@ -473,7 +457,7 @@ def _install_fonts(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("fontconfig", "--enable-libfontconfig")
 
     harfbuzz_version = context.fetch_version_if_enabled(
-        "harfbuzz", lambda: find_git_repo(context.versions, "harfbuzz/harfbuzz", 1)
+        "harfbuzz", lambda: find_git_repo(context.versions, "harfbuzz/harfbuzz")
     )
     if context.build("harfbuzz", harfbuzz_version):
         source = context.download(
@@ -487,6 +471,9 @@ def _install_fonts(context: BuildContext) -> None:
             "--buildtype=release",
             "--default-library=static",
             "--strip",
+            # FFmpeg's drawtext filter uses hb-ft, so the backend is required
+            # rather than auto-detected.
+            "-Dfreetype=enabled",
             *[
                 f"-D{feature}=disabled"
                 for feature in (
@@ -508,7 +495,7 @@ def _install_fonts(context: BuildContext) -> None:
     # c2man is deliberately skipped: it does not build on modern systems and is
     # only needed for the documentation this build disables.
     fribidi_version = context.fetch_version_if_enabled(
-        "fribidi", lambda: find_git_repo(context.versions, "fribidi/fribidi", 1)
+        "fribidi", lambda: find_git_repo(context.versions, "fribidi/fribidi")
     )
     if context.build("fribidi", fribidi_version):
         source = context.download(
@@ -527,7 +514,7 @@ def _install_fonts(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("fribidi", "--enable-libfribidi")
 
     libass_version = context.fetch_version_if_enabled(
-        "libass", lambda: find_git_repo(context.versions, "libass/libass", 1)
+        "libass", lambda: find_git_repo(context.versions, "libass/libass")
     )
     if context.build("libass", libass_version):
         source = context.download(
@@ -541,6 +528,8 @@ def _install_fonts(context: BuildContext) -> None:
             "--buildtype=release",
             "--default-library=static",
             "-Dauto_features=disabled",
+            # auto_features=disabled would also drop the NASM kernels.
+            "-Dasm=enabled",
             "-Dfontconfig=enabled",
         )
         context.build_done("libass", libass_version)
@@ -601,7 +590,7 @@ def _install_lv2_stack(context: BuildContext) -> None:
 
     pcre2_version = context.fetch_version_if_enabled(
         "pcre2",
-        lambda: context.versions.resolver.github_version("PCRE2Project/pcre2", "pcre2-", "RC"),
+        lambda: context.versions.resolver.github_version("PCRE2Project/pcre2", "pcre2-"),
     )
     if context.build("pcre2", pcre2_version):
         source = context.download(
@@ -613,7 +602,7 @@ def _install_lv2_stack(context: BuildContext) -> None:
         context.build_done("pcre2", pcre2_version)
 
     zix_version = context.fetch_version_if_enabled(
-        "zix", lambda: find_git_repo(context.versions, "drobilla/zix", 1)
+        "zix", lambda: find_git_repo(context.versions, "drobilla/zix")
     )
     if context.build("zix", zix_version):
         source = context.download(

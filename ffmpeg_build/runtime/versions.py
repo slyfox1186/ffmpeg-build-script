@@ -1,8 +1,10 @@
 """Upstream release discovery.
 
-Every fetcher returns a version string or None. None means "upstream could not
-be reached or published nothing usable". Enabled packages fail explicitly;
-there is no fixed-version fallback that could masquerade as the latest release.
+A fetcher returns a version string, or None when upstream could not be reached
+or published nothing usable; the GNU mirror and x264 lookups raise instead,
+because their failure has no recorded version to fall back on. Enabled
+packages fail explicitly; there is no fixed-version fallback that could
+masquerade as the latest release.
 """
 
 from __future__ import annotations
@@ -152,20 +154,15 @@ class VersionResolver:
     def select_prefixed_version(
         references: Sequence[str],
         prefix: str = "v",
-        exclude_pattern: str = "",
         version_pattern: re.Pattern[str] = DEFAULT_VERSION_PATTERN,
-        index: int = 1,
     ) -> str | None:
-        """Pick the nth-newest tag matching a prefix and shape."""
-        if index < 1:
-            raise BuildError("Version selection index must be a positive integer.")
-        exclude = re.compile(exclude_pattern) if exclude_pattern else None
+        """Pick the newest tag matching a prefix and shape.
+
+        The shape is a full match on the part after the prefix, so a tag such
+        as `v1.2.0-rc1` or `R72-RC1` is rejected by the numeric pattern itself.
+        """
         versions: list[str] = []
         for reference in references:
-            if not reference or reference == "null":
-                continue
-            if exclude is not None and exclude.search(reference):
-                continue
             if prefix:
                 if not reference.startswith(prefix):
                     continue
@@ -177,8 +174,7 @@ class VersionResolver:
             versions.append(version)
         if not versions:
             return None
-        ordered = version_sort(versions, reverse=True, unique=True)
-        return ordered[index - 1] if index <= len(ordered) else None
+        return version_sort(versions, reverse=True, unique=True)[0]
 
     # -- hosted forges ---------------------------------------------------
 
@@ -186,9 +182,7 @@ class VersionResolver:
         self,
         repository: str,
         prefix: str = "v",
-        exclude_pattern: str = "",
         version_pattern: re.Pattern[str] = DEFAULT_VERSION_PATTERN,
-        index: int = 1,
     ) -> str | None:
         if not _REPO_NAME.match(repository):
             raise BuildError(f"Invalid repository name format: '{repository}'.")
@@ -196,30 +190,11 @@ class VersionResolver:
         if tags is None:
             self.logger.warn(f"Failed to fetch tags for GitHub repository '{repository}'.")
             return None
-        version = self.select_prefixed_version(
-            tags, prefix, exclude_pattern, version_pattern, index
-        )
+        version = self.select_prefixed_version(tags, prefix, version_pattern)
         if version is None:
             self.logger.warn(
                 f"github_version: no version found for '{repository}' ('prefix={prefix}')."
             )
-        return version
-
-    def github_version_any_prefix(self, repository: str) -> str | None:
-        """Try the `v` prefix first, then no prefix.
-
-        The fallback for repositories whose tagging convention is not recorded
-        in `find_git_repo`.
-        """
-        if not _REPO_NAME.fullmatch(repository):
-            raise BuildError(f"Invalid repository name format: '{repository}'.")
-        tags = self.remote_tag_names(f"https://github.com/{repository}.git")
-        if tags is None:
-            self.logger.warn(f"Failed to fetch tags for GitHub repository '{repository}'.")
-            return None
-        version = self.select_prefixed_version(tags, "v") or self.select_prefixed_version(tags, "")
-        if version is None:
-            self.logger.warn(f"github_version: no stable version found for '{repository}'.")
         return version
 
     def gitlab_version(
@@ -227,16 +202,8 @@ class VersionResolver:
         base_url: str,
         project: str,
         prefix: str = "v",
-        separator: str = ".",
-        version_pattern: re.Pattern[str] | None = None,
-        index: int = 1,
+        version_pattern: re.Pattern[str] = DEFAULT_VERSION_PATTERN,
     ) -> str | None:
-        if version_pattern is None:
-            version_pattern = (
-                re.compile(r"^[0-9]+(-[0-9]+){2,3}$")
-                if separator == "-"
-                else DEFAULT_VERSION_PATTERN
-            )
         if not base_url.startswith("https://") or not _REPO_NAME.match(project):
             return None
         tags = self.remote_tag_names(f"{base_url}/{project}.git")
@@ -245,11 +212,10 @@ class VersionResolver:
                 f"gitlab_version: failed to fetch tags for '{project}' from '{base_url}'."
             )
             return None
-        version = self.select_prefixed_version(tags, prefix, "", version_pattern, index)
+        version = self.select_prefixed_version(tags, prefix, version_pattern)
         if version is None:
             self.logger.warn(
-                f"gitlab_version: no version found for '{project}' "
-                f"('prefix={prefix}', 'sep={separator}')."
+                f"gitlab_version: no version found for '{project}' ('prefix={prefix}')."
             )
         return version
 
@@ -274,7 +240,7 @@ class VersionResolver:
         else:
             ordered_candidates = [index_url]
         for url in ordered_candidates:
-            listing = self.fetch_text(url, max_time=10)
+            listing = self.fetch_text(url)
             if listing is None:
                 continue
             if "libtool" in url:
@@ -289,11 +255,9 @@ class VersionResolver:
                 pattern = re.compile(
                     r"[a-z]+-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.(?:tar\.gz|tar\.bz2|tar\.xz)"
                 )
-            matches = pattern.findall(listing)
-            ordered = version_sort(matches, reverse=True, unique=True)
-            for candidate in ordered:
-                if re.match(r"^[0-9]+(\.[0-9]+){1,2}$", candidate):
-                    return candidate
+            ordered = version_sort(pattern.findall(listing), reverse=True, unique=True)
+            if ordered:
+                return ordered[0]
         raise BuildError(
             f"Failed to detect latest version from '{index_url}' "
             f"(tried: '{' '.join(ordered_candidates)}')."

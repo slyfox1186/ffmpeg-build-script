@@ -92,10 +92,10 @@ libtesseract = true  # Optical character recognition for video filters
 libzvbi = true  # Teletext and vertical-blanking-interval decoding
 
 # Still-image codecs, color management, and image containers
-avif = true  # AV1 Image File Format encoding and decoding
+avif = false  # AV1 Image File Format library; FFmpeg's AVIF support is native and never links it
 giflib = false  # GIF codec; FFmpeg carries its own and no component here links this one
 lcms2 = true  # ICC color management with Little CMS
-libheif = true  # HEIF and AVIF image container support
+libheif = false  # HEIF and AVIF image container library; nothing built here links it
 libhwy = false  # SIMD primitives for JPEG XL, which arrives as the system libjxl-dev package
 libjpeg-turbo = true  # SIMD-accelerated JPEG; gpac probes for -ljpeg and links it
 libjxl = false  # System libjxl-dev integration; unavailable on Ubuntu 22.04

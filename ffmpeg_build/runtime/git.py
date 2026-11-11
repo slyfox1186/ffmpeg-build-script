@@ -22,7 +22,7 @@ from .paths import safe_remove_tree
 _REPO_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 _COMMIT = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 
-CLONE_MODES = ("shallow", "recurse", "full")
+CLONE_MODES = ("shallow", "recurse")
 
 
 class GitCloner:
@@ -79,9 +79,6 @@ class GitCloner:
 
         target_directory = self.packages / repository_name
         arguments = [
-            "timeout",
-            "--foreground",
-            str(self.clone_timeout),
             "git",
             "-c",
             "protocol.allow=never",
@@ -109,7 +106,9 @@ class GitCloner:
             self._register(clone_parent)
             clone_directory = clone_parent / "repository"
             status = self.runner.run_logged(
-                [*arguments, str(clone_directory)], env_overrides=environment
+                [*arguments, str(clone_directory)],
+                env_overrides=environment,
+                timeout=self.clone_timeout,
             )
             if status == 0:
                 break

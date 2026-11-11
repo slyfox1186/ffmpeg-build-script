@@ -82,7 +82,6 @@ REQUIRED_HOST_TOOLS = (
     "cmake",
     "curl",
     "flex",
-    "flock",
     "git",
     "make",
     "meson",
@@ -461,6 +460,8 @@ class SystemSetup:
                 request.require("libxml2-dev")
             if not enabled("freetype"):
                 request.require("libfreetype-dev")
+        if enabled("harfbuzz") and not enabled("freetype"):
+            request.require("libfreetype-dev")
         if enabled("libass"):
             if not enabled("fontconfig"):
                 request.require("libfontconfig-dev")
@@ -470,6 +471,8 @@ class SystemSetup:
                 request.require("libfribidi-dev")
             if not enabled("harfbuzz"):
                 request.require("libharfbuzz-dev")
+        if enabled("libdvdnav") and not enabled("libdvdread"):
+            request.require("libdvdread-dev")
         if enabled("lilv") and not enabled("lv2-git"):
             request.require("lv2-dev")
         if enabled("lilv"):
@@ -635,7 +638,7 @@ class SystemSetup:
 
     def run(self) -> None:
         context = self.context
-        for tool in ("apt", "dpkg-query", "readlink"):
+        for tool in ("apt", "dpkg-query"):
             if self.runner.which(tool) is None:
                 raise BuildError(f"Required command(s) not found: '{tool}'.")
         self.detect_operating_system()

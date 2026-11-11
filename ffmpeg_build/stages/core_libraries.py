@@ -14,7 +14,7 @@ def install_core_libraries(context: BuildContext) -> None:
     workspace = context.workspace
 
     yasm_version = context.fetch_version_if_enabled(
-        "yasm", lambda: find_git_repo(context.versions, "yasm/yasm", 1)
+        "yasm", lambda: find_git_repo(context.versions, "yasm/yasm")
     )
     if context.build("yasm", yasm_version):
         source = context.download(
@@ -67,7 +67,7 @@ def install_core_libraries(context: BuildContext) -> None:
         context.build_done("libiconv", libiconv_version)
 
     libxml2_version = context.fetch_version_if_enabled(
-        "libxml2", lambda: find_git_repo(context.versions, "GNOME/libxml2", 1)
+        "libxml2", lambda: find_git_repo(context.versions, "GNOME/libxml2")
     )
     if context.build("libxml2", libxml2_version):
         source = context.download(
@@ -90,7 +90,7 @@ def install_core_libraries(context: BuildContext) -> None:
     context.append_configure_options_if_enabled("libxml2", "--enable-libxml2")
 
     libpng_version = context.fetch_version_if_enabled(
-        "libpng", lambda: find_git_repo(context.versions, "pnggroup/libpng", 1)
+        "libpng", lambda: find_git_repo(context.versions, "pnggroup/libpng")
     )
     if context.build("libpng", libpng_version):
         source = context.download(
@@ -109,7 +109,7 @@ def install_core_libraries(context: BuildContext) -> None:
         context.build_done("libpng", libpng_version)
 
     libtiff_version = context.fetch_version_if_enabled(
-        "libtiff", lambda: find_git_repo(context.versions, "libtiff/libtiff", 1)
+        "libtiff", lambda: find_git_repo(context.versions, "libtiff/libtiff")
     )
     if context.build("libtiff", libtiff_version):
         source = context.download(

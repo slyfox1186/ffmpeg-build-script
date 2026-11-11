@@ -12,7 +12,7 @@ def install_image_libraries(context: BuildContext) -> None:
     workspace = context.workspace
 
     libheif_version = context.fetch_version_if_enabled(
-        "libheif", lambda: find_git_repo(context.versions, "strukturag/libheif", 1)
+        "libheif", lambda: find_git_repo(context.versions, "strukturag/libheif")
     )
     if context.build("libheif", libheif_version):
         source = context.download(
@@ -64,7 +64,7 @@ def install_image_libraries(context: BuildContext) -> None:
         context.build_done("libheif", libheif_version)
 
     openjpeg_version = context.fetch_version_if_enabled(
-        "openjpeg", lambda: find_git_repo(context.versions, "uclouvain/openjpeg", 1)
+        "openjpeg", lambda: find_git_repo(context.versions, "uclouvain/openjpeg")
     )
     if context.build("openjpeg", openjpeg_version):
         source = context.download(

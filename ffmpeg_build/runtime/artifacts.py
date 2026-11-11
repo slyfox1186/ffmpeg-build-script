@@ -143,6 +143,24 @@ FREEGLUT_MODULE_ALTERNATIVES = (("glut",), ("freeglut",))
 OPENSSL_DIRECTORY = "/usr/lib/ssl"
 
 
+def libass_has_assembly_kernels(workspace: Path) -> bool:
+    """True when the workspace libass carries its NASM-built x86 kernels.
+
+    A libass configured with its `asm` feature off renders subtitles with the
+    C fallbacks. The archive names the kernels as global symbols
+    (`ass_add_bitmaps_avx2` since 0.13), so an archive without that name was
+    built without them and is rebuilt once at its recorded release.
+    """
+    for candidate in ("lib64/libass.a", "lib/libass.a"):
+        archive = workspace / candidate
+        if archive.is_file():
+            try:
+                return b"ass_add_bitmaps_avx2\0" in archive.read_bytes()
+            except OSError:
+                return False
+    return False
+
+
 def openssl_uses_system_directory(workspace: Path) -> bool:
     """True when the workspace libcrypto trusts the system CA store.
 

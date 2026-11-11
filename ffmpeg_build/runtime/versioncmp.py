@@ -1,10 +1,11 @@
 """GNU `sort -V` ordering.
 
-Seventeen upstream version fetchers pick the newest release by piping tag names
-through `sort -V`, so the port needs the same total order. The standard library
-has no equivalent: `distutils` was removed in 3.12 and `packaging` is not
-stdlib, and neither implements this ordering anyway — GNU's is a filename
-ordering that handles `~`, embedded digit runs and file suffixes, not PEP 440.
+Release discovery picks the newest tag or archive name with this order, the
+one the project's Bash predecessor got from `sort -V`, so recorded versions
+keep comparing the same way. The standard library has no equivalent:
+`distutils` was removed in 3.12 and `packaging` is not stdlib, and neither
+implements this ordering anyway — GNU's is a filename ordering that handles
+`~`, embedded digit runs and file suffixes, not PEP 440.
 
 This is a transcription of gnulib's `filevercmp`, which is what coreutils `sort
 -V` calls.
@@ -80,9 +81,9 @@ def _verrevcmp(left: str, right: str) -> int:
 
 
 def _prefix_length(value: str) -> int:
-    match = _FILE_SUFFIX.search(value)
-    prefix_length = match.start() if match else len(value)
-    return prefix_length if prefix_length else len(value)
+    # gnulib's file_prefixlen keeps at least the first character as prefix.
+    match = _FILE_SUFFIX.search(value, 1)
+    return match.start() if match else len(value)
 
 
 def version_compare(left: str, right: str) -> int:

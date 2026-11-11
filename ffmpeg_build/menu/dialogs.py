@@ -63,7 +63,7 @@ class PresetScreen(ModalScreen[str | None]):
         with VerticalScroll(classes="dialog"):
             yield Label("Package presets", classes="title")
             yield Static(
-                "Selecting a preset saves immediately. Press u afterwards to undo. Compiler, CPU target and build settings are preserved. Completed packages are reused when building.",
+                "Selecting a preset saves immediately. Press u afterwards to undo. Compiler, CPU target and build settings are preserved. Changing the selection of an existing build folder requires --cleanup before building.",
                 classes="hint",
             )
             yield OptionList(
@@ -191,11 +191,6 @@ class FileScreen(ModalScreen[None]):
             with Horizontal(classes="buttons"):
                 yield Button("Cancel", id="cancel")
                 yield Button(self.operation.title(), id=self.operation, variant="primary")
-
-    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "focus_button":
-            return isinstance(self.focused, Button)
-        return super().check_action(action, parameters)
 
     def action_switch_row(self) -> None:
         if isinstance(self.focused, Button):
@@ -335,7 +330,7 @@ g toggles GPL/non-free; l toggles latest-version checks.
 a / d enables or disables the entire category, including hidden search matches.
 p opens package presets. u undoes the last saved change (up to 50).
 f enables the current package's requirements; F fixes all requirements.
-D shows the full description and dependency details.
+D shows the current package's details and unmet requirements.
 e edits jobs, CUDA and build root for this session.
 
 Every package, compiler, CPU target, licence, latest-version, preset and undo change saves immediately. A failed save reverts the change and shows an error.

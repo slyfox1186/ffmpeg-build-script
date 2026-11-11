@@ -41,13 +41,17 @@ def load_dotenv(
     """Copy the declared assignments of `path` into `environ`; return warnings.
 
     A variable already set in `environ` wins, so the shell can override the
-    file for one run. A missing file sets nothing. An unreadable one raises
-    UsageError: silently falling back to defaults would, for example, build in
-    another BUILD_ROOT than the one the file names.
+    file for one run. An empty value sets nothing, so the template's "an empty
+    value means the default" holds for settings that reject an empty string.
+    A missing file sets nothing. An unreadable one raises UsageError: silently
+    falling back to defaults would, for example, build in another BUILD_ROOT
+    than the one the file names.
     """
     target = os.environ if environ is None else environ
     try:
-        text = path.read_text(encoding="utf-8")
+        # utf-8-sig: an editor's byte-order mark must not glue itself to the
+        # first name and hide that setting.
+        text = path.read_text(encoding="utf-8-sig")
     except FileNotFoundError:
         return []
     except (OSError, UnicodeDecodeError) as error:
@@ -72,7 +76,7 @@ def load_dotenv(
             continue
         values[name] = _value(assigned)
     for name, value in values.items():
-        if name not in target:
+        if value and name not in target:
             target[name] = value
     return warnings
 

@@ -118,7 +118,7 @@ def take_over_build_lock(lock: DirectoryLock, logger: Logger, *, timeout: float 
     Each parent is stopped before enumerating its children so it cannot fork
     new workers during takeover. A worker whose parent already exited is no
     longer anyone's child here, but it stays in its command's process group
-    (the runner starts every command but sudo in a group of its own), so each
+    (the runner starts every command, sudo included, in a group of its own), so each
     captured group leader's whole group is stopped and killed too. A group is
     signalled only while its stopped leader is alive, so its ID cannot have
     been reused. The owner's own group is shared with its shell and is never

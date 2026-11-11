@@ -44,14 +44,10 @@ def configure_make_install(
     context: BuildContext,
     source: Path,
     *options: str,
-    prefix: bool = True,
     install_target: str = "install",
     env_overrides: dict[str, str] | None = None,
 ) -> None:
-    arguments = ["sh", "configure"]
-    if prefix:
-        arguments.append(f"--prefix={context.workspace}")
-    arguments.extend(options)
+    arguments = ["sh", "configure", f"--prefix={context.workspace}", *options]
     context.execute(arguments, cwd=source, env_overrides=env_overrides)
     context.make(source)
     context.make(source, install_target, jobs=False)
@@ -280,7 +276,6 @@ def install_rustup(context: BuildContext) -> None:
     context.env["RUSTUP_TOOLCHAIN"] = rust_version
     cargo_home.mkdir(parents=True, exist_ok=True)
     rustup_home.mkdir(parents=True, exist_ok=True)
-    context.path_prepend(cargo_home / "bin")
 
     if not os.access(cargo_home / "bin/rustup", os.X_OK):
         # Staged in the workspace rather than $TMPDIR so the cleanup trap can

@@ -24,7 +24,6 @@ from .usage import (
     SCRIPT_VERSION,
     color_enabled,
     expand_short_options,
-    metadata_response,
     usage_text,
 )
 
@@ -34,7 +33,6 @@ __all__ = [
     "SCRIPT_VERSION",
     "color_enabled",
     "parse_arguments",
-    "requested_metadata",
     "resolve_config_path",
     "usage_text",
 ]
@@ -54,11 +52,6 @@ class Arguments:
         self.nonfree_and_gpl = False
         self.config_path: str | None = None
         self.set_path = False
-
-
-def requested_metadata(argv: list[str], color: bool = False) -> str | None:
-    """Answer `--help`/`--version` before any other work happens."""
-    return metadata_response(argv, color)
 
 
 def parse_arguments(argv: list[str]) -> Arguments:

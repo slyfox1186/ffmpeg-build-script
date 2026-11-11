@@ -103,7 +103,7 @@ DOTENV_SETTINGS = (
         "DOWNLOAD_MAX_TIME",
         "1800",
         "1800 (30 minutes)",
-        "Seconds one download may take in total. Raise it on a slow connection.",
+        "Seconds one download attempt may take. Raise it on a slow connection.",
     ),
     Setting(
         _DOWNLOADS,
